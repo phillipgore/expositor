@@ -8,3 +8,12 @@
 </svelte:head>
 
 <ToolbarMain></ToolbarMain>
+<div class="wrapper">
+	<slot />
+</div>
+
+<style>
+	.wrapper {
+		padding: 1.8rem;
+	}
+</style>

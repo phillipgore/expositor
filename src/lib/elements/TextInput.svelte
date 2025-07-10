@@ -1,0 +1,44 @@
+<script>
+	let { id, name, isFullWidth, isDisabled, isLarge } = $props();
+</script>
+
+<input
+	{id}
+	{name}
+	type="text"
+	class="{isFullWidth ? 'full-width' : ''} {isLarge ? 'large' : ''}"
+	disabled={isDisabled}
+/>
+
+<style>
+	input {
+		appearance: none;
+		border: solid 0.1rem var(--gray-700);
+		border-radius: 0.3rem;
+		height: 2.6rem;
+		padding: 0rem 0.6rem 0rem 0.6rem;
+		font-size: 1.4rem;
+		color: var(--black);
+		background-color: var(--white);
+
+		&.full-width {
+			width: 100%;
+		}
+
+		&.large {
+			height: 4.42rem;
+			padding: 0rem 1.02rem 0rem 1.02rem;
+			font-size: 2.4rem;
+		}
+
+		&:focus {
+			outline: none;
+			border-color: var(--system-blue);
+			box-shadow: 0rem 0rem 0.6rem var(--system-blue-alpha);
+		}
+
+		&:disabled {
+			background-color: var(--gray-900);
+		}
+	}
+</style>

@@ -2,4 +2,4 @@
 	import Heading from '$lib/elements/Heading.svelte';
 </script>
 
-<Heading heading="h1" classes="h4">Studies</Heading>
+<Heading heading="h1" classes="h4">Settings</Heading>

@@ -1,32 +1,36 @@
-html { 
-  font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
-  line-height: 1.15;
-  font-size: 62.5%;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  -webkit-text-size-adjust: 100%;
-  -webkit-box-sizing: border-box;
-  -moz-box-sizing: border-box;
-  box-sizing: border-box;
-  scroll-behavior: smooth;
+html {
+	font-family: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;
+	/* font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif; */
+	line-height: 1.15;
+	font-size: 62.5%;
+	min-height: 100%;
+	display: flex;
+	flex-direction: column;
+	-webkit-text-size-adjust: 100%;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+	scroll-behavior: smooth;
 }
 
-*, *::before, *::after { 
-  -webkit-box-sizing: inherit;
-  -moz-box-sizing: inherit;
-  box-sizing: inherit;
+*,
+*::before,
+*::after {
+	-webkit-box-sizing: inherit;
+	-moz-box-sizing: inherit;
+	box-sizing: inherit;
 }
 
-html, body {
-  margin: 0;
-  padding: 0;
+html,
+body {
+	margin: 0;
+	padding: 0;
 }
 
 body {
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-  font-size: 1.6rem;
-  background-color: var(--white);
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	font-size: 1.6rem;
+	background-color: var(--white);
 }
