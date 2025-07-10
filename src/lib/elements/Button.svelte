@@ -132,7 +132,7 @@
 		align-items: center;
 		white-space: nowrap;
 		border-radius: 0.3rem;
-		height: 2.4rem;
+		height: 2.6rem;
 		min-width: 4.8rem;
 		padding: 0rem 0.6rem;
 		/* margin:  0rem 0.3rem; */
@@ -153,8 +153,8 @@
 
 		&.round {
 			border-radius: 50%;
-			min-width: 2.4rem;
-			width: 2.4rem;
+			min-width: 2.6rem;
+			width: 2.6rem;
 			padding: 0rem;
 
 			&.large {
@@ -206,28 +206,44 @@
 			}
 
 			&.icon-fill-red :global(.icon path) {
-				fill: var(--red);
+				fill: var(--red-light);
+				stroke: var(--red-dark);
+				stroke-width: 0.15rem;
 			}
 			&.icon-fill-orange :global(.icon path) {
-				fill: var(--orange);
+				fill: var(--orange-light);
+				stroke: var(--orange-dark);
+				stroke-width: 0.15rem;
 			}
 			&.icon-fill-yellow :global(.icon path) {
-				fill: var(--yellow);
+				fill: var(--yellow-light);
+				stroke: var(--yellow-dark);
+				stroke-width: 0.15rem;
 			}
 			&.icon-fill-green :global(.icon path) {
-				fill: var(--green);
+				fill: var(--green-light);
+				stroke: var(--green-dark);
+				stroke-width: 0.15rem;
 			}
 			&.icon-fill-aqua :global(.icon path) {
-				fill: var(--aqua);
+				fill: var(--aqua-light);
+				stroke: var(--aqua-dark);
+				stroke-width: 0.15rem;
 			}
 			&.icon-fill-blue :global(.icon path) {
-				fill: var(--blue);
+				fill: var(--blue-light);
+				stroke: var(--blue-dark);
+				stroke-width: 0.15rem;
 			}
 			&.icon-fill-purple :global(.icon path) {
-				fill: var(--purple);
+				fill: var(--purple-light);
+				stroke: var(--purple-dark);
+				stroke-width: 0.15rem;
 			}
 			&.icon-fill-pink :global(.icon path) {
-				fill: var(--pink);
+				fill: var(--pink-light);
+				stroke: var(--pink-dark);
+				stroke-width: 0.15rem;
 			}
 
 			:global(.icon.blank path) {
@@ -251,28 +267,28 @@
 				}
 
 				&.icon-fill-red :global(.icon path) {
-					fill: var(--red);
+					fill: var(--red-light);
 				}
 				&.icon-fill-orange :global(.icon path) {
-					fill: var(--orange);
+					fill: var(--orange-light);
 				}
 				&.icon-fill-yellow :global(.icon path) {
-					fill: var(--yellow);
+					fill: var(--yellow-light);
 				}
 				&.icon-fill-green :global(.icon path) {
-					fill: var(--green);
+					fill: var(--green-light);
 				}
 				&.icon-fill-aqua :global(.icon path) {
-					fill: var(--aqua);
+					fill: var(--aqua-light);
 				}
 				&.icon-fill-blue :global(.icon path) {
-					fill: var(--blue);
+					fill: var(--blue-light);
 				}
 				&.icon-fill-purple :global(.icon path) {
-					fill: var(--purple);
+					fill: var(--purple-light);
 				}
 				&.icon-fill-pink :global(.icon path) {
-					fill: var(--pink);
+					fill: var(--pink-light);
 				}
 			}
 		}
@@ -280,8 +296,22 @@
 		&.menu-light:disabled {
 			color: var(--black);
 			opacity: 0.55;
+
 			:global(.icon path) {
 				fill: var(--gray-200);
+			}
+
+
+			&.icon-fill-red :global(.icon path),
+			&.icon-fill-orange :global(.icon path),
+			&.icon-fill-yellow :global(.icon path),
+			&.icon-fill-green :global(.icon path),
+			&.icon-fill-aqua :global(.icon path),
+			&.icon-fill-blue :global(.icon path),
+			&.icon-fill-purple :global(.icon path),
+			&.icon-fill-pink :global(.icon path) {
+				fill: var(--gray-700);
+				stroke: var(--gray-200);
 			}
 		}
 

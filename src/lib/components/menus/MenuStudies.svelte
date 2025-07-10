@@ -9,38 +9,26 @@
 <Menu {isActive} {menuOffset}>
 	<Button
 		classes="menu-light justify-content-left"
-		iconId="plus-circle"
-		label="New"
-		shortcut="<span>&#8984;SN</span>"
-	/>
-	<Button
-		classes="menu-light justify-content-left"
-		iconId="arrow-right-circle"
-		label="Open"
+		iconId="book"
+		label="Open Study"
+		url="/open"
 		shortcut="<span>&#8984;SO</span>"
 	/>
+	<Button
+		classes="menu-light justify-content-left"
+		iconId="plus"
+		label="New Study"
+		url="/new"
+		shortcut="<span>&#8984;SN</span>"
+	/>
 
-	<DividerHorizontal></DividerHorizontal>
+	<!-- <DividerHorizontal></DividerHorizontal>
 
 	<Button
 		classes="menu-light justify-content-left"
-		iconId="arrow-down-square"
-		label="New Inner"
-		shortcut="<span>&#8984;NI</span>"
-	/>
-	<Button
-		classes="menu-light justify-content-left"
-		iconId="arrow-up-square"
-		label="New Outer"
-		shortcut="<span>&#8984;NO</span>"
-	/>
-
-	<DividerHorizontal />
-
-	<Button
-		classes="menu-light justify-content-left"
-		iconId="compare"
-		label="New Comparative"
-		shortcut="<span>&#8984;NC</span>"
-	/>
+		iconId="pencil"
+		label="Edit Study"
+		shortcut="<span>&#8984;SE</span>"
+		isDisabled
+	/> -->
 </Menu>

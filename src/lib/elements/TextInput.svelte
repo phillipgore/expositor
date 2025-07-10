@@ -26,9 +26,9 @@
 		}
 
 		&.large {
-			height: 4.42rem;
-			padding: 0rem 1.02rem 0rem 1.02rem;
-			font-size: 2.4rem;
+			height: 4.40rem;
+			padding: 0rem 1.2rem 0rem 1.2rem;
+			font-size: 2.0rem;
 		}
 
 		&:focus {

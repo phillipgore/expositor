@@ -29,9 +29,10 @@
 	header {
 		display: flex;
 		align-items: center;
-		margin: 0rem;
-		padding: 0rem 0.9rem;
+		margin: 0.0rem;
+		padding: 0.0rem 0.9rem;
 		min-height: 5rem;
+		border: none;
 
 		&.rounded {
 			border-radius: 100vw;

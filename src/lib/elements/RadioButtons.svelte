@@ -35,7 +35,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
-		height: 2.4rem;
+		height: 2.6rem;
 
 		&.inline {
 			flex-direction: row;

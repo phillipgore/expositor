@@ -6,9 +6,8 @@
 	import Toolbar from '$lib/elements/Toolbar.svelte';
 
 	let groupedButtons = $state([
-		{ id: 'analyze', iconId: 'structure', underLabel: 'Analyze', isActive: true, isDisabled: true },
-		{ id: 'outline', iconId: 'outline', underLabel: 'Overview', isActive: false, isDisabled: true }
-		// {id: 'document', iconId: 'document', underLabel: 'Document', isActive: false},
+		{ id: 'analyze', iconId: 'structure', underLabel: 'Analyze', isActive: true, isDisabled: false },
+		{id: 'document', iconId: 'document', underLabel: 'Document', isActive: false, isDisabled: false },
 	]);
 
 	const setIsActive = (button) => {
@@ -24,16 +23,16 @@
 		classes="toolbar-dark"
 		iconId="book"
 		underLabelClasses="light"
-		underLabel="Studies"
-		url="/"
+		underLabel="Open"
+		url="/open"
 	></Button>
 
 	<Button
 		classes="toolbar-dark"
-		iconId="plus-circle"
+		iconId="plus"
 		underLabelClasses="light"
 		underLabel="New"
-		url="/new-study"
+		url="/new"
 	></Button>
 
 	<SpaceerFixed></SpaceerFixed>
@@ -97,6 +96,26 @@
 
 	<SpaceerFixed></SpaceerFixed>
 
+	<Button
+		classes="toolbar-dark"
+		iconId="wide"
+		isSwitch
+		underLabelClasses="light"
+		underLabel="Wide"
+		isDisabled
+	></Button>
+
+	<Button
+		classes="toolbar-dark"
+		iconId="outline"
+		isSwitch
+		underLabelClasses="light"
+		underLabel="Overview"
+		isDisabled
+	></Button>
+
+	<!-- <SpaceerFixed></SpaceerFixed>
+
 	<ButtonGrouped>
 		{#each groupedButtons as button}
 			<Button
@@ -111,9 +130,9 @@
 				isDisabled={button.isDisabled}
 			></Button>
 		{/each}
-	</ButtonGrouped>
+	</ButtonGrouped> -->
 
-	<SpacerFlex></SpacerFlex>
+	<!-- <SpaceerFixed></SpaceerFixed>
 
 	<Button
 		classes="toolbar-dark"
@@ -121,9 +140,9 @@
 		underLabelClasses="light"
 		underLabel="Delete"
 		isDisabled
-	></Button>
+	></Button> -->
 
-	<SpaceerFixed></SpaceerFixed>
+	<SpacerFlex></SpacerFlex>
 
 	<Button
 		classes="toolbar-dark"

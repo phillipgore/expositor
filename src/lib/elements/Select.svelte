@@ -98,6 +98,10 @@
 		border-radius: 0.3rem;
 		pointer-events: none;
 
+		:global(.icon) {
+			overflow: hidden;
+		}
+
 		&.disabled {
 			opacity: 0.55;
 

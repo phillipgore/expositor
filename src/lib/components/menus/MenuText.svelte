@@ -10,14 +10,14 @@
 	<Button
 		classes="menu-light justify-content-left"
 		iconId="text-split"
-		label="Split"
+		label="Split Text"
 		shortcut="<span>&#8984;TS</span>"
 		isDisabled
 	/>
 	<Button
 		classes="menu-light justify-content-left"
 		iconId="text-join"
-		label="Join"
+		label="Join Text"
 		shortcut="<span>&#8984;TJ</span>"
 		isDisabled
 	/>

@@ -33,6 +33,7 @@
 		-ms-overflow-style: none;
 		scrollbar-width: none;
 		margin: 0rem 0.2rem;
+		/* min-width: 12.6rem; */
 
 		&.menu-right {
 			right: 0rem;

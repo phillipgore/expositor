@@ -17,9 +17,9 @@
 			testament: testamentData[1]._id,
 			book: ntBookData[0]._id,
 			fromChapter: 1,
-			toChapter: ntBookData[0].chapterCount,
+			toChapter: 1,
 			fromVerse: 1,
-			toVerse: ntBookData[0].chapterData[0][ntBookData[0].chapterCount.toString()]
+			toVerse: ntBookData[0].chapterData[0]['1']
 		}
 	]);
 
@@ -38,7 +38,7 @@
 
 		<div class="title-container">
 			<Label forId="title" text="Title"></Label>
-			<TextInput id="title" name="title" isFullWidth></TextInput>
+			<TextInput id="title" name="title" isFullWidth isLarge></TextInput>
 		</div>
 
 		<Label text="Passages"></Label>

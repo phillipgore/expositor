@@ -10,21 +10,21 @@
 	<Button
 		classes="menu-light justify-content-left"
 		iconId="outline-section"
-		label="Section"
+		label="New Section"
 		shortcut="<span>&#8984;OS</span>"
 		isDisabled
 	/>
 	<Button
 		classes="menu-light justify-content-left"
 		iconId="outline-column"
-		label="Column"
+		label="New Column"
 		shortcut="<span>&#8984;OC</span>"
 		isDisabled
 	/>
 	<Button
 		classes="menu-light justify-content-left"
 		iconId="outline-group"
-		label="Group"
+		label="New Group"
 		shortcut="<span>&#8984;OG</span>"
 		isDisabled
 	/>

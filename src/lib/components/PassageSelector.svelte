@@ -48,10 +48,10 @@
 			passage.book = bookData[0]._id;
 			// Reset chapters when testament changes
 			passage.fromChapter = 1;
-			passage.toChapter = bookData[0].chapterCount;
+			passage.toChapter = 1;
 			// Reset verses when testament changes
 			const fromVerseCount = bookData[0].chapterData[0]['1'];
-			const toVerseCount = bookData[0].chapterData[0][bookData[0].chapterCount.toString()];
+			const toVerseCount = bookData[0].chapterData[0]['1'];
 			passage.fromVerse = 1;
 			passage.toVerse = toVerseCount;
 		}
@@ -85,10 +85,10 @@
 			const selectedBook = bookData.find((book) => book._id === bookId);
 			if (selectedBook) {
 				passage.fromChapter = 1;
-				passage.toChapter = selectedBook.chapterCount;
+				passage.toChapter = 1;
 				// Reset verses when book changes
 				const fromVerseCount = selectedBook.chapterData[0]['1'];
-				const toVerseCount = selectedBook.chapterData[0][selectedBook.chapterCount.toString()];
+				const toVerseCount = selectedBook.chapterData[0]['1'];
 				passage.fromVerse = 1;
 				passage.toVerse = toVerseCount;
 			}
@@ -196,9 +196,9 @@
 			testament: 'NT',
 			book: ntBookData[0]._id,
 			fromChapter: 1,
-			toChapter: ntBookData[0].chapterCount,
+			toChapter: 1,
 			fromVerse: 1,
-			toVerse: ntBookData[0].chapterData[0][ntBookData[0].chapterCount.toString()]
+			toVerse: ntBookData[0].chapterData[0]['1']
 		});
 		onPassagesChange?.(passages);
 	};
@@ -731,7 +731,7 @@
 	.chapters-verses {
 		display: flex;
 		flex-direction: row;
-		gap: 1.8rem;
+		gap: 2.1rem;
 		align-items: center;
 
 		.from-chapter-verse,
@@ -763,7 +763,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border: 0.2rem dashed var(--system-blue);
+		border: 0.1rem dashed var(--system-blue);
 		border-radius: 0.8rem;
 		background-color: rgba(0, 123, 255, 0.05);
 		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -794,7 +794,6 @@
 			height: 0.8rem;
 			background: var(--system-blue);
 			border-radius: 50%;
-			box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.3);
 		}
 	}
 
@@ -807,6 +806,5 @@
 		font-size: 1.2rem;
 		font-weight: 500;
 		white-space: nowrap;
-		box-shadow: 0 0.2rem 0.8rem rgba(0, 123, 255, 0.3);
 	}
 </style>

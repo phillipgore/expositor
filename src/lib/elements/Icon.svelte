@@ -18,6 +18,7 @@
 		max-width: 1.6rem;
 		margin: 0rem;
 		pointer-events: none;
+		overflow: visible;
 
 		&.menu-caret {
 			width: 0.7rem;
