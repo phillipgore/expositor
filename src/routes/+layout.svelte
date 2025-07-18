@@ -1,5 +1,4 @@
 <script>
-	import ToolbarMain from '$lib/components/ToolbarMain.svelte';
 	import '$lib/stylesheets/styles.css';
 </script>
 
@@ -7,16 +6,4 @@
 	<title>Expositor App</title>
 </svelte:head>
 
-<ToolbarMain></ToolbarMain>
-<div class="wrapper">
-	<slot />
-</div>
-
-<style>
-	.wrapper {
-		display: flex;
-		flex-direction: column;
-		flex-grow: 1;
-		padding: 1.8rem;
-	}
-</style>
+<slot />

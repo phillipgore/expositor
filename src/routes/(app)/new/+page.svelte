@@ -48,7 +48,7 @@
 		<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 
 		<div class="button-bar">
-			<Button url="/" label="Cancel" classes="system-gray"></Button>
+			<Button url="/open" label="Cancel" classes="system-gray"></Button>
 			<Button label="Submit" classes="system-blue"></Button>
 		</div>
 	</div>

@@ -1,13 +1,24 @@
 <script>
 	import Button from '$lib/elements/Button.svelte';
-	import ButtonGrouped from '$lib/elements/ButtonGrouped.svelte';
 	import SpaceerFixed from '$lib/elements/SpaceerFixed.svelte';
 	import SpacerFlex from '$lib/elements/SpacerFlex.svelte';
 	import Toolbar from '$lib/elements/Toolbar.svelte';
 
 	let groupedButtons = $state([
-		{ id: 'analyze', iconId: 'structure', underLabel: 'Analyze', isActive: true, isDisabled: false },
-		{id: 'document', iconId: 'document', underLabel: 'Document', isActive: false, isDisabled: false },
+		{
+			id: 'analyze',
+			iconId: 'structure',
+			underLabel: 'Analyze',
+			isActive: true,
+			isDisabled: false
+		},
+		{
+			id: 'document',
+			iconId: 'document',
+			underLabel: 'Document',
+			isActive: false,
+			isDisabled: false
+		}
 	]);
 
 	const setIsActive = (button) => {
@@ -27,12 +38,7 @@
 		url="/open"
 	></Button>
 
-	<Button
-		classes="toolbar-dark"
-		iconId="plus"
-		underLabelClasses="light"
-		underLabel="New"
-		url="/new"
+	<Button classes="toolbar-dark" iconId="plus" underLabelClasses="light" underLabel="New" url="/new"
 	></Button>
 
 	<SpaceerFixed></SpaceerFixed>
@@ -149,6 +155,6 @@
 		iconId="gear"
 		underLabelClasses="light"
 		underLabel="Settings"
-		url="settings"
+		url="/settings"
 	></Button>
 </Toolbar>

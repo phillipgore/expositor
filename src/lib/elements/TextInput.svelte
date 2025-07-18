@@ -1,11 +1,11 @@
 <script>
-	let { id, name, isFullWidth, isDisabled, isLarge } = $props();
+	let { id, name, type = 'text', isFullWidth, isDisabled, isLarge } = $props();
 </script>
 
 <input
 	{id}
 	{name}
-	type="text"
+	{type}
 	class="{isFullWidth ? 'full-width' : ''} {isLarge ? 'large' : ''}"
 	disabled={isDisabled}
 />
@@ -26,9 +26,9 @@
 		}
 
 		&.large {
-			height: 4.40rem;
+			height: 4.4rem;
 			padding: 0rem 1.2rem 0rem 1.2rem;
-			font-size: 2.0rem;
+			font-size: 2rem;
 		}
 
 		&:focus {
