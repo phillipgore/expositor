@@ -1,40 +1,75 @@
 <script>
-	import Button from '$lib/elements/Button.svelte';
-	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
-	import Fieldset from '$lib/elements/Fieldset.svelte';
-	import Heading from '$lib/elements/Heading.svelte';
-	import Label from '$lib/elements/Label.svelte';
 	import TextInput from '$lib/elements/TextInput.svelte';
+	import { signUp } from '$lib/stores/auth.js';
+	import { goto } from '$app/navigation';
+
+	let name = '';
+	let email = '';
+	let password = '';
+	let isLoading = false;
+	let error = '';
+
+	async function handleSubmit(event) {
+		event.preventDefault();
+		
+		if (!name || !email || !password) {
+			error = 'Please fill in all fields';
+			return;
+		}
+
+		if (password.length < 6) {
+			error = 'Password must be at least 6 characters';
+			return;
+		}
+
+		isLoading = true;
+		error = '';
+
+		const result = await signUp(name, email, password);
+		
+		if (result.success) {
+			goto('/new');
+		} else {
+			error = result.error;
+		}
+		
+		isLoading = false;
+	}
 </script>
 
 <div class="wrapper">
-	<form>
-		<Heading heading="h4">Sign Up</Heading>
+	<form on:submit={handleSubmit}>
+		<h4>Sign Up</h4>
+		
+		{#if error}
+			<div class="error">{error}</div>
+		{/if}
+		
 		<div class="name-container">
-			<div class="first-container">
-				<Label text="First"></Label>
-				<TextInput isFullWidth></TextInput>
-			</div>
-			<div class="last-container">
-				<Label text="Last"></Label>
-				<TextInput isFullWidth></TextInput>
-			</div>
+			<label for="name">Name</label>
+			<TextInput bind:value={name} isFullWidth type="text" isDisabled={isLoading} id="name" name="name" isLarge={false}></TextInput>
 		</div>
 		<div class="email-container">
-			<Label text="Email"></Label>
-			<TextInput isFullWidth type="email"></TextInput>
+			<label for="email">Email</label>
+			<TextInput bind:value={email} isFullWidth type="email" isDisabled={isLoading} id="email" name="email" isLarge={false}></TextInput>
 		</div>
 		<div class="password-container">
-			<Label text="Password"></Label>
-			<TextInput isFullWidth type="password"></TextInput>
-		</div>
-		<div class="retype-password-container">
-			<Label text="Retype Password"></Label>
-			<TextInput isFullWidth type="password"></TextInput>
+			<label for="password">Password</label>
+			<TextInput bind:value={password} isFullWidth type="password" isDisabled={isLoading} id="password" name="password" isLarge={false}></TextInput>
 		</div>
 
 		<div class="button-bar">
-			<Button label="Sign In" classes="system-blue"></Button>
+			<button 
+				type="submit" 
+				class="signup-button"
+				disabled={isLoading}
+			>
+				{isLoading ? "Signing Up..." : "Sign Up"}
+			</button>
+		</div>
+		
+		<div class="signin-link">
+			<p>Already have an account? <a href="/signin">Sign in</a></p>
 		</div>
 	</form>
 </div>
@@ -53,14 +88,34 @@
 			width: 36rem;
 			margin-bottom: 18rem;
 
-			.name-container {
-				display: flex;
-				align-content: center;
-				gap: 1.8rem;
-				margin-top: 2.7rem;
+			h4 {
+				font-size: 2.4rem;
+				margin: 0 0 0.5em;
+				color: var(--black);
 			}
 
-			.name-container,
+			.error {
+				background-color: #fee;
+				color: #c33;
+				padding: 1rem;
+				border-radius: 0.3rem;
+				margin-bottom: 1rem;
+				border: 1px solid #fcc;
+			}
+
+			label {
+				display: block;
+				margin-bottom: 0.6rem;
+				font-size: 1.4rem;
+				color: var(--gray-400);
+				font-weight: 500;
+			}
+
+			.name-container {
+				margin-top: 2.7rem;
+				margin-bottom: 1.8rem;
+			}
+
 			.email-container,
 			.password-container {
 				margin-bottom: 1.8rem;
@@ -72,7 +127,45 @@
 				gap: 0.6rem;
 				margin-top: 2.7rem;
 			}
+
+			.signup-button {
+				background-color: var(--system-blue);
+				color: white;
+				border: none;
+				border-radius: 0.3rem;
+				padding: 0.8rem 1.6rem;
+				font-size: 1.2rem;
+				font-weight: 500;
+				cursor: pointer;
+				min-width: 4.8rem;
+
+				&:hover:not(:disabled) {
+					background-color: #0056b3;
+				}
+
+				&:disabled {
+					opacity: 0.6;
+					cursor: not-allowed;
+				}
+			}
+
+			.signin-link {
+				text-align: center;
+				margin-top: 2rem;
+				
+				p {
+					color: var(--gray-400);
+					
+					a {
+						color: var(--system-blue);
+						text-decoration: none;
+						
+						&:hover {
+							text-decoration: underline;
+						}
+					}
+				}
+			}
 		}
 	}
 </style>
-

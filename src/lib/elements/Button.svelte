@@ -20,6 +20,7 @@
 		iconId,
 		menuId,
 		shortcut,
+		type = 'button',
 		children
 	} = $props();
 
@@ -73,6 +74,7 @@
 {#snippet button()}
 	<button
 		{id}
+		{type}
 		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isFullWidth
 			? 'full-width'
 			: ''}"

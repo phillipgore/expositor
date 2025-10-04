@@ -1,11 +1,12 @@
 <script>
-	let { id, name, type = 'text', isFullWidth, isDisabled, isLarge } = $props();
+	let { id, name, type = 'text', isFullWidth, isDisabled, isLarge, value = $bindable('') } = $props();
 </script>
 
 <input
 	{id}
 	{name}
 	{type}
+	bind:value
 	class="{isFullWidth ? 'full-width' : ''} {isLarge ? 'large' : ''}"
 	disabled={isDisabled}
 />
