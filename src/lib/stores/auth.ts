@@ -1,8 +1,20 @@
 import { writable } from 'svelte/store';
 import { authClient } from '$lib/auth-client.js';
-import type { User } from '$lib/server/auth.js';
 
-export const user = writable<User | null>(null);
+// Use a more flexible user type that matches what better-auth actually returns
+type AuthUser = {
+	id: string;
+	name: string;
+	email: string;
+	emailVerified: boolean;
+	image?: string;
+	createdAt: Date;
+	updatedAt: Date;
+	firstName?: string;
+	lastName?: string;
+};
+
+export const user = writable<AuthUser | null>(null);
 export const isAuthenticated = writable(false);
 export const isLoading = writable(true);
 
@@ -13,7 +25,7 @@ export async function initializeAuth() {
 		const sessionData = await authClient.getSession();
 		
 		if (sessionData.data?.user) {
-			user.set(sessionData.data.user);
+			user.set(sessionData.data.user as AuthUser);
 			isAuthenticated.set(true);
 		} else {
 			user.set(null);
@@ -37,7 +49,7 @@ export async function signIn(email: string, password: string) {
 		});
 		
 		if (result.data?.user) {
-			user.set(result.data.user);
+			user.set(result.data.user as AuthUser);
 			isAuthenticated.set(true);
 			return { success: true };
 		} else {
@@ -49,23 +61,84 @@ export async function signIn(email: string, password: string) {
 }
 
 // Sign up function
-export async function signUp(name: string, email: string, password: string) {
+export async function signUp(firstName: string, lastName: string, email: string, password: string) {
 	try {
+		console.log('Starting signup process...');
 		const result = await authClient.signUp.email({
-			name,
+			name: `${firstName.trim()} ${lastName.trim()}`,
 			email,
 			password
 		});
 		
+		console.log('Signup result:', JSON.stringify(result, null, 2));
+		
 		if (result.data?.user) {
-			user.set(result.data.user);
+			console.log('User created successfully, updating names...');
+			// Update the user with firstName and lastName via a separate API call
+			try {
+				const updateResponse = await fetch('/api/auth/update-names', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						userId: result.data.user.id,
+						firstName: firstName.trim(),
+						lastName: lastName.trim()
+					})
+				});
+				
+				if (!updateResponse.ok) {
+					console.warn('Failed to update firstName/lastName:', await updateResponse.text());
+				} else {
+					console.log('Names updated successfully');
+				}
+			} catch (updateError) {
+				console.warn('Failed to update firstName/lastName:', updateError);
+			}
+
+			user.set({
+				...result.data.user,
+				firstName: firstName.trim(),
+				lastName: lastName.trim()
+			} as AuthUser);
 			isAuthenticated.set(true);
 			return { success: true };
 		} else {
-			return { success: false, error: result.error?.message || 'Sign up failed' };
+			console.error('Signup failed:', result.error);
+			let errorMessage = 'Sign up failed';
+			
+			if (result.error?.message) {
+				errorMessage = result.error.message;
+			} else if (result.error?.code) {
+				switch (result.error.code) {
+					case 'USER_ALREADY_EXISTS':
+						errorMessage = 'An account with this email already exists';
+						break;
+					case 'INVALID_EMAIL':
+						errorMessage = 'Please enter a valid email address';
+						break;
+					case 'WEAK_PASSWORD':
+						errorMessage = 'Password is too weak. Please choose a stronger password';
+						break;
+					default:
+						errorMessage = `Sign up failed: ${result.error.code}`;
+				}
+			}
+			
+			return { success: false, error: errorMessage };
 		}
 	} catch (error) {
-		return { success: false, error: 'An unexpected error occurred' };
+		console.error('Signup error:', error);
+		let errorMessage = 'An unexpected error occurred';
+		
+		if (error instanceof Error) {
+			errorMessage = error.message;
+		} else if (typeof error === 'string') {
+			errorMessage = error;
+		}
+		
+		return { success: false, error: errorMessage };
 	}
 }
 

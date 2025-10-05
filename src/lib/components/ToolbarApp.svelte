@@ -3,8 +3,6 @@
 	import SpaceerFixed from '$lib/elements/SpaceerFixed.svelte';
 	import SpacerFlex from '$lib/elements/SpacerFlex.svelte';
 	import Toolbar from '$lib/elements/Toolbar.svelte';
-	import { signOut } from '$lib/stores/auth.js';
-	import { goto } from '$app/navigation';
 
 	let groupedButtons = $state([
 		{
@@ -26,13 +24,6 @@
 	const setIsActive = (button) => {
 		groupedButtons.forEach((button) => (button.isActive = false));
 		groupedButtons.find((gruopButton) => gruopButton.id === button.id).isActive = true;
-	};
-
-	const handleSignOut = async () => {
-		const result = await signOut();
-		if (result.success) {
-			goto('/signin');
-		}
 	};
 </script>
 
@@ -165,13 +156,5 @@
 		underLabelClasses="light"
 		underLabel="Settings"
 		url="/settings"
-	></Button>
-
-	<Button
-		classes="toolbar-dark"
-		iconId="signout"
-		underLabelClasses="light"
-		underLabel="Sign Out"
-		handleClick={handleSignOut}
 	></Button>
 </Toolbar>

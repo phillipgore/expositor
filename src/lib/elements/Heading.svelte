@@ -1,5 +1,5 @@
 <script>
-	let { heading, classes, children, alignCenter, alignRight } = $props();
+	let { heading, classes, children, alignCenter, alignRight, description } = $props();
 </script>
 
 {#if heading === 'h1'}
@@ -32,6 +32,13 @@
 		{@render children()}
 	</h6>
 {/if}
+
+{#if description}
+	<p class="description">
+		{description}
+	</p>
+{/if}
+
 
 <style>
 
@@ -81,5 +88,11 @@
 	h6,
 	.h6 {
 		font-size: 1.6rem;
+	}
+
+	.description {
+		color: var(--gray-400);
+		margin: -0.5em 0em 0.5em;
+		line-height: 1.5;
 	}
 </style>

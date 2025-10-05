@@ -1,11 +1,14 @@
 <script>
 	import TextInput from '$lib/elements/TextInput.svelte';
+	import Heading from '$lib/elements/Heading.svelte';
+	import Alert from '$lib/elements/Alert.svelte';
 	import { goto } from '$app/navigation';
 
 	let email = '';
 	let isLoading = false;
 	let error = '';
-	let success = false;
+	let successMessage = '';
+	let description = "Enter your email address and we'll send you a link to reset your password."
 
 	async function handleSubmit(event) {
 		event.preventDefault();
@@ -21,7 +24,7 @@
 		// For now, just show a success message
 		// In a real implementation, you would call a password reset API
 		setTimeout(() => {
-			success = true;
+			successMessage = "If an account with that email exists, we've sent you a password reset link.";
 			isLoading = false;
 		}, 1000);
 	}
@@ -29,21 +32,12 @@
 
 <div class="wrapper">
 	<form on:submit={handleSubmit}>
-		<h4>Reset Password</h4>
+		<Heading heading="h4" description={description}>Reset Password</Heading>
 		
-		{#if error}
-			<div class="error">{error}</div>
-		{/if}
+		<Alert type="error" message={error} />
+		<Alert type="success" message={successMessage} />
 		
-		{#if success}
-			<div class="success">
-				If an account with that email exists, we've sent you a password reset link.
-			</div>
-		{:else}
-			<p class="description">
-				Enter your email address and we'll send you a link to reset your password.
-			</p>
-			
+		{#if !successMessage}
 			<div class="email-container">
 				<label for="email">Email</label>
 				<TextInput bind:value={email} isFullWidth type="email" isDisabled={isLoading} id="email" name="email" isLarge={false}></TextInput>
@@ -55,14 +49,10 @@
 					class="reset-button"
 					disabled={isLoading}
 				>
-					{isLoading ? "Sending..." : "Send Reset Link"}
+					{isLoading ? "Sending..." : "Send Link"}
 				</button>
 			</div>
 		{/if}
-		
-		<div class="signin-link">
-			<p>Remember your password? <a href="/signin">Sign in</a></p>
-		</div>
 	</form>
 </div>
 
@@ -80,36 +70,6 @@
 			width: 36rem;
 			margin-bottom: 18rem;
 
-			h4 {
-				font-size: 2.4rem;
-				margin: 0 0 0.5em;
-				color: var(--black);
-			}
-
-			.description {
-				color: var(--gray-400);
-				margin-bottom: 2rem;
-				line-height: 1.5;
-			}
-
-			.error {
-				background-color: #fee;
-				color: #c33;
-				padding: 1rem;
-				border-radius: 0.3rem;
-				margin-bottom: 1rem;
-				border: 1px solid #fcc;
-			}
-
-			.success {
-				background-color: #efe;
-				color: #363;
-				padding: 1rem;
-				border-radius: 0.3rem;
-				margin-bottom: 1rem;
-				border: 1px solid #cfc;
-			}
-
 			label {
 				display: block;
 				margin-bottom: 0.6rem;
@@ -120,7 +80,6 @@
 
 			.email-container {
 				margin-top: 2.7rem;
-				margin-bottom: 1.8rem;
 			}
 
 			.button-bar {
@@ -148,24 +107,6 @@
 				&:disabled {
 					opacity: 0.6;
 					cursor: not-allowed;
-				}
-			}
-
-			.signin-link {
-				text-align: center;
-				margin-top: 2rem;
-				
-				p {
-					color: var(--gray-400);
-					
-					a {
-						color: var(--system-blue);
-						text-decoration: none;
-						
-						&:hover {
-							text-decoration: underline;
-						}
-					}
 				}
 			}
 		}

@@ -1,9 +1,12 @@
 <script>
 	import TextInput from '$lib/elements/TextInput.svelte';
+	import Heading from '$lib/elements/Heading.svelte';
+	import Alert from '$lib/elements/Alert.svelte';
 	import { signUp } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 
-	let name = '';
+	let firstName = '';
+	let lastName = '';
 	let email = '';
 	let password = '';
 	let isLoading = false;
@@ -12,7 +15,7 @@
 	async function handleSubmit(event) {
 		event.preventDefault();
 		
-		if (!name || !email || !password) {
+		if (!firstName || !lastName || !email || !password) {
 			error = 'Please fill in all fields';
 			return;
 		}
@@ -25,7 +28,8 @@
 		isLoading = true;
 		error = '';
 
-		const result = await signUp(name, email, password);
+		// Pass first and last name separately
+		const result = await signUp(firstName.trim(), lastName.trim(), email, password);
 		
 		if (result.success) {
 			goto('/new');
@@ -39,15 +43,19 @@
 
 <div class="wrapper">
 	<form on:submit={handleSubmit}>
-		<h4>Sign Up</h4>
+		<Heading heading="h4">Sign Up</Heading>
 		
-		{#if error}
-			<div class="error">{error}</div>
-		{/if}
+		<Alert type="error" message={error} />
 		
 		<div class="name-container">
-			<label for="name">Name</label>
-			<TextInput bind:value={name} isFullWidth type="text" isDisabled={isLoading} id="name" name="name" isLarge={false}></TextInput>
+			<div>
+				<label for="firstName">First Name</label>
+				<TextInput bind:value={firstName} isFullWidth type="text" isDisabled={isLoading} id="firstName" name="firstName" isLarge={false}></TextInput>
+			</div>
+			<div>
+				<label for="lastName">Last Name</label>
+				<TextInput bind:value={lastName} isFullWidth type="text" isDisabled={isLoading} id="lastName" name="lastName" isLarge={false}></TextInput>
+			</div>
 		</div>
 		<div class="email-container">
 			<label for="email">Email</label>
@@ -67,10 +75,6 @@
 				{isLoading ? "Signing Up..." : "Sign Up"}
 			</button>
 		</div>
-		
-		<div class="signin-link">
-			<p>Already have an account? <a href="/signin">Sign in</a></p>
-		</div>
 	</form>
 </div>
 
@@ -88,21 +92,6 @@
 			width: 36rem;
 			margin-bottom: 18rem;
 
-			h4 {
-				font-size: 2.4rem;
-				margin: 0 0 0.5em;
-				color: var(--black);
-			}
-
-			.error {
-				background-color: #fee;
-				color: #c33;
-				padding: 1rem;
-				border-radius: 0.3rem;
-				margin-bottom: 1rem;
-				border: 1px solid #fcc;
-			}
-
 			label {
 				display: block;
 				margin-bottom: 0.6rem;
@@ -112,12 +101,13 @@
 			}
 
 			.name-container {
+				display: flex;
+				gap: 2.1rem;
 				margin-top: 2.7rem;
 				margin-bottom: 1.8rem;
 			}
 
-			.email-container,
-			.password-container {
+			.email-container {
 				margin-bottom: 1.8rem;
 			}
 
@@ -126,45 +116,6 @@
 				justify-content: flex-end;
 				gap: 0.6rem;
 				margin-top: 2.7rem;
-			}
-
-			.signup-button {
-				background-color: var(--system-blue);
-				color: white;
-				border: none;
-				border-radius: 0.3rem;
-				padding: 0.8rem 1.6rem;
-				font-size: 1.2rem;
-				font-weight: 500;
-				cursor: pointer;
-				min-width: 4.8rem;
-
-				&:hover:not(:disabled) {
-					background-color: #0056b3;
-				}
-
-				&:disabled {
-					opacity: 0.6;
-					cursor: not-allowed;
-				}
-			}
-
-			.signin-link {
-				text-align: center;
-				margin-top: 2rem;
-				
-				p {
-					color: var(--gray-400);
-					
-					a {
-						color: var(--system-blue);
-						text-decoration: none;
-						
-						&:hover {
-							text-decoration: underline;
-						}
-					}
-				}
 			}
 		}
 	}

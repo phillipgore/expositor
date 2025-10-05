@@ -1,5 +1,7 @@
 <script>
 	import TextInput from '$lib/elements/TextInput.svelte';
+	import Heading from '$lib/elements/Heading.svelte';
+	import Alert from '$lib/elements/Alert.svelte';
 	import { signIn } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 
@@ -33,11 +35,9 @@
 
 <div class="wrapper">
 	<form on:submit={handleSubmit}>
-		<h4>Sign In</h4>
+		<Heading heading="h4">Sign In</Heading>
 		
-		{#if error}
-			<div class="error">{error}</div>
-		{/if}
+		<Alert type="error" message={error} />
 		
 		<div class="email-container">
 			<label for="email">Email</label>
@@ -57,11 +57,6 @@
 				{isLoading ? "Signing In..." : "Sign In"}
 			</button>
 		</div>
-		
-		<div class="signup-link">
-			<p>Don't have an account? <a href="/signup">Sign up</a></p>
-			<p><a href="/password">Forgot your password?</a></p>
-		</div>
 	</form>
 </div>
 
@@ -78,21 +73,6 @@
 			flex-direction: column;
 			width: 36rem;
 			margin-bottom: 18rem;
-
-			h4 {
-				font-size: 2.4rem;
-				margin: 0 0 0.5em;
-				color: var(--black);
-			}
-
-			.error {
-				background-color: #fee;
-				color: #c33;
-				padding: 1rem;
-				border-radius: 0.3rem;
-				margin-bottom: 1rem;
-				border: 1px solid #fcc;
-			}
 
 			label {
 				display: block;
@@ -132,24 +112,6 @@
 				&:disabled {
 					opacity: 0.6;
 					cursor: not-allowed;
-				}
-			}
-
-			.signup-link {
-				text-align: center;
-				margin-top: 2rem;
-				
-				p {
-					color: var(--gray-400);
-					
-					a {
-						color: var(--system-blue);
-						text-decoration: none;
-						
-						&:hover {
-							text-decoration: underline;
-						}
-					}
 				}
 			}
 		}
