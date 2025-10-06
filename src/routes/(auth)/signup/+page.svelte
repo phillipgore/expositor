@@ -1,9 +1,8 @@
 <script>
-	import TextInput from '$lib/elements/TextInput.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
-	import Label from '$lib/elements/Label.svelte';
+	import FormField from '$lib/components/FormField.svelte';
 	import { signUp } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 
@@ -54,24 +53,40 @@
 <form on:submit={handleSubmit}>
 	<Alert type="error" message={error} />
 	
-	<div class="input-container columns">
-		<div>
-			<Label forId="firstName" text="First Name" />
-			<TextInput bind:value={firstName} isFullWidth type="text" isDisabled={isLoading} id="firstName" name="firstName" isLarge={false}></TextInput>
-		</div>
-		<div>
-			<Label forId="lastName" text="Last Name" />
-			<TextInput bind:value={lastName} isFullWidth type="text" isDisabled={isLoading} id="lastName" name="lastName" isLarge={false}></TextInput>
-		</div>
+	<div class="name-fields">
+		<FormField
+			label="First Name"
+			id="firstName"
+			name="firstName"
+			type="text"
+			bind:value={firstName}
+			isDisabled={isLoading}
+		/>
+		<FormField
+			label="Last Name"
+			id="lastName"
+			name="lastName"
+			type="text"
+			bind:value={lastName}
+			isDisabled={isLoading}
+		/>
 	</div>
-	<div class="input-container">
-		<Label forId="email" text="Email" />
-		<TextInput bind:value={email} isFullWidth type="email" isDisabled={isLoading} id="email" name="email" isLarge={false}></TextInput>
-	</div>
-	<div class="input-container">
-		<Label forId="password" text="Password" />
-		<TextInput bind:value={password} isFullWidth type="password" isDisabled={isLoading} id="password" name="password" isLarge={false}></TextInput>
-	</div>
+	<FormField
+		label="Email"
+		id="email"
+		name="email"
+		type="email"
+		bind:value={email}
+		isDisabled={isLoading}
+	/>
+	<FormField
+		label="Password"
+		id="password"
+		name="password"
+		type="password"
+		bind:value={password}
+		isDisabled={isLoading}
+	/>
 
 	<div class="button-bar">
 		<Button 
@@ -84,13 +99,13 @@
 </form>
 
 <style>
-	.input-container {
+	.name-fields {
+		display: flex;
+		gap: 2.1rem;
 		margin-bottom: 1.8rem;
-
-		&.columns {
-			display: flex;
-			gap: 2.1rem;
-			margin-bottom: 1.8rem;
+		
+		:global(.form-field) {
+			margin-bottom: 0;
 		}
 	}
 

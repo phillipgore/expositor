@@ -1,9 +1,8 @@
 <script>
-	import TextInput from '$lib/elements/TextInput.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
-	import Label from '$lib/elements/Label.svelte';
+	import FormField from '$lib/components/FormField.svelte';
 	import { goto } from '$app/navigation';
 
 	let email = '';
@@ -58,10 +57,14 @@
 
 	
 	{#if !successMessage}
-		<div class="input-container">
-			<Label forId="email" text="Email" />
-			<TextInput bind:value={email} isFullWidth type="email" isDisabled={isLoading} id="email" name="email" isLarge={false}></TextInput>
-		</div>
+		<FormField
+			label="Email"
+			id="email"
+			name="email"
+			type="email"
+			bind:value={email}
+			isDisabled={isLoading}
+		/>
 
 		<div class="button-bar">
 			<Button 
@@ -79,17 +82,6 @@
 		color: var(--gray-500);
 		line-height: 1.5;
 		margin: 0.0rem 0.0rem 1.8rem;
-	}
-
-	.input-container {
-		margin-bottom: 1.8rem;
-
-		&.columns {
-			display: flex;
-			gap: 2.1rem;
-			margin-top: 2.7rem;
-			margin-bottom: 1.8rem;
-		}
 	}
 
 	.button-bar {

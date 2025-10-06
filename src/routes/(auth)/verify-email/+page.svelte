@@ -5,8 +5,7 @@
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
-	import TextInput from '$lib/elements/TextInput.svelte';
-	import Label from '$lib/elements/Label.svelte';
+	import FormField from '$lib/components/FormField.svelte';
 
 	let isVerifying = true;
 	let success = false;
@@ -114,21 +113,17 @@
 	{:else}
 		<p class="instructions">Your verification link has expired. Enter your email below to receive a new one.</p>
 		
-		<form on:submit={handleResendVerification}>
-			<Alert type="error" message={resendError} />
-			
-			<div class="input-container">
-				<Label forId="resendEmail" text="Email" />
-				<TextInput 
-					bind:value={resendEmail} 
-					isFullWidth 
-					type="email" 
-					isDisabled={isResending} 
-					id="resendEmail" 
-					name="resendEmail" 
-					isLarge={false}
+			<form on:submit={handleResendVerification}>
+				<Alert type="error" message={resendError} />
+				
+				<FormField
+					label="Email"
+					id="resendEmail"
+					name="resendEmail"
+					type="email"
+					bind:value={resendEmail}
+					isDisabled={isResending}
 				/>
-			</div>
 
 			<div class="button-bar">
 				<Button 
@@ -153,10 +148,6 @@
 		color: var(--gray-500);
 		line-height: 1.5;
 		margin: 0.0rem 0.0rem 1.8rem;
-	}
-
-	.input-container {
-		margin-bottom: 1.8rem;
 	}
 
 	.button-bar {

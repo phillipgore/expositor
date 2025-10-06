@@ -2,11 +2,10 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import TextInput from '$lib/elements/TextInput.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
-	import Label from '$lib/elements/Label.svelte';
+	import FormField from '$lib/components/FormField.svelte';
 
 	let token = '';
 	let email = '';
@@ -130,31 +129,23 @@
 			<p><strong>Email:</strong> {email}</p>
 		</div>
 
-		<div class="password-container">
-			<Label forId="newPassword" text="New Password" />
-			<TextInput 
-				bind:value={newPassword} 
-				isFullWidth 
-				type="password" 
-				isDisabled={isLoading} 
-				id="newPassword" 
-				name="newPassword" 
-				isLarge={false}
+			<FormField
+				label="New Password"
+				id="newPassword"
+				name="newPassword"
+				type="password"
+				bind:value={newPassword}
+				isDisabled={isLoading}
 			/>
-		</div>
 
-		<div class="password-container">
-			<Label forId="confirmPassword" text="Confirm Password" />
-			<TextInput 
-				bind:value={confirmPassword} 
-				isFullWidth 
-				type="password" 
-				isDisabled={isLoading} 
-				id="confirmPassword" 
-				name="confirmPassword" 
-				isLarge={false}
+			<FormField
+				label="Confirm Password"
+				id="confirmPassword"
+				name="confirmPassword"
+				type="password"
+				bind:value={confirmPassword}
+				isDisabled={isLoading}
 			/>
-		</div>
 
 		<div class="button-bar">
 			<Button 
@@ -186,10 +177,6 @@
 		margin: 0;
 		font-size: 1.4rem;
 		color: var(--gray-600);
-	}
-
-	.password-container {
-		margin-bottom: 1.8rem;
 	}
 
 	.instructions {

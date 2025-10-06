@@ -5,7 +5,7 @@
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Label from '$lib/elements/Label.svelte';
-	import TextInput from '$lib/elements/TextInput.svelte';
+	import FormField from '$lib/components/FormField.svelte';
 	import PassageSelector from '$lib/components/PassageSelector.svelte';
 
 	const testamentData = bibleData[0].testamentData;
@@ -36,10 +36,13 @@
 	<div class="form-container">
 		<Heading heading="h1" classes="h4">New Study</Heading>
 
-		<div class="title-container">
-			<Label forId="title" text="Title"></Label>
-			<TextInput id="title" name="title" isFullWidth isLarge></TextInput>
-		</div>
+		<FormField
+			label="Title"
+			id="title"
+			name="title"
+			isLarge
+			containerClasses="title-container"
+		/>
 
 		<Label text="Passages"></Label>
 
@@ -65,7 +68,7 @@
 		width: 48rem;
 	}
 
-	.title-container {
+	:global(.title-container) {
 		margin-bottom: 2.7rem;
 	}
 
