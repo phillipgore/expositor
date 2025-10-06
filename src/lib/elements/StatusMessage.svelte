@@ -10,6 +10,6 @@
 	.status-message {
 		margin-top: 2.7rem;
 		text-align: center;
-		color: var(--gray-400);
+		color: var(--gray-500);
 	}
 </style>
