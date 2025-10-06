@@ -6,6 +6,7 @@
 	import Heading from '$lib/elements/Heading.svelte';
 	import Label from '$lib/elements/Label.svelte';
 	import FormField from '$lib/components/FormField.svelte';
+	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import PassageSelector from '$lib/components/PassageSelector.svelte';
 
 	const testamentData = bibleData[0].testamentData;
@@ -33,7 +34,7 @@
 </script>
 
 <div class="container">
-	<div class="form-container">
+	<form>
 		<Heading heading="h1" classes="h4">New Study</Heading>
 
 		<FormField
@@ -41,7 +42,6 @@
 			id="title"
 			name="title"
 			isLarge
-			containerClasses="title-container"
 		/>
 
 		<Label text="Passages"></Label>
@@ -50,11 +50,11 @@
 		<PassageSelector bind:passages onPassagesChange={handlePassagesChange} />
 		<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 
-		<div class="button-bar">
+		<FormButtonBar>
 			<Button url="/open" label="Cancel" classes="system-gray"></Button>
 			<Button label="Submit" classes="system-blue"></Button>
-		</div>
-	</div>
+		</FormButtonBar>
+	</form>
 </div>
 
 <style>
@@ -64,18 +64,8 @@
 		margin-top: 3.6rem;
 	}
 
-	.form-container {
+	form {
 		width: 48rem;
 	}
 
-	:global(.title-container) {
-		margin-bottom: 2.7rem;
-	}
-
-	.button-bar {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.6rem;
-		margin-bottom: 2.7rem;
-	}
 </style>

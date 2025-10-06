@@ -6,6 +6,8 @@
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
 	import FormField from '$lib/components/FormField.svelte';
+	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
+	import InstructionText from '$lib/elements/InstructionText.svelte';
 
 	let token = '';
 	let email = '';
@@ -112,14 +114,16 @@
 		</div>
 	{:else if !tokenValid}
 		<Alert type="error" message={error} />
-		<p class="instructions">Your reset link may have expired. Please request a new password reset.</p>
-		<div class="button-bar">
+		<InstructionText>
+			Your reset link may have expired. Please request a new password reset.
+		</InstructionText>
+		<FormButtonBar>
 			<Button 
 				label="Back to Password Reset"
 				classes="system-gray"
 				handleClick={() => goto('/password')}
 			/>
-		</div>
+		</FormButtonBar>
 	{:else if successMessage}
 		<Alert type="success" message={successMessage} />
 	{:else}
@@ -147,14 +151,14 @@
 				isDisabled={isLoading}
 			/>
 
-		<div class="button-bar">
+		<FormButtonBar>
 			<Button 
 				type="submit" 
 				label={isLoading ? "Resetting..." : "Reset Password"}
 				classes="system-blue"
 				isDisabled={isLoading}
 			/>
-		</div>
+		</FormButtonBar>
 	{/if}
 </form>
 
@@ -177,18 +181,5 @@
 		margin: 0;
 		font-size: 1.4rem;
 		color: var(--gray-600);
-	}
-
-	.instructions {
-		color: var(--gray-500);
-		line-height: 1.5;
-		margin: 0.0rem 0.0rem 1.8rem;
-	}
-
-	.button-bar {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.6rem;
-		margin-top: 2.7rem;
 	}
 </style>

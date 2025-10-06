@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
+	import InstructionText from '$lib/elements/InstructionText.svelte';
 
 	const email = $page.url.searchParams.get('email') || '';
     const message = email? `Account created successfully! We've sent a verification link to ${email}` : `Account created successfully!`;
@@ -19,29 +20,11 @@
 	message={message} 
 />
 
-<div class="instructions">
+<InstructionText>
 	<p>To complete your registration:</p>
 	<ol>
-		<li>Check your email inbox (and spam folder if needed).</li>
+		<li>Check your email inbox (maybe spam).</li>
 		<li>Click the verification link in the email.</li>
 		<li>You'll be redirected to the app automatically.</li>
 	</ol>
-</div>
-
-<style>
-	.instructions,
-	.instructions p {
-		color: var(--gray-500);
-		line-height: 1.5;
-		margin: 0.0rem 0.0rem 1.8rem;
-	}
-
-	.instructions ol {
-		margin: 0;
-		padding-left: 2.4rem;
-	}
-
-	.instructions li {
-		margin-bottom: 0.9rem;
-	}
-</style>
+</InstructionText>

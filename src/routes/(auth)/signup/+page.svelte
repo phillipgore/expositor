@@ -3,6 +3,7 @@
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
 	import FormField from '$lib/components/FormField.svelte';
+	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import { signUp } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 
@@ -88,14 +89,14 @@
 		isDisabled={isLoading}
 	/>
 
-	<div class="button-bar">
+	<FormButtonBar>
 		<Button 
 			type="submit" 
 			label={isLoading ? "Signing Up..." : "Sign Up"}
 			classes="system-blue"
 			isDisabled={isLoading}
 		/>
-	</div>
+	</FormButtonBar>
 </form>
 
 <style>
@@ -107,11 +108,5 @@
 		:global(.form-field) {
 			margin-bottom: 0;
 		}
-	}
-
-	.button-bar {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.6rem;
 	}
 </style>

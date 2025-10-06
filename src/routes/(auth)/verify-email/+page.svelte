@@ -6,6 +6,8 @@
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
 	import FormField from '$lib/components/FormField.svelte';
+	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
+	import InstructionText from '$lib/elements/InstructionText.svelte';
 
 	let isVerifying = true;
 	let success = false;
@@ -98,20 +100,22 @@
 	</div>
 {:else if success}
 	<Alert type="success" message={email? `Your email ${email} has been verified successfully! You can now sign in.` : `Your email has been verified successfully! You can now sign in.`} />
-	<div class="button-bar">
+	<FormButtonBar>
 		<Button 
-			label="Continue to App"
+			label="Go to App"
 			classes="system-blue"
 			handleClick={handleContinue}
 		/>
-	</div>
+	</FormButtonBar>
 {:else}
 	<Alert type="error" message={error} />
 	
 	{#if resendSuccess}
 		<Alert type="success" message={resendSuccess} />
 	{:else}
-		<p class="instructions">Your verification link has expired. Enter your email below to receive a new one.</p>
+		<InstructionText>
+			Your verification link has expired. Enter your email below to receive a new one.
+		</InstructionText>
 		
 			<form on:submit={handleResendVerification}>
 				<Alert type="error" message={resendError} />
@@ -125,14 +129,14 @@
 					isDisabled={isResending}
 				/>
 
-			<div class="button-bar">
+			<FormButtonBar>
 				<Button 
 					type="submit"
 					label={isResending ? "Sending..." : "Resend"}
 					classes="system-blue"
 					isDisabled={isResending}
 				/>
-			</div>
+			</FormButtonBar>
 		</form>
 	{/if}
 {/if}
@@ -142,18 +146,5 @@
 		margin-top: 2.7rem;
 		text-align: center;
 		color: var(--gray-400);
-	}
-	
-	.instructions {
-		color: var(--gray-500);
-		line-height: 1.5;
-		margin: 0.0rem 0.0rem 1.8rem;
-	}
-
-	.button-bar {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.6rem;
-		margin-top: 2.7rem;
 	}
 </style>

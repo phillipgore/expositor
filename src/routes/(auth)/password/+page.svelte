@@ -3,6 +3,8 @@
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
 	import FormField from '$lib/components/FormField.svelte';
+	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
+	import InstructionText from '$lib/elements/InstructionText.svelte';
 	import { goto } from '$app/navigation';
 
 	let email = '';
@@ -53,7 +55,9 @@
 	<Alert type="error" message={error} />
 	<Alert type="success" message={successMessage} />
 
-	<p class="instructions">Enter your email address and we'll send you a link to reset your password.</p>
+	<InstructionText>
+		Enter your email address and we'll send you a link to reset your password.
+	</InstructionText>
 
 	
 	{#if !successMessage}
@@ -66,27 +70,13 @@
 			isDisabled={isLoading}
 		/>
 
-		<div class="button-bar">
+		<FormButtonBar>
 			<Button 
 				type="submit" 
 				label={isLoading ? "Sending..." : "Send Link"}
 				classes="system-blue"
 				isDisabled={isLoading}
 			/>
-		</div>
+		</FormButtonBar>
 	{/if}
 </form>
-
-<style>
-	.instructions {
-		color: var(--gray-500);
-		line-height: 1.5;
-		margin: 0.0rem 0.0rem 1.8rem;
-	}
-
-	.button-bar {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.6rem;
-	}
-</style>
