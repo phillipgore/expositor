@@ -8,6 +8,7 @@
 	import FormField from '$lib/components/FormField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
+	import StatusMessage from '$lib/elements/StatusMessage.svelte';
 
 	let isVerifying = true;
 	let success = false;
@@ -92,12 +93,14 @@
 	}
 </script>
 
-<Heading heading="h1" classes="h4">Email Verification</Heading>
+{#if !isVerifying}
+	<Heading heading="h1" classes="h4">Email Verification</Heading>
+{/if}
 
 {#if isVerifying}
-	<div class="status-message">
+	<StatusMessage>
 		<p>Verifying your email address...</p>
-	</div>
+	</StatusMessage>
 {:else if success}
 	<Alert type="success" message={email? `Your email ${email} has been verified successfully! You can now sign in.` : `Your email has been verified successfully! You can now sign in.`} />
 	<FormButtonBar>
@@ -140,11 +143,3 @@
 		</form>
 	{/if}
 {/if}
-
-<style>
-	.status-message {
-		margin-top: 2.7rem;
-		text-align: center;
-		color: var(--gray-400);
-	}
-</style>

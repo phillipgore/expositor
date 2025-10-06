@@ -1,34 +1,34 @@
 <script>
-	let { heading, classes, children, alignCenter, alignRight } = $props();
+	let { heading, classes, children, alignCenter, alignRight, hasSub, isMuted } = $props();
 </script>
 
 {#if heading === 'h1'}
-	<h1 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''}">
+	<h1 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
 		{@render children()}
 	</h1>
 {/if}
 {#if heading === 'h2'}
-	<h2 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''}">
+	<h2 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
 		{@render children()}
 	</h2>
 {/if}
 {#if heading === 'h3'}
-	<h3 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''}">
+	<h3 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
 		{@render children()}
 	</h3>
 {/if}
 {#if heading === 'h4'}
-	<h4 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''}">
+	<h4 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
 		{@render children()}
 	</h4>
 {/if}
 {#if heading === 'h5'}
-	<h5 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''}">
+	<h5 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
 		{@render children()}
 	</h5>
 {/if}
 {#if heading === 'h6'}
-	<h6 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''}">
+	<h6 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
 		{@render children()}
 	</h6>
 {/if}
@@ -82,5 +82,12 @@
 	h6,
 	.h6 {
 		font-size: 1.6rem;
+	}
+	.has-sub{
+		margin: 0.0rem;
+		line-height: 1.5;
+	}
+	.muted {
+		color: var(--gray-500)
 	}
 </style>

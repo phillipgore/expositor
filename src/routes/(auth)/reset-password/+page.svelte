@@ -8,6 +8,7 @@
 	import FormField from '$lib/components/FormField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
+	import StatusMessage from '$lib/elements/StatusMessage.svelte';
 
 	let token = '';
 	let email = '';
@@ -104,14 +105,17 @@
 	}
 </script>
 
-<Heading heading="h1" classes="h4">Reset Password</Heading>
+{#if !isValidatingToken}
+	<Heading heading="h1" classes="h4" hasSub>Reset Password</Heading>
+	<Heading heading="h2" classes="h5" isMuted>{email}</Heading>
+{/if}
 
 <form on:submit={handleSubmit}>
 
 	{#if isValidatingToken}
-		<div class="status-message">
+		<StatusMessage>
 			<p>Validating reset token...</p>
-		</div>
+		</StatusMessage>
 	{:else if !tokenValid}
 		<Alert type="error" message={error} />
 		<InstructionText>
@@ -119,7 +123,7 @@
 		</InstructionText>
 		<FormButtonBar>
 			<Button 
-				label="Back to Password Reset"
+				label="Password Reset"
 				classes="system-gray"
 				handleClick={() => goto('/password')}
 			/>
@@ -128,28 +132,24 @@
 		<Alert type="success" message={successMessage} />
 	{:else}
 		<Alert type="error" message={error} />
-		
-		<div class="email-info">
-			<p><strong>Email:</strong> {email}</p>
-		</div>
 
-			<FormField
-				label="New Password"
-				id="newPassword"
-				name="newPassword"
-				type="password"
-				bind:value={newPassword}
-				isDisabled={isLoading}
-			/>
+		<FormField
+			label="New Password"
+			id="newPassword"
+			name="newPassword"
+			type="password"
+			bind:value={newPassword}
+			isDisabled={isLoading}
+		/>
 
-			<FormField
-				label="Confirm Password"
-				id="confirmPassword"
-				name="confirmPassword"
-				type="password"
-				bind:value={confirmPassword}
-				isDisabled={isLoading}
-			/>
+		<FormField
+			label="Confirm Password"
+			id="confirmPassword"
+			name="confirmPassword"
+			type="password"
+			bind:value={confirmPassword}
+			isDisabled={isLoading}
+		/>
 
 		<FormButtonBar>
 			<Button 
@@ -163,23 +163,5 @@
 </form>
 
 <style>	
-	.status-message {
-		margin-top: 2.7rem;
-		text-align: center;
-		color: var(--gray-400);
-	}
-
-	.email-info {
-		margin-top: 2.7rem;
-		margin-bottom: 1.8rem;
-		padding: 1.2rem;
-		background-color: var(--gray-50);
-		border-radius: 0.3rem;
-	}
-
-	.email-info p {
-		margin: 0;
-		font-size: 1.4rem;
-		color: var(--gray-600);
-	}
+	
 </style>
