@@ -2,6 +2,8 @@
 	import TextInput from '$lib/elements/TextInput.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
+	import Button from '$lib/elements/Button.svelte';
+	import Label from '$lib/elements/Label.svelte';
 	import { signIn } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 
@@ -33,87 +35,46 @@
 	}
 </script>
 
-<div class="wrapper">
-	<form on:submit={handleSubmit}>
-		<Heading heading="h4">Sign In</Heading>
-		
-		<Alert type="error" message={error} />
-		
-		<div class="email-container">
-			<label for="email">Email</label>
-			<TextInput bind:value={email} isFullWidth type="email" isDisabled={isLoading} id="email" name="email" isLarge={false}></TextInput>
-		</div>
-		<div class="password-container">
-			<label for="password">Password</label>
-			<TextInput bind:value={password} isFullWidth type="password" isDisabled={isLoading} id="password" name="password" isLarge={false}></TextInput>
-		</div>
+<Heading heading="h1" classes="h4">Sign In</Heading>
 
-		<div class="button-bar">
-			<button 
-				type="submit" 
-				class="signin-button"
-				disabled={isLoading}
-			>
-				{isLoading ? "Signing In..." : "Sign In"}
-			</button>
-		</div>
-	</form>
-</div>
+<form on:submit={handleSubmit}>
+	
+	<Alert type="error" message={error} />
+	
+	<div class="input-container">
+		<Label forId="email" text="Email" />
+		<TextInput bind:value={email} isFullWidth type="email" isDisabled={isLoading} id="email" name="email" isLarge={false}></TextInput>
+	</div>
+	<div class="input-container">
+		<Label forId="password" text="Password" />
+		<TextInput bind:value={password} isFullWidth type="password" isDisabled={isLoading} id="password" name="password" isLarge={false}></TextInput>
+	</div>
+
+	<div class="button-bar">
+		<Button 
+			type="submit" 
+			label={isLoading ? "Signing In..." : "Sign In"}
+			classes="system-blue"
+			isDisabled={isLoading}
+		/>
+	</div>
+</form>
 
 <style>
-	.wrapper {
-		display: flex;
-		flex-direction: column;
-		flex-grow: 1;
-		align-items: center;
-		padding-top: 5.4em;
+	.input-container {
+		margin-bottom: 1.8rem;
 
-		form {
+		&.columns {
 			display: flex;
-			flex-direction: column;
-			width: 36rem;
-			margin-bottom: 18rem;
-
-			label {
-				display: block;
-				margin-bottom: 0.6rem;
-				font-size: 1.4rem;
-				color: var(--gray-400);
-				font-weight: 500;
-			}
-
-			.email-container {
-				margin-top: 2.7rem;
-				margin-bottom: 1.8rem;
-			}
-
-			.button-bar {
-				display: flex;
-				justify-content: flex-end;
-				gap: 0.6rem;
-				margin-top: 2.7rem;
-			}
-
-			.signin-button {
-				background-color: var(--system-blue);
-				color: white;
-				border: none;
-				border-radius: 0.3rem;
-				padding: 0.8rem 1.6rem;
-				font-size: 1.2rem;
-				font-weight: 500;
-				cursor: pointer;
-				min-width: 4.8rem;
-
-				&:hover:not(:disabled) {
-					background-color: #0056b3;
-				}
-
-				&:disabled {
-					opacity: 0.6;
-					cursor: not-allowed;
-				}
-			}
+			gap: 2.1rem;
+			margin-top: 2.7rem;
+			margin-bottom: 1.8rem;
 		}
+	}
+
+	.button-bar {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.6rem;
 	}
 </style>

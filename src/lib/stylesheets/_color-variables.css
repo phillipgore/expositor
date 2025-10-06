@@ -63,9 +63,5 @@
 
 	--system-red-dark: hsl(3, 68%, 42%);
 	--system-red: hsl(3, 100%, 59%);
-	--system-red-light: hsl(3, 100%, 95%);
-
-	--system-green-dark: hsl(120, 68%, 35%);
-	--system-green: hsl(120, 68%, 50%);
-	--system-green-light: hsl(120, 68%, 95%);
+	--system-red-light: hsl(3, 100%, 89%);
 }

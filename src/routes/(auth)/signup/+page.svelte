@@ -2,6 +2,8 @@
 	import TextInput from '$lib/elements/TextInput.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
+	import Button from '$lib/elements/Button.svelte';
+	import Label from '$lib/elements/Label.svelte';
 	import { signUp } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 
@@ -32,7 +34,13 @@
 		const result = await signUp(firstName.trim(), lastName.trim(), email, password);
 		
 		if (result.success) {
-			goto('/new');
+			if (result.requiresVerification) {
+				// Redirect to verify-pending page with email parameter
+				goto(`/verify-pending?email=${encodeURIComponent(result.email)}`);
+			} else {
+				// Fallback in case verification is not required
+				goto('/new');
+			}
 		} else {
 			error = result.error;
 		}
@@ -41,82 +49,54 @@
 	}
 </script>
 
-<div class="wrapper">
-	<form on:submit={handleSubmit}>
-		<Heading heading="h4">Sign Up</Heading>
-		
-		<Alert type="error" message={error} />
-		
-		<div class="name-container">
-			<div>
-				<label for="firstName">First Name</label>
-				<TextInput bind:value={firstName} isFullWidth type="text" isDisabled={isLoading} id="firstName" name="firstName" isLarge={false}></TextInput>
-			</div>
-			<div>
-				<label for="lastName">Last Name</label>
-				<TextInput bind:value={lastName} isFullWidth type="text" isDisabled={isLoading} id="lastName" name="lastName" isLarge={false}></TextInput>
-			</div>
-		</div>
-		<div class="email-container">
-			<label for="email">Email</label>
-			<TextInput bind:value={email} isFullWidth type="email" isDisabled={isLoading} id="email" name="email" isLarge={false}></TextInput>
-		</div>
-		<div class="password-container">
-			<label for="password">Password</label>
-			<TextInput bind:value={password} isFullWidth type="password" isDisabled={isLoading} id="password" name="password" isLarge={false}></TextInput>
-		</div>
+<Heading heading="h1" classes="h4">Sign Up</Heading>
 
-		<div class="button-bar">
-			<button 
-				type="submit" 
-				class="signup-button"
-				disabled={isLoading}
-			>
-				{isLoading ? "Signing Up..." : "Sign Up"}
-			</button>
+<form on:submit={handleSubmit}>
+	<Alert type="error" message={error} />
+	
+	<div class="input-container columns">
+		<div>
+			<Label forId="firstName" text="First Name" />
+			<TextInput bind:value={firstName} isFullWidth type="text" isDisabled={isLoading} id="firstName" name="firstName" isLarge={false}></TextInput>
 		</div>
-	</form>
-</div>
+		<div>
+			<Label forId="lastName" text="Last Name" />
+			<TextInput bind:value={lastName} isFullWidth type="text" isDisabled={isLoading} id="lastName" name="lastName" isLarge={false}></TextInput>
+		</div>
+	</div>
+	<div class="input-container">
+		<Label forId="email" text="Email" />
+		<TextInput bind:value={email} isFullWidth type="email" isDisabled={isLoading} id="email" name="email" isLarge={false}></TextInput>
+	</div>
+	<div class="input-container">
+		<Label forId="password" text="Password" />
+		<TextInput bind:value={password} isFullWidth type="password" isDisabled={isLoading} id="password" name="password" isLarge={false}></TextInput>
+	</div>
+
+	<div class="button-bar">
+		<Button 
+			type="submit" 
+			label={isLoading ? "Signing Up..." : "Sign Up"}
+			classes="system-blue"
+			isDisabled={isLoading}
+		/>
+	</div>
+</form>
 
 <style>
-	.wrapper {
-		display: flex;
-		flex-direction: column;
-		flex-grow: 1;
-		align-items: center;
-		padding-top: 5.4em;
+	.input-container {
+		margin-bottom: 1.8rem;
 
-		form {
+		&.columns {
 			display: flex;
-			flex-direction: column;
-			width: 36rem;
-			margin-bottom: 18rem;
-
-			label {
-				display: block;
-				margin-bottom: 0.6rem;
-				font-size: 1.4rem;
-				color: var(--gray-400);
-				font-weight: 500;
-			}
-
-			.name-container {
-				display: flex;
-				gap: 2.1rem;
-				margin-top: 2.7rem;
-				margin-bottom: 1.8rem;
-			}
-
-			.email-container {
-				margin-bottom: 1.8rem;
-			}
-
-			.button-bar {
-				display: flex;
-				justify-content: flex-end;
-				gap: 0.6rem;
-				margin-top: 2.7rem;
-			}
+			gap: 2.1rem;
+			margin-bottom: 1.8rem;
 		}
+	}
+
+	.button-bar {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.6rem;
 	}
 </style>

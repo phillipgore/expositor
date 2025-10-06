@@ -1,5 +1,5 @@
 <script>
-	let { heading, classes, children, alignCenter, alignRight, description } = $props();
+	let { heading, classes, children, alignCenter, alignRight } = $props();
 </script>
 
 {#if heading === 'h1'}
@@ -33,12 +33,6 @@
 	</h6>
 {/if}
 
-{#if description}
-	<p class="description">
-		{description}
-	</p>
-{/if}
-
 
 <style>
 
@@ -62,7 +56,7 @@
 	.h5,
 	h6,
 	.h6 {
-		margin: 0em 0em 0.5em;
+		margin: 0em 0em 0.75em;
 		color: var(--black);
 	}
 	h1,
@@ -88,11 +82,5 @@
 	h6,
 	.h6 {
 		font-size: 1.6rem;
-	}
-
-	.description {
-		color: var(--gray-400);
-		margin: -0.5em 0em 0.5em;
-		line-height: 1.5;
 	}
 </style>

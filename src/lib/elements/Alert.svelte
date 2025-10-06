@@ -20,8 +20,9 @@
 	.alert {
 		padding: 1rem;
 		border-radius: 0.3rem;
-		margin-bottom: 1rem;
+		margin-bottom: 1.8rem;
 		border: 1px solid;
+		line-height: 1.5;
 	}
 
 	.alert.error {

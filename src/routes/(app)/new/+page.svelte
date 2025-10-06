@@ -66,7 +66,6 @@
 	}
 
 	.title-container {
-		margin-top: 2.7rem;
 		margin-bottom: 2.7rem;
 	}
 

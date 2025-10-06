@@ -18,12 +18,31 @@
 <ToolbarAuth></ToolbarAuth>
 
 {#if !$isAuthenticated}
-	<slot />
+	<div class="container">
+		<div class="wrapper">
+			<slot />
+		</div>
+	</div>
 {:else}
 	<div class="redirecting">Redirecting to app...</div>
 {/if}
 
 <style>
+	.container {
+		display: flex;
+		flex-direction: column;
+		flex-grow: 1;
+		align-items: center;
+		padding-top: 5.4em;
+	}
+
+	.wrapper {
+		display: flex;
+		flex-direction: column;
+		width: 36rem;
+		margin-bottom: 3.6rem;
+	}
+
 	.redirecting {
 		display: flex;
 		justify-content: center;

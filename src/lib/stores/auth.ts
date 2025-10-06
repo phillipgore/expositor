@@ -49,7 +49,20 @@ export async function signIn(email: string, password: string) {
 		});
 		
 		if (result.data?.user) {
-			user.set(result.data.user as AuthUser);
+			const userData = result.data.user as AuthUser;
+			
+			// Check if email is verified
+			if (!userData.emailVerified) {
+				// Sign out the user since they haven't verified their email
+				await authClient.signOut();
+				return { 
+					success: false, 
+					error: 'Please verify your email address before signing in. Check your inbox for the verification link.',
+					needsVerification: true 
+				};
+			}
+			
+			user.set(userData);
 			isAuthenticated.set(true);
 			return { success: true };
 		} else {
@@ -97,13 +110,33 @@ export async function signUp(firstName: string, lastName: string, email: string,
 				console.warn('Failed to update firstName/lastName:', updateError);
 			}
 
-			user.set({
-				...result.data.user,
-				firstName: firstName.trim(),
-				lastName: lastName.trim()
-			} as AuthUser);
-			isAuthenticated.set(true);
-			return { success: true };
+			// Send verification email
+			try {
+				console.log('Sending verification email...');
+				const verificationResponse = await fetch('/api/auth/send-verification', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ email })
+				});
+				
+				if (!verificationResponse.ok) {
+					console.warn('Failed to send verification email:', await verificationResponse.text());
+				} else {
+					console.log('Verification email sent successfully');
+				}
+			} catch (verificationError) {
+				console.warn('Failed to send verification email:', verificationError);
+			}
+
+			// Do NOT log the user in - they need to verify their email first
+			// User stays on signup page and sees verification message
+			return { 
+				success: true, 
+				requiresVerification: true,
+				email: email 
+			};
 		} else {
 			console.error('Signup failed:', result.error);
 			let errorMessage = 'Sign up failed';
