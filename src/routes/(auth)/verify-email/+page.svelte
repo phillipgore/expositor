@@ -5,7 +5,7 @@
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
-	import FormField from '$lib/components/FormField.svelte';
+	import InputField from '$lib/components/InputField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
 	import StatusMessage from '$lib/elements/StatusMessage.svelte';
@@ -102,7 +102,7 @@
 		<p>Verifying your email address...</p>
 	</StatusMessage>
 {:else if success}
-	<Alert type="success" message={email? `Your email ${email} has been verified successfully! You can now sign in.` : `Your email has been verified successfully! You can now sign in.`} />
+	<Alert color="green" message={email? `Your email ${email} has been verified successfully! You can now sign in.` : `Your email has been verified successfully! You can now sign in.`} />
 	<FormButtonBar>
 		<Button 
 			label="Go to App"
@@ -111,19 +111,19 @@
 		/>
 	</FormButtonBar>
 {:else}
-	<Alert type="error" message={error} />
-	
+	<Alert color="red" message={error} />
+
 	{#if resendSuccess}
-		<Alert type="success" message={resendSuccess} />
+		<Alert color="green" message={resendSuccess} />
 	{:else}
 		<InstructionText>
 			Your verification link has expired. Enter your email below to receive a new one.
 		</InstructionText>
 		
 			<form on:submit={handleResendVerification}>
-				<Alert type="error" message={resendError} />
+				<Alert color="red" message={resendError} />
 				
-				<FormField
+				<InputField
 					label="Email"
 					id="resendEmail"
 					name="resendEmail"

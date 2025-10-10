@@ -1,6 +1,6 @@
 <script>
 	import Label from '$lib/elements/Label.svelte';
-	import TextInput from '$lib/elements/TextInput.svelte';
+	import Input from '$lib/elements/Input.svelte';
 
 	let {
 		// Label props
@@ -9,7 +9,7 @@
 		labelClasses = '',
 		isLabelInline = false,
 		isLabelLarge = false,
-		// TextInput props
+		// Input props
 		id,
 		name,
 		type = 'text',
@@ -23,12 +23,12 @@
 	} = $props();
 </script>
 
-<div class="form-field {containerClasses}">
+<div class="input-field {containerClasses}">
 	<Label forId={forId || id} text={label} classes={labelClasses} isInline={isLabelInline} isLarge={isLabelLarge}>
 		{label}
 	</Label>
-	<TextInput 
-		{id} 
+	<Input
+		{id}
 		{name} 
 		{type} 
 		bind:value 
@@ -39,7 +39,7 @@
 </div>
 
 <style>
-	.form-field {
+	.input-field {
 		margin-bottom: 1.8rem;
 	}
 </style>

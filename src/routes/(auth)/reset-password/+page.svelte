@@ -5,7 +5,7 @@
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
-	import FormField from '$lib/components/FormField.svelte';
+	import InputField from '$lib/components/InputField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
 	import StatusMessage from '$lib/elements/StatusMessage.svelte';
@@ -117,7 +117,7 @@
 			<p>Validating reset token...</p>
 		</StatusMessage>
 	{:else if !tokenValid}
-		<Alert type="error" message={error} />
+		<Alert color="red" message={error} />
 		<InstructionText>
 			Your reset link may have expired. Please request a new password reset.
 		</InstructionText>
@@ -129,11 +129,11 @@
 			/>
 		</FormButtonBar>
 	{:else if successMessage}
-		<Alert type="success" message={successMessage} />
+		<Alert color="green" message={successMessage} />
 	{:else}
-		<Alert type="error" message={error} />
+		<Alert color="red" message={error} />
 
-		<FormField
+		<InputField
 			label="New Password"
 			id="newPassword"
 			name="newPassword"
@@ -142,7 +142,7 @@
 			isDisabled={isLoading}
 		/>
 
-		<FormField
+		<InputField
 			label="Confirm Password"
 			id="confirmPassword"
 			name="confirmPassword"

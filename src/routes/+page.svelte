@@ -32,7 +32,7 @@
 				height: 6rem;
 				max-width: initial;
 				margin-bottom: 2.1rem;
-				fill: var(--blue);
+				fill: var(--gray-700);
 			}
 		}
 	}

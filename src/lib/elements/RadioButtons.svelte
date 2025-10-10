@@ -58,6 +58,6 @@
 	}
 
 	input {
-		accent-color: var(--system-blue);
+		accent-color: var(--blue);
 	}
 </style>

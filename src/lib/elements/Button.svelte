@@ -254,7 +254,7 @@
 
 			&:hover {
 				color: var(--white);
-				background-color: var(--system-blue);
+				background-color: var(--blue);
 
 				.shortcut {
 					color: var(--white);
@@ -318,8 +318,8 @@
 		}
 
 		&.system-blue {
-			border-color: var(--system-blue);
-			background-color: var(--system-blue);
+			border-color: var(--blue);
+			background-color: var(--blue);
 
 			:global(.icon path) {
 				fill: var(--white);
@@ -331,8 +331,8 @@
 		}
 
 		&.system-gray {
-			border-color: var(--system-gray);
-			background-color: var(--system-gray);
+			border-color: var(--gray);
+			background-color: var(--gray);
 
 			:global(.icon path) {
 				fill: var(--white);
@@ -344,8 +344,8 @@
 		}
 
 		&.system-red {
-			border-color: var(--system-red);
-			background-color: var(--system-red);
+			border-color: var(--red);
+			background-color: var(--red);
 
 			:global(.icon path) {
 				fill: var(--white);

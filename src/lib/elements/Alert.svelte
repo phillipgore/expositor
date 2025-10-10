@@ -1,8 +1,8 @@
 <script>
 	/**
-	 * @type {'error' | 'success' | 'warning' | 'info'}
+	 * @type {'red' | 'green' | 'yellow' | 'blue' | 'orange' | 'aqua' | 'purple' | 'pink' | 'gray'}
 	 */
-	export let type = 'error';
+	export let color = 'red';
 	
 	/**
 	 * @type {string}
@@ -11,7 +11,7 @@
 </script>
 
 {#if message}
-	<div class="alert {type}">
+	<div class="alert {color}">
 		{message}
 	</div>
 {/if}
@@ -21,31 +21,51 @@
 		padding: 1rem;
 		border-radius: 0.3rem;
 		margin-bottom: 1.8rem;
-		border: 1px solid;
 		line-height: 1.5;
 	}
 
-	.alert.error {
-		background-color: var(--red-light);
-		color: var(--red-dark);
-		border-color: var(--red);
+	.alert.red {
+		background-color: var(--red);
+		color: var(--white);
 	}
 
-	.alert.success {
-		background-color: var(--green-light);
-		color: var(--green-dark);
-		border-color: var(--green);
+	.alert.green {
+		background-color: var(--green);
+		color: var(--white);
 	}
 
-	.alert.warning {
-		background-color: var(--yellow-light);
-		color: var(--yellow-dark);
-		border-color: var(--yellow);
+	.alert.yellow {
+		background-color: var(--yellow);
+		color: var(--black);
 	}
 
-	.alert.info {
-		background-color: var(--blue-light);
-		color: var(--blue-dark);
-		border-color: var(--blue);
+	.alert.blue {
+		background-color: var(--blue);
+		color: var(--white);
+	}
+
+	.alert.orange {
+		background-color: var(--orange);
+		color: var(--white);
+	}
+
+	.alert.aqua {
+		background-color: var(--aqua);
+		color: var(--white);
+	}
+
+	.alert.purple {
+		background-color: var(--purple);
+		color: var(--white);
+	}
+
+	.alert.pink {
+		background-color: var(--pink);
+		color: var(--white);
+	}
+
+	.alert.gray {
+		background-color: var(--gray);
+		color: var(--white);
 	}
 </style>

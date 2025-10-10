@@ -2,7 +2,7 @@
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
-	import FormField from '$lib/components/FormField.svelte';
+	import InputField from '$lib/components/InputField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
 	import { goto } from '$app/navigation';
@@ -52,8 +52,8 @@
 
 <form on:submit={handleSubmit}>
 	
-	<Alert type="error" message={error} />
-	<Alert type="success" message={successMessage} />
+	<Alert color="red" message={error} />
+	<Alert color="green" message={successMessage} />
 
 	<InstructionText>
 		Enter your email address and we'll send you a link to reset your password.
@@ -61,7 +61,7 @@
 
 	
 	{#if !successMessage}
-		<FormField
+		<InputField
 			label="Email"
 			id="email"
 			name="email"

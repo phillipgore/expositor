@@ -2,7 +2,7 @@
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import Button from '$lib/elements/Button.svelte';
-	import FormField from '$lib/components/FormField.svelte';
+	import InputField from '$lib/components/InputField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import { signIn } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
@@ -39,9 +39,9 @@
 
 <form on:submit={handleSubmit}>
 	
-	<Alert type="error" message={error} />
+	<Alert color="red" message={error} />
 	
-	<FormField
+	<InputField
 		label="Email"
 		id="email"
 		name="email"
@@ -49,7 +49,7 @@
 		bind:value={email}
 		isDisabled={isLoading}
 	/>
-	<FormField
+	<InputField
 		label="Password"
 		id="password"
 		name="password"

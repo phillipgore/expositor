@@ -763,7 +763,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border: 0.1rem dashed var(--system-blue);
+		border: 0.1rem dashed var(--blue);
 		border-radius: 0.8rem;
 		background-color: rgba(0, 123, 255, 0.05);
 		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -780,7 +780,7 @@
 	.drop-line {
 		width: 100%;
 		height: 0.2rem;
-		background: linear-gradient(90deg, transparent, var(--system-blue), transparent);
+		background: linear-gradient(90deg, transparent, var(--blue), transparent);
 		border-radius: 0.1rem;
 		position: relative;
 
@@ -792,14 +792,14 @@
 			transform: translate(-50%, -50%);
 			width: 0.8rem;
 			height: 0.8rem;
-			background: var(--system-blue);
+			background: var(--blue);
 			border-radius: 50%;
 		}
 	}
 
 	.drop-text {
 		position: absolute;
-		background: var(--system-blue);
+		background: var(--blue);
 		color: white;
 		padding: 0.4rem 0.8rem;
 		border-radius: 1.2rem;

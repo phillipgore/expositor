@@ -71,8 +71,8 @@
 
 		&:focus {
 			outline: none;
-			border-color: var(--system-blue);
-			box-shadow: 0rem 0rem 0.6rem var(--system-blue-alpha);
+			border-color: var(--blue);
+			box-shadow: 0rem 0rem 0.6rem var(--blue-alpha);
 		}
 
 		&:disabled {
@@ -86,7 +86,7 @@
 		position: absolute;
 		width: 1.8rem;
 		height: 1.8rem;
-		background-color: var(--system-blue);
+		background-color: var(--blue);
 		top: 0;
 		right: 0;
 		z-index: 100;

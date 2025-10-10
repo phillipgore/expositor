@@ -5,7 +5,7 @@
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Label from '$lib/elements/Label.svelte';
-	import FormField from '$lib/components/FormField.svelte';
+	import InputField from '$lib/components/InputField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import PassageSelector from '$lib/components/PassageSelector.svelte';
 
@@ -37,7 +37,7 @@
 	<form>
 		<Heading heading="h1" classes="h4">New Study</Heading>
 
-		<FormField
+		<InputField
 			label="Title"
 			id="title"
 			name="title"
