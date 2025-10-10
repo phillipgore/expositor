@@ -1,4 +1,6 @@
 <script>
+	import { slide } from 'svelte/transition';
+
 	/**
 	 * @color {'red' | 'green' | 'yellow' | 'blue' | 'orange' | 'aqua' | 'purple' | 'pink' | 'gray'}
 	 * @look {'subtle'}
@@ -14,7 +16,7 @@
 </script>
 
 {#if message}
-	<div class="alert {color} {look}">
+	<div class="alert {color} {look}" transition:slide={{ duration: 300 }}>
 		{message}
 	</div>
 {/if}
