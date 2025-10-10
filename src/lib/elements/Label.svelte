@@ -9,7 +9,6 @@
 <style>
 	label {
 		display: flex;
-		margin-bottom: 0.6rem;
 		font-size: 1.4rem;
 		color: var(--gray-400);
 		font-weight: 500;

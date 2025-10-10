@@ -11,12 +11,14 @@
 	let password = '';
 	let isLoading = false;
 	let error = '';
+	let formSubmitted = false;
 
 	async function handleSubmit(event) {
 		event.preventDefault();
+		formSubmitted = true;
 		
+		// Check if all fields are filled
 		if (!email || !password) {
-			error = 'Please fill in all fields';
 			return;
 		}
 
@@ -39,7 +41,7 @@
 
 <form on:submit={handleSubmit}>
 	
-	<Alert color="red" message={error} />
+	<Alert color="red" look="subtle" message={error} />
 	
 	<InputField
 		label="Email"
@@ -48,6 +50,9 @@
 		type="email"
 		bind:value={email}
 		isDisabled={isLoading}
+		required={true}
+		requiredMode="onError"
+		hasError={formSubmitted && !email}
 	/>
 	<InputField
 		label="Password"
@@ -56,6 +61,9 @@
 		type="password"
 		bind:value={password}
 		isDisabled={isLoading}
+		required={true}
+		requiredMode="onError"
+		hasError={formSubmitted && !password}
 	/>
 
 	<FormButtonBar>

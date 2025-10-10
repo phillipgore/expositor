@@ -18,12 +18,13 @@
 	let isResending = false;
 	let resendSuccess = '';
 	let resendError = '';
+	let formSubmitted = false;
 
 	onMount(async () => {
 		const token = $page.url.searchParams.get('token');
 
 		if (!token) {
-			error = 'No verification token provided';
+			error = 'No verification token provided.';
 			isVerifying = false;
 			return;
 		}
@@ -43,10 +44,10 @@
 				success = true;
 				email = result.email || '';
 			} else {
-				error = result.error || 'Verification failed';
+				error = result.error || 'Verification failed.';
 			}
 		} catch (err) {
-			error = 'An unexpected error occurred';
+			error = 'An unexpected error occurred.';
 		} finally {
 			isVerifying = false;
 		}
@@ -58,9 +59,10 @@
 
 	async function handleResendVerification(event) {
 		event.preventDefault();
+		formSubmitted = true;
 
+		// Check if email is filled
 		if (!resendEmail) {
-			resendError = 'Please enter your email address';
 			return;
 		}
 
@@ -83,10 +85,10 @@
 				resendSuccess = `A new verification link has been sent to ${resendEmail}. Please check your inbox.`;
 				resendEmail = ''; // Clear the input
 			} else {
-				resendError = result.error || 'Failed to send verification email';
+				resendError = result.error || 'Failed to send verification email.';
 			}
 		} catch (err) {
-			resendError = 'An unexpected error occurred';
+			resendError = 'An unexpected error occurred.';
 		} finally {
 			isResending = false;
 		}
@@ -102,7 +104,7 @@
 		<p>Verifying your email address...</p>
 	</StatusMessage>
 {:else if success}
-	<Alert color="green" message={email? `Your email ${email} has been verified successfully! You can now sign in.` : `Your email has been verified successfully! You can now sign in.`} />
+	<Alert color="green" look="subtle" message={email? `Your email ${email} has been verified successfully! You can now sign in.` : `Your email has been verified successfully! You can now sign in.`} />
 	<FormButtonBar>
 		<Button 
 			label="Go to App"
@@ -111,17 +113,17 @@
 		/>
 	</FormButtonBar>
 {:else}
-	<Alert color="red" message={error} />
+	<Alert color="red" look="subtle" message={error} />
 
 	{#if resendSuccess}
-		<Alert color="green" message={resendSuccess} />
+		<Alert color="green" look="subtle" message={resendSuccess} />
 	{:else}
 		<InstructionText>
 			Your verification link has expired. Enter your email below to receive a new one.
 		</InstructionText>
 		
 			<form on:submit={handleResendVerification}>
-				<Alert color="red" message={resendError} />
+				<Alert color="red" look="subtle" message={resendError} />
 				
 				<InputField
 					label="Email"
@@ -130,6 +132,9 @@
 					type="email"
 					bind:value={resendEmail}
 					isDisabled={isResending}
+					required={true}
+					requiredMode="onError"
+					hasError={formSubmitted && !resendEmail}
 				/>
 
 			<FormButtonBar>

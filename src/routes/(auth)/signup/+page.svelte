@@ -14,22 +14,24 @@
 	let confirmPassword = '';
 	let isLoading = false;
 	let error = '';
+	let formSubmitted = false;
 
 	async function handleSubmit(event) {
 		event.preventDefault();
+		formSubmitted = true;
 		
+		// Check if all fields are filled
 		if (!firstName || !lastName || !email || !password || !confirmPassword) {
-			error = 'Please fill in all fields';
 			return;
 		}
 
 		if (password.length < 6) {
-			error = 'Password must be at least 6 characters';
+			error = 'Password must be at least 6 characters.';
 			return;
 		}
 
 		if (password !== confirmPassword) {
-			error = 'Passwords do not match';
+			error = 'Passwords do not match.';
 			return;
 		}
 
@@ -58,7 +60,7 @@
 <Heading heading="h1" classes="h4">Sign Up</Heading>
 
 <form on:submit={handleSubmit}>
-	<Alert color="red" message={error} />
+	<Alert color="red" look="subtle" message={error} />
 	
 	<div class="name-fields">
 		<InputField
@@ -68,6 +70,9 @@
 			type="text"
 			bind:value={firstName}
 			isDisabled={isLoading}
+			required={true}
+			requiredMode="onError"
+			hasError={formSubmitted && !firstName}
 		/>
 		<InputField
 			label="Last Name"
@@ -76,6 +81,9 @@
 			type="text"
 			bind:value={lastName}
 			isDisabled={isLoading}
+			required={true}
+			requiredMode="onError"
+			hasError={formSubmitted && !lastName}
 		/>
 	</div>
 	<InputField
@@ -85,6 +93,9 @@
 		type="email"
 		bind:value={email}
 		isDisabled={isLoading}
+		required={true}
+		requiredMode="onError"
+		hasError={formSubmitted && !email}
 	/>
 	<InputField
 		label="Password"
@@ -93,6 +104,9 @@
 		type="password"
 		bind:value={password}
 		isDisabled={isLoading}
+		required={true}
+		requiredMode="onError"
+		hasError={formSubmitted && !password}
 	/>
 	<InputField
 		label="Confirm Password"
@@ -101,6 +115,9 @@
 		type="password"
 		bind:value={confirmPassword}
 		isDisabled={isLoading}
+		required={true}
+		requiredMode="onError"
+		hasError={formSubmitted && !confirmPassword}
 	/>
 
 	<FormButtonBar>

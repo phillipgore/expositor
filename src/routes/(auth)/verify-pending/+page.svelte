@@ -15,10 +15,7 @@
 
 <Heading heading="h1" classes="h4">Check Your Email</Heading>
 
-<Alert 
-	type="success" 
-	message={message} 
-/>
+<Alert color="green" look="subtle" message={message} />
 
 <InstructionText>
 	<p>To complete your registration:</p>

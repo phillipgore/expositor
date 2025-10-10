@@ -11,12 +11,14 @@
 	let isLoading = false;
 	let error = '';
 	let successMessage = '';
+	let formSubmitted = false;
 
 	async function handleSubmit(event) {
 		event.preventDefault();
+		formSubmitted = true;
 		
+		// Check if email is filled
 		if (!email) {
-			error = 'Please enter your email address';
 			return;
 		}
 
@@ -52,8 +54,8 @@
 
 <form on:submit={handleSubmit}>
 	
-	<Alert color="red" message={error} />
-	<Alert color="green" message={successMessage} />
+	<Alert color="red" look="subtle" message={error} />
+	<Alert color="green" look="subtle" message={successMessage} />
 
 	<InstructionText>
 		Enter your email address and we'll send you a link to reset your password.
@@ -68,6 +70,9 @@
 			type="email"
 			bind:value={email}
 			isDisabled={isLoading}
+			required={true}
+			requiredMode="onError"
+			hasError={formSubmitted && !email}
 		/>
 
 		<FormButtonBar>
