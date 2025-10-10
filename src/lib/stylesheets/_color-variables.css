@@ -16,20 +16,15 @@
 
 	--white: hsl(0, 0%, 100%);
 
-	/* Blue */
-	--blue-darker: hsl(219, 100%, 20%);
-	--blue-dark: hsl(219, 100%, 35%);
-	--blue: hsl(219, 100%, 50%);
-	--blue-light: hsl(219, 100%, 85%);
-	--blue-lighter: hsl(219, 100%, 95%);
-	--blue-alpha: hsl(219, 100%, 50%, 0.4);
 
 	/* Gray */
+	--gray-darkest: hsl(240, 1%, 8%);
 	--gray-darker: hsl(240, 1%, 15%);
 	--gray-dark: hsl(240, 1%, 27%);
 	--gray: hsl(240, 2%, 57%);
 	--gray-light: hsl(240, 10%, 86%);
 	--gray-lighter: hsl(240, 10%, 96%);
+	--gray-lightest: hsl(240, 10%, 98%);
 
 	/* Red */
 	--red-darker: hsl(3, 68%, 28%);
@@ -65,6 +60,15 @@
 	--aqua: hsl(185, 85%, 45%);
 	--aqua-light: hsl(185, 85%, 85%);
 	--aqua-lighter: hsl(185, 85%, 95%);
+
+	/* Blue */
+	--blue-darker: hsl(219, 100%, 20%);
+	--blue-dark: hsl(219, 100%, 35%);
+	--blue: hsl(219, 100%, 50%);
+	--blue-light: hsl(219, 100%, 85%);
+	--blue-lighter: hsl(219, 100%, 95%);
+	
+	--blue-alpha: hsl(219, 100%, 50%, 0.4);
 
 	/* Purple */
 	--purple-darker: hsl(270, 65%, 24%);
