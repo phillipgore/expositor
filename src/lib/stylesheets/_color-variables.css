@@ -18,13 +18,11 @@
 
 
 	/* Gray */
-	--gray-darkest: hsl(240, 1%, 8%);
 	--gray-darker: hsl(240, 1%, 15%);
 	--gray-dark: hsl(240, 1%, 27%);
 	--gray: hsl(240, 2%, 57%);
 	--gray-light: hsl(240, 10%, 86%);
 	--gray-lighter: hsl(240, 10%, 96%);
-	--gray-lightest: hsl(240, 10%, 98%);
 
 	/* Red */
 	--red-darker: hsl(3, 68%, 28%);

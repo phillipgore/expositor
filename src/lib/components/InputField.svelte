@@ -45,7 +45,7 @@
 		{#if showRequiredBadge}
 			<Badge color="red" message="Required" size="small" look="subtle"/>
 		{/if}
-		{#if warningMessage && !showRequiredBadge}
+		{#if warningMessage}
 			<Badge color="blue" message={warningMessage} size="small" look="subtle"/>
 		{/if}
 	</div>
