@@ -12,6 +12,7 @@
 		font-size: 1.4rem;
 		color: var(--gray-400);
 		font-weight: 500;
+		margin-bottom: 0.6rem;
 
 		&.inline {
 			display: inline;

@@ -75,4 +75,8 @@
 	.label-wrapper :global(.badge) {
 		margin-top: -0.3rem;
 	}
+
+	.label-wrapper :global(label) {
+		margin-bottom: 0rem;
+	}
 </style>
