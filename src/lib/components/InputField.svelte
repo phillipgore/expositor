@@ -26,7 +26,9 @@
 		// Required badge display mode: "always" or "onError"
 		requiredMode = 'always',
 		// Error state for conditional badge display
-		hasError = false
+		hasError = false,
+		// Warning message to display below input
+		warningMessage = ''
 	} = $props();
 
 	// Determine if badge should be shown
@@ -42,6 +44,9 @@
 		</Label>
 		{#if showRequiredBadge}
 			<Badge color="red" message="Required" size="small" look="subtle"/>
+		{/if}
+		{#if warningMessage && !showRequiredBadge}
+			<Badge color="blue" message={warningMessage} size="small" look="subtle"/>
 		{/if}
 	</div>
 	<Input
@@ -67,7 +72,7 @@
 		margin-bottom: 0.6rem;
 	}
 
-	:global(.badge) {
+	.label-wrapper :global(.badge) {
 		margin-top: -0.3rem;
 	}
 </style>

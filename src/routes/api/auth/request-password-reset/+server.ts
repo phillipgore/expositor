@@ -4,13 +4,14 @@ import { createPasswordResetToken, sendPasswordResetEmail } from '$lib/server/ve
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
+import messages from '$lib/data/messages.json';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const { email } = await request.json();
 
 		if (!email) {
-			return json({ success: false, error: 'Email is required' }, { status: 400 });
+			return json({ success: false, error: messages.errors.emailRequired }, { status: 400 });
 		}
 
 		// Check if user exists (but don't reveal if they don't for security)
@@ -28,6 +29,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ success: true });
 	} catch (error) {
 		console.error('Error requesting password reset:', error);
-		return json({ success: false, error: 'Failed to process request' }, { status: 500 });
+		return json({ success: false, error: messages.errors.failedToProcessRequest }, { status: 500 });
 	}
 };

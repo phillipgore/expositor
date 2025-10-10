@@ -4,20 +4,21 @@ import { createEmailVerificationToken, sendVerificationEmail } from '$lib/server
 import { db } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
+import messages from '$lib/data/messages.json';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const { email } = await request.json();
 
 		if (!email) {
-			return json({ success: false, error: 'Email is required' }, { status: 400 });
+			return json({ success: false, error: messages.errors.emailRequired }, { status: 400 });
 		}
 
 		// Check if user exists
 		const users = await db.select().from(user).where(eq(user.email, email)).limit(1);
 
 		if (users.length === 0) {
-			return json({ success: false, error: 'User not found' }, { status: 404 });
+			return json({ success: false, error: messages.errors.userNotFound }, { status: 404 });
 		}
 
 		// Generate verification token
@@ -29,6 +30,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ success: true });
 	} catch (error) {
 		console.error('Error sending verification email:', error);
-		return json({ success: false, error: 'Failed to send verification email' }, { status: 500 });
+		return json({ success: false, error: messages.errors.failedToSendVerification }, { status: 500 });
 	}
 };

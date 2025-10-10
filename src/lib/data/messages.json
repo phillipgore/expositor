@@ -1,0 +1,35 @@
+{
+  "validation": {
+    "emailInvalid": "Invalid Email",
+    "passwordTooShort": "6 Characters Required",
+    "passwordMismatch": "Password Mismatch",
+    "fieldRequired": "Required"
+  },
+  "auth": {
+    "signupSuccess": "Account created successfully.",
+    "signinSuccess": "Signed in successfully.",
+    "signoutSuccess": "Signed out successfully.",
+    "resetLinkSent": "If an account with that email exists, we've sent you a password reset link.",
+    "passwordResetSuccess": "Your password has been reset successfully! Redirecting to sign in...",
+    "emailVerified": "Email verified successfully!",
+    "verificationSent": "Verification email sent successfully.",
+    "namesUpdated": "Names updated successfully."
+  },
+  "errors": {
+    "unexpectedError": "An unexpected error occurred.",
+    "missingFields": "Missing required fields.",
+    "internalServerError": "Internal server error.",
+    "tokenRequired": "Token is required.",
+    "tokenInvalid": "Invalid or expired token.",
+    "emailRequired": "Email is required.",
+    "passwordRequired": "Password and confirmation are required.",
+    "userNotFound": "User not found.",
+    "failedToValidateToken": "Failed to validate token.",
+    "failedToSendVerification": "Failed to send verification email.",
+    "failedToVerifyEmail": "Failed to verify email.",
+    "failedToResetPassword": "Failed to reset password.",
+    "failedToProcessRequest": "Failed to process request.",
+    "noResetToken": "No reset token provided.",
+    "resetLinkExpired": "Your reset link may have expired. Please request a new password reset."
+  }
+}

@@ -6,6 +6,7 @@
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import { signIn } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
+	import messages from '$lib/data/messages.json';
 
 	let email = '';
 	let password = '';
@@ -13,12 +14,26 @@
 	let error = '';
 	let formSubmitted = false;
 
+	// Email validation function
+	function isValidEmail(emailStr) {
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		return emailRegex.test(emailStr);
+	}
+
+	// Reactive validation messages
+	$: emailWarning = email && !isValidEmail(email) ? messages.validation.emailInvalid : '';
+
 	async function handleSubmit(event) {
 		event.preventDefault();
 		formSubmitted = true;
 		
 		// Check if all fields are filled
 		if (!email || !password) {
+			return;
+		}
+
+		// Check for validation warnings
+		if (emailWarning) {
 			return;
 		}
 
@@ -53,6 +68,7 @@
 		required={true}
 		requiredMode="onError"
 		hasError={formSubmitted && !email}
+		warningMessage={emailWarning}
 	/>
 	<InputField
 		label="Password"

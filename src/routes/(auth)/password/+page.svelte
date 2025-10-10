@@ -6,6 +6,7 @@
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
 	import { goto } from '$app/navigation';
+	import messages from '$lib/data/messages.json';
 
 	let email = '';
 	let isLoading = false;
@@ -13,12 +14,26 @@
 	let successMessage = '';
 	let formSubmitted = false;
 
+	// Email validation function
+	function isValidEmail(emailStr) {
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		return emailRegex.test(emailStr);
+	}
+
+	// Reactive validation messages
+	$: emailWarning = email && !isValidEmail(email) ? messages.validation.emailInvalid : '';
+
 	async function handleSubmit(event) {
 		event.preventDefault();
 		formSubmitted = true;
 		
 		// Check if email is filled
 		if (!email) {
+			return;
+		}
+
+		// Check for validation warnings
+		if (emailWarning) {
 			return;
 		}
 
@@ -37,13 +52,13 @@
 			const result = await response.json();
 
 			if (result.success) {
-				successMessage = "If an account with that email exists, we've sent you a password reset link.";
+				successMessage = messages.auth.resetLinkSent;
 			} else {
 				// Still show success message for security (don't reveal if email exists)
-				successMessage = "If an account with that email exists, we've sent you a password reset link.";
+				successMessage = messages.auth.resetLinkSent;
 			}
 		} catch (err) {
-			error = 'An unexpected error occurred';
+			error = messages.errors.unexpectedError;
 		} finally {
 			isLoading = false;
 		}
@@ -73,6 +88,7 @@
 			required={true}
 			requiredMode="onError"
 			hasError={formSubmitted && !email}
+			warningMessage={emailWarning}
 		/>
 
 		<FormButtonBar>

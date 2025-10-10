@@ -6,6 +6,7 @@
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import { signUp } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
+	import messages from '$lib/data/messages.json';
 
 	let firstName = '';
 	let lastName = '';
@@ -16,6 +17,17 @@
 	let error = '';
 	let formSubmitted = false;
 
+	// Email validation function
+	function isValidEmail(emailStr) {
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		return emailRegex.test(emailStr);
+	}
+
+	// Reactive validation messages
+	$: emailWarning = email && !isValidEmail(email) ? messages.validation.emailInvalid : '';
+	$: passwordWarning = password && password.length < 6 ? messages.validation.passwordTooShort : '';
+	$: confirmPasswordWarning = confirmPassword && password !== confirmPassword ? messages.validation.passwordMismatch : '';
+
 	async function handleSubmit(event) {
 		event.preventDefault();
 		formSubmitted = true;
@@ -25,13 +37,8 @@
 			return;
 		}
 
-		if (password.length < 6) {
-			error = 'Password must be at least 6 characters.';
-			return;
-		}
-
-		if (password !== confirmPassword) {
-			error = 'Passwords do not match.';
+		// Check for validation warnings
+		if (emailWarning || passwordWarning || confirmPasswordWarning) {
 			return;
 		}
 
@@ -96,6 +103,7 @@
 		required={true}
 		requiredMode="onError"
 		hasError={formSubmitted && !email}
+		warningMessage={emailWarning}
 	/>
 	<InputField
 		label="Password"
@@ -107,6 +115,7 @@
 		required={true}
 		requiredMode="onError"
 		hasError={formSubmitted && !password}
+		warningMessage={passwordWarning}
 	/>
 	<InputField
 		label="Confirm Password"
@@ -118,6 +127,7 @@
 		required={true}
 		requiredMode="onError"
 		hasError={formSubmitted && !confirmPassword}
+		warningMessage={confirmPasswordWarning}
 	/>
 
 	<FormButtonBar>

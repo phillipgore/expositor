@@ -5,17 +5,18 @@ import { db } from '$lib/server/db';
 import { account } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
+import messages from '$lib/data/messages.json';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const { token, newPassword } = await request.json();
 
 		if (!token || !newPassword) {
-			return json({ success: false, error: 'Token and new password are required' }, { status: 400 });
+			return json({ success: false, error: messages.errors.passwordRequired }, { status: 400 });
 		}
 
 		if (newPassword.length < 6) {
-			return json({ success: false, error: 'Password must be at least 6 characters' }, { status: 400 });
+			return json({ success: false, error: messages.validation.passwordTooShort }, { status: 400 });
 		}
 
 		// Verify the reset token
@@ -43,6 +44,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ success: true });
 	} catch (error) {
 		console.error('Error resetting password:', error);
-		return json({ success: false, error: 'Failed to reset password' }, { status: 500 });
+		return json({ success: false, error: messages.errors.failedToResetPassword }, { status: 500 });
 	}
 };

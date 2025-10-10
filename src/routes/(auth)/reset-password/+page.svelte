@@ -9,6 +9,7 @@
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
 	import StatusMessage from '$lib/elements/StatusMessage.svelte';
+	import messages from '$lib/data/messages.json';
 
 	let token = '';
 	let email = '';
@@ -21,11 +22,15 @@
 	let tokenValid = false;
 	let formSubmitted = false;
 
+	// Reactive validation messages
+	$: passwordWarning = newPassword && newPassword.length < 6 ? messages.validation.passwordTooShort : '';
+	$: confirmPasswordWarning = confirmPassword && newPassword !== confirmPassword ? messages.validation.passwordMismatch : '';
+
 	onMount(async () => {
 		token = $page.url.searchParams.get('token') || '';
 
 		if (!token) {
-			error = 'No reset token provided';
+			error = messages.errors.noResetToken;
 			isValidatingToken = false;
 			return;
 		}
@@ -46,10 +51,10 @@
 				tokenValid = true;
 				email = result.email || '';
 			} else {
-				error = result.error || 'Invalid or expired reset token';
+				error = result.error || messages.errors.tokenInvalid;
 			}
 		} catch (err) {
-			error = 'An unexpected error occurred';
+			error = messages.errors.unexpectedError;
 		} finally {
 			isValidatingToken = false;
 		}
@@ -64,13 +69,8 @@
 			return;
 		}
 
-		if (newPassword.length < 6) {
-			error = 'Password must be at least 6 characters';
-			return;
-		}
-
-		if (newPassword !== confirmPassword) {
-			error = 'Passwords do not match';
+		// Check for validation warnings
+		if (passwordWarning || confirmPasswordWarning) {
 			return;
 		}
 
@@ -92,15 +92,15 @@
 			const result = await response.json();
 
 			if (result.success) {
-				successMessage = 'Your password has been reset successfully! Redirecting to sign in...';
+				successMessage = messages.auth.passwordResetSuccess;
 				setTimeout(() => {
 					goto('/signin');
 				}, 2000);
 			} else {
-				error = result.error || 'Failed to reset password.';
+				error = result.error || messages.errors.failedToResetPassword;
 			}
 		} catch (err) {
-			error = 'An unexpected error occurred.';
+			error = messages.errors.unexpectedError;
 		} finally {
 			isLoading = false;
 		}
@@ -121,7 +121,7 @@
 	{:else if !tokenValid}
 		<Alert color="red" look="subtle" message={error} />
 		<InstructionText>
-			Your reset link may have expired. Please request a new password reset.
+			{messages.errors.resetLinkExpired}
 		</InstructionText>
 		<FormButtonBar>
 			<Button 
@@ -145,6 +145,7 @@
 			required={true}
 			requiredMode="onError"
 			hasError={formSubmitted && !newPassword}
+			warningMessage={passwordWarning}
 		/>
 
 		<InputField
@@ -157,6 +158,7 @@
 			required={true}
 			requiredMode="onError"
 			hasError={formSubmitted && !confirmPassword}
+			warningMessage={confirmPasswordWarning}
 		/>
 
 		<FormButtonBar>
