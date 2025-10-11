@@ -1,7 +1,7 @@
 <script>
 	import Label from '$lib/elements/Label.svelte';
 	import Input from '$lib/elements/Input.svelte';
-	import Badge from '$lib/elements/badge.svelte';
+	import Badge from '$lib/elements/Badge.svelte';
 
 	let {
 		// Label props
