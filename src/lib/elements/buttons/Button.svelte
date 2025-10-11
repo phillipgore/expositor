@@ -109,7 +109,6 @@
 					if (firstItem) {
 						firstItem.setAttribute('tabindex', '0');
 						firstItem.focus();
-						console.log('🎯 Focused first item from click handler');
 						
 						// Dispatch custom event to notify Menu that first item is focused
 						menu.dispatchEvent(new CustomEvent('menufirstitemfocused'));
@@ -133,8 +132,6 @@
 	 * @param {KeyboardEvent} event
 	 */
 	const handleKeyDown = (event) => {
-		console.log('🔘 Button keydown:', event.key, 'role:', role);
-		
 		// For buttons with popovertarget, let browser handle Enter/Space natively
 		if (popovertarget && (event.key === 'Enter' || event.key === ' ')) {
 			// Don't preventDefault - let the browser open the popover
@@ -146,7 +143,6 @@
 					if (firstItem) {
 						firstItem.setAttribute('tabindex', '0');
 						firstItem.focus();
-						console.log('🎯 Focused first item from button handler');
 						
 						// Dispatch custom event to notify Menu that first item is focused
 						menu.dispatchEvent(new CustomEvent('menufirstitemfocused'));
@@ -163,7 +159,6 @@
 		}
 		// Allow arrow keys, Home, End, and Escape to bubble up for menu navigation
 		// These keys should not be handled by the button, but by parent menu containers
-		console.log('🔘 Button letting key bubble up:', event.key);
 	};
 </script>
 
