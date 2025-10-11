@@ -1,131 +1,144 @@
 <script>
-	import MenuRegistratrion from '$lib/components/MenuRegistratrion.svelte';
-	import Icon from './Icon.svelte';
 	import { v4 as uuidv4 } from 'uuid';
 
+	/**
+	 * # Button Component
+	 * 
+	 * Core button component providing base functionality for all button types.
+	 * Handles click events, navigation, keyboard interaction, and accessibility.
+	 * 
+	 * ## Features
+	 * - Automatic UUID generation for accessibility
+	 * - Click event handling with MouseEvent support
+	 * - URL navigation
+	 * - Keyboard accessibility (Enter/Space)
+	 * - Active state management
+	 * - Comprehensive ARIA support
+	 * - Multiple style variants via classes
+	 * - Snippet support for custom content
+	 * 
+	 * ## Style Classes
+	 * - `system-blue` (default) - Primary blue button
+	 * - `system-gray` - Secondary gray button
+	 * - `system-red` - Destructive red button
+	 * - `toolbar-dark` - Dark toolbar button with icon support
+	 * - `menu-light` - Light menu item button
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Basic button:
+	 * ```svelte
+	 * <Button label="Click me" handleClick={() => console.log('clicked')} />
+	 * ```
+	 * 
+	 * Navigation button:
+	 * ```svelte
+	 * <Button label="Go to page" url="/page" classes="system-blue" />
+	 * ```
+	 * 
+	 * Custom content with snippet:
+	 * ```svelte
+	 * <Button classes="toolbar-dark">
+	 *   <Icon iconId="home" />
+	 *   <span>Home</span>
+	 * </Button>
+	 * ```
+	 * 
+	 * Active state (for toggles):
+	 * ```svelte
+	 * <Button label="Toggle" isActive={isActive} />
+	 * ```
+	 * 
+	 * @typedef {'button' | 'submit' | 'reset'} ButtonType
+	 */
+
+	/**
+	 * @typedef {Object} ButtonProps
+	 * @property {string} [id] - Unique button identifier. Auto-generates UUID if not provided
+	 * @property {string} [classes='system-blue'] - Style classes. Available: system-blue, system-gray, system-red, toolbar-dark, menu-light
+	 * @property {string} [url] - URL to navigate to on click. Uses window.location.href
+	 * @property {(event?: MouseEvent) => void} [handleClick] - Click event handler. Receives MouseEvent for access to target, modifiers, etc.
+	 * @property {string} [label] - Button text label. Ignored if children snippet provided
+	 * @property {boolean} [isDisabled=false] - Whether button is disabled. Prevents all interaction
+	 * @property {boolean} [isFullWidth=false] - Whether button stretches to full container width
+	 * @property {boolean} [isRound=false] - Whether button is circular. Useful for icon-only buttons
+	 * @property {ButtonType} [type='button'] - HTML button type attribute. Use 'submit' for forms
+	 * @property {boolean} [isActive=false] - Active state. Applies 'active' class for visual feedback
+	 * @property {string} [ariaLabel] - Accessible label for screen readers. Required if no visible label
+	 * @property {'true' | 'false' | 'mixed'} [ariaPressed] - ARIA pressed state for toggle buttons
+	 * @property {'true' | 'false'} [ariaExpanded] - ARIA expanded state for disclosure buttons
+	 * @property {'true' | 'false' | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'} [ariaHaspopup] - ARIA haspopup indicator for buttons that open popups
+	 * @property {import('svelte').Snippet} [children] - Snippet for custom button content. Takes precedence over label
+	 */
+
+	/** @type {ButtonProps} */
 	let {
 		id = uuidv4(),
 		classes = 'system-blue',
 		url,
 		handleClick,
-		groupedIsActive,
-		isActive,
 		label,
-		underLabel,
-		underLabelClasses,
-		isSwitch = false,
 		isDisabled,
 		isFullWidth,
 		isRound,
-		iconId,
-		menuId,
-		shortcut,
 		type = 'button',
+		isActive = false,
+		ariaLabel,
+		ariaPressed,
+		ariaExpanded,
+		ariaHaspopup,
 		children
 	} = $props();
 
-	let buttonHeight = $state();
-	let menuOffset = $state();
-	let iconClasses = $state();
-
-	const buttonClick = () => {
+	/**
+	 * @param {MouseEvent} event
+	 */
+	const buttonClick = (event) => {
+		// Execute custom click handler with event
 		if (handleClick) {
-			handleClick();
+			handleClick(event);
 		}
-		if (menuId) {
-			menuOffset = `${(buttonHeight + 3) / 10}rem`;
-		}
-		if (menuId || isSwitch) {
-			isActive = !isActive;
-		}
-		if (groupedIsActive) {
-			groupedIsActive(event.target);
-		}
+
+		// Navigate to URL if provided
 		if (url) {
 			window.location.href = url;
 		}
 	};
 
-	const mouseEvent = (delta) => {
-		if (!menuId && !isSwitch && !groupedIsActive) {
-			isActive = delta;
+	/**
+	 * @param {KeyboardEvent} event
+	 */
+	const handleKeyDown = (event) => {
+		// Handle Enter and Space for activation (standard button behavior)
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			buttonClick(/** @type {MouseEvent} */ (/** @type {any} */ (event)));
 		}
 	};
-
-	const windowClick = (event) => {
-		if (menuId && event.target.id != id) {
-			isActive = false;
-		}
-	};
-
-	const setLabel = (newLabel) => {
-		label = newLabel;
-	};
-
-	$effect(() => {
-		let iconSpace = label ? 'icon-space' : '';
-		let blank = iconId === 'blank' ? 'blank' : '';
-		iconClasses = `${iconSpace} ${blank}`;
-	});
 </script>
 
-<svelte:window onclick={windowClick} />
-
-{#snippet button()}
-	<button
-		{id}
-		{type}
-		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isFullWidth
-			? 'full-width'
-			: ''}"
-		onclick={() => buttonClick()}
-		onmousedown={() => mouseEvent(true)}
-		onmouseup={() => mouseEvent(false)}
-		bind:offsetHeight={buttonHeight}
-		disabled={isDisabled}
-	>
-		{#if iconId}
-			<Icon {iconId} {isActive} classes={iconClasses} />
-		{/if}
-		{#if label}
-			{label}
-		{/if}
-		{#if !iconId && !label}
-			NO LABEL
-		{/if}
-		{#if menuId}
-			<Icon iconId="caret-down" {isActive} classes="menu-caret" />
-		{/if}
-		<!-- {#if shortcut} <div class="shortcut">{@html shortcut}</div> {/if} -->
-	</button>
-{/snippet}
-
-{#if underLabel}
-	<div class="button-container">
-		<div class="button-wrapper">
-			{#if menuId}
-				<span class="menu-wrapper">
-					{@render button()}
-					<MenuRegistratrion {menuId} {isActive} {menuOffset} setButtonLabel={setLabel}
-					></MenuRegistratrion>
-				</span>
-			{:else}
-				{@render button()}
-			{/if}
-			<div class="button-under-label {underLabelClasses} {isDisabled ? 'disabled' : ''}">
-				{underLabel}
-			</div>
-		</div>
-	</div>
-{:else if menuId}
-	<span class="menu-wrapper">
-		{@render button()}
-		<MenuRegistratrion {menuId} {isActive} {menuOffset} setButtonLabel={setLabel}
-		></MenuRegistratrion>
-	</span>
-{:else}
-	{@render button()}
-{/if}
+<button
+	{id}
+	{type}
+	class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isFullWidth
+		? 'full-width'
+		: ''}"
+	onclick={(e) => buttonClick(e)}
+	onkeydown={(e) => handleKeyDown(e)}
+	disabled={isDisabled}
+	aria-label={ariaLabel}
+	aria-pressed={ariaPressed}
+	aria-expanded={ariaExpanded}
+	aria-haspopup={ariaHaspopup}
+>
+	{#if children}
+		{@render children()}
+	{:else if label}
+		{label}
+	{:else}
+		NO LABEL
+	{/if}
+</button>
 
 <style>
 	button {
@@ -137,7 +150,6 @@
 		height: 2.6rem;
 		min-width: 4.8rem;
 		padding: 0rem 0.6rem;
-		/* margin:  0rem 0.3rem; */
 		border: none;
 		outline: 0;
 		font-size: 1.2rem;
@@ -145,13 +157,6 @@
 		color: var(--white);
 		background-color: transparent;
 		text-decoration: none;
-
-		.shortcut {
-			color: var(--gray-500);
-			text-align: right;
-			margin-left: 1.8rem;
-			flex-grow: 1;
-		}
 
 		&.round {
 			border-radius: 50%;
@@ -256,10 +261,6 @@
 				color: var(--white);
 				background-color: var(--blue);
 
-				.shortcut {
-					color: var(--white);
-				}
-
 				:global(.icon path) {
 					fill: var(--white);
 				}
@@ -302,7 +303,6 @@
 			:global(.icon path) {
 				fill: var(--gray-200);
 			}
-
 
 			&.icon-fill-red :global(.icon path),
 			&.icon-fill-orange :global(.icon path),
@@ -358,42 +358,6 @@
 
 		&:disabled {
 			opacity: 0.55;
-		}
-	}
-
-	.button-container {
-		display: inline-block;
-
-		.button-wrapper {
-			display: flex;
-			flex-direction: column;
-			position: relative;
-		}
-
-		.button-under-label {
-			text-align: center;
-			font-size: 1.1rem;
-			letter-spacing: 0.04rem;
-			cursor: default;
-			padding: 0rem 0.4rem;
-			z-index: 5;
-			display: block;
-			margin-top: 0.3rem;
-			font-weight: 400;
-			color: var(--black);
-
-			&.light {
-				color: var(--white);
-			}
-
-			&.disabled {
-				opacity: 0.65;
-			}
-		}
-
-		.menu-wrapper {
-			display: flex;
-			flex-direction: column;
 		}
 	}
 </style>

@@ -1,5 +1,5 @@
 <script>
-	import Button from '$lib/elements/Button.svelte';
+	import Button from '$lib/elements/buttons/Button.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import { signOut } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';

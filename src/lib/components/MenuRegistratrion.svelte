@@ -7,26 +7,26 @@
 	import MenuText from './menus/MenuText.svelte';
 	import MenuZoom from './menus/MenuZoom.svelte';
 
-	let { menuId, isActive, menuOffset, setButtonLabel } = $props();
+	let { menuId, isActive, menuOffset, setButtonLabel, closeMenu } = $props();
 </script>
 
 {#if menuId === 'MenuStudies'}
-	<MenuStudies {isActive} {menuOffset}></MenuStudies>
+	<MenuStudies {isActive} {menuOffset} {closeMenu}></MenuStudies>
 {/if}
 {#if menuId === 'MenuZoom'}
-	<MenuZoom {isActive} {menuOffset} {setButtonLabel}></MenuZoom>
+	<MenuZoom {isActive} {menuOffset} {setButtonLabel} {closeMenu}></MenuZoom>
 {/if}
 {#if menuId === 'MenuStructure'}
-	<MenuStructure {isActive} {menuOffset}></MenuStructure>
+	<MenuStructure {isActive} {menuOffset} {closeMenu}></MenuStructure>
 {/if}
 {#if menuId === 'MenuText'}
-	<MenuText {isActive} {menuOffset}></MenuText>
+	<MenuText {isActive} {menuOffset} {closeMenu}></MenuText>
 {/if}
 {#if menuId === 'MenuLiterary'}
-	<MenuLiterary {isActive} {menuOffset}></MenuLiterary>
+	<MenuLiterary {isActive} {menuOffset} {closeMenu}></MenuLiterary>
 {/if}
 {#if menuId === 'MenuColor'}
-	<MenuColor {isActive} {menuOffset}></MenuColor>
+	<MenuColor {isActive} {menuOffset} {closeMenu}></MenuColor>
 {/if}
 
-{#if menuId === 'MenuSettings'} <MenuSettings {isActive} {menuOffset}></MenuSettings> {/if}
+{#if menuId === 'MenuSettings'} <MenuSettings {isActive} {menuOffset} {closeMenu}></MenuSettings> {/if}

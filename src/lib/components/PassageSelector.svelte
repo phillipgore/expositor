@@ -2,7 +2,8 @@
 	import { fade } from 'svelte/transition';
 	import { v4 as uuidv4 } from 'uuid';
 	import bibleData from '$lib/data/bible.json';
-	import Button from '$lib/elements/Button.svelte';
+	import Button from '$lib/elements/buttons/Button.svelte';
+	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import Fieldset from '$lib/elements/Fieldset.svelte';
 	import RadioButtons from '$lib/elements/RadioButtons.svelte';
 	import Select from '$lib/elements/Select.svelte';
@@ -475,7 +476,7 @@
 
 <div class="reference-container">
 	<div class="reference-button">
-		<Button iconId="plus" handleClick={addPassage} isRound></Button>
+		<IconButton iconId="plus" handleClick={addPassage} isRound></IconButton>
 	</div>
 	<div
 		class="reference"
@@ -531,15 +532,15 @@
 								ondragend={handleDragEnd}
 								onkeydown={(event) => handleKeyDown(event, passage.id)}
 							>
-								<Button classes="system-gray" iconId="draggable" isRound></Button>
+								<IconButton classes="system-gray" iconId="draggable" isRound></IconButton>
 							</div>
 							<div class="btn-delete" in:fade={{ duration: 100 }} out:fade={{ duration: 100 }}>
-								<Button
+								<IconButton
 									classes="system-red"
 									iconId="x"
 									handleClick={() => removePassage(passage.id)}
 									isRound
-								></Button>
+								></IconButton>
 							</div>
 						{/if}
 						<div class="testaments">

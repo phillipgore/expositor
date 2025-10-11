@@ -1,7 +1,7 @@
 <script>
 	import { v4 as uuidv4 } from 'uuid';
 	import bibleData from '$lib/data/bible.json';
-	import Button from '$lib/elements/Button.svelte';
+	import Button from '$lib/elements/buttons/Button.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Label from '$lib/elements/Label.svelte';

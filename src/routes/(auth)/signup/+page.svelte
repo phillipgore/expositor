@@ -1,7 +1,7 @@
 <script>
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
-	import Button from '$lib/elements/Button.svelte';
+	import Button from '$lib/elements/buttons/Button.svelte';
 	import InputField from '$lib/components/InputField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import { signUp } from '$lib/stores/auth.js';

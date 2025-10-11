@@ -1,10 +1,10 @@
 <script>
-	import Button from '$lib/elements/Button.svelte';
-	import ButtonGrouped from '$lib/elements/ButtonGrouped.svelte';
+	import IconButton from '$lib/elements/buttons/IconButton.svelte';
+	import ButtonGrouped from '$lib/elements/buttons/ButtonGrouped.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
 
-	let { isActive, menuOffset, setButtonLabel } = $props();
+	let { isActive, menuOffset, setButtonLabel, closeMenu } = $props();
 
 	let groupedItems = $state([
 		{ id: '25', type: 'button', label: '25%', iconId: 'blank', isActive: false },
@@ -29,6 +29,7 @@
 		activeItem.isActive = true;
 		activeItem.iconId = 'check';
 		setButtonLabel(activeItem.label);
+		closeMenu();
 	};
 </script>
 
@@ -36,7 +37,7 @@
 	<ButtonGrouped isList>
 		{#each groupedItems as item}
 			{#if item.type === 'button'}
-				<Button
+				<IconButton
 					id={item.id}
 					classes="menu-light full-width justify-content-left"
 					label={item.label}

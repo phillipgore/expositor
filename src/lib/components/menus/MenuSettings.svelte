@@ -1,32 +1,32 @@
 <script>
-	import Button from '$lib/elements/Button.svelte';
+	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
 
-	let { id, isActive, menuOffset } = $props();
+	let { id, isActive, menuOffset, closeMenu } = $props();
 </script>
 
 <Menu {isActive} {menuOffset} classes="menu-right">
-	<Button
+	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="account"
 		label="Account"
-		shortcut="<span>&#8984;SA</span>"
+		handleClick={closeMenu}
 	/>
-	<Button
+	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="toolbar"
 		label="Toolbar"
-		shortcut="<span>&#8984;ST</span>"
+		handleClick={closeMenu}
 	/>
-	<Button
+	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="help"
 		label="Help"
-		shortcut="<span>&#8984;SH</span>"
+		handleClick={closeMenu}
 	/>
 
 	<DividerHorizontal />
 
-	<Button classes="menu-light justify-content-left" iconId="power" label="Sign Out" labelIsLeft />
+	<IconButton classes="menu-light justify-content-left" iconId="power" label="Sign Out" labelIsLeft handleClick={closeMenu} />
 </Menu>

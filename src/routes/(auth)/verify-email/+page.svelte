@@ -4,7 +4,7 @@
 	import { page } from '$app/stores';
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
-	import Button from '$lib/elements/Button.svelte';
+	import Button from '$lib/elements/buttons/Button.svelte';
 	import InputField from '$lib/components/InputField.svelte';
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
