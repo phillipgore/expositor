@@ -1,7 +1,47 @@
 <script>
 	import { fade } from 'svelte/transition';
 
-	let { classes, menuElements, isActive, menuOffset, children } = $props();
+	/**
+	 * # Menu Component
+	 * 
+	 * Dropdown menu container with fade animations and positioning.
+	 * Typically controlled by MenuButton and populated with menu items.
+	 * 
+	 * ## Features
+	 * - Fade in/out animations
+	 * - Absolute positioning below trigger element
+	 * - Scrollable overflow handling
+	 * - Right-aligned variant
+	 * - Hidden scrollbars for clean appearance
+	 * - Conditional rendering based on active state
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Basic menu (usually via MenuButton):
+	 * ```svelte
+	 * <Menu isActive={isOpen} menuOffset="3rem">
+	 *   <IconButton iconId="account" label="Profile" classes="menu-light" />
+	 *   <IconButton iconId="gear" label="Settings" classes="menu-light" />
+	 * </Menu>
+	 * ```
+	 * 
+	 * Right-aligned menu:
+	 * ```svelte
+	 * <Menu isActive={isOpen} menuOffset="3rem" classes="menu-right">
+	 *   <IconButton iconId="power" label="Sign Out" classes="menu-light" />
+	 * </Menu>
+	 * ```
+	 * 
+	 * @typedef {Object} MenuProps
+	 * @property {string} [classes=''] - Additional CSS classes. Use 'menu-right' for right alignment
+	 * @property {any} [menuElements] - Reserved for future use
+	 * @property {boolean} isActive - Controls menu visibility (required)
+	 * @property {string} [menuOffset] - Top offset positioning (CSS value like '3rem')
+	 * @property {import('svelte').Snippet} children - Menu items content (required)
+	 */
+
+	/** @type {MenuProps} */
+	let { classes = '', menuElements, isActive, menuOffset, children } = $props();
 </script>
 
 {#if isActive}

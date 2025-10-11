@@ -1,4 +1,74 @@
 <script>
+	/**
+	 * # Toolbar Component
+	 * 
+	 * Flexible toolbar container for navigation and action buttons.
+	 * Supports both light and dark themes with customizable positioning.
+	 * 
+	 * ## Features
+	 * - Light and dark color schemes
+	 * - Flexible positioning (static, sticky, fixed, absolute)
+	 * - Border options (top, bottom)
+	 * - Rounded variant
+	 * - Z-index control for layering
+	 * - Full positioning control (top, right, bottom, left)
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Basic light toolbar:
+	 * ```svelte
+	 * <Toolbar>
+	 *   <Button label="Home" />
+	 *   <SpacerFlex />
+	 *   <Button label="Settings" />
+	 * </Toolbar>
+	 * ```
+	 * 
+	 * Dark sticky toolbar:
+	 * ```svelte
+	 * <Toolbar classes="dark" position="sticky" zIndex="1000">
+	 *   <MenuButton iconId="menu" menuId="MainMenu" />
+	 *   <SpacerFlex />
+	 *   <Button label="Account" />
+	 * </Toolbar>
+	 * ```
+	 * 
+	 * Rounded toolbar:
+	 * ```svelte
+	 * <Toolbar classes="light rounded bd-top bd-bottom">
+	 *   <IconButton iconId="back" />
+	 *   <IconButton iconId="forward" />
+	 * </Toolbar>
+	 * ```
+	 * 
+	 * Fixed positioned toolbar:
+	 * ```svelte
+	 * <Toolbar classes="dark" position="fixed" top="0" left="0" right="0" zIndex="999">
+	 *   <Logo />
+	 *   <SpacerFlex />
+	 *   <Navigation />
+	 * </Toolbar>
+	 * ```
+	 * 
+	 * ## Available Classes
+	 * - `light` - White background (default)
+	 * - `dark` - Dark gray background
+	 * - `rounded` - Fully rounded corners
+	 * - `bd-top` - Top border
+	 * - `bd-bottom` - Bottom border
+	 * 
+	 * @typedef {Object} ToolbarProps
+	 * @property {string} [classes='light border-bottom'] - Style classes. Combine: 'light'/'dark', 'rounded', 'bd-top'/'bd-bottom'
+	 * @property {string} [position='static'] - CSS position value (static, sticky, fixed, absolute, relative)
+	 * @property {string} [top='auto'] - CSS top position value
+	 * @property {string} [right='auto'] - CSS right position value
+	 * @property {string} [bottom='auto'] - CSS bottom position value
+	 * @property {string} [left='auto'] - CSS left position value
+	 * @property {string} [zIndex='auto'] - Z-index value for layering control
+	 * @property {import('svelte').Snippet} children - Toolbar content (buttons, spacers, etc.)
+	 */
+
+	/** @type {ToolbarProps} */
 	let {
 		classes = 'light border-bottom',
 		position = 'static',

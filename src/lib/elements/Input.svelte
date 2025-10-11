@@ -1,5 +1,47 @@
 <script>
-	let { id, name, type = 'text', isFullWidth, isDisabled, isLarge, value = $bindable('') } = $props();
+	/**
+	 * # Input Component
+	 * 
+	 * Standard text input field with consistent styling and behavior.
+	 * Supports various input types and size variants.
+	 * 
+	 * ## Features
+	 * - Full-width and fixed-width modes
+	 * - Large size variant for prominent inputs
+	 * - Disabled state with visual feedback
+	 * - Focus state with blue highlight
+	 * - Bindable value with two-way binding
+	 * - Support for all HTML input types
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Basic text input:
+	 * ```svelte
+	 * <Input id="username" name="username" bind:value={username} isFullWidth />
+	 * ```
+	 * 
+	 * Email input:
+	 * ```svelte
+	 * <Input id="email" name="email" type="email" bind:value={email} isFullWidth />
+	 * ```
+	 * 
+	 * Large input:
+	 * ```svelte
+	 * <Input id="title" name="title" bind:value={title} isLarge isFullWidth />
+	 * ```
+	 * 
+	 * @typedef {Object} InputProps
+	 * @property {string} id - Input identifier (required)
+	 * @property {string} name - Input name for forms (required)
+	 * @property {string} [type='text'] - HTML input type (text, email, password, number, tel, url, etc.)
+	 * @property {boolean} [isFullWidth=false] - Stretch to container width
+	 * @property {boolean} [isDisabled=false] - Disable input
+	 * @property {boolean} [isLarge=false] - Large size variant (4.4rem height, 2rem font)
+	 * @property {string} value - Bindable input value
+	 */
+
+	/** @type {InputProps} */
+	let { id, name, type = 'text', isFullWidth = false, isDisabled = false, isLarge = false, value = $bindable('') } = $props();
 </script>
 
 <input

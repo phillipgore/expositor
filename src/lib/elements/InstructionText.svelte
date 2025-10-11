@@ -1,4 +1,50 @@
 <script>
+	/**
+	 * # InstructionText Component
+	 * 
+	 * Wrapper for displaying instructional or help text with consistent styling.
+	 * Supports rich content including paragraphs, lists, and other HTML elements.
+	 * 
+	 * ## Features
+	 * - Muted gray color for de-emphasized text
+	 * - Proper line height for readability
+	 * - Styled paragraphs with bottom margin
+	 * - Styled ordered lists with proper indentation
+	 * - Global style support for nested elements
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Simple instruction:
+	 * ```svelte
+	 * <InstructionText>
+	 *   Enter your email address and we'll send you a reset link.
+	 * </InstructionText>
+	 * ```
+	 * 
+	 * With paragraphs:
+	 * ```svelte
+	 * <InstructionText>
+	 *   <p>First paragraph of instructions.</p>
+	 *   <p>Second paragraph with more details.</p>
+	 * </InstructionText>
+	 * ```
+	 * 
+	 * With list:
+	 * ```svelte
+	 * <InstructionText>
+	 *   <p>Follow these steps:</p>
+	 *   <ol>
+	 *     <li>Complete the form</li>
+	 *     <li>Click submit</li>
+	 *   </ol>
+	 * </InstructionText>
+	 * ```
+	 * 
+	 * @typedef {Object} InstructionTextProps
+	 * @property {import('svelte').Snippet} children - Instructional content (required)
+	 */
+
+	/** @type {InstructionTextProps} */
 	let { children } = $props();
 </script>
 

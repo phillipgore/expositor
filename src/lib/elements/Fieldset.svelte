@@ -1,6 +1,50 @@
 <script>
-	import { v4 as uuidv4 } from 'uuid';
+	/**
+	 * # Fieldset Component
+	 * 
+	 * Semantic fieldset wrapper for grouping related form controls.
+	 * Provides visual border and optional legend text.
+	 * 
+	 * ## Features
+	 * - Semantic HTML fieldset element
+	 * - Optional legend text
+	 * - Styled border and background
+	 * - Rounded corners
+	 * - Proper padding for content
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Basic fieldset:
+	 * ```svelte
+	 * <Fieldset>
+	 *   <Input id="name" name="name" />
+	 *   <Input id="email" name="email" type="email" />
+	 * </Fieldset>
+	 * ```
+	 * 
+	 * With legend:
+	 * ```svelte
+	 * <Fieldset text="Personal Information">
+	 *   <Input id="firstName" name="firstName" />
+	 *   <Input id="lastName" name="lastName" />
+	 * </Fieldset>
+	 * ```
+	 * 
+	 * With ID for form association:
+	 * ```svelte
+	 * <Fieldset id="contact-info" text="Contact Details">
+	 *   <Input id="phone" name="phone" type="tel" />
+	 *   <Input id="email" name="email" type="email" />
+	 * </Fieldset>
+	 * ```
+	 * 
+	 * @typedef {Object} FieldsetProps
+	 * @property {string} [id] - Fieldset identifier
+	 * @property {string} [text] - Legend text (optional)
+	 * @property {import('svelte').Snippet} children - Form controls content (required)
+	 */
 
+	/** @type {FieldsetProps} */
 	let { id, text, children } = $props();
 </script>
 

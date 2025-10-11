@@ -1,20 +1,88 @@
 <script>
 	import Icon from './Icon.svelte';
 
-	// optionProperties: value, text, isDisabled, isSelected
+	/**
+	 * # Select Component
+	 * 
+	 * Custom-styled dropdown select with icon arrows.
+	 * Manages selection state internally and syncs with external value.
+	 * 
+	 * ## Features
+	 * - Custom arrow styling (up/down carets)
+	 * - Full-width mode
+	 * - Disabled state
+	 * - Focus state with blue highlight
+	 * - Internal state management with external sync
+	 * - Supports disabled individual options
+	 * 
+	 * ## Option Structure
+	 * Each option in optionProperties should have:
+	 * - `value`: Option value (string or number)
+	 * - `text`: Display text
+	 * - `isDisabled`: (optional) Disable this option
+	 * - `isSelected`: (optional) Mark as initially selected
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Basic select:
+	 * ```svelte
+	 * <Select
+	 *   id="book"
+	 *   name="book"
+	 *   optionProperties={[
+	 *     { value: 'gen', text: 'Genesis', isSelected: true },
+	 *     { value: 'exo', text: 'Exodus' }
+	 *   ]}
+	 *   isFullWidth
+	 * />
+	 * ```
+	 * 
+	 * With change handler:
+	 * ```svelte
+	 * <Select
+	 *   id="chapter"
+	 *   name="chapter"
+	 *   optionProperties={chapterOptions}
+	 *   selectedValue={selectedChapter}
+	 *   handleChange={(e) => selectedChapter = e.currentTarget.value}
+	 *   isFullWidth
+	 * />
+	 * ```
+	 * 
+	 * @typedef {Object} SelectOption
+	 * @property {string | number} value - Option value
+	 * @property {string} text - Display text
+	 * @property {boolean} [isDisabled] - Disable this option
+	 * @property {boolean} [isSelected] - Mark as initially selected
+	 */
+
+	/**
+	 * @typedef {Object} SelectProps
+	 * @property {string} id - Select identifier (required)
+	 * @property {string} [classes=''] - Additional CSS classes
+	 * @property {string} name - Select name for forms (required)
+	 * @property {SelectOption[]} optionProperties - Array of option objects (required)
+	 * @property {string | number} [selectedValue] - Controlled value for external state management
+	 * @property {boolean} [isFullWidth=false] - Stretch to container width
+	 * @property {boolean} [isDisabled=false] - Disable select
+	 * @property {(event: Event) => void} [handleChange] - Change event handler
+	 */
+
+	/** @type {SelectProps} */
 	let {
 		id,
-		classes,
+		classes = '',
 		name,
 		optionProperties,
 		selectedValue,
-		isFullWidth,
-		isDisabled,
+		isFullWidth = false,
+		isDisabled = false,
 		handleChange
 	} = $props();
 
 	let internalSelectedValue = $state(selectedValue);
 
+	// Sync internal state with external value or find initially selected option
 	$effect(() => {
 		internalSelectedValue =
 			selectedValue ||

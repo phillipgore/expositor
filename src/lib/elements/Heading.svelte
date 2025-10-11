@@ -1,37 +1,55 @@
 <script>
-	let { heading, classes, children, alignCenter, alignRight, hasSub, isMuted } = $props();
+	/**
+	 * # Heading Component
+	 * 
+	 * Semantic heading elements (h1-h6) with consistent styling and flexible options.
+	 * Uses children snippet for flexible content.
+	 * 
+	 * ## Features
+	 * - All 6 HTML heading levels (h1-h6)
+	 * - Style classes for size override (h1-h6 classes available in CSS)
+	 * - Alignment options (center, right)
+	 * - Muted color variant for less emphasis
+	 * - Sub-heading mode (reduces margin for grouping)
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Basic heading:
+	 * ```svelte
+	 * <Heading heading="h1" classes="h4">Page Title</Heading>
+	 * ```
+	 * 
+	 * Centered heading:
+	 * ```svelte
+	 * <Heading heading="h2" alignCenter>Welcome</Heading>
+	 * ```
+	 * 
+	 * Heading with sub-heading:
+	 * ```svelte
+	 * <Heading heading="h1" classes="h4" hasSub>Main Title</Heading>
+	 * <Heading heading="h2" classes="h5" isMuted>Subtitle text</Heading>
+	 * ```
+	 * 
+	 * @typedef {Object} HeadingProps
+	 * @property {'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'} heading - Heading level (required)
+	 * @property {string} [classes=''] - Additional CSS classes. Use h1-h6 classes for size override
+	 * @property {boolean} [alignCenter=false] - Center align text
+	 * @property {boolean} [alignRight=false] - Right align text
+	 * @property {boolean} [hasSub=false] - Sub-heading style (reduced margin for grouping)
+	 * @property {boolean} [isMuted=false] - Gray color for less emphasis
+	 * @property {import('svelte').Snippet} children - Heading content (required)
+	 */
+
+	/** @type {HeadingProps} */
+	let { heading, classes = '', children, alignCenter = false, alignRight = false, hasSub = false, isMuted = false } = $props();
 </script>
 
-{#if heading === 'h1'}
-	<h1 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
-		{@render children()}
-	</h1>
-{/if}
-{#if heading === 'h2'}
-	<h2 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
-		{@render children()}
-	</h2>
-{/if}
-{#if heading === 'h3'}
-	<h3 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
-		{@render children()}
-	</h3>
-{/if}
-{#if heading === 'h4'}
-	<h4 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
-		{@render children()}
-	</h4>
-{/if}
-{#if heading === 'h5'}
-	<h5 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
-		{@render children()}
-	</h5>
-{/if}
-{#if heading === 'h6'}
-	<h6 class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}">
-		{@render children()}
-	</h6>
-{/if}
+<svelte:element
+	this={heading}
+	class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}"
+>
+	{@render children()}
+</svelte:element>
 
 
 <style>

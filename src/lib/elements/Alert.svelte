@@ -2,17 +2,42 @@
 	import { slide } from 'svelte/transition';
 
 	/**
-	 * @color {'red' | 'green' | 'yellow' | 'blue' | 'orange' | 'aqua' | 'purple' | 'pink' | 'gray'}
-	 * @look {'subtle'}
+	 * # Alert Component
+	 * 
+	 * Notification component for displaying messages with different severity levels.
+	 * Automatically shows/hides based on message presence with slide transition.
+	 * 
+	 * ## Features
+	 * - 9 color variants (red, green, yellow, blue, orange, aqua, purple, pink, gray)
+	 * - Subtle bordered style option
+	 * - Smooth slide transition animation
+	 * - Conditional rendering based on message
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Error alert:
+	 * ```svelte
+	 * <Alert color="red" look="subtle" message={errorMessage} />
+	 * ```
+	 * 
+	 * Success message:
+	 * ```svelte
+	 * <Alert color="green" message="Changes saved successfully!" />
+	 * ```
+	 * 
+	 * @typedef {'red' | 'green' | 'yellow' | 'blue' | 'orange' | 'aqua' | 'purple' | 'pink' | 'gray'} AlertColor
+	 * @typedef {'subtle' | ''} AlertLook
 	 */
-	export let color = 'red';
-	export let look = '';
-	
+
 	/**
-	 * @color {string}
-	 * @look {string}
+	 * @typedef {Object} AlertProps
+	 * @property {AlertColor} [color='red'] - Alert color theme
+	 * @property {AlertLook} [look=''] - Visual style variant. 'subtle' adds border and lighter background
+	 * @property {string} [message=''] - Message text to display. Empty string hides alert
 	 */
-	export let message = '';
+
+	/** @type {AlertProps} */
+	let { color = 'red', look = '', message = '' } = $props();
 </script>
 
 {#if message}
