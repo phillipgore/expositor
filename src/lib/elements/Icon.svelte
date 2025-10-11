@@ -55,7 +55,7 @@
 	};
 </script>
 
-<svg class="icon {isActive ? 'active' : ''} {classes}" viewBox={getIcon(iconId).viewBox}>
+<svg class="icon {isActive ? 'active' : ''} {classes}" viewBox={getIcon(iconId).viewBox} aria-hidden="true">
 	<path d={getIcon(iconId).d} />
 </svg>
 

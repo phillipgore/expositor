@@ -7,6 +7,11 @@
 	 * Core button component providing base functionality for all button types.
 	 * Handles click events, navigation, keyboard interaction, and accessibility.
 	 * 
+	 * ## ACCESSIBILITY NOTE
+	 * If this button navigates to a new page/route, consider using an <a> element
+	 * instead for better semantics. Reserve <button> for actions that don't change
+	 * location (like opening modals, toggling state, submitting forms, etc.).
+	 * 
 	 * ## Features
 	 * - Automatic UUID generation for accessibility
 	 * - Click event handling with MouseEvent support
@@ -382,7 +387,7 @@
 			background-color: var(--blue);
 
 			&:focus-visible {
-				outline: 0.2rem solid var(--orange);
+				outline: 0.2rem solid var(--blue);
 			}
 
 			:global(.icon path) {

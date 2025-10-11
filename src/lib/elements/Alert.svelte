@@ -41,7 +41,19 @@
 </script>
 
 {#if message}
-	<div class="alert {color} {look}" transition:slide={{ duration: 300 }}>
+	<div 
+		class="alert {color} {look}" 
+		transition:slide={{ duration: 300 }}
+		role="alert"
+		aria-live="polite"
+	>
+		<span class="alert-prefix" aria-hidden="true">
+			{#if color === 'red'}⚠️ {/if}
+			{#if color === 'green'}✓ {/if}
+			{#if color === 'blue'}ℹ️ {/if}
+			{#if color === 'yellow'}⚠️ {/if}
+			{#if color === 'orange'}⚠️ {/if}
+		</span>
 		{message}
 	</div>
 {/if}

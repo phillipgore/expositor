@@ -37,11 +37,12 @@
 	 * @property {boolean} [isFullWidth=false] - Stretch to container width
 	 * @property {boolean} [isDisabled=false] - Disable input
 	 * @property {boolean} [isLarge=false] - Large size variant (4.4rem height, 2rem font)
+	 * @property {boolean} [required=false] - Mark input as required with HTML5 validation
 	 * @property {string} value - Bindable input value
 	 */
 
 	/** @type {InputProps} */
-	let { id, name, type = 'text', isFullWidth = false, isDisabled = false, isLarge = false, value = $bindable('') } = $props();
+	let { id, name, type = 'text', isFullWidth = false, isDisabled = false, isLarge = false, required = false, value = $bindable('') } = $props();
 </script>
 
 <input
@@ -51,6 +52,8 @@
 	bind:value
 	class="{isFullWidth ? 'full-width' : ''} {isLarge ? 'large' : ''}"
 	disabled={isDisabled}
+	required={required}
+	aria-required={required}
 />
 
 <style>

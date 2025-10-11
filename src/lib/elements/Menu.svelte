@@ -46,6 +46,10 @@
 			// Focus the item
 			currentFocusIndex = index;
 			items[index].focus();
+			
+			// Ensure focused item is visible
+			items[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+			
 			itemFocused = true;
 		}
 	}
@@ -101,6 +105,14 @@
 				event.preventDefault();
 				// Jump to last item
 				focusMenuItem(items.length - 1);
+				break;
+
+			case 'Tab':
+				// Allow Tab to close menu and move focus naturally
+				if (menuElement) {
+					menuElement.hidePopover();
+				}
+				// Don't preventDefault - let Tab work naturally
 				break;
 
 			case 'Escape':

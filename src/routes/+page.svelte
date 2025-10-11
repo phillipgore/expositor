@@ -8,7 +8,7 @@
 <ToolbarAuth></ToolbarAuth>
 
 <div class="branding-container">
-	<div class="branding">
+	<div class="branding" role="img" aria-label="Expositor App Logo">
 		<Icon iconId="book" isActive={false} classes=""></Icon>
 		<Heading heading="h1" alignCenter>Expositor App</Heading>
 	</div>

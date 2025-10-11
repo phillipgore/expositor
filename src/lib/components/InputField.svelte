@@ -85,6 +85,7 @@
 	 * @property {'always'|'onError'} [requiredMode='always'] - When to show the required badge
 	 * @property {boolean} [hasError=false] - Error state for conditional badge display
 	 * @property {string} [warningMessage=''] - Optional warning message to display as badge
+	 * @property {(event?: FocusEvent) => void} [onBlur] - Blur event handler for validation
 	 * 
 	 * @component
 	 */
@@ -119,7 +120,9 @@
 		// Error state for conditional badge display
 		hasError = false,
 		// Warning message to display below input
-		warningMessage = ''
+		warningMessage = '',
+		// Blur event handler
+		onBlur = undefined
 	} = $props();
 
 	/**
@@ -163,6 +166,7 @@
 		{isFullWidth} 
 		{isDisabled} 
 		{isLarge}
+		{required}
 	/>
 </div>
 
