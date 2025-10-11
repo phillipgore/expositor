@@ -3,30 +3,39 @@
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
 
-	let { id, isActive, menuOffset, closeMenu } = $props();
+	let { menuId = 'MenuSettings' } = $props();
 </script>
 
-<Menu {isActive} {menuOffset} classes="menu-right">
+<Menu {menuId} alignment="end">
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="account"
 		label="Account"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="toolbar"
 		label="Toolbar"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="help"
 		label="Help"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 	/>
 
 	<DividerHorizontal />
 
-	<IconButton classes="menu-light justify-content-left" iconId="power" label="Sign Out" labelIsLeft handleClick={closeMenu} />
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="power"
+		label="Sign Out"
+		popovertarget={menuId}
+		popovertargetaction="hide"
+	/>
 </Menu>

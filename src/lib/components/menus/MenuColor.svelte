@@ -3,15 +3,16 @@
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
 
-	let { id, isActive, menuOffset, closeMenu } = $props();
+	let { menuId = 'MenuColor' } = $props();
 </script>
 
-<Menu {isActive} {menuOffset}>
+<Menu {menuId}>
 	<IconButton
 		classes="menu-light icon-fill-red justify-content-left"
 		iconId="circle"
 		label="Red"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
@@ -20,7 +21,8 @@
 		iconColor="orange"
 		iconStrokeColor="orange"
 		label="Orange"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
@@ -29,7 +31,8 @@
 		iconColor="yellow"
 		iconStrokeColor="yellow"
 		label="Yellow"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
@@ -38,7 +41,8 @@
 		iconColor="green"
 		iconStrokeColor="green"
 		label="Green"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
@@ -47,7 +51,8 @@
 		iconColor="aqua"
 		iconStrokeColor="aqua"
 		label="Aqua"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
@@ -56,7 +61,8 @@
 		iconColor="blue"
 		iconStrokeColor="blue"
 		label="Blue"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
@@ -65,7 +71,8 @@
 		iconColor="purple"
 		iconStrokeColor="purple"
 		label="Purple"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
@@ -74,7 +81,8 @@
 		iconColor="pink"
 		iconStrokeColor="pink"
 		label="Pink"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 </Menu>

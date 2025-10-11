@@ -3,36 +3,40 @@
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
 
-	let { id, isActive, menuOffset, closeMenu } = $props();
+	let { menuId = 'MenuLiterary' } = $props();
 </script>
 
-<Menu {isActive} {menuOffset}>
+<Menu {menuId}>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="literary-chiasim"
 		label="Chiasim"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="literary-paralell"
 		label="Paralellism"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="literary-repeat"
 		label="Repetition"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="literary-intensify"
 		label="Intensification"
-		handleClick={closeMenu}
+		popovertarget={menuId}
+		popovertargetaction="hide"
 		isDisabled
 	/>
 </Menu>

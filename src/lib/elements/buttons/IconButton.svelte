@@ -84,6 +84,8 @@
 	 * @property {string} [iconColor] - Reserved for icon color (use CSS classes like 'icon-fill-red' instead)
 	 * @property {string} [iconStrokeColor] - Reserved for icon stroke (use CSS classes instead)
 	 * @property {boolean} [labelIsLeft=false] - Display label before icon instead of after
+	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API)
+	 * @property {string} [popovertargetaction] - Popover action: 'toggle' | 'show' | 'hide'
 	 */
 
 	/** @type {IconButtonProps} */
@@ -105,7 +107,9 @@
 		shortcut,
 		iconColor,
 		iconStrokeColor,
-		labelIsLeft
+		labelIsLeft,
+		popovertarget,
+		popovertargetaction
 	} = $props();
 
 	// Derive icon classes based on whether label is present
@@ -144,6 +148,7 @@
 			{isRound}
 			{isActive}
 			{type}
+			{popovertarget}
 		>
 				{#if labelIsLeft && label}
 					<span class="label-left">{label}</span>
@@ -176,6 +181,7 @@
 		{isRound}
 		{isActive}
 		{type}
+		{popovertarget}
 	>
 		{#if labelIsLeft && label}
 			<span class="label-left">{label}</span>

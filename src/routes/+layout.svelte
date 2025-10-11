@@ -3,7 +3,10 @@
 	import { onMount } from 'svelte';
 	import { initializeAuth, isLoading } from '$lib/stores/auth.js';
 
-	onMount(() => {
+	onMount(async () => {
+		// CSS Anchor Positioning polyfill (client-side only)
+		await import('@oddbird/css-anchor-positioning');
+		
 		initializeAuth();
 	});
 </script>

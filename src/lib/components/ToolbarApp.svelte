@@ -6,6 +6,13 @@
 	import SpaceerFixed from '$lib/elements/SpaceerFixed.svelte';
 	import SpacerFlex from '$lib/elements/SpacerFlex.svelte';
 	import Toolbar from '$lib/elements/Toolbar.svelte';
+	import MenuZoom from '$lib/components/menus/MenuZoom.svelte';
+	import MenuStructure from '$lib/components/menus/MenuStructure.svelte';
+	import MenuText from '$lib/components/menus/MenuText.svelte';
+	import MenuLiterary from '$lib/components/menus/MenuLiterary.svelte';
+	import MenuColor from '$lib/components/menus/MenuColor.svelte';
+
+	let zoomLabel = $state('100%');
 </script>
 
 <Toolbar classes="dark" position="sticky" zIndex="1000">
@@ -31,7 +38,7 @@
 
 	<MenuButton
 		classes="toolbar-dark"
-		label="100%"
+		label={zoomLabel}
 		menuId="MenuZoom"
 		underLabelClasses="light"
 		underLabel="Zoom"
@@ -133,3 +140,9 @@
 		url="/settings"
 	></IconButton>
 </Toolbar>
+
+<MenuZoom menuId="MenuZoom" onselect={(value) => (zoomLabel = value)} />
+<MenuStructure menuId="MenuStructure" />
+<MenuText menuId="MenuText" />
+<MenuLiterary menuId="MenuLiterary" />
+<MenuColor menuId="MenuColor" />

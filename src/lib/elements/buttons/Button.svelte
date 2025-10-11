@@ -68,6 +68,8 @@
 	 * @property {'true' | 'false' | 'mixed'} [ariaPressed] - ARIA pressed state for toggle buttons
 	 * @property {'true' | 'false'} [ariaExpanded] - ARIA expanded state for disclosure buttons
 	 * @property {'true' | 'false' | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'} [ariaHaspopup] - ARIA haspopup indicator for buttons that open popups
+	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API)
+	 * @property {string} [style] - Inline CSS styles for the button element
 	 * @property {import('svelte').Snippet} [children] - Snippet for custom button content. Takes precedence over label
 	 */
 
@@ -87,6 +89,8 @@
 		ariaPressed,
 		ariaExpanded,
 		ariaHaspopup,
+		popovertarget,
+		style,
 		children
 	} = $props();
 
@@ -120,6 +124,7 @@
 <button
 	{id}
 	{type}
+	{style}
 	class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isFullWidth
 		? 'full-width'
 		: ''}"
@@ -130,6 +135,7 @@
 	aria-pressed={ariaPressed}
 	aria-expanded={ariaExpanded}
 	aria-haspopup={ariaHaspopup}
+	popovertarget={popovertarget}
 >
 	{#if children}
 		{@render children()}

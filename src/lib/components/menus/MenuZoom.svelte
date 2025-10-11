@@ -1,12 +1,11 @@
 <script>
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
-	import ButtonGrouped from '$lib/elements/buttons/ButtonGrouped.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
 
-	let { isActive, menuOffset, setButtonLabel, closeMenu } = $props();
+	let { menuId = 'MenuZoom', onselect } = $props();
 
-	let groupedItems = $state([
+	let menuItems = $state([
 		{ id: '25', type: 'button', label: '25%', iconId: 'blank', isActive: false },
 		{ id: '50', type: 'button', label: '50%', iconId: 'blank', isActive: false },
 		{ id: '75', type: 'button', label: '75%', iconId: 'blank', isActive: false },
@@ -16,38 +15,42 @@
 		{ id: '200', type: 'button', label: '200%', iconId: 'blank', isActive: false },
 		{ id: '300', type: 'button', label: '300%', iconId: 'blank', isActive: false },
 		{ id: '400', type: 'button', label: '400%', iconId: 'blank', isActive: false },
-		{ id: 'dividerHorizontalOne', type: 'dividerHorizontal' },
+		{ id: 'dividerHorizontalOne', type: 'divider' },
 		{ id: 'fullWidth', type: 'button', label: 'Full Width', iconId: 'blank', isActive: false }
 	]);
 
-	const setIsActive = (button) => {
-		groupedItems.forEach((item) => {
-			item.isActive = false;
-			item.iconId = 'blank';
+	const handleSelect = (item) => {
+		menuItems.forEach((menuItem) => {
+			if (menuItem.type === 'button') {
+				menuItem.isActive = false;
+				menuItem.iconId = 'blank';
+			}
 		});
-		let activeItem = groupedItems.find((groupItem) => groupItem.id === button.id);
-		activeItem.isActive = true;
-		activeItem.iconId = 'check';
-		setButtonLabel(activeItem.label);
-		closeMenu();
+		item.isActive = true;
+		item.iconId = 'check';
+		
+		// Call onselect callback if provided
+		if (onselect) {
+			onselect(item.label);
+		}
 	};
 </script>
 
-<Menu {isActive} {menuOffset}>
-	<ButtonGrouped isList>
-		{#each groupedItems as item}
-			{#if item.type === 'button'}
-				<IconButton
-					id={item.id}
-					classes="menu-light full-width justify-content-left"
-					label={item.label}
-					iconId={item.iconId}
-					isActive={item.isActive}
-					groupedIsActive={setIsActive}
-				/>
-			{:else}
-				<DividerHorizontal />
-			{/if}
-		{/each}
-	</ButtonGrouped>
+<Menu {menuId}>
+	{#each menuItems as item}
+		{#if item.type === 'button'}
+			<IconButton
+				id={item.id}
+				classes="menu-light full-width justify-content-left"
+				label={item.label}
+				iconId={item.iconId}
+				isActive={item.isActive}
+				handleClick={() => handleSelect(item)}
+				popovertarget={menuId}
+				popovertargetaction="hide"
+			/>
+		{:else}
+			<DividerHorizontal />
+		{/if}
+	{/each}
 </Menu>
