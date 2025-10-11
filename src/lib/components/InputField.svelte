@@ -76,7 +76,6 @@
 	 * @property {string} id - HTML id attribute for the input element (required)
 	 * @property {string} name - HTML name attribute for the input element (required)
 	 * @property {string} [type='text'] - Input type (text, email, password, etc.)
-	 * @property {boolean} [isFullWidth=true] - Whether input should take full width of container
 	 * @property {boolean} [isDisabled=false] - Whether the input is disabled
 	 * @property {boolean} [isLarge=false] - Whether to use large input styling
 	 * @property {string} value - Bindable value of the input field
@@ -107,7 +106,6 @@
 		id,
 		name,
 		type = 'text',
-		isFullWidth = true,
 		isDisabled = false,
 		isLarge = false,
 		// Bindable value
@@ -164,7 +162,6 @@
 		{name} 
 		{type} 
 		bind:value 
-		{isFullWidth} 
 		{isDisabled} 
 		{isLarge}
 		{required}
@@ -177,6 +174,7 @@
 	   ============================================ */
 	.input-field {
 		margin-bottom: 1.8rem;
+		width: 100%;
 	}
 
 	/* ============================================

@@ -4,9 +4,10 @@
 	 * 
 	 * Standard text input field with consistent styling and behavior.
 	 * Supports various input types and size variants.
+	 * All inputs span their container width (100%).
 	 * 
 	 * ## Features
-	 * - Full-width and fixed-width modes
+	 * - Full-width by default
 	 * - Large size variant for prominent inputs
 	 * - Disabled state with visual feedback
 	 * - Focus state with blue highlight
@@ -17,24 +18,23 @@
 	 * 
 	 * Basic text input:
 	 * ```svelte
-	 * <Input id="username" name="username" bind:value={username} isFullWidth />
+	 * <Input id="username" name="username" bind:value={username} />
 	 * ```
 	 * 
 	 * Email input:
 	 * ```svelte
-	 * <Input id="email" name="email" type="email" bind:value={email} isFullWidth />
+	 * <Input id="email" name="email" type="email" bind:value={email} />
 	 * ```
 	 * 
 	 * Large input:
 	 * ```svelte
-	 * <Input id="title" name="title" bind:value={title} isLarge isFullWidth />
+	 * <Input id="title" name="title" bind:value={title} isLarge />
 	 * ```
 	 * 
 	 * @typedef {Object} InputProps
 	 * @property {string} id - Input identifier (required)
 	 * @property {string} name - Input name for forms (required)
 	 * @property {string} [type='text'] - HTML input type (text, email, password, number, tel, url, etc.)
-	 * @property {boolean} [isFullWidth=false] - Stretch to container width
 	 * @property {boolean} [isDisabled=false] - Disable input
 	 * @property {boolean} [isLarge=false] - Large size variant (4.4rem height, 2rem font)
 	 * @property {boolean} [required=false] - Mark input as required with HTML5 validation
@@ -42,7 +42,7 @@
 	 */
 
 	/** @type {InputProps} */
-	let { id, name, type = 'text', isFullWidth = false, isDisabled = false, isLarge = false, required = false, value = $bindable('') } = $props();
+	let { id, name, type = 'text', isDisabled = false, isLarge = false, required = false, value = $bindable('') } = $props();
 </script>
 
 <input
@@ -50,7 +50,7 @@
 	{name}
 	{type}
 	bind:value
-	class="{isFullWidth ? 'full-width' : ''} {isLarge ? 'large' : ''}"
+	class="{isLarge ? 'large' : ''}"
 	disabled={isDisabled}
 	required={required}
 	aria-required={required}
@@ -75,10 +75,6 @@
 	/* ============================================
 	   SIZE VARIANTS
 	   ============================================ */
-	input.full-width {
-		width: 100%;
-	}
-
 	input.large {
 		height: 4.4rem;
 		padding: 0rem 1.2rem;

@@ -76,6 +76,7 @@
 			name="firstName"
 			type="text"
 			bind:value={firstName}
+			isFullWidth
 			isDisabled={isLoading}
 			required={true}
 			requiredMode="onError"
@@ -87,6 +88,7 @@
 			name="lastName"
 			type="text"
 			bind:value={lastName}
+			isFullWidth
 			isDisabled={isLoading}
 			required={true}
 			requiredMode="onError"
@@ -148,7 +150,6 @@
 		
 		:global(.input-field) {
 			margin-bottom: 0;
-			width: 100%;
 		}
 	}
 </style>
