@@ -7,6 +7,7 @@
 		menuId,
 		classes = '',
 		alignment = 'start',
+		ariaLabel = undefined,
 		children
 	} = $props();
 
@@ -20,6 +21,8 @@
 <div
 	id={menuId}
 	popover="auto"
+	role="menu"
+	aria-label={ariaLabel}
 	class="menu {classes} {alignmentClass}"
 	style="position-anchor: {anchorName}"
 >

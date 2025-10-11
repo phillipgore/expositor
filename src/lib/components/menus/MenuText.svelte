@@ -1,4 +1,26 @@
 <script>
+	/**
+	 * MenuText Component
+	 * 
+	 * Text manipulation menu for editing document content.
+	 * Provides operations for splitting/joining text and moving content up or down.
+	 * 
+	 * Usage:
+	 * ```
+	 * <MenuButton menuId="MenuText" iconId="text-join" label="Text" />
+	 * <MenuText menuId="MenuText" />
+	 * ```
+	 * 
+	 * Props:
+	 * - menuId (string, default: 'MenuText') - Unique identifier for the menu
+	 * 
+	 * Features:
+	 * - Split text into separate elements
+	 * - Join text elements together
+	 * - Move text up in document order
+	 * - Move text down in document order
+	 */
+
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
@@ -6,11 +28,12 @@
 	let { menuId = 'MenuText' } = $props();
 </script>
 
-<Menu {menuId}>
+<Menu {menuId} ariaLabel="Text manipulation menu">
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="text-split"
 		label="Split Text"
+		role="menuitem"
 		popovertarget={menuId}
 		popovertargetaction="hide"
 		isDisabled
@@ -19,6 +42,7 @@
 		classes="menu-light justify-content-left"
 		iconId="text-join"
 		label="Join Text"
+		role="menuitem"
 		popovertarget={menuId}
 		popovertargetaction="hide"
 		isDisabled
@@ -30,6 +54,7 @@
 		classes="menu-light justify-content-left"
 		iconId="arrow-up"
 		label="Move Up"
+		role="menuitem"
 		popovertarget={menuId}
 		popovertargetaction="hide"
 		isDisabled
@@ -38,6 +63,7 @@
 		classes="menu-light justify-content-left"
 		iconId="arrow-down"
 		label="Move Down"
+		role="menuitem"
 		popovertarget={menuId}
 		popovertargetaction="hide"
 		isDisabled

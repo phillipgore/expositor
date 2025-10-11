@@ -1,88 +1,62 @@
 <script>
+	/**
+	 * MenuColor Component
+	 * 
+	 * Color highlighting menu for text selection.
+	 * Provides 8 color options for highlighting text passages
+	 * including red, orange, yellow, green, aqua, blue, purple, and pink.
+	 * 
+	 * Usage:
+	 * ```
+	 * <MenuButton menuId="MenuColor" iconId="paintbrush" label="Color" />
+	 * <MenuColor menuId="MenuColor" onselect={(color) => applyColor(color)} />
+	 * ```
+	 * 
+	 * Props:
+	 * - menuId (string, default: 'MenuColor') - Unique identifier for the menu
+	 * - onselect (function, optional) - Callback when color selected, receives color id
+	 * 
+	 * Features:
+	 * - 8 distinct highlight colors
+	 * - Visual color preview with circle icon
+	 * - Data-driven for easy color additions
+	 */
+
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
-	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
 
-	let { menuId = 'MenuColor' } = $props();
+	let { menuId = 'MenuColor', onselect } = $props();
+
+	// Color configuration
+	const colors = [
+		{ id: 'red', label: 'Red', class: 'icon-fill-red' },
+		{ id: 'orange', label: 'Orange', class: 'icon-fill-orange' },
+		{ id: 'yellow', label: 'Yellow', class: 'icon-fill-yellow' },
+		{ id: 'green', label: 'Green', class: 'icon-fill-green' },
+		{ id: 'aqua', label: 'Aqua', class: 'icon-fill-aqua' },
+		{ id: 'blue', label: 'Blue', class: 'icon-fill-blue' },
+		{ id: 'purple', label: 'Purple', class: 'icon-fill-purple' },
+		{ id: 'pink', label: 'Pink', class: 'icon-fill-pink' }
+	];
+
+	function handleColorSelect(color) {
+		if (onselect) {
+			onselect(color.id);
+		}
+	}
 </script>
 
-<Menu {menuId}>
-	<IconButton
-		classes="menu-light icon-fill-red justify-content-left"
-		iconId="circle"
-		label="Red"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
-	/>
-	<IconButton
-		classes="menu-light icon-fill-orange justify-content-left"
-		iconId="circle"
-		iconColor="orange"
-		iconStrokeColor="orange"
-		label="Orange"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
-	/>
-	<IconButton
-		classes="menu-light icon-fill-yellow justify-content-left"
-		iconId="circle"
-		iconColor="yellow"
-		iconStrokeColor="yellow"
-		label="Yellow"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
-	/>
-	<IconButton
-		classes="menu-light icon-fill-green justify-content-left"
-		iconId="circle"
-		iconColor="green"
-		iconStrokeColor="green"
-		label="Green"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
-	/>
-	<IconButton
-		classes="menu-light icon-fill-aqua justify-content-left"
-		iconId="circle"
-		iconColor="aqua"
-		iconStrokeColor="aqua"
-		label="Aqua"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
-	/>
-	<IconButton
-		classes="menu-light icon-fill-blue justify-content-left"
-		iconId="circle"
-		iconColor="blue"
-		iconStrokeColor="blue"
-		label="Blue"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
-	/>
-	<IconButton
-		classes="menu-light icon-fill-purple justify-content-left"
-		iconId="circle"
-		iconColor="purple"
-		iconStrokeColor="purple"
-		label="Purple"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
-	/>
-	<IconButton
-		classes="menu-light icon-fill-pink justify-content-left"
-		iconId="circle"
-		iconColor="pink"
-		iconStrokeColor="pink"
-		label="Pink"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
-	/>
+<Menu {menuId} ariaLabel="Color highlighting menu">
+	{#each colors as color}
+		<IconButton
+			classes="menu-light {color.class} justify-content-left"
+			iconId="circle"
+			label={color.label}
+			role="menuitem"
+			handleClick={() => handleColorSelect(color)}
+			popovertarget={menuId}
+			popovertargetaction="hide"
+			isDisabled
+		/>
+	{/each}
 </Menu>

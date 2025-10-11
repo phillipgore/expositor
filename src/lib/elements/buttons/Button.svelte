@@ -70,6 +70,7 @@
 	 * @property {'true' | 'false' | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'} [ariaHaspopup] - ARIA haspopup indicator for buttons that open popups
 	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API)
 	 * @property {string} [style] - Inline CSS styles for the button element
+	 * @property {string} [role] - ARIA role attribute (e.g., 'menuitem' for menu items)
 	 * @property {import('svelte').Snippet} [children] - Snippet for custom button content. Takes precedence over label
 	 */
 
@@ -91,6 +92,7 @@
 		ariaHaspopup,
 		popovertarget,
 		style,
+		role,
 		children
 	} = $props();
 
@@ -125,6 +127,7 @@
 	{id}
 	{type}
 	{style}
+	{role}
 	class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isFullWidth
 		? 'full-width'
 		: ''}"

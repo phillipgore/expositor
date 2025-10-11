@@ -70,11 +70,21 @@
 	 * />
 	 * ```
 	 * 
+	 * Disabled group (all buttons disabled):
+	 * ```svelte
+	 * <ButtonGrouped
+	 *   buttons={viewModes}
+	 *   defaultActive="grid"
+	 *   isDisabled={true}
+	 *   buttonClasses="toolbar-dark"
+	 *   underLabelClasses="light"
+	 * />
+	 * ```
+	 * 
 	 * @typedef {Object} GroupedButton
 	 * @property {string} id - Button identifier (used for selection tracking)
 	 * @property {string} iconId - Icon identifier from icons.json
 	 * @property {string} label - Button label text (displayed as under-label)
-	 * @property {boolean} [isDisabled] - Whether this specific button is disabled
 	 */
 
 	/**
@@ -85,6 +95,7 @@
 	 * @property {string} [buttonClasses=''] - CSS classes to apply to each button (e.g., 'toolbar-dark', 'menu-light')
 	 * @property {string} [underLabelClasses=''] - CSS classes for button under-labels (e.g., 'light' for white text)
 	 * @property {boolean} [isList=false] - Display buttons vertically instead of horizontally
+	 * @property {boolean} [isDisabled=false] - Whether all buttons in the group are disabled
 	 * @property {import('svelte').Snippet} [children] - Optional children for backward compatibility with old API
 	 */
 
@@ -96,6 +107,7 @@
 		buttonClasses = '',
 		underLabelClasses = '',
 		isList = false,
+		isDisabled = false,
 		children
 	} = $props();
 
@@ -133,7 +145,7 @@
 					underLabel={button.label}
 					groupedIsActive={handleButtonClick}
 					isActive={activeButtonId === button.id}
-					isDisabled={button.isDisabled}
+					isDisabled={isDisabled}
 				/>
 			{/each}
 		{/if}

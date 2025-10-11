@@ -1,4 +1,28 @@
 <script>
+	/**
+	 * MenuZoom Component
+	 * 
+	 * Zoom level selection menu with predefined percentage options.
+	 * Allows users to adjust document zoom from 25% to 400% or set to full width.
+	 * 
+	 * Usage:
+	 * ```
+	 * let zoomLabel = $state('100%');
+	 * <MenuButton label={zoomLabel} menuId="MenuZoom" />
+	 * <MenuZoom menuId="MenuZoom" onselect={(value) => zoomLabel = value} />
+	 * ```
+	 * 
+	 * Props:
+	 * - menuId (string, default: 'MenuZoom') - Unique identifier for the menu
+	 * - onselect (function, optional) - Callback when zoom level selected, receives label
+	 * 
+	 * Features:
+	 * - 9 predefined zoom levels (25% - 400%)
+	 * - Full width option
+	 * - Visual checkmark indicator for active zoom level
+	 * - Callback support for parent component updates
+	 */
+
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
@@ -36,7 +60,7 @@
 	};
 </script>
 
-<Menu {menuId}>
+<Menu {menuId} ariaLabel="Zoom level menu">
 	{#each menuItems as item}
 		{#if item.type === 'button'}
 			<IconButton
@@ -45,6 +69,7 @@
 				label={item.label}
 				iconId={item.iconId}
 				isActive={item.isActive}
+				role="menuitem"
 				handleClick={() => handleSelect(item)}
 				popovertarget={menuId}
 				popovertargetaction="hide"

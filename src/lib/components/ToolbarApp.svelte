@@ -122,12 +122,13 @@
 
 	<ButtonGrouped
 		buttons={[
-			{ id: 'analyze', iconId: 'structure', label: 'Analyze', isDisabled: false },
-			{ id: 'document', iconId: 'document', label: 'Document', isDisabled: false }
+			{ id: 'analyze', iconId: 'structure', label: 'Analyze' },
+			{ id: 'document', iconId: 'document', label: 'Document' }
 		]}
 		defaultActive="analyze"
 		buttonClasses="toolbar-dark"
 		underLabelClasses="light"
+		isDisabled
 	/>
 
 	<SpaceerFixed></SpaceerFixed>

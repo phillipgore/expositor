@@ -86,6 +86,7 @@
 	 * @property {boolean} [labelIsLeft=false] - Display label before icon instead of after
 	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API)
 	 * @property {string} [popovertargetaction] - Popover action: 'toggle' | 'show' | 'hide'
+	 * @property {string} [role] - ARIA role attribute (e.g., 'menuitem' for menu items)
 	 */
 
 	/** @type {IconButtonProps} */
@@ -109,7 +110,8 @@
 		iconStrokeColor,
 		labelIsLeft,
 		popovertarget,
-		popovertargetaction
+		popovertargetaction,
+		role
 	} = $props();
 
 	// Derive icon classes based on whether label is present
@@ -148,6 +150,7 @@
 			{isRound}
 			{isActive}
 			{type}
+			{role}
 			{popovertarget}
 		>
 				{#if labelIsLeft && label}
@@ -181,6 +184,7 @@
 		{isRound}
 		{isActive}
 		{type}
+		{role}
 		{popovertarget}
 	>
 		{#if labelIsLeft && label}
