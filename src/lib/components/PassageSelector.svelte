@@ -28,17 +28,19 @@
 
 	import { fade } from 'svelte/transition';
 	import { v4 as uuidv4 } from 'uuid';
-	import bibleData from '$lib/data/bible.json';
+	import {
+		getTestaments,
+		getBooks,
+		getChapters,
+		getVerses,
+		getVerseCount,
+		getDefaultPassageValues
+	} from '$lib/utils/bibleData.js';
 	import Button from '$lib/elements/buttons/Button.svelte';
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import Fieldset from '$lib/elements/Fieldset.svelte';
 	import RadioButtons from '$lib/elements/RadioButtons.svelte';
 	import Select from '$lib/elements/Select.svelte';
-
-	// Extract Bible data structure for easy access
-	const testamentData = bibleData[0].testamentData;
-	const otBookData = testamentData[0].bookData;
-	const ntBookData = testamentData[1].bookData;
 
 	/** @type {PassageSelectorProps} */
 	let { passages = $bindable(), onPassagesChange } = $props();
@@ -58,31 +60,6 @@
 	let dropIndicatorPosition = $state(-1);
 
 	/**
-	 * Generates radio button properties for testament selection (OT/NT).
-	 * Creates an array of radio button configurations for Old and New Testament.
-	 * 
-	 * @param {('OT'|'NT')} selectedTestament - Currently selected testament
-	 * @param {string} passageId - Unique passage ID for element IDs
-	 * @returns {Array} Array of radio button property objects
-	 */
-	const getTestaments = (selectedTestament, passageId) => {
-		let RadioButtonTestaments = [];
-
-		testamentData.forEach((testatment) => {
-			let testamentObject = {};
-
-			testamentObject.id = `${testatment._id}-${passageId}`;
-			testamentObject.value = testatment._id;
-			testamentObject.text = testatment.title;
-			testamentObject.isChecked = testatment._id === selectedTestament;
-
-			RadioButtonTestaments.push(testamentObject);
-		});
-
-		return RadioButtonTestaments;
-	};
-
-	/**
 	 * Updates the testament for a passage and resets dependent values.
 	 * When testament changes, resets book to first book of new testament,
 	 * and resets all chapter/verse values to defaults.
@@ -95,45 +72,20 @@
 
 		if (passage) {
 			passage.testament = testament;
-			// Set to first book of the selected testament
-			const bookData = testament === 'OT' ? otBookData : ntBookData;
-			passage.book = bookData[0]._id;
-			// Reset chapters when testament changes
-			passage.fromChapter = 1;
-			passage.toChapter = 1;
-			// Reset verses when testament changes
-			const fromVerseCount = bookData[0].chapterData[0]['1'];
-			const toVerseCount = bookData[0].chapterData[0]['1'];
-			passage.fromVerse = 1;
-			passage.toVerse = toVerseCount;
+			// Get first book of the selected testament
+			const books = getBooks(testament, '');
+			if (books.length > 0) {
+				passage.book = books[0].value;
+				// Reset chapters when testament changes
+				passage.fromChapter = 1;
+				passage.toChapter = 1;
+				// Reset verses when testament changes
+				const verseCount = getVerseCount(testament, passage.book, 1);
+				passage.fromVerse = 1;
+				passage.toVerse = verseCount;
+			}
 		}
 		onPassagesChange?.(passages);
-	};
-
-	/**
-	 * Generates select option properties for book selection.
-	 * Returns book options filtered by testament (OT or NT).
-	 * 
-	 * @param {('OT'|'NT')} testament - Testament to get books from
-	 * @param {string} selectedBook - Currently selected book ID
-	 * @returns {Array} Array of book option objects
-	 */
-	const getBooks = (testament, selectedBook) => {
-		let books = [];
-		let bookData = testament === 'OT' ? otBookData : ntBookData;
-
-		bookData.forEach((book) => {
-			let bookObject = {};
-
-			bookObject.id = book._id;
-			bookObject.value = book._id;
-			bookObject.text = book.title;
-			bookObject.isSelected = book._id === selectedBook;
-
-			books.push(bookObject);
-		});
-
-		return books;
 	};
 
 	/**
@@ -148,48 +100,14 @@
 		if (passage) {
 			passage.book = bookId;
 			// Reset chapters when book changes
-			const bookData = passage.testament === 'OT' ? otBookData : ntBookData;
-			const selectedBook = bookData.find((book) => book._id === bookId);
-			if (selectedBook) {
-				passage.fromChapter = 1;
-				passage.toChapter = 1;
-				// Reset verses when book changes
-				const fromVerseCount = selectedBook.chapterData[0]['1'];
-				const toVerseCount = selectedBook.chapterData[0]['1'];
-				passage.fromVerse = 1;
-				passage.toVerse = toVerseCount;
-			}
+			passage.fromChapter = 1;
+			passage.toChapter = 1;
+			// Reset verses when book changes
+			const verseCount = getVerseCount(passage.testament, bookId, 1);
+			passage.fromVerse = 1;
+			passage.toVerse = verseCount;
 		}
 		onPassagesChange?.(passages);
-	};
-
-	/**
-	 * Generates select option properties for chapter selection.
-	 * Returns chapter options for the specified book, with optional minimum chapter.
-	 * 
-	 * @param {('OT'|'NT')} testament - Testament the book belongs to
-	 * @param {string} bookId - Book ID to get chapters from
-	 * @param {number} selectedChapter - Currently selected chapter
-	 * @param {number} [minChapter=1] - Minimum chapter number to include
-	 * @returns {Array} Array of chapter option objects
-	 */
-	const getChapters = (testament, bookId, selectedChapter, minChapter = 1) => {
-		let chapters = [];
-		const bookData = testament === 'OT' ? otBookData : ntBookData;
-		const book = bookData.find((b) => b._id === bookId);
-
-		if (book) {
-			for (let i = minChapter; i <= book.chapterCount; i++) {
-				let chapterObject = {};
-				chapterObject.id = i;
-				chapterObject.value = i;
-				chapterObject.text = i.toString();
-				chapterObject.isSelected = i === selectedChapter;
-				chapters.push(chapterObject);
-			}
-		}
-
-		return chapters;
 	};
 
 	/**
@@ -211,62 +129,23 @@
 					passage.toChapter = chapterNum;
 				}
 				// Reset verses when fromChapter changes
-				const bookData = passage.testament === 'OT' ? otBookData : ntBookData;
-				const book = bookData.find((b) => b._id === passage.book);
-				if (book) {
-					const fromVerseCount = book.chapterData[0][chapterNum.toString()];
-					const toVerseCount = book.chapterData[0][passage.toChapter.toString()];
-					passage.fromVerse = 1;
-					passage.toVerse = toVerseCount;
-				}
+				const fromVerseCount = getVerseCount(passage.testament, passage.book, chapterNum);
+				const toVerseCount = getVerseCount(passage.testament, passage.book, passage.toChapter);
+				passage.fromVerse = 1;
+				passage.toVerse = toVerseCount;
 			} else {
 				passage.toChapter = chapterNum;
 				// Reset toVerse when toChapter changes
-				const bookData = passage.testament === 'OT' ? otBookData : ntBookData;
-				const book = bookData.find((b) => b._id === passage.book);
-				if (book) {
-					const verseCount = book.chapterData[0][chapterNum.toString()];
-					// If chapters are now the same, ensure toVerse is not less than fromVerse
-					if (passage.fromChapter === chapterNum && passage.fromVerse > 1) {
-						passage.toVerse = Math.max(passage.fromVerse, verseCount);
-					} else {
-						passage.toVerse = verseCount;
-					}
+				const verseCount = getVerseCount(passage.testament, passage.book, chapterNum);
+				// If chapters are now the same, ensure toVerse is not less than fromVerse
+				if (passage.fromChapter === chapterNum && passage.fromVerse > 1) {
+					passage.toVerse = Math.max(passage.fromVerse, verseCount);
+				} else {
+					passage.toVerse = verseCount;
 				}
 			}
 		}
 		onPassagesChange?.(passages);
-	};
-
-	/**
-	 * Generates select option properties for verse selection.
-	 * Returns verse options for the specified chapter, with optional minimum verse.
-	 * 
-	 * @param {('OT'|'NT')} testament - Testament the book belongs to
-	 * @param {string} bookId - Book ID to get verses from
-	 * @param {number} chapterNum - Chapter number to get verse count from
-	 * @param {number} selectedVerse - Currently selected verse
-	 * @param {number} [minVerse=1] - Minimum verse number to include
-	 * @returns {Array} Array of verse option objects
-	 */
-	const getVerses = (testament, bookId, chapterNum, selectedVerse, minVerse = 1) => {
-		let verses = [];
-		const bookData = testament === 'OT' ? otBookData : ntBookData;
-		const book = bookData.find((b) => b._id === bookId);
-
-		if (book && book.chapterData[0][chapterNum.toString()]) {
-			const verseCount = book.chapterData[0][chapterNum.toString()];
-			for (let i = minVerse; i <= verseCount; i++) {
-				let verseObject = {};
-				verseObject.id = i;
-				verseObject.value = i;
-				verseObject.text = i.toString();
-				verseObject.isSelected = i === selectedVerse;
-				verses.push(verseObject);
-			}
-		}
-
-		return verses;
 	};
 
 	/**
@@ -299,14 +178,10 @@
 	 * New passages start with New Testament, Matthew 1:1 to end of chapter.
 	 */
 	const addPassage = () => {
+		const defaultValues = getDefaultPassageValues();
 		passages.push({
 			id: uuidv4(),
-			testament: 'NT',
-			book: ntBookData[0]._id,
-			fromChapter: 1,
-			toChapter: 1,
-			fromVerse: 1,
-			toVerse: ntBookData[0].chapterData[0]['1']
+			...defaultValues
 		});
 		onPassagesChange?.(passages);
 	};

@@ -44,7 +44,7 @@
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import MenuButton from '$lib/elements/buttons/MenuButton.svelte';
 	import ToggleButton from '$lib/elements/buttons/ToggleButton.svelte';
-	import SpaceerFixed from '$lib/elements/SpaceerFixed.svelte';
+	import SpacerFixed from '$lib/elements/SpacerFixed.svelte';
 	import SpacerFlex from '$lib/elements/SpacerFlex.svelte';
 	import Toolbar from '$lib/elements/Toolbar.svelte';
 	import MenuZoom from '$lib/components/menus/MenuZoom.svelte';
@@ -52,136 +52,65 @@
 	import MenuText from '$lib/components/menus/MenuText.svelte';
 	import MenuLiterary from '$lib/components/menus/MenuLiterary.svelte';
 	import MenuColor from '$lib/components/menus/MenuColor.svelte';
+	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
 
 	/** @type {string} Current zoom level label */
 	let zoomLabel = $state('100%');
+
+	// Get toolbar configuration
+	const toolbarConfig = getAppToolbarConfig();
 </script>
 
 <Toolbar classes="dark" position="sticky" zIndex="1000">
 	<!-- <MenuButton classes="toolbar-dark" iconId="book" menuId="MenuStudies" underLabelClasses="light" underLabel="Studies"></MenuButton> -->
 
-	<IconButton
-		classes="toolbar-dark"
-		iconId="book"
-		underLabelClasses="light"
-		underLabel="Open"
-		url="/open"
-	></IconButton>
-
-	<IconButton
-		classes="toolbar-dark"
-		iconId="plus"
-		underLabelClasses="light"
-		underLabel="New"
-		url="/new"
-	></IconButton>
-
-	<SpaceerFixed></SpaceerFixed>
-
-	<MenuButton
-		classes="toolbar-dark"
-		label={zoomLabel}
-		menuId="MenuZoom"
-		underLabelClasses="light"
-		underLabel="Zoom"
-	></MenuButton>
-
-	<SpacerFlex></SpacerFlex>
-
-	<MenuButton
-		classes="toolbar-dark"
-		iconId="pin"
-		menuId="MenuStructure"
-		underLabelClasses="light"
-		underLabel="Outline"
-	></MenuButton>
-
-	<MenuButton
-		classes="toolbar-dark"
-		iconId="text-join"
-		menuId="MenuText"
-		underLabelClasses="light"
-		underLabel="Text"
-	></MenuButton>
-
-	<MenuButton classes="toolbar-dark" iconId="literary-chiasim" menuId="MenuLiterary" underLabelClasses="light" underLabel="Literary"></MenuButton>
-
-	<MenuButton
-		classes="toolbar-dark"
-		iconId="paintbrush"
-		menuId="MenuColor"
-		underLabelClasses="light"
-		underLabel="Color"
-	></MenuButton>
-
-	<SpaceerFixed></SpaceerFixed>
-
-	<ToggleButton
-		classes="toolbar-dark"
-		iconId="note"
-		underLabel="Notes"
-		underLabelClasses="light"
-		isDisabled
-	></ToggleButton>
-
-	<ToggleButton
-		classes="toolbar-dark"
-		iconId="reference"
-		underLabel="Verses"
-		underLabelClasses="light"
-		isDisabled
-	></ToggleButton>
-
-	<SpaceerFixed></SpaceerFixed>
-
-	<ToggleButton
-		classes="toolbar-dark"
-		iconId="wide"
-		underLabel="Wide"
-		underLabelClasses="light"
-		isDisabled
-	></ToggleButton>
-
-	<ToggleButton
-		classes="toolbar-dark"
-		iconId="outline"
-		underLabel="Overview"
-		underLabelClasses="light"
-		isDisabled
-	></ToggleButton>
-
-	<SpaceerFixed></SpaceerFixed>
-
-	<IconButton
-		classes="toolbar-dark"
-		iconId="trashcan"
-		underLabelClasses="light"
-		underLabel="Delete"
-		isDisabled
-	></IconButton>
-
-	<SpacerFlex></SpacerFlex>
-
-	<ButtonGrouped
-		buttons={[
-			{ id: 'analyze', iconId: 'structure', label: 'Analyze' },
-			{ id: 'document', iconId: 'document', label: 'Document' }
-		]}
-		defaultActive="analyze"
-		buttonClasses="toolbar-dark"
-		underLabelClasses="light"
-		isDisabled
-	/>
-
-	<SpaceerFixed></SpaceerFixed>
-
-	<IconButton
-		classes="toolbar-dark"
-		iconId="gear"
-		underLabelClasses="light"
-		underLabel="Settings"
-		url="/settings"
-	></IconButton>
+	{#each toolbarConfig as item}
+		{#if item.type === 'spacer'}
+			{#if item.variant === 'fixed'}
+				<SpacerFixed />
+			{:else if item.variant === 'flex'}
+				<SpacerFlex />
+			{/if}
+		{:else if item.type === 'section'}
+			{#each item.items as button}
+				{#if button.type === 'icon'}
+					<IconButton
+						iconId={button.iconId}
+						underLabel={button.underLabel}
+						url={button.url}
+						classes={button.classes}
+						underLabelClasses={button.underLabelClasses}
+						isDisabled={button.isDisabled}
+					/>
+				{:else if button.type === 'menu'}
+					<MenuButton
+						iconId={button.iconId}
+						label={button.dynamicLabel ? zoomLabel : undefined}
+						menuId={button.menuId}
+						underLabel={button.underLabel}
+						classes={button.classes}
+						underLabelClasses={button.underLabelClasses}
+					/>
+				{:else if button.type === 'toggle'}
+					<ToggleButton
+						iconId={button.iconId}
+						underLabel={button.underLabel}
+						classes={button.classes}
+						underLabelClasses={button.underLabelClasses}
+						isDisabled={button.isDisabled}
+					/>
+				{:else if button.type === 'grouped'}
+					<ButtonGrouped
+						buttons={button.buttons}
+						defaultActive={button.defaultActive}
+						buttonClasses={button.buttonClasses}
+						underLabelClasses={button.underLabelClasses}
+						isDisabled={button.isDisabled}
+					/>
+				{/if}
+			{/each}
+		{/if}
+	{/each}
 </Toolbar>
 
 <MenuZoom menuId="MenuZoom" onselect={(value) => (zoomLabel = value)} />

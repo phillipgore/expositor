@@ -27,44 +27,35 @@
 	 */
 
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
-	import SpaceerFixed from '$lib/elements/SpaceerFixed.svelte';
+	import SpacerFixed from '$lib/elements/SpacerFixed.svelte';
 	import SpacerFlex from '$lib/elements/SpacerFlex.svelte';
 	import Toolbar from '$lib/elements/Toolbar.svelte';
+	import { getAuthToolbarConfig } from '$lib/utils/toolbarConfig.js';
+
+	// Get toolbar configuration
+	const toolbarConfig = getAuthToolbarConfig();
 </script>
 
 <Toolbar classes="dark">
-	<IconButton
-		url="/"
-		underLabel="Home"
-		iconId="home"
-		classes="toolbar-dark"
-		underLabelClasses="light"
-	></IconButton>
-
-	<SpaceerFixed></SpaceerFixed>
-
-	<IconButton
-		url="/signin"
-		underLabel="Sign In"
-		iconId="account"
-		classes="toolbar-dark"
-		underLabelClasses="light"
-	></IconButton>
-	<IconButton
-		url="/signup"
-		underLabel="Sign Up"
-		iconId="plus"
-		classes="toolbar-dark"
-		underLabelClasses="light"
-	></IconButton>
-
-	<SpacerFlex></SpacerFlex>
-
-	<IconButton
-		url="/password"
-		underLabel="Password"
-		iconId="lock"
-		classes="toolbar-dark"
-		underLabelClasses="light"
-	></IconButton>
+	{#each toolbarConfig as item}
+		{#if item.type === 'spacer'}
+			{#if item.variant === 'fixed'}
+				<SpacerFixed />
+			{:else if item.variant === 'flex'}
+				<SpacerFlex />
+			{/if}
+		{:else if item.type === 'section'}
+			{#each item.items as button}
+				{#if button.type === 'icon'}
+					<IconButton
+						iconId={button.iconId}
+						underLabel={button.underLabel}
+						url={button.url}
+						classes={button.classes}
+						underLabelClasses={button.underLabelClasses}
+					/>
+				{/if}
+			{/each}
+		{/if}
+	{/each}
 </Toolbar>

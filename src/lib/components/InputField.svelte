@@ -133,6 +133,14 @@
 	const showRequiredBadge = $derived(
 		required && (requiredMode === 'always' || (requiredMode === 'onError' && hasError))
 	);
+
+	/**
+	 * Computed property to determine if the warning badge should be displayed.
+	 * Shows badge when warningMessage has content.
+	 * 
+	 * @type {boolean}
+	 */
+	const showWarningBadge = $derived(warningMessage && warningMessage.length > 0);
 </script>
 
 <div class="input-field {containerClasses}">
@@ -143,7 +151,7 @@
 		{#if showRequiredBadge}
 			<Badge color="red" message="Required" size="small" look="subtle"/>
 		{/if}
-		{#if warningMessage}
+		{#if showWarningBadge}
 			<Badge color="blue" message={warningMessage} size="small" look="subtle"/>
 		{/if}
 	</div>

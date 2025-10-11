@@ -1,6 +1,6 @@
 <script>
 	/**
-	 * # SpaceerFixed Component
+	 * # SpacerFixed Component
 	 * 
 	 * Fixed-width spacer element for consistent spacing in layouts.
 	 * Commonly used in toolbars and navigation to add horizontal spacing between elements.
@@ -15,22 +15,22 @@
 	 * Default spacing:
 	 * ```svelte
 	 * <Button label="Back" />
-	 * <SpaceerFixed />
+	 * <SpacerFixed />
 	 * <Button label="Next" />
 	 * ```
 	 * 
 	 * Custom width:
 	 * ```svelte
 	 * <Icon iconId="home" />
-	 * <SpaceerFixed width="1rem" />
+	 * <SpacerFixed width="1rem" />
 	 * <span>Home</span>
 	 * ```
 	 * 
-	 * @typedef {Object} SpaceerFixedProps
+	 * @typedef {Object} SpacerFixedProps
 	 * @property {string} [width='2.4rem'] - Fixed width spacing (CSS value)
 	 */
 
-	/** @type {SpaceerFixedProps} */
+	/** @type {SpacerFixedProps} */
 	let { width = '2.4rem' } = $props();
 </script>
 
