@@ -1,8 +1,99 @@
 <script>
+	/**
+	 * # InputField Component
+	 * 
+	 * Composite form field component that combines a label, input element, and optional badges
+	 * for validation feedback. Provides a consistent interface for form inputs across the application.
+	 * 
+	 * ## Features
+	 * - Integrated label with customizable styling
+	 * - Required field indicator badge with conditional display
+	 * - Warning message badge for informational feedback
+	 * - Two-way data binding via $bindable
+	 * - Full control over label and input appearance
+	 * - Flexible container styling
+	 * 
+	 * ## Badge Display Modes
+	 * The `requiredMode` prop controls when the required badge is shown:
+	 * - "always": Badge always visible when field is required
+	 * - "onError": Badge only visible when field is required AND hasError is true
+	 * 
+	 * ## Usage Examples
+	 * 
+	 * Basic usage:
+	 * ```svelte
+	 * <InputField 
+	 *   label="Email" 
+	 *   id="email" 
+	 *   name="email" 
+	 *   type="email"
+	 *   bind:value={email}
+	 * />
+	 * ```
+	 * 
+	 * With required badge (always shown):
+	 * ```svelte
+	 * <InputField 
+	 *   label="Username" 
+	 *   id="username" 
+	 *   name="username"
+	 *   bind:value={username}
+	 *   required={true}
+	 * />
+	 * ```
+	 * 
+	 * With conditional required badge (shown only on error):
+	 * ```svelte
+	 * <InputField 
+	 *   label="Password" 
+	 *   id="password" 
+	 *   name="password"
+	 *   type="password"
+	 *   bind:value={password}
+	 *   required={true}
+	 *   requiredMode="onError"
+	 *   hasError={passwordError}
+	 * />
+	 * ```
+	 * 
+	 * With warning message:
+	 * ```svelte
+	 * <InputField 
+	 *   label="API Key" 
+	 *   id="apiKey" 
+	 *   name="apiKey"
+	 *   bind:value={apiKey}
+	 *   warningMessage="Optional but recommended"
+	 * />
+	 * ```
+	 * 
+	 * @typedef {Object} InputFieldProps
+	 * @property {string} label - Label text to display above the input
+	 * @property {string} [forId] - HTML 'for' attribute for the label (defaults to id if not provided)
+	 * @property {string} [labelClasses=''] - Additional CSS classes for the label
+	 * @property {boolean} [isLabelInline=false] - Whether to display label inline
+	 * @property {boolean} [isLabelLarge=false] - Whether to use large label styling
+	 * @property {string} id - HTML id attribute for the input element (required)
+	 * @property {string} name - HTML name attribute for the input element (required)
+	 * @property {string} [type='text'] - Input type (text, email, password, etc.)
+	 * @property {boolean} [isFullWidth=true] - Whether input should take full width of container
+	 * @property {boolean} [isDisabled=false] - Whether the input is disabled
+	 * @property {boolean} [isLarge=false] - Whether to use large input styling
+	 * @property {string} value - Bindable value of the input field
+	 * @property {string} [containerClasses=''] - Additional CSS classes for the outer container
+	 * @property {boolean} [required=false] - Whether the field is required
+	 * @property {'always'|'onError'} [requiredMode='always'] - When to show the required badge
+	 * @property {boolean} [hasError=false] - Error state for conditional badge display
+	 * @property {string} [warningMessage=''] - Optional warning message to display as badge
+	 * 
+	 * @component
+	 */
+
 	import Label from '$lib/elements/Label.svelte';
 	import Input from '$lib/elements/Input.svelte';
 	import Badge from '$lib/elements/Badge.svelte';
 
+	/** @type {InputFieldProps} */
 	let {
 		// Label props
 		label,
@@ -31,7 +122,14 @@
 		warningMessage = ''
 	} = $props();
 
-	// Determine if badge should be shown
+	/**
+	 * Computed property to determine if the required badge should be displayed.
+	 * Shows badge when field is required AND either:
+	 * - requiredMode is "always", OR
+	 * - requiredMode is "onError" and hasError is true
+	 * 
+	 * @type {boolean}
+	 */
 	const showRequiredBadge = $derived(
 		required && (requiredMode === 'always' || (requiredMode === 'onError' && hasError))
 	);

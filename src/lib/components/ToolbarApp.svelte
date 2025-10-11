@@ -1,4 +1,45 @@
 <script>
+	/**
+	 * # ToolbarApp Component
+	 * 
+	 * Main application toolbar for the authenticated app interface.
+	 * Provides access to document operations, view controls, formatting tools, and settings.
+	 * 
+	 * ## Features
+	 * - Document operations (Open, New, Delete)
+	 * - View controls (Zoom, Wide, Overview)
+	 * - Formatting menus (Outline, Text, Literary, Color)
+	 * - Mode toggles (Notes, Verses)
+	 * - View mode switching (Analyze, Document)
+	 * - Settings access
+	 * - Dark themed with sticky positioning
+	 * 
+	 * ## Menu Integration
+	 * Integrates with several dropdown menus:
+	 * - MenuZoom: Zoom level control
+	 * - MenuStructure: Outline structure options
+	 * - MenuText: Text formatting options
+	 * - MenuLiterary: Literary device highlighting
+	 * - MenuColor: Color scheme selection
+	 * 
+	 * ## Layout Structure
+	 * Left section: Open, New buttons
+	 * Center-left: Zoom control
+	 * Center: Formatting menus (Outline, Text, Literary, Color)
+	 * Center-right: View toggles (Notes, Verses)
+	 * Right section: Layout toggles, mode switcher, Settings
+	 * 
+	 * ## State Management
+	 * @property {string} zoomLabel - Current zoom level display (default: '100%')
+	 * 
+	 * ## Usage
+	 * ```svelte
+	 * <ToolbarApp />
+	 * ```
+	 * 
+	 * @component
+	 */
+
 	import ButtonGrouped from '$lib/elements/buttons/ButtonGrouped.svelte';
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import MenuButton from '$lib/elements/buttons/MenuButton.svelte';
@@ -12,6 +53,7 @@
 	import MenuLiterary from '$lib/components/menus/MenuLiterary.svelte';
 	import MenuColor from '$lib/components/menus/MenuColor.svelte';
 
+	/** @type {string} Current zoom level label */
 	let zoomLabel = $state('100%');
 </script>
 

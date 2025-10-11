@@ -1,4 +1,31 @@
 <script>
+	/**
+	 * PassageSelector Component
+	 * 
+	 * Advanced Bible passage selection component with drag-and-drop reordering.
+	 * Allows users to select multiple Bible passages with precise control over
+	 * testament, book, chapter, and verse ranges.
+	 * 
+	 * @component
+	 */
+
+	/**
+	 * @typedef {Object} Passage
+	 * @property {string} id - Unique identifier for the passage
+	 * @property {'OT'|'NT'} testament - Testament selection (Old or New Testament)
+	 * @property {string} book - Book identifier from Bible data
+	 * @property {number} fromChapter - Starting chapter number
+	 * @property {number} toChapter - Ending chapter number
+	 * @property {number} fromVerse - Starting verse number
+	 * @property {number} toVerse - Ending verse number
+	 */
+
+	/**
+	 * @typedef {Object} PassageSelectorProps
+	 * @property {Passage[]} passages - Bindable array of passage selections
+	 * @property {(passages: Passage[]) => void} [onPassagesChange] - Optional callback when passages change
+	 */
+
 	import { fade } from 'svelte/transition';
 	import { v4 as uuidv4 } from 'uuid';
 	import bibleData from '$lib/data/bible.json';
@@ -8,20 +35,36 @@
 	import RadioButtons from '$lib/elements/RadioButtons.svelte';
 	import Select from '$lib/elements/Select.svelte';
 
+	// Extract Bible data structure for easy access
 	const testamentData = bibleData[0].testamentData;
 	const otBookData = testamentData[0].bookData;
 	const ntBookData = testamentData[1].bookData;
 
+	/** @type {PassageSelectorProps} */
 	let { passages = $bindable(), onPassagesChange } = $props();
 
-	// Drag and drop state
+	// Drag and drop state tracking
+	/** @type {string|null} ID of the passage currently being dragged */
 	let draggedPassageId = $state(null);
+	/** @type {string|null} ID of the passage being dragged over */
 	let dragOverPassageId = $state(null);
+	/** @type {boolean} Whether a drag operation is in progress */
 	let isDragging = $state(false);
-	let dragStarted = $state(false); // Track when drag has actually started
-	let dragPosition = $state(-1); // Index where item will be dropped
-	let dropIndicatorPosition = $state(-1); // Position for drop indicator
+	/** @type {boolean} Whether drag has actually started (prevents flashing) */
+	let dragStarted = $state(false);
+	/** @type {number} Index where item will be dropped */
+	let dragPosition = $state(-1);
+	/** @type {number} Position for drop indicator visual */
+	let dropIndicatorPosition = $state(-1);
 
+	/**
+	 * Generates radio button properties for testament selection (OT/NT).
+	 * Creates an array of radio button configurations for Old and New Testament.
+	 * 
+	 * @param {('OT'|'NT')} selectedTestament - Currently selected testament
+	 * @param {string} passageId - Unique passage ID for element IDs
+	 * @returns {Array} Array of radio button property objects
+	 */
 	const getTestaments = (selectedTestament, passageId) => {
 		let RadioButtonTestaments = [];
 
@@ -39,6 +82,14 @@
 		return RadioButtonTestaments;
 	};
 
+	/**
+	 * Updates the testament for a passage and resets dependent values.
+	 * When testament changes, resets book to first book of new testament,
+	 * and resets all chapter/verse values to defaults.
+	 * 
+	 * @param {string} passageId - ID of the passage to update
+	 * @param {('OT'|'NT')} testament - New testament selection
+	 */
 	const updateTestament = (passageId, testament) => {
 		const passage = passages.find((p) => p.id === passageId);
 
@@ -59,6 +110,14 @@
 		onPassagesChange?.(passages);
 	};
 
+	/**
+	 * Generates select option properties for book selection.
+	 * Returns book options filtered by testament (OT or NT).
+	 * 
+	 * @param {('OT'|'NT')} testament - Testament to get books from
+	 * @param {string} selectedBook - Currently selected book ID
+	 * @returns {Array} Array of book option objects
+	 */
 	const getBooks = (testament, selectedBook) => {
 		let books = [];
 		let bookData = testament === 'OT' ? otBookData : ntBookData;
@@ -77,6 +136,13 @@
 		return books;
 	};
 
+	/**
+	 * Updates the book for a passage and resets dependent values.
+	 * When book changes, resets all chapter and verse values to defaults.
+	 * 
+	 * @param {string} passageId - ID of the passage to update
+	 * @param {string} bookId - New book ID
+	 */
 	const updateBook = (passageId, bookId) => {
 		const passage = passages.find((p) => p.id === passageId);
 		if (passage) {
@@ -97,6 +163,16 @@
 		onPassagesChange?.(passages);
 	};
 
+	/**
+	 * Generates select option properties for chapter selection.
+	 * Returns chapter options for the specified book, with optional minimum chapter.
+	 * 
+	 * @param {('OT'|'NT')} testament - Testament the book belongs to
+	 * @param {string} bookId - Book ID to get chapters from
+	 * @param {number} selectedChapter - Currently selected chapter
+	 * @param {number} [minChapter=1] - Minimum chapter number to include
+	 * @returns {Array} Array of chapter option objects
+	 */
 	const getChapters = (testament, bookId, selectedChapter, minChapter = 1) => {
 		let chapters = [];
 		const bookData = testament === 'OT' ? otBookData : ntBookData;
@@ -116,6 +192,14 @@
 		return chapters;
 	};
 
+	/**
+	 * Updates chapter selection for a passage with automatic validation.
+	 * Ensures toChapter is never less than fromChapter and adjusts verses accordingly.
+	 * 
+	 * @param {string} passageId - ID of the passage to update
+	 * @param {string} chapterValue - New chapter value
+	 * @param {boolean} [isFromChapter=true] - Whether updating fromChapter (true) or toChapter (false)
+	 */
 	const updateChapters = (passageId, chapterValue, isFromChapter = true) => {
 		const passage = passages.find((p) => p.id === passageId);
 		if (passage) {
@@ -154,6 +238,17 @@
 		onPassagesChange?.(passages);
 	};
 
+	/**
+	 * Generates select option properties for verse selection.
+	 * Returns verse options for the specified chapter, with optional minimum verse.
+	 * 
+	 * @param {('OT'|'NT')} testament - Testament the book belongs to
+	 * @param {string} bookId - Book ID to get verses from
+	 * @param {number} chapterNum - Chapter number to get verse count from
+	 * @param {number} selectedVerse - Currently selected verse
+	 * @param {number} [minVerse=1] - Minimum verse number to include
+	 * @returns {Array} Array of verse option objects
+	 */
 	const getVerses = (testament, bookId, chapterNum, selectedVerse, minVerse = 1) => {
 		let verses = [];
 		const bookData = testament === 'OT' ? otBookData : ntBookData;
@@ -174,6 +269,14 @@
 		return verses;
 	};
 
+	/**
+	 * Updates verse selection for a passage with automatic validation.
+	 * When chapters are the same, ensures toVerse is never less than fromVerse.
+	 * 
+	 * @param {string} passageId - ID of the passage to update
+	 * @param {string} verseValue - New verse value
+	 * @param {boolean} [isFromVerse=true] - Whether updating fromVerse (true) or toVerse (false)
+	 */
 	const updateVerses = (passageId, verseValue, isFromVerse = true) => {
 		const passage = passages.find((p) => p.id === passageId);
 		if (passage) {
@@ -191,6 +294,10 @@
 		onPassagesChange?.(passages);
 	};
 
+	/**
+	 * Adds a new passage to the list with default values.
+	 * New passages start with New Testament, Matthew 1:1 to end of chapter.
+	 */
 	const addPassage = () => {
 		passages.push({
 			id: uuidv4(),
@@ -204,16 +311,29 @@
 		onPassagesChange?.(passages);
 	};
 
+	/**
+	 * Removes a passage from the list by ID.
+	 * 
+	 * @param {string} id - ID of the passage to remove
+	 */
 	const removePassage = (id) => {
 		passages = passages.filter((passage) => passage.id !== id);
 		onPassagesChange?.(passages);
 	};
 
 	// Keyboard navigation state for accessibility
+	/** @type {string|null} ID of passage being dragged via keyboard */
 	let keyboardDraggedPassageId = $state(null);
+	/** @type {boolean} Whether keyboard drag mode is active */
 	let keyboardMode = $state(false);
 
-	// Drag and drop functions
+	/**
+	 * Handles the start of a drag operation.
+	 * Sets up drag state and creates a custom drag image.
+	 * 
+	 * @param {DragEvent} event - The drag start event
+	 * @param {string} passageId - ID of the passage being dragged
+	 */
 	const handleDragStart = (event, passageId) => {
 		event.dataTransfer.effectAllowed = 'move';
 		event.dataTransfer.setData('text/plain', passageId);
