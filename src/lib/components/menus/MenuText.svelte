@@ -26,6 +26,13 @@
 	import Menu from '$lib/elements/Menu.svelte';
 
 	let { menuId = 'MenuText' } = $props();
+
+	function closeMenu() {
+		const menuElement = document.getElementById(menuId);
+		if (menuElement) {
+			menuElement.hidePopover();
+		}
+	}
 </script>
 
 <Menu {menuId} ariaLabel="Text manipulation menu">
@@ -34,18 +41,14 @@
 		iconId="text-split"
 		label="Split Text"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="text-join"
 		label="Join Text"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 
 	<DividerHorizontal />
@@ -55,17 +58,13 @@
 		iconId="arrow-up"
 		label="Move Up"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="arrow-down"
 		label="Move Down"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 </Menu>

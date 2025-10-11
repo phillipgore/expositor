@@ -43,6 +43,11 @@
 		if (onselect) {
 			onselect(color.id);
 		}
+		// Close menu after selection
+		const menuElement = document.getElementById(menuId);
+		if (menuElement) {
+			menuElement.hidePopover();
+		}
 	}
 </script>
 
@@ -54,9 +59,6 @@
 			label={color.label}
 			role="menuitem"
 			handleClick={() => handleColorSelect(color)}
-			popovertarget={menuId}
-			popovertargetaction="hide"
-			isDisabled
 		/>
 	{/each}
 </Menu>

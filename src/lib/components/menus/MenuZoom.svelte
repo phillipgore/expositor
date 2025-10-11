@@ -57,7 +57,17 @@
 		if (onselect) {
 			onselect(item.label);
 		}
+		
+		// Close menu after selection
+		closeMenu();
 	};
+
+	function closeMenu() {
+		const menuElement = document.getElementById(menuId);
+		if (menuElement) {
+			menuElement.hidePopover();
+		}
+	}
 </script>
 
 <Menu {menuId} ariaLabel="Zoom level menu">
@@ -71,8 +81,6 @@
 				isActive={item.isActive}
 				role="menuitem"
 				handleClick={() => handleSelect(item)}
-				popovertarget={menuId}
-				popovertargetaction="hide"
 			/>
 		{:else}
 			<DividerHorizontal />

@@ -27,6 +27,13 @@
 	import Menu from '$lib/elements/Menu.svelte';
 
 	let { menuId = 'MenuSettings' } = $props();
+
+	function closeMenu() {
+		const menuElement = document.getElementById(menuId);
+		if (menuElement) {
+			menuElement.hidePopover();
+		}
+	}
 </script>
 
 <Menu {menuId} alignment="end" ariaLabel="Settings menu">
@@ -35,24 +42,21 @@
 		iconId="account"
 		label="Account"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="toolbar"
 		label="Toolbar"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="help"
 		label="Help"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
+		handleClick={closeMenu}
 	/>
 
 	<DividerHorizontal />
@@ -62,7 +66,6 @@
 		iconId="power"
 		label="Sign Out"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
+		handleClick={closeMenu}
 	/>
 </Menu>

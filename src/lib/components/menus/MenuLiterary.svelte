@@ -27,6 +27,13 @@
 	import Menu from '$lib/elements/Menu.svelte';
 
 	let { menuId = 'MenuLiterary' } = $props();
+
+	function closeMenu() {
+		const menuElement = document.getElementById(menuId);
+		if (menuElement) {
+			menuElement.hidePopover();
+		}
+	}
 </script>
 
 <Menu {menuId} ariaLabel="Literary devices menu">
@@ -35,35 +42,27 @@
 		iconId="literary-chiasim"
 		label="Chiasim"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="literary-paralell"
 		label="Paralellism"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="literary-repeat"
 		label="Repetition"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="literary-intensify"
 		label="Intensification"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 </Menu>

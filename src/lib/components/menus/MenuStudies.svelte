@@ -24,6 +24,13 @@
 	import Menu from '$lib/elements/Menu.svelte';
 
 	let { menuId = 'MenuStudies' } = $props();
+
+	function closeMenu() {
+		const menuElement = document.getElementById(menuId);
+		if (menuElement) {
+			menuElement.hidePopover();
+		}
+	}
 </script>
 
 <Menu {menuId} ariaLabel="Studies menu">
@@ -33,8 +40,7 @@
 		label="Open Study"
 		role="menuitem"
 		url="/open"
-		popovertarget={menuId}
-		popovertargetaction="hide"
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -42,8 +48,7 @@
 		label="New Study"
 		role="menuitem"
 		url="/new"
-		popovertarget={menuId}
-		popovertargetaction="hide"
+		handleClick={closeMenu}
 	/>
 
 	<!-- <DividerHorizontal></DividerHorizontal>
@@ -52,6 +57,6 @@
 		classes="menu-light justify-content-left"
 		iconId="pencil"
 		label="Edit Study"
-		isDisabled
+		
 	/> -->
 </Menu>

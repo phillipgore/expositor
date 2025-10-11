@@ -27,6 +27,13 @@
 	import Menu from '$lib/elements/Menu.svelte';
 
 	let { menuId = 'MenuStructure' } = $props();
+
+	function closeMenu() {
+		const menuElement = document.getElementById(menuId);
+		if (menuElement) {
+			menuElement.hidePopover();
+		}
+	}
 </script>
 
 <Menu {menuId} ariaLabel="Document structure menu">
@@ -35,27 +42,21 @@
 		iconId="outline-section"
 		label="New Section"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="outline-column"
 		label="New Column"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="outline-group"
 		label="New Group"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 
 	<DividerHorizontal />
@@ -65,17 +66,13 @@
 		iconId="unpin"
 		label="Unpin"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="pin"
 		label="Pin"
 		role="menuitem"
-		popovertarget={menuId}
-		popovertargetaction="hide"
-		isDisabled
+		handleClick={closeMenu}
 	/>
 </Menu>

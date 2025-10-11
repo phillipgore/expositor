@@ -100,6 +100,24 @@
 	 * @param {MouseEvent} event
 	 */
 	const buttonClick = (event) => {
+		// For menu buttons, focus first item after popover opens
+		if (popovertarget) {
+			setTimeout(() => {
+				const menu = document.getElementById(popovertarget);
+				if (menu && menu.matches(':popover-open')) {
+					const firstItem = /** @type {HTMLElement | null} */ (menu.querySelector('[role="menuitem"]'));
+					if (firstItem) {
+						firstItem.setAttribute('tabindex', '0');
+						firstItem.focus();
+						console.log('🎯 Focused first item from click handler');
+						
+						// Dispatch custom event to notify Menu that first item is focused
+						menu.dispatchEvent(new CustomEvent('menufirstitemfocused'));
+					}
+				}
+			}, 100);
+		}
+		
 		// Execute custom click handler with event
 		if (handleClick) {
 			handleClick(event);
@@ -115,15 +133,42 @@
 	 * @param {KeyboardEvent} event
 	 */
 	const handleKeyDown = (event) => {
+		console.log('🔘 Button keydown:', event.key, 'role:', role);
+		
+		// For buttons with popovertarget, let browser handle Enter/Space natively
+		if (popovertarget && (event.key === 'Enter' || event.key === ' ')) {
+			// Don't preventDefault - let the browser open the popover
+			// Trigger focus on first menu item after popover opens
+			setTimeout(() => {
+				const menu = document.getElementById(popovertarget);
+				if (menu && menu.matches(':popover-open')) {
+					const firstItem = /** @type {HTMLElement | null} */ (menu.querySelector('[role="menuitem"]'));
+					if (firstItem) {
+						firstItem.setAttribute('tabindex', '0');
+						firstItem.focus();
+						console.log('🎯 Focused first item from button handler');
+						
+						// Dispatch custom event to notify Menu that first item is focused
+						menu.dispatchEvent(new CustomEvent('menufirstitemfocused'));
+					}
+				}
+			}, 100);
+			return;
+		}
+		
 		// Handle Enter and Space for activation (standard button behavior)
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
 			buttonClick(/** @type {MouseEvent} */ (/** @type {any} */ (event)));
 		}
+		// Allow arrow keys, Home, End, and Escape to bubble up for menu navigation
+		// These keys should not be handled by the button, but by parent menu containers
+		console.log('🔘 Button letting key bubble up:', event.key);
 	};
 </script>
 
 <button
+	tabindex={role === 'menuitem' ? -1 : 0}
 	{id}
 	{type}
 	{style}
@@ -167,6 +212,12 @@
 		background-color: transparent;
 		text-decoration: none;
 
+		/* Focus styles for keyboard navigation */
+		&:focus-visible {
+			outline: 0.1rem solid var(--blue);
+			outline-offset: 0.2rem;
+		}
+
 		&.round {
 			border-radius: 50%;
 			min-width: 2.6rem;
@@ -193,6 +244,10 @@
 			border-color: var(--gray-200);
 			background-color: var(--gray-400);
 			margin: 0rem 0.2rem;
+
+			&:focus-visible {
+				outline: 0.2rem solid var(--gray-800);
+			}
 
 			&.active:enabled {
 				background-color: var(--gray-800);
@@ -266,7 +321,8 @@
 				fill: transparent;
 			}
 
-			&:hover {
+			&:hover, &:focus-visible {
+				outline: none;
 				color: var(--white);
 				background-color: var(--blue);
 
@@ -330,6 +386,10 @@
 			border-color: var(--blue);
 			background-color: var(--blue);
 
+			&:focus-visible {
+				outline: 0.2rem solid var(--orange);
+			}
+
 			:global(.icon path) {
 				fill: var(--white);
 			}
@@ -340,8 +400,12 @@
 		}
 
 		&.system-gray {
-			border-color: var(--gray);
-			background-color: var(--gray);
+			border-color: var(--gray-400);
+			background-color: var(--gray-400);
+
+			&:focus-visible {
+				outline: 0.2rem solid var(--gray-400);
+			}
 
 			:global(.icon path) {
 				fill: var(--white);
@@ -355,6 +419,10 @@
 		&.system-red {
 			border-color: var(--red);
 			background-color: var(--red);
+
+			&:focus-visible {
+				outline: 0.2rem solid var(--red);
+			}
 
 			:global(.icon path) {
 				fill: var(--white);
