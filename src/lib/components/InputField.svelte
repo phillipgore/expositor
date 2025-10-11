@@ -93,6 +93,7 @@
 	import Label from '$lib/elements/Label.svelte';
 	import Input from '$lib/elements/Input.svelte';
 	import Badge from '$lib/elements/Badge.svelte';
+	import messages from '$lib/data/messages.json';
 
 	/** @type {InputFieldProps} */
 	let {
@@ -152,7 +153,7 @@
 			{label}
 		</Label>
 		{#if showRequiredBadge}
-			<Badge color="red" message="Required" size="small" look="subtle"/>
+			<Badge color="red" message={messages.validation.fieldRequired} size="small" look="subtle"/>
 		{/if}
 		{#if showWarningBadge}
 			<Badge color="blue" message={warningMessage} size="small" look="subtle"/>

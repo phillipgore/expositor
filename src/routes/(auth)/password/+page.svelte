@@ -73,7 +73,7 @@
 	<Alert color="green" look="subtle" message={successMessage} />
 
 	<InstructionText>
-		Enter your email address and we'll send you a link to reset your password.
+		{messages.instructions.passwordResetRequest}
 	</InstructionText>
 
 	

@@ -66,6 +66,7 @@
 		font-size: 1.4rem;
 		color: var(--black);
 		background-color: var(--white);
+		width: 100%;
 
 		&.full-width {
 			width: 100%;

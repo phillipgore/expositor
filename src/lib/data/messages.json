@@ -1,7 +1,7 @@
 {
   "validation": {
     "emailInvalid": "Invalid Email",
-    "passwordTooShort": "6 Characters Required",
+    "passwordTooShort": "6 Character Minimum",
     "passwordMismatch": "Password Mismatch",
     "fieldRequired": "Required"
   },
@@ -12,8 +12,14 @@
     "resetLinkSent": "If an account with that email exists, we've sent you a password reset link.",
     "passwordResetSuccess": "Your password has been reset successfully! Redirecting to sign in...",
     "emailVerified": "Email verified successfully!",
+    "emailVerifiedCanSignIn": "Your email has been verified successfully! You can now sign in.",
     "verificationSent": "Verification email sent successfully.",
+    "verificationResent": "A new verification link has been sent to your email. Please check your inbox.",
+    "verificationExpired": "Your verification link has expired. Enter your email below to receive a new one.",
     "namesUpdated": "Names updated successfully."
+  },
+  "instructions": {
+    "passwordResetRequest": "Enter your email address and we'll send you a link to reset your password."
   },
   "errors": {
     "unexpectedError": "An unexpected error occurred.",

@@ -9,6 +9,7 @@
 	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
 	import StatusMessage from '$lib/elements/StatusMessage.svelte';
+	import messages from '$lib/data/messages.json';
 
 	let isVerifying = true;
 	let success = false;
@@ -24,7 +25,7 @@
 		const token = $page.url.searchParams.get('token');
 
 		if (!token) {
-			error = 'No verification token provided.';
+			error = messages.errors.tokenRequired;
 			isVerifying = false;
 			return;
 		}
@@ -44,10 +45,10 @@
 				success = true;
 				email = result.email || '';
 			} else {
-				error = result.error || 'Verification failed.';
+				error = result.error || messages.errors.failedToVerifyEmail;
 			}
 		} catch (err) {
-			error = 'An unexpected error occurred.';
+			error = messages.errors.unexpectedError;
 		} finally {
 			isVerifying = false;
 		}
@@ -82,13 +83,13 @@
 			const result = await response.json();
 
 			if (result.success) {
-				resendSuccess = `A new verification link has been sent to ${resendEmail}. Please check your inbox.`;
+				resendSuccess = messages.auth.verificationResent;
 				resendEmail = ''; // Clear the input
 			} else {
-				resendError = result.error || 'Failed to send verification email.';
+				resendError = result.error || messages.errors.failedToSendVerification;
 			}
 		} catch (err) {
-			resendError = 'An unexpected error occurred.';
+			resendError = messages.errors.unexpectedError;
 		} finally {
 			isResending = false;
 		}
@@ -104,7 +105,7 @@
 		<p>Verifying your email address...</p>
 	</StatusMessage>
 {:else if success}
-	<Alert color="green" look="subtle" message={email? `Your email ${email} has been verified successfully! You can now sign in.` : `Your email has been verified successfully! You can now sign in.`} />
+	<Alert color="green" look="subtle" message={messages.auth.emailVerifiedCanSignIn} />
 	<FormButtonBar>
 		<Button 
 			label="Go to App"
@@ -119,7 +120,7 @@
 		<Alert color="green" look="subtle" message={resendSuccess} />
 	{:else}
 		<InstructionText>
-			Your verification link has expired. Enter your email below to receive a new one.
+			{messages.auth.verificationExpired}
 		</InstructionText>
 		
 			<form on:submit={handleResendVerification}>

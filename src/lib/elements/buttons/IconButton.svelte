@@ -87,6 +87,7 @@
 	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API)
 	 * @property {string} [popovertargetaction] - Popover action: 'toggle' | 'show' | 'hide'
 	 * @property {string} [role] - ARIA role attribute (e.g., 'menuitem' for menu items)
+	 * @property {string} [ariaLabel] - Accessible label for screen readers. Auto-derived from label or underLabel if not provided
 	 */
 
 	/** @type {IconButtonProps} */
@@ -111,7 +112,8 @@
 		labelIsLeft,
 		popovertarget,
 		popovertargetaction,
-		role
+		role,
+		ariaLabel
 	} = $props();
 
 	// Derive icon classes based on whether label is present
@@ -119,6 +121,30 @@
 		let iconSpace = label ? 'icon-space' : '';
 		let blank = iconId === 'blank' ? 'blank' : '';
 		return `${iconSpace} ${blank}`.trim();
+	});
+
+	/**
+	 * Intelligently derive aria-label for accessibility
+	 * Priority: explicit ariaLabel > visible label > underLabel
+	 * If button has visible label, no aria-label needed (screen readers will read the visible text)
+	 * If icon-only with underLabel, use underLabel as aria-label
+	 * Otherwise, use explicit ariaLabel if provided
+	 */
+	let derivedAriaLabel = $derived.by(() => {
+		// If explicit ariaLabel provided, use it
+		if (ariaLabel) {
+			return ariaLabel;
+		}
+		// If button has visible label, don't add aria-label (redundant)
+		if (label) {
+			return undefined;
+		}
+		// If icon-only with underLabel, use underLabel for accessibility
+		if (underLabel) {
+			return underLabel;
+		}
+		// No accessible text available
+		return undefined;
 	});
 
 	/**
@@ -152,6 +178,7 @@
 			{type}
 			{role}
 			{popovertarget}
+			ariaLabel={derivedAriaLabel}
 		>
 				{#if labelIsLeft && label}
 					<span class="label-left">{label}</span>
@@ -186,6 +213,7 @@
 		{type}
 		{role}
 		{popovertarget}
+		ariaLabel={derivedAriaLabel}
 	>
 		{#if labelIsLeft && label}
 			<span class="label-left">{label}</span>

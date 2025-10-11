@@ -4,9 +4,12 @@
 	import Heading from '$lib/elements/Heading.svelte';
 	import Alert from '$lib/elements/Alert.svelte';
 	import InstructionText from '$lib/elements/InstructionText.svelte';
+	import messages from '$lib/data/messages.json';
 
 	const email = $page.url.searchParams.get('email') || '';
-    const message = email? `Account created successfully! We've sent a verification link to ${email}` : `Account created successfully!`;
+	const message = email
+		? `${messages.auth.signupSuccess} We've sent a verification link to ${email}`
+		: messages.auth.signupSuccess;
 
 	function handleBackToSignIn() {
 		goto('/signin');

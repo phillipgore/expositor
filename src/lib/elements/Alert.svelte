@@ -47,13 +47,6 @@
 		role="alert"
 		aria-live="polite"
 	>
-		<span class="alert-prefix" aria-hidden="true">
-			{#if color === 'red'}⚠️ {/if}
-			{#if color === 'green'}✓ {/if}
-			{#if color === 'blue'}ℹ️ {/if}
-			{#if color === 'yellow'}⚠️ {/if}
-			{#if color === 'orange'}⚠️ {/if}
-		</span>
 		{message}
 	</div>
 {/if}
@@ -64,6 +57,7 @@
 		border-radius: 0.3rem;
 		margin-bottom: 1.8rem;
 		line-height: 1.5;
+		width: 100%;
 	}
 
 	.alert.subtle {
