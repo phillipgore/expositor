@@ -101,6 +101,66 @@
 		children
 	} = $props();
 
+	// Track if button should hide focus outline
+	// MenuButtons start with no-focus class by default
+	let hasNoFocusClass = $state(!!popovertarget);
+	let isTabKeyPressed = $state(false);
+
+	/**
+	 * Handle mousedown event to add no-focus class
+	 */
+	const handleMouseDown = () => {
+		hasNoFocusClass = true;
+	};
+
+	/**
+	 * Handle window keydown to detect Tab key navigation
+	 * @param {KeyboardEvent} event
+	 */
+	const handleWindowKeyDown = (event) => {
+		if (event.key === 'Tab') {
+			isTabKeyPressed = true;
+		}
+	};
+
+	/**
+	 * Handle focus event to remove no-focus class if focus came from keyboard Tab
+	 * @param {FocusEvent} event
+	 */
+	const handleFocus = (event) => {
+		// If Tab was pressed (keyboard navigation), remove no-focus class
+		if (isTabKeyPressed) {
+			hasNoFocusClass = false;
+			isTabKeyPressed = false;
+		}
+	};
+
+	// Add window event listener for Tab key detection
+	$effect(() => {
+		window.addEventListener('keydown', handleWindowKeyDown);
+		return () => {
+			window.removeEventListener('keydown', handleWindowKeyDown);
+		};
+	});
+
+	// For menu buttons, listen for mouse clicks on menu items
+	$effect(() => {
+		if (popovertarget) {
+			const menu = document.getElementById(popovertarget);
+			if (menu) {
+				const handleMenuMouseDown = () => {
+					// User clicked in menu with mouse, so add no-focus class
+					hasNoFocusClass = true;
+				};
+				
+				menu.addEventListener('mousedown', handleMenuMouseDown);
+				return () => {
+					menu.removeEventListener('mousedown', handleMenuMouseDown);
+				};
+			}
+		}
+	});
+
 	/**
 	 * @param {MouseEvent} event
 	 */
@@ -140,7 +200,7 @@
 		// For buttons with popovertarget, let browser handle Enter/Space natively
 		if (popovertarget && (event.key === 'Enter' || event.key === ' ')) {
 			// Don't preventDefault - let the browser open the popover
-			// Trigger focus on first menu item after popover opens
+			// Focus first menu item after popover opens
 			setTimeout(() => {
 				const menu = document.getElementById(popovertarget);
 				if (menu && menu.matches(':popover-open')) {
@@ -175,9 +235,11 @@
 	{role}
 	class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isFullWidth
 		? 'full-width'
-		: ''}"
+		: ''} {hasNoFocusClass ? 'no-focus' : ''}"
 	onclick={(e) => buttonClick(e)}
 	onkeydown={(e) => handleKeyDown(e)}
+	onmousedown={handleMouseDown}
+	onfocus={(e) => handleFocus(e)}
 	disabled={isDisabled}
 	aria-label={ariaLabel}
 	aria-pressed={ariaPressed}
@@ -435,6 +497,11 @@
 
 		&:disabled {
 			opacity: 0.55;
+		}
+
+		/* Remove outline when no-focus class is present - must be last to override other focus styles */
+		&.no-focus:focus-visible {
+			outline: none;
 		}
 	}
 </style>
