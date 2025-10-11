@@ -66,7 +66,7 @@
 	/**
 	 * @typedef {Object} ToggleButtonProps
 	 * @property {string} [id] - Unique button identifier. Auto-generated if not provided
-	 * @property {string} [classes='system-blue'] - Style classes (toolbar-dark recommended for toolbars)
+	 * @property {string} [classes='blue'] - Style classes (toolbar-dark recommended for toolbars)
 	 * @property {(isActive: boolean) => void} [onToggle] - Callback when toggle state changes. Receives new boolean state
 	 * @property {string} [iconId] - Icon identifier from icons.json. Icon changes opacity when active
 	 * @property {string} [label] - Text label displayed next to icon

@@ -23,9 +23,9 @@
 	 * - Snippet support for custom content
 	 * 
 	 * ## Style Classes
-	 * - `system-blue` (default) - Primary blue button
-	 * - `system-gray` - Secondary gray button
-	 * - `system-red` - Destructive red button
+	 * - `blue` (default) - Primary blue button
+	 * - `gray` - Secondary gray button
+	 * - `red` - Destructive red button
 	 * - `toolbar-dark` - Dark toolbar button with icon support
 	 * - `menu-light` - Light menu item button
 	 * 
@@ -38,7 +38,7 @@
 	 * 
 	 * Navigation button:
 	 * ```svelte
-	 * <Button label="Go to page" url="/page" classes="system-blue" />
+	 * <Button label="Go to page" url="/page" classes="blue" />
 	 * ```
 	 * 
 	 * Custom content with snippet:
@@ -60,7 +60,7 @@
 	/**
 	 * @typedef {Object} ButtonProps
 	 * @property {string} [id] - Unique button identifier. Auto-generates UUID if not provided
-	 * @property {string} [classes='system-blue'] - Style classes. Available: system-blue, system-gray, system-red, toolbar-dark, menu-light
+	 * @property {string} [classes='blue'] - Style classes. Available: blue, gray, red, toolbar-dark, menu-light
 	 * @property {string} [url] - URL to navigate to on click. Uses window.location.href
 	 * @property {(event?: MouseEvent) => void} [handleClick] - Click event handler. Receives MouseEvent for access to target, modifiers, etc.
 	 * @property {string} [label] - Button text label. Ignored if children snippet provided
@@ -82,7 +82,7 @@
 	/** @type {ButtonProps} */
 	let {
 		id = uuidv4(),
-		classes = 'system-blue',
+		classes = 'blue',
 		url,
 		handleClick,
 		label,
@@ -309,6 +309,7 @@
 
 			&:focus-visible {
 				outline: 0.2rem solid var(--gray-800);
+				outline-offset: 0.1rem;
 			}
 
 			&.active:enabled {
@@ -444,7 +445,7 @@
 			}
 		}
 
-		&.system-blue {
+		&.blue {
 			border-color: var(--blue);
 			background-color: var(--blue);
 
@@ -461,7 +462,7 @@
 			}
 		}
 
-		&.system-gray {
+		&.gray {
 			border-color: var(--gray-400);
 			background-color: var(--gray-400);
 
@@ -478,7 +479,7 @@
 			}
 		}
 
-		&.system-red {
+		&.red {
 			border-color: var(--red);
 			background-color: var(--red);
 

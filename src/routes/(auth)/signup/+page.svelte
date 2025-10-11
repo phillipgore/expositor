@@ -134,7 +134,7 @@
 		<Button 
 			type="submit" 
 			label={isLoading ? "Signing Up..." : "Sign Up"}
-			classes="system-blue"
+			classes="blue"
 			isDisabled={isLoading}
 		/>
 	</FormButtonBar>

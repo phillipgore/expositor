@@ -67,7 +67,7 @@
 	/**
 	 * @typedef {Object} IconButtonProps
 	 * @property {string} [id] - Unique button identifier. Auto-generated if not provided
-	 * @property {string} [classes='system-blue'] - Style classes (system-blue, toolbar-dark, menu-light, etc.)
+	 * @property {string} [classes='blue'] - Style classes (blue, toolbar-dark, menu-light, etc.)
 	 * @property {string} [url] - URL to navigate to on click
 	 * @property {(event?: MouseEvent) => void} [handleClick] - Click event handler with MouseEvent access
 	 * @property {string} iconId - Icon identifier (required). Must match an icon in icons.json

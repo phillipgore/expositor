@@ -108,7 +108,7 @@
 	<FormButtonBar>
 		<Button 
 			label="Go to App"
-			classes="system-blue"
+			classes="blue"
 			handleClick={handleContinue}
 		/>
 	</FormButtonBar>
@@ -141,7 +141,7 @@
 				<Button 
 					type="submit"
 					label={isResending ? "Sending..." : "Resend"}
-					classes="system-blue"
+					classes="blue"
 					isDisabled={isResending}
 				/>
 			</FormButtonBar>

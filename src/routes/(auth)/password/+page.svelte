@@ -95,7 +95,7 @@
 			<Button 
 				type="submit" 
 				label={isLoading ? "Sending..." : "Send Link"}
-				classes="system-blue"
+				classes="blue"
 				isDisabled={isLoading}
 			/>
 		</FormButtonBar>

@@ -16,23 +16,23 @@
 	 * Basic form buttons:
 	 * ```svelte
 	 * <FormButtonBar>
-	 *   <Button label="Cancel" classes="system-gray" />
-	 *   <Button label="Submit" classes="system-blue" type="submit" />
+	 *   <Button label="Cancel" classes="gray" />
+	 *   <Button label="Submit" classes="blue" type="submit" />
 	 * </FormButtonBar>
 	 * ```
 	 * 
 	 * With top margin:
 	 * ```svelte
 	 * <FormButtonBar marginTop>
-	 *   <Button label="Back" classes="system-gray" />
-	 *   <Button label="Continue" classes="system-blue" />
+	 *   <Button label="Back" classes="gray" />
+	 *   <Button label="Continue" classes="blue" />
 	 * </FormButtonBar>
 	 * ```
 	 * 
 	 * Single button:
 	 * ```svelte
 	 * <FormButtonBar>
-	 *   <Button label="Sign In" classes="system-blue" type="submit" />
+	 *   <Button label="Sign In" classes="blue" type="submit" />
 	 * </FormButtonBar>
 	 * ```
 	 * 

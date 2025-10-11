@@ -51,8 +51,8 @@
 		<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 
 		<FormButtonBar>
-			<Button url="/open" label="Cancel" classes="system-gray"></Button>
-			<Button label="Submit" classes="system-blue"></Button>
+			<Button url="/open" label="Cancel" classes="gray"></Button>
+			<Button label="Submit" classes="blue"></Button>
 		</FormButtonBar>
 	</form>
 </div>

@@ -75,6 +75,7 @@
 	let { RadioButtonProperties, name, isInline = false, isDisabled = false, handleChange } = $props();
 
 	let checkedValue = $state();
+	let radioRefs = $state([]);
 
 	// Find and set initially checked value
 	$effect(() => {
@@ -82,19 +83,115 @@
 			(buttonProperty) => buttonProperty.isChecked === true
 		)?.value;
 	});
+
+	/**
+	 * Handle keyboard navigation for radio button groups
+	 * @param {KeyboardEvent} event
+	 * @param {number} currentIndex
+	 */
+	function handleKeydown(event, currentIndex) {
+		const enabledButtons = RadioButtonProperties.map((prop, idx) => ({ ...prop, idx })).filter(
+			(prop) => !isDisabled && !prop.isDisabled
+		);
+
+		if (enabledButtons.length === 0) return;
+
+		let targetIndex = -1;
+
+		switch (event.key) {
+			case 'ArrowDown':
+			case 'ArrowRight':
+				event.preventDefault();
+				// Find next enabled button
+				for (let i = currentIndex + 1; i < RadioButtonProperties.length; i++) {
+					if (!RadioButtonProperties[i].isDisabled) {
+						targetIndex = i;
+						break;
+					}
+				}
+				// Wrap to first if at end
+				if (targetIndex === -1) {
+					for (let i = 0; i < RadioButtonProperties.length; i++) {
+						if (!RadioButtonProperties[i].isDisabled) {
+							targetIndex = i;
+							break;
+						}
+					}
+				}
+				break;
+
+			case 'ArrowUp':
+			case 'ArrowLeft':
+				event.preventDefault();
+				// Find previous enabled button
+				for (let i = currentIndex - 1; i >= 0; i--) {
+					if (!RadioButtonProperties[i].isDisabled) {
+						targetIndex = i;
+						break;
+					}
+				}
+				// Wrap to last if at beginning
+				if (targetIndex === -1) {
+					for (let i = RadioButtonProperties.length - 1; i >= 0; i--) {
+						if (!RadioButtonProperties[i].isDisabled) {
+							targetIndex = i;
+							break;
+						}
+					}
+				}
+				break;
+		}
+
+		// Update checked value and focus
+		if (targetIndex !== -1) {
+			checkedValue = RadioButtonProperties[targetIndex].value;
+			radioRefs[targetIndex]?.focus();
+			// Trigger change handler if provided
+			if (handleChange) {
+				const syntheticEvent = new Event('change', { bubbles: true });
+				Object.defineProperty(syntheticEvent, 'currentTarget', {
+					writable: false,
+					value: radioRefs[targetIndex]
+				});
+				handleChange(syntheticEvent);
+			}
+		}
+	}
+
+	/**
+	 * Determine tabindex for each radio button
+	 * Only the checked button (or first if none checked) should be tabbable
+	 * @param {number} index
+	 * @returns {number}
+	 */
+	function getTabIndex(index) {
+		if (isDisabled || RadioButtonProperties[index].isDisabled) return -1;
+		
+		// If a button is checked, only that button should be tabbable
+		if (checkedValue) {
+			return RadioButtonProperties[index].value === checkedValue ? 0 : -1;
+		}
+		
+		// If no button is checked, first enabled button should be tabbable
+		const firstEnabledIndex = RadioButtonProperties.findIndex(prop => !prop.isDisabled);
+		return index === firstEnabledIndex ? 0 : -1;
+	}
 </script>
 
 <div class="radio-buttons-container {isInline ? 'inline' : ''}">
-	{#each RadioButtonProperties as buttonProperty}
+	{#each RadioButtonProperties as buttonProperty, index}
 		<div class="button-container {isDisabled ? 'disabled' : ''}">
 			<input
+				bind:this={radioRefs[index]}
 				type="radio"
 				id={buttonProperty.id}
 				{name}
 				value={buttonProperty.value}
-				disabled={isDisabled}
+				disabled={isDisabled || buttonProperty.isDisabled}
+				tabindex={getTabIndex(index)}
 				bind:group={checkedValue}
 				onchange={handleChange}
+				onkeydown={(e) => handleKeydown(e, index)}
 			/>
 			<Label forId={buttonProperty.id} text={buttonProperty.text} classes="dark" isInline></Label>
 		</div>
@@ -130,5 +227,12 @@
 
 	input {
 		accent-color: var(--blue);
+
+		&:focus,
+		&:focus-visible {
+			/* outline: 0.1rem solid var(--blue);
+			outline-offset: 0.2rem; */
+			box-shadow: 0rem 0rem 0.0rem 0.0rem;
+		}
 	}
 </style>

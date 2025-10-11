@@ -57,7 +57,7 @@
 	 *     console.log('View mode changed to:', buttonId);
 	 *     updateViewMode(buttonId);
 	 *   }}
-	 *   buttonClasses="system-blue"
+	 *   buttonClasses="blue"
 	 * />
 	 * ```
 	 * 

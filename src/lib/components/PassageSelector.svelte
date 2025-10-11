@@ -527,11 +527,11 @@
 								ondragend={handleDragEnd}
 								onkeydown={(event) => handleKeyDown(event, passage.id)}
 							>
-								<IconButton classes="system-gray" iconId="draggable" isRound></IconButton>
+								<IconButton classes="gray" iconId="draggable" isRound></IconButton>
 							</div>
 							<div class="btn-delete" in:fade={{ duration: 100 }} out:fade={{ duration: 100 }}>
 								<IconButton
-									classes="system-red"
+									classes="red"
 									iconId="x"
 									handleClick={() => removePassage(passage.id)}
 									isRound

@@ -126,7 +126,7 @@
 		<FormButtonBar>
 			<Button 
 				label="Password Reset"
-				classes="system-gray"
+				classes="gray"
 				handleClick={() => goto('/password')}
 			/>
 		</FormButtonBar>
@@ -165,7 +165,7 @@
 			<Button 
 				type="submit" 
 				label={isLoading ? "Resetting..." : "Reset Password"}
-				classes="system-blue"
+				classes="blue"
 				isDisabled={isLoading}
 			/>
 		</FormButtonBar>
