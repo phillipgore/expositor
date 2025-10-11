@@ -112,21 +112,27 @@
 </div>
 
 <style>
+	/* ============================================
+	   CONTAINER
+	   ============================================ */
 	.select-container {
 		position: relative;
 		display: inline-block;
 		border-radius: 0.3rem;
 		margin: 0rem 0rem -0.1rem;
-
-		&.full-width {
-			display: block;
-
-			select {
-				width: 100%;
-			}
-		}
 	}
 
+	.select-container.full-width {
+		display: block;
+	}
+
+	.select-container.full-width select {
+		width: 100%;
+	}
+
+	/* ============================================
+	   SELECT ELEMENT
+	   ============================================ */
 	select {
 		appearance: none;
 		border: solid 0.1rem var(--gray-700);
@@ -136,19 +142,22 @@
 		font-size: 1.4rem;
 		color: var(--black);
 		background-color: var(--white);
-
-		&:focus {
-			outline: none;
-			border-color: var(--blue);
-			box-shadow: 0rem 0rem 0.6rem var(--blue-alpha);
-		}
-
-		&:disabled {
-			background-color: var(--gray-900);
-			color: var(--gray-500);
-		}
 	}
 
+	select:focus {
+		outline: none;
+		border-color: var(--blue);
+		box-shadow: 0rem 0rem 0.6rem var(--blue-alpha);
+	}
+
+	select:disabled {
+		background-color: var(--gray-900);
+		color: var(--gray-500);
+	}
+
+	/* ============================================
+	   CUSTOM ARROW
+	   ============================================ */
 	.select-arrow {
 		content: '';
 		position: absolute;
@@ -165,17 +174,17 @@
 		margin: 0.4rem;
 		border-radius: 0.3rem;
 		pointer-events: none;
+	}
 
-		:global(.icon) {
-			overflow: hidden;
-		}
+	.select-arrow :global(.icon) {
+		overflow: hidden;
+	}
 
-		&.disabled {
-			opacity: 0.55;
+	.select-arrow.disabled {
+		opacity: 0.55;
+	}
 
-			:global(.icon) {
-				opacity: 0.85;
-			}
-		}
+	.select-arrow.disabled :global(.icon) {
+		opacity: 0.85;
 	}
 </style>

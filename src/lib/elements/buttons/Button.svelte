@@ -257,6 +257,9 @@
 </button>
 
 <style>
+	/* ============================================
+	   BASE BUTTON STYLES
+	   ============================================ */
 	button {
 		display: flex;
 		justify-content: center;
@@ -273,236 +276,285 @@
 		color: var(--white);
 		background-color: transparent;
 		text-decoration: none;
+	}
 
-		/* Focus styles for keyboard navigation */
-		&:focus-visible {
-			outline: 0.1rem solid var(--blue);
-			outline-offset: 0.2rem;
-		}
+	/* ============================================
+	   SIZE VARIANTS
+	   ============================================ */
+	button.round {
+		border-radius: 50%;
+		min-width: 2.6rem;
+		width: 2.6rem;
+		padding: 0rem;
+	}
 
-		&.round {
-			border-radius: 50%;
-			min-width: 2.6rem;
-			width: 2.6rem;
-			padding: 0rem;
+	button.round.large {
+		min-width: 3rem;
+		width: 3rem;
+		height: 3rem;
+	}
 
-			&.large {
-				min-width: 3rem;
-				width: 3rem;
-				height: 3rem;
-			}
-		}
+	button.full-width {
+		width: 100%;
+	}
 
-		&.justify-content-left {
-			justify-content: left;
-		}
+	/* ============================================
+	   LAYOUT MODIFIERS
+	   ============================================ */
+	button.justify-content-left {
+		justify-content: left;
+	}
 
-		&.full-width {
-			width: 100%;
-		}
+	/* ============================================
+	   COLOR THEMES - Primary Buttons
+	   ============================================ */
+	button.blue {
+		border-color: var(--blue);
+		background-color: var(--blue);
+	}
 
-		&.toolbar-dark {
-			border: 0.1rem solid;
-			border-color: var(--gray-200);
-			background-color: var(--gray-400);
-			margin: 0rem 0.2rem;
+	button.blue :global(.icon path) {
+		fill: var(--white);
+	}
 
-			&:focus-visible {
-				outline: 0.2rem solid var(--gray-800);
-				outline-offset: 0.1rem;
-			}
+	button.blue:disabled :global(.icon) {
+		opacity: 0.85;
+	}
 
-			&.active:enabled {
-				background-color: var(--gray-800);
-				color: var(--gray-200);
+	button.gray {
+		border-color: var(--gray-400);
+		background-color: var(--gray-400);
+	}
 
-				:global(.icon path) {
-					fill: var(--gray-200);
-				}
-			}
+	button.gray :global(.icon path) {
+		fill: var(--white);
+	}
 
-			:global(.icon path) {
-				fill: var(--white);
-			}
-		}
+	button.gray:disabled :global(.icon) {
+		opacity: 0.85;
+	}
 
-		&.menu-light:enabled {
-			color: var(--black);
-			background-color: transparent;
-			border: none;
-			text-decoration: none;
-			height: 2.6rem;
-			margin: 0rem;
-			justify-content: left;
+	button.red {
+		border-color: var(--red);
+		background-color: var(--red);
+	}
 
-			:global(.icon path) {
-				fill: var(--gray-200);
-			}
+	button.red :global(.icon path) {
+		fill: var(--white);
+	}
 
-			&.icon-fill-red :global(.icon path) {
-				fill: var(--red-light);
-				stroke: var(--red-dark);
-				stroke-width: 0.15rem;
-			}
-			&.icon-fill-orange :global(.icon path) {
-				fill: var(--orange-light);
-				stroke: var(--orange-dark);
-				stroke-width: 0.15rem;
-			}
-			&.icon-fill-yellow :global(.icon path) {
-				fill: var(--yellow-light);
-				stroke: var(--yellow-dark);
-				stroke-width: 0.15rem;
-			}
-			&.icon-fill-green :global(.icon path) {
-				fill: var(--green-light);
-				stroke: var(--green-dark);
-				stroke-width: 0.15rem;
-			}
-			&.icon-fill-aqua :global(.icon path) {
-				fill: var(--aqua-light);
-				stroke: var(--aqua-dark);
-				stroke-width: 0.15rem;
-			}
-			&.icon-fill-blue :global(.icon path) {
-				fill: var(--blue-light);
-				stroke: var(--blue-dark);
-				stroke-width: 0.15rem;
-			}
-			&.icon-fill-purple :global(.icon path) {
-				fill: var(--purple-light);
-				stroke: var(--purple-dark);
-				stroke-width: 0.15rem;
-			}
-			&.icon-fill-pink :global(.icon path) {
-				fill: var(--pink-light);
-				stroke: var(--pink-dark);
-				stroke-width: 0.15rem;
-			}
+	button.red:disabled :global(.icon) {
+		opacity: 0.85;
+	}
 
-			:global(.icon.blank path) {
-				fill: transparent;
-			}
+	/* ============================================
+	   CONTEXT VARIANTS - Toolbar
+	   ============================================ */
+	button.toolbar-dark {
+		border: 0.1rem solid;
+		border-color: var(--gray-200);
+		background-color: var(--gray-400);
+		margin: 0rem 0.2rem;
+	}
 
-			&:hover, &:focus-visible {
-				outline: none;
-				color: var(--white);
-				background-color: var(--blue);
+	button.toolbar-dark :global(.icon path) {
+		fill: var(--white);
+	}
 
-				:global(.icon path) {
-					fill: var(--white);
-				}
+	button.toolbar-dark.active:enabled {
+		background-color: var(--gray-800);
+		color: var(--gray-200);
+	}
 
-				:global(.icon.blank path) {
-					fill: transparent;
-				}
+	button.toolbar-dark.active:enabled :global(.icon path) {
+		fill: var(--gray-200);
+	}
 
-				&.icon-fill-red :global(.icon path) {
-					fill: var(--red-light);
-				}
-				&.icon-fill-orange :global(.icon path) {
-					fill: var(--orange-light);
-				}
-				&.icon-fill-yellow :global(.icon path) {
-					fill: var(--yellow-light);
-				}
-				&.icon-fill-green :global(.icon path) {
-					fill: var(--green-light);
-				}
-				&.icon-fill-aqua :global(.icon path) {
-					fill: var(--aqua-light);
-				}
-				&.icon-fill-blue :global(.icon path) {
-					fill: var(--blue-light);
-				}
-				&.icon-fill-purple :global(.icon path) {
-					fill: var(--purple-light);
-				}
-				&.icon-fill-pink :global(.icon path) {
-					fill: var(--pink-light);
-				}
-			}
-		}
+	/* ============================================
+	   CONTEXT VARIANTS - Menu
+	   ============================================ */
+	button.menu-light:enabled {
+		color: var(--black);
+		background-color: transparent;
+		border: none;
+		text-decoration: none;
+		height: 2.6rem;
+		margin: 0rem;
+		justify-content: left;
+	}
 
-		&.menu-light:disabled {
-			color: var(--black);
-			opacity: 0.55;
+	button.menu-light:enabled :global(.icon path) {
+		fill: var(--gray-200);
+	}
 
-			:global(.icon path) {
-				fill: var(--gray-200);
-			}
+	button.menu-light:enabled :global(.icon.blank path) {
+		fill: transparent;
+	}
 
-			&.icon-fill-red :global(.icon path),
-			&.icon-fill-orange :global(.icon path),
-			&.icon-fill-yellow :global(.icon path),
-			&.icon-fill-green :global(.icon path),
-			&.icon-fill-aqua :global(.icon path),
-			&.icon-fill-blue :global(.icon path),
-			&.icon-fill-purple :global(.icon path),
-			&.icon-fill-pink :global(.icon path) {
-				fill: var(--gray-700);
-				stroke: var(--gray-200);
-			}
-		}
+	/* Menu Icon Fill Colors - Enabled */
+	button.menu-light:enabled.icon-fill-red :global(.icon path) {
+		fill: var(--red-light);
+		stroke: var(--red-dark);
+		stroke-width: 0.15rem;
+	}
 
-		&.blue {
-			border-color: var(--blue);
-			background-color: var(--blue);
+	button.menu-light:enabled.icon-fill-orange :global(.icon path) {
+		fill: var(--orange-light);
+		stroke: var(--orange-dark);
+		stroke-width: 0.15rem;
+	}
 
-			&:focus-visible {
-				outline: 0.2rem solid var(--blue);
-			}
+	button.menu-light:enabled.icon-fill-yellow :global(.icon path) {
+		fill: var(--yellow-light);
+		stroke: var(--yellow-dark);
+		stroke-width: 0.15rem;
+	}
 
-			:global(.icon path) {
-				fill: var(--white);
-			}
+	button.menu-light:enabled.icon-fill-green :global(.icon path) {
+		fill: var(--green-light);
+		stroke: var(--green-dark);
+		stroke-width: 0.15rem;
+	}
 
-			&:disabled :global(.icon) {
-				opacity: 0.85;
-			}
-		}
+	button.menu-light:enabled.icon-fill-aqua :global(.icon path) {
+		fill: var(--aqua-light);
+		stroke: var(--aqua-dark);
+		stroke-width: 0.15rem;
+	}
 
-		&.gray {
-			border-color: var(--gray-400);
-			background-color: var(--gray-400);
+	button.menu-light:enabled.icon-fill-blue :global(.icon path) {
+		fill: var(--blue-light);
+		stroke: var(--blue-dark);
+		stroke-width: 0.15rem;
+	}
 
-			&:focus-visible {
-				outline: 0.2rem solid var(--gray-400);
-			}
+	button.menu-light:enabled.icon-fill-purple :global(.icon path) {
+		fill: var(--purple-light);
+		stroke: var(--purple-dark);
+		stroke-width: 0.15rem;
+	}
 
-			:global(.icon path) {
-				fill: var(--white);
-			}
+	button.menu-light:enabled.icon-fill-pink :global(.icon path) {
+		fill: var(--pink-light);
+		stroke: var(--pink-dark);
+		stroke-width: 0.15rem;
+	}
 
-			&:disabled :global(.icon) {
-				opacity: 0.85;
-			}
-		}
+	/* Menu Hover/Focus States */
+	button.menu-light:enabled:hover,
+	button.menu-light:enabled:focus-visible {
+		outline: none;
+		color: var(--white);
+		background-color: var(--blue);
+	}
 
-		&.red {
-			border-color: var(--red);
-			background-color: var(--red);
+	button.menu-light:enabled:hover :global(.icon path),
+	button.menu-light:enabled:focus-visible :global(.icon path) {
+		fill: var(--white);
+	}
 
-			&:focus-visible {
-				outline: 0.2rem solid var(--red);
-			}
+	button.menu-light:enabled:hover :global(.icon.blank path),
+	button.menu-light:enabled:focus-visible :global(.icon.blank path) {
+		fill: transparent;
+	}
 
-			:global(.icon path) {
-				fill: var(--white);
-			}
+	/* Menu Icon Fill Colors - Hover/Focus */
+	button.menu-light:enabled:hover.icon-fill-red :global(.icon path),
+	button.menu-light:enabled:focus-visible.icon-fill-red :global(.icon path) {
+		fill: var(--red-light);
+	}
 
-			&:disabled :global(.icon) {
-				opacity: 0.85;
-			}
-		}
+	button.menu-light:enabled:hover.icon-fill-orange :global(.icon path),
+	button.menu-light:enabled:focus-visible.icon-fill-orange :global(.icon path) {
+		fill: var(--orange-light);
+	}
 
-		&:disabled {
-			opacity: 0.55;
-		}
+	button.menu-light:enabled:hover.icon-fill-yellow :global(.icon path),
+	button.menu-light:enabled:focus-visible.icon-fill-yellow :global(.icon path) {
+		fill: var(--yellow-light);
+	}
 
-		/* Remove outline when no-focus class is present - must be last to override other focus styles */
-		&.no-focus:focus-visible {
-			outline: none;
-		}
+	button.menu-light:enabled:hover.icon-fill-green :global(.icon path),
+	button.menu-light:enabled:focus-visible.icon-fill-green :global(.icon path) {
+		fill: var(--green-light);
+	}
+
+	button.menu-light:enabled:hover.icon-fill-aqua :global(.icon path),
+	button.menu-light:enabled:focus-visible.icon-fill-aqua :global(.icon path) {
+		fill: var(--aqua-light);
+	}
+
+	button.menu-light:enabled:hover.icon-fill-blue :global(.icon path),
+	button.menu-light:enabled:focus-visible.icon-fill-blue :global(.icon path) {
+		fill: var(--blue-light);
+	}
+
+	button.menu-light:enabled:hover.icon-fill-purple :global(.icon path),
+	button.menu-light:enabled:focus-visible.icon-fill-purple :global(.icon path) {
+		fill: var(--purple-light);
+	}
+
+	button.menu-light:enabled:hover.icon-fill-pink :global(.icon path),
+	button.menu-light:enabled:focus-visible.icon-fill-pink :global(.icon path) {
+		fill: var(--pink-light);
+	}
+
+	/* Menu Disabled State */
+	button.menu-light:disabled {
+		color: var(--black);
+		opacity: 0.55;
+	}
+
+	button.menu-light:disabled :global(.icon path) {
+		fill: var(--gray-200);
+	}
+
+	button.menu-light:disabled.icon-fill-red :global(.icon path),
+	button.menu-light:disabled.icon-fill-orange :global(.icon path),
+	button.menu-light:disabled.icon-fill-yellow :global(.icon path),
+	button.menu-light:disabled.icon-fill-green :global(.icon path),
+	button.menu-light:disabled.icon-fill-aqua :global(.icon path),
+	button.menu-light:disabled.icon-fill-blue :global(.icon path),
+	button.menu-light:disabled.icon-fill-purple :global(.icon path),
+	button.menu-light:disabled.icon-fill-pink :global(.icon path) {
+		fill: var(--gray-700);
+		stroke: var(--gray-200);
+	}
+
+	/* ============================================
+	   STATE MODIFIERS
+	   ============================================ */
+	button:disabled {
+		opacity: 0.55;
+	}
+
+	/* ============================================
+	   FOCUS STYLES (Keyboard Navigation)
+	   ============================================ */
+	button:focus-visible {
+		outline: 0.1rem solid var(--blue);
+		outline-offset: 0.2rem;
+	}
+
+	button.toolbar-dark:focus-visible {
+		outline: 0.2rem solid var(--gray-800);
+		outline-offset: 0.1rem;
+	}
+
+	button.blue:focus-visible {
+		outline: 0.2rem solid var(--blue);
+	}
+
+	button.gray:focus-visible {
+		outline: 0.2rem solid var(--gray-400);
+	}
+
+	button.red:focus-visible {
+		outline: 0.2rem solid var(--red);
+	}
+
+	/* Remove outline when no-focus class is present - must be last to override other focus styles */
+	button.no-focus:focus-visible {
+		outline: none;
 	}
 </style>

@@ -25,13 +25,19 @@
 {/if}
 
 <style>
+	/* ============================================
+	   APP CONTENT WRAPPER
+	   ============================================ */
 	.wrapper {
 		display: flex;
 		flex-direction: column;
 		flex-grow: 1;
 		padding: 1.8rem;
 	}
-	
+
+	/* ============================================
+	   LOADING STATE
+	   ============================================ */
 	.redirecting {
 		display: flex;
 		justify-content: center;

@@ -28,6 +28,9 @@
 {/if}
 
 <style>
+	/* ============================================
+	   AUTH LAYOUT CONTAINER
+	   ============================================ */
 	.container {
 		display: flex;
 		flex-direction: column;
@@ -36,6 +39,9 @@
 		padding-top: 5.4em;
 	}
 
+	/* ============================================
+	   FORM WRAPPER
+	   ============================================ */
 	.wrapper {
 		display: flex;
 		flex-direction: column;
@@ -43,6 +49,9 @@
 		margin-bottom: 3.6rem;
 	}
 
+	/* ============================================
+	   LOADING STATE
+	   ============================================ */
 	.redirecting {
 		display: flex;
 		justify-content: center;

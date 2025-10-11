@@ -172,10 +172,16 @@
 </div>
 
 <style>
+	/* ============================================
+	   FIELD CONTAINER
+	   ============================================ */
 	.input-field {
 		margin-bottom: 1.8rem;
 	}
 
+	/* ============================================
+	   LABEL & BADGE WRAPPER
+	   ============================================ */
 	.label-wrapper {
 		display: flex;
 		align-items: center;
@@ -183,6 +189,9 @@
 		margin-bottom: 0.6rem;
 	}
 
+	/* ============================================
+	   GLOBAL OVERRIDES (Scoped Children)
+	   ============================================ */
 	.label-wrapper :global(.badge) {
 		margin-top: -0.3rem;
 	}

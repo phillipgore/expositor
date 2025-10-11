@@ -148,6 +148,7 @@
 		
 		:global(.input-field) {
 			margin-bottom: 0;
+			width: 100%;
 		}
 	}
 </style>

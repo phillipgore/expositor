@@ -52,6 +52,9 @@
 {/if}
 
 <style>
+	/* ============================================
+	   BASE ALERT STYLES
+	   ============================================ */
 	.alert {
 		padding: 1rem;
 		border-radius: 0.3rem;
@@ -64,20 +67,61 @@
 		border: 1px solid;
 	}
 
+	/* ============================================
+	   COLOR VARIANTS - Solid
+	   ============================================ */
 	.alert.red {
 		background-color: var(--red);
 		color: var(--white);
 	}
 
+	.alert.green {
+		background-color: var(--green);
+		color: var(--white);
+	}
+
+	.alert.yellow {
+		background-color: var(--yellow);
+		color: var(--black);
+	}
+
+	.alert.blue {
+		background-color: var(--blue);
+		color: var(--white);
+	}
+
+	.alert.orange {
+		background-color: var(--orange);
+		color: var(--white);
+	}
+
+	.alert.aqua {
+		background-color: var(--aqua);
+		color: var(--white);
+	}
+
+	.alert.purple {
+		background-color: var(--purple);
+		color: var(--white);
+	}
+
+	.alert.pink {
+		background-color: var(--pink);
+		color: var(--white);
+	}
+
+	.alert.gray {
+		background-color: var(--gray);
+		color: var(--white);
+	}
+
+	/* ============================================
+	   COLOR VARIANTS - Subtle (Bordered)
+	   ============================================ */
 	.alert.red.subtle {
 		background-color: var(--red-lighter);
 		color: var(--red-darker);
 		border-color: var(--red-light);
-	}
-
-	.alert.green {
-		background-color: var(--green);
-		color: var(--white);
 	}
 
 	.alert.green.subtle {
@@ -86,20 +130,10 @@
 		border-color: var(--green-light);
 	}
 
-	.alert.yellow {
-		background-color: var(--yellow);
-		color: var(--black);
-	}
-
 	.alert.yellow.subtle {
 		background-color: var(--yellow-lighter);
 		color: var(--yellow-darker);
 		border-color: var(--yellow-light);
-	}
-
-	.alert.blue {
-		background-color: var(--blue);
-		color: var(--white);
 	}
 
 	.alert.blue.subtle {
@@ -108,20 +142,10 @@
 		border-color: var(--blue-light);
 	}
 
-	.alert.orange {
-		background-color: var(--orange);
-		color: var(--white);
-	}
-
 	.alert.orange.subtle {
 		background-color: var(--orange-lighter);
 		color: var(--orange-darker);
 		border-color: var(--orange-light);
-	}
-
-	.alert.aqua {
-		background-color: var(--aqua);
-		color: var(--white);
 	}
 
 	.alert.aqua.subtle {
@@ -130,31 +154,16 @@
 		border-color: var(--aqua-light);
 	}
 
-	.alert.purple {
-		background-color: var(--purple);
-		color: var(--white);
-	}
-
 	.alert.purple.subtle {
 		background-color: var(--purple-lighter);
 		color: var(--purple-darker);
 		border-color: var(--purple-light);
 	}
 
-	.alert.pink {
-		background-color: var(--pink);
-		color: var(--white);
-	}
-
 	.alert.pink.subtle {
 		background-color: var(--pink-lighter);
 		color: var(--pink-darker);
 		border-color: var(--pink-light);
-	}
-
-	.alert.gray {
-		background-color: var(--gray);
-		color: var(--white);
 	}
 
 	.alert.gray.subtle {
