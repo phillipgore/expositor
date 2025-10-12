@@ -192,7 +192,7 @@ export function getAppToolbarConfig() {
 					type: 'icon',
 					iconId: 'power',
 					underLabel: 'Sign Out',
-					href: '/settings',
+					href: '/signin',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}
