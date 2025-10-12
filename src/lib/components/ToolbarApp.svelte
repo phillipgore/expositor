@@ -54,9 +54,9 @@
 	import MenuText from '$lib/components/menus/MenuText.svelte';
 	import MenuLiterary from '$lib/components/menus/MenuLiterary.svelte';
 	import MenuColor from '$lib/components/menus/MenuColor.svelte';
+	import MenuSettings from '$lib/components/menus/MenuSettings.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
 	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel } from '$lib/stores/toolbar.js';
-	import { signOut } from '$lib/stores/auth.js';
 
 	/** @type {string} Current zoom level label */
 	let zoomLabel = $state('100%');
@@ -68,14 +68,6 @@
 	$effect(() => {
 		updateToolbarForRoute($page.url.pathname);
 	});
-
-	/** Handle logout */
-	const handleLogout = async () => {
-		const result = await signOut();
-		if (result.success) {
-			goto('/signin');
-		}
-	};
 </script>
 
 <Toolbar classes="dark" position="sticky" zIndex="1000">
@@ -98,7 +90,6 @@
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
 						isDisabled={button.iconId === 'trashcan' ? !$toolbarState.canDelete : false}
-						handleClick={button.iconId === 'power' ? handleLogout : undefined}
 					/>
 				{:else if button.type === 'menu'}
 					<MenuButton
@@ -152,3 +143,4 @@
 <MenuText menuId="MenuText" />
 <MenuLiterary menuId="MenuLiterary" />
 <MenuColor menuId="MenuColor" />
+<MenuSettings menuId="MenuSettings" alignment="end" />

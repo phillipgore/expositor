@@ -186,13 +186,13 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'section',
-			id: 'logout',
+			id: 'settings',
 			items: [
 				{
-					type: 'icon',
-					iconId: 'power',
-					underLabel: 'Sign Out',
-					href: '/signin',
+					type: 'menu',
+					iconId: 'gear',
+					menuId: 'MenuSettings',
+					underLabel: 'Settings',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}

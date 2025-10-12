@@ -1,71 +1,74 @@
 <script>
 	/**
-	 * MenuSettings Component
+	 * # MenuSettings Component
 	 * 
-	 * Application settings and account management menu.
-	 * Provides access to account settings, toolbar customization,
-	 * help documentation, and sign out functionality.
+	 * Settings menu that displays current user information and provides sign out functionality.
 	 * 
-	 * Usage:
-	 * ```
-	 * <MenuButton menuId="MenuSettings" iconId="gear" label="Settings" />
+	 * ## Features
+	 * - Displays current user's name and email
+	 * - Sign Out button with power icon
+	 * - Dark themed menu
+	 * 
+	 * ## Props
+	 * @property {string} menuId - Unique identifier for the menu
+	 * 
+	 * ## Usage
+	 * ```svelte
 	 * <MenuSettings menuId="MenuSettings" />
 	 * ```
 	 * 
-	 * Props:
-	 * - menuId (string, default: 'MenuSettings') - Unique identifier for the menu
-	 * 
-	 * Features:
-	 * - Account management access
-	 * - Toolbar customization options
-	 * - Help documentation
-	 * - Sign out functionality
+	 * @component
 	 */
 
+	import { goto } from '$app/navigation';
+	import Menu from '$lib/elements/Menu.svelte';
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
-	import Menu from '$lib/elements/Menu.svelte';
+	import { user, signOut } from '$lib/stores/auth.js';
 
-	let { menuId = 'MenuSettings' } = $props();
+	/** @type {{ menuId: string, alignment?: string }} Props */
+	let { menuId, alignment = 'start' } = $props();
 
-	function closeMenu() {
-		const menuElement = document.getElementById(menuId);
-		if (menuElement) {
-			menuElement.hidePopover();
+	/** Handle logout */
+	const handleLogout = async () => {
+		const result = await signOut();
+		if (result.success) {
+			goto('/signin');
 		}
-	}
+	};
 </script>
 
-<Menu {menuId} alignment="end" ariaLabel="Settings menu">
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="account"
-		label="Account"
-		role="menuitem"
-		handleClick={closeMenu}
-	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="toolbar"
-		label="Toolbar"
-		role="menuitem"
-		handleClick={closeMenu}
-	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="help"
-		label="Help"
-		role="menuitem"
-		handleClick={closeMenu}
-	/>
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="power"
-		label="Sign Out"
-		role="menuitem"
-		handleClick={closeMenu}
-	/>
+<Menu {menuId} {alignment} classes="dark settings-menu">
+	{#if $user}
+		<div class="user-info">
+			<div class="user-name">{$user.name || 'User'}</div>
+			<div class="user-email">{$user.email}</div>
+		</div>
+		<DividerHorizontal />
+		<IconButton
+			iconId="power"
+			label="Sign Out"
+			classes="menu-light justify-content-left"
+			role="menuitem"
+			handleClick={handleLogout}
+		/>
+	{/if}
 </Menu>
+
+<style>
+	.user-info {
+		padding: 1.2rem 1.6rem;
+		color: var(--black);
+	}
+
+	.user-name {
+		font-weight: 500;
+		font-size: 1.4rem;
+		margin-bottom: 0.4rem;
+	}
+
+	.user-email {
+		font-size: 1.2rem;
+		color: var(--gray-400);
+	}
+</style>
