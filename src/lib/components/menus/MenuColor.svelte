@@ -24,6 +24,7 @@
 
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
+	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuColor', onselect } = $props();
 
@@ -59,6 +60,7 @@
 			label={color.label}
 			role="menuitem"
 			handleClick={() => handleColorSelect(color)}
+			isDisabled={!$toolbarState.canUseColorItems}
 		/>
 	{/each}
 </Menu>

@@ -25,6 +25,7 @@
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
+	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuLiterary' } = $props();
 
@@ -43,6 +44,7 @@
 		label="Chiasim"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseLiteraryItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -50,6 +52,7 @@
 		label="Paralellism"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseLiteraryItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -57,6 +60,7 @@
 		label="Repetition"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseLiteraryItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -64,5 +68,6 @@
 		label="Intensification"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseLiteraryItems}
 	/>
 </Menu>

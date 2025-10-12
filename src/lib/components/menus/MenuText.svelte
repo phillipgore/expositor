@@ -24,6 +24,7 @@
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
+	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuText' } = $props();
 
@@ -42,6 +43,7 @@
 		label="Split Text"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseTextItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -49,6 +51,7 @@
 		label="Join Text"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseTextItems}
 	/>
 
 	<DividerHorizontal />
@@ -59,6 +62,7 @@
 		label="Move Up"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseTextItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -66,5 +70,6 @@
 		label="Move Down"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseTextItems}
 	/>
 </Menu>

@@ -19,11 +19,16 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canToggleVerses - Whether Verses toggle should be enabled (document has verses)
  * @property {boolean} canToggleWide - Whether Wide layout toggle should be enabled
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
+ * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
  * @property {boolean} canStructure - Whether Outline menu should be enabled
  * @property {boolean} canText - Whether Text menu should be enabled
  * @property {boolean} canLiterary - Whether Literary menu should be enabled
  * @property {boolean} canColor - Whether Color menu should be enabled
+ * @property {boolean} canUseStructureItems - Whether Structure menu items should be enabled
+ * @property {boolean} canUseTextItems - Whether Text menu items should be enabled
+ * @property {boolean} canUseLiteraryItems - Whether Literary menu items should be enabled
+ * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  */
 
 /**
@@ -37,11 +42,16 @@ const defaultState = {
 	canToggleVerses: false,
 	canToggleWide: false,
 	canToggleOverview: false,
+	canSwitchMode: false,
 	canZoom: false,
 	canStructure: false,
 	canText: false,
 	canLiterary: false,
-	canColor: false
+	canColor: false,
+	canUseStructureItems: false,
+	canUseTextItems: false,
+	canUseLiteraryItems: false,
+	canUseColorItems: false
 };
 
 /**
@@ -79,15 +89,20 @@ export function updateToolbarForRoute(pathname) {
 				canToggleVerses: true,
 				canToggleWide: true,
 				canToggleOverview: true,
+				canSwitchMode: true,
 				canZoom: true,
 				canStructure: true,
 				canText: true,
 				canLiterary: true,
-				canColor: true
+				canColor: true,
+				canUseStructureItems: true,
+				canUseTextItems: true,
+				canUseLiteraryItems: true,
+				canUseColorItems: true
 			};
 		}
 
-		// On utility pages (settings, new, open), disable document-specific tools
+		// On utility pages (settings, new, open), enable menu buttons but disable menu items
 		if (isSettingsRoute || isNewRoute || isOpenRoute) {
 			return {
 				...state,
@@ -97,11 +112,16 @@ export function updateToolbarForRoute(pathname) {
 				canToggleVerses: false,
 				canToggleWide: false,
 				canToggleOverview: false,
-				canZoom: false,
-				canStructure: false,
-				canText: false,
-				canLiterary: false,
-				canColor: false
+				canSwitchMode: false,
+				canZoom: true,
+				canStructure: true,
+				canText: true,
+				canLiterary: true,
+				canColor: true,
+				canUseStructureItems: false, // Menu button enabled, items disabled
+				canUseTextItems: false, // Menu button enabled, items disabled
+				canUseLiteraryItems: false, // Menu button enabled, items disabled
+				canUseColorItems: false // Menu button enabled, items disabled
 			};
 		}
 
@@ -123,11 +143,16 @@ export function onDocumentOpen() {
 		canToggleVerses: true,
 		canToggleWide: true,
 		canToggleOverview: true,
+		canSwitchMode: true,
 		canZoom: true,
 		canStructure: true,
 		canText: true,
 		canLiterary: true,
-		canColor: true
+		canColor: true,
+		canUseStructureItems: true,
+		canUseTextItems: true,
+		canUseLiteraryItems: true,
+		canUseColorItems: true
 	}));
 }
 
@@ -144,11 +169,16 @@ export function onDocumentClose() {
 		canToggleVerses: false,
 		canToggleWide: false,
 		canToggleOverview: false,
+		canSwitchMode: false,
 		canZoom: false,
 		canStructure: false,
 		canText: false,
 		canLiterary: false,
-		canColor: false
+		canColor: false,
+		canUseStructureItems: false,
+		canUseTextItems: false,
+		canUseLiteraryItems: false,
+		canUseColorItems: false
 	}));
 }
 

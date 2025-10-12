@@ -109,16 +109,14 @@ export function getAppToolbarConfig() {
 					iconId: 'note',
 					underLabel: 'Notes',
 					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					isDisabled: false
+					underLabelClasses: 'light'
 				},
 				{
 					type: 'toggle',
 					iconId: 'reference',
 					underLabel: 'Verses',
 					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					isDisabled: false
+					underLabelClasses: 'light'
 				}
 			]
 		},
@@ -135,16 +133,14 @@ export function getAppToolbarConfig() {
 					iconId: 'wide',
 					underLabel: 'Wide',
 					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					isDisabled: false
+					underLabelClasses: 'light'
 				},
 				{
 					type: 'toggle',
 					iconId: 'outline',
 					underLabel: 'Overview',
 					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					isDisabled: false
+					underLabelClasses: 'light'
 				}
 			]
 		},
@@ -161,8 +157,7 @@ export function getAppToolbarConfig() {
 					iconId: 'trashcan',
 					underLabel: 'Delete',
 					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					isDisabled: false
+					underLabelClasses: 'light'
 				}
 			]
 		},
@@ -182,8 +177,7 @@ export function getAppToolbarConfig() {
 					],
 					defaultActive: 'analyze',
 					buttonClasses: 'toolbar-dark',
-					underLabelClasses: 'light',
-					isDisabled: false
+					underLabelClasses: 'light'
 				}
 			]
 		},

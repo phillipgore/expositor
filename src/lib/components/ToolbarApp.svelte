@@ -87,7 +87,7 @@
 						href={button.href}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
-						isDisabled={button.iconId === 'trashcan' ? !$toolbarState.canDelete : button.isDisabled}
+						isDisabled={button.iconId === 'trashcan' ? !$toolbarState.canDelete : false}
 					/>
 				{:else if button.type === 'menu'}
 					<MenuButton
@@ -117,7 +117,7 @@
 							button.iconId === 'reference' ? !$toolbarState.canToggleVerses :
 							button.iconId === 'wide' ? !$toolbarState.canToggleWide :
 							button.iconId === 'outline' ? !$toolbarState.canToggleOverview :
-							button.isDisabled
+							false
 						}
 					/>
 				{:else if button.type === 'grouped'}
@@ -126,7 +126,7 @@
 						defaultActive={button.defaultActive}
 						buttonClasses={button.buttonClasses}
 						underLabelClasses={button.underLabelClasses}
-						isDisabled={button.isDisabled}
+						isDisabled={!$toolbarState.canSwitchMode}
 					/>
 				{/if}
 			{/each}

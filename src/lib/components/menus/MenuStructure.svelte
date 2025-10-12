@@ -25,6 +25,7 @@
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
 	import Menu from '$lib/elements/Menu.svelte';
+	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuStructure' } = $props();
 
@@ -39,17 +40,19 @@
 <Menu {menuId} ariaLabel="Document structure menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="outline-section"
-		label="New Section"
-		role="menuitem"
-		handleClick={closeMenu}
-	/>
-	<IconButton
-		classes="menu-light justify-content-left"
 		iconId="outline-column"
 		label="New Column"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="outline-section"
+		label="New Section"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -57,6 +60,7 @@
 		label="New Group"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
 
 	<DividerHorizontal />
@@ -67,6 +71,7 @@
 		label="Unpin"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -74,5 +79,6 @@
 		label="Pin"
 		role="menuitem"
 		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
 </Menu>
