@@ -174,23 +174,6 @@
 	 * @param {MouseEvent} event
 	 */
 	const buttonClick = (event) => {
-		// For menu buttons, focus first item after popover opens
-		if (popovertarget) {
-			setTimeout(() => {
-				const menu = document.getElementById(popovertarget);
-				if (menu && menu.matches(':popover-open')) {
-					const firstItem = /** @type {HTMLElement | null} */ (menu.querySelector('[role="menuitem"]'));
-					if (firstItem) {
-						firstItem.setAttribute('tabindex', '0');
-						firstItem.focus();
-						
-						// Dispatch custom event to notify Menu that first item is focused
-						menu.dispatchEvent(new CustomEvent('menufirstitemfocused'));
-					}
-				}
-			}, 100);
-		}
-		
 		// Execute custom click handler with event
 		if (handleClick) {
 			handleClick(event);
