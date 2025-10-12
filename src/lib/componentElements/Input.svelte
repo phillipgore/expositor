@@ -39,10 +39,11 @@
 	 * @property {boolean} [isLarge=false] - Large size variant (4.4rem height, 2rem font)
 	 * @property {boolean} [required=false] - Mark input as required with HTML5 validation
 	 * @property {string} value - Bindable input value
+	 * @property {string} [placeholder] - Placeholder text
 	 */
 
 	/** @type {InputProps} */
-	let { id, name, type = 'text', isDisabled = false, isLarge = false, required = false, value = $bindable('') } = $props();
+	let { id, name, type = 'text', isDisabled = false, isLarge = false, required = false, placeholder, value = $bindable('') } = $props();
 </script>
 
 <input
@@ -50,6 +51,7 @@
 	{name}
 	{type}
 	bind:value
+	placeholder={placeholder}
 	class="{isLarge ? 'large' : ''}"
 	disabled={isDisabled}
 	required={required}

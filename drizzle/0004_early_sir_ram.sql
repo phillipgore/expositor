@@ -1,0 +1,1 @@
+ALTER TABLE "study" ADD COLUMN "opened_at" timestamp;

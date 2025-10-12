@@ -57,3 +57,36 @@ export const verification = pgTable('verification', {
 	createdAt: timestamp('created_at').$defaultFn(() => /* @__PURE__ */ new Date()),
 	updatedAt: timestamp('updated_at').$defaultFn(() => /* @__PURE__ */ new Date())
 });
+
+export const study = pgTable('study', {
+	id: text('id').primaryKey(),
+	title: text('title').notNull(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	openedAt: timestamp('opened_at')
+});
+
+export const passage = pgTable('passage', {
+	id: text('id').primaryKey(),
+	studyId: text('study_id')
+		.notNull()
+		.references(() => study.id, { onDelete: 'cascade' }),
+	testament: text('testament').notNull(),
+	bookId: text('book_id').notNull(),
+	bookName: text('book_name').notNull(),
+	fromChapter: integer('from_chapter').notNull(),
+	toChapter: integer('to_chapter').notNull(),
+	fromVerse: integer('from_verse').notNull(),
+	toVerse: integer('to_verse').notNull(),
+	displayOrder: integer('display_order').notNull().default(0),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+});

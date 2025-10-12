@@ -7,6 +7,9 @@
 	import StudiesPanel from '$lib/componentWidgets/StudiesPanel.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
+	/** @type {import('./$types').LayoutData} */
+	let { data, children } = $props();
+
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
 			if (!authenticated) {
@@ -24,9 +27,9 @@
 {#if $isAuthenticated}
 	<ToolbarApp></ToolbarApp>
 	<div class="app-container">
-		<StudiesPanel isOpen={$toolbarState.studiesPanelOpen} />
+		<StudiesPanel isOpen={$toolbarState.studiesPanelOpen} studies={data.studies} />
 		<div class="content-wrapper">
-			<slot />
+			{@render children()}
 		</div>
 	</div>
 {:else}

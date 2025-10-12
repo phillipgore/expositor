@@ -21,3 +21,17 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Development/Seed Scripts
+seed-studies.sql
+seed-studies.js
+
+# Temporary Fix Files
+fix-migrations.sql
+
+# IDE/Editor
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+*~
