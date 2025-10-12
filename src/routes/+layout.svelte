@@ -2,6 +2,7 @@
 	import '$lib/stylesheets/styles.css';
 	import { onMount } from 'svelte';
 	import { initializeAuth, isLoading } from '$lib/stores/auth.js';
+	import ViewportWarning from '$lib/components/ViewportWarning.svelte';
 
 	onMount(async () => {
 		// CSS Anchor Positioning polyfill (client-side only)
@@ -14,6 +15,8 @@
 <svelte:head>
 	<title>Expositor App</title>
 </svelte:head>
+
+<ViewportWarning />
 
 {#if $isLoading}
 	<div class="loading">Loading...</div>

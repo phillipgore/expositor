@@ -8,6 +8,7 @@
 	 * ## Features
 	 * - Configurable fixed width
 	 * - Default 2.4rem width
+	 * - Optional CSS classes for responsive behavior
 	 * - Simple inline div with no additional styling
 	 * 
 	 * ## Usage Examples
@@ -26,12 +27,20 @@
 	 * <span>Home</span>
 	 * ```
 	 * 
+	 * With responsive classes:
+	 * ```svelte
+	 * <Button label="Back" />
+	 * <SpacerFixed classes="hide-at-1024" />
+	 * <Button label="Next" />
+	 * ```
+	 * 
 	 * @typedef {Object} SpacerFixedProps
 	 * @property {string} [width='2.4rem'] - Fixed width spacing (CSS value)
+	 * @property {string} [classes=''] - Optional CSS classes
 	 */
 
 	/** @type {SpacerFixedProps} */
-	let { width = '2.4rem' } = $props();
+	let { width = '2.4rem', classes = '' } = $props();
 </script>
 
-<div style="width: {width ? width : '2.4rem'}"></div>
+<div class={classes} style="width: {width ? width : '2.4rem'}"></div>

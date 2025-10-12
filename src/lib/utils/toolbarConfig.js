@@ -37,7 +37,13 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'fixed'
+			variant: 'fixed',
+			classes: 'hide-at-960'
+		},
+		{
+			type: 'spacer',
+			variant: 'flex',
+			classes: 'show-at-960'
 		},
 		{
 			type: 'section',
@@ -97,31 +103,51 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'fixed'
+			variant: 'fixed',
+			classes: 'hide-at-960'
+		},
+		{
+			type: 'spacer',
+			variant: 'flex',
+			classes: 'show-at-960'
 		},
 		{
 			type: 'section',
 			id: 'toggles',
 			items: [
 				{
+					type: 'menu',
+					iconId: 'outline',
+					menuId: 'MenuView',
+					underLabel: 'View',
+					classes: 'toolbar-dark show-at-1024',
+					underLabelClasses: 'light show-at-1024'
+				},
+				{
 					type: 'toggle',
 					iconId: 'note',
 					underLabel: 'Notes',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light'
+					classes: 'toolbar-dark hide-at-1024',
+					underLabelClasses: 'light hide-at-1024'
 				},
 				{
 					type: 'toggle',
 					iconId: 'reference',
 					underLabel: 'Verses',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light'
+					classes: 'toolbar-dark hide-at-1024',
+					underLabelClasses: 'light hide-at-1024'
 				}
 			]
 		},
 		{
 			type: 'spacer',
-			variant: 'fixed'
+			variant: 'fixed',
+			classes: 'hide-at-960'
+		},
+		{
+			type: 'spacer',
+			variant: 'flex',
+			classes: 'show-at-960'
 		},
 		{
 			type: 'section',
@@ -131,21 +157,22 @@ export function getAppToolbarConfig() {
 					type: 'toggle',
 					iconId: 'wide',
 					underLabel: 'Wide',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light'
+					classes: 'toolbar-dark hide-at-1024',
+					underLabelClasses: 'light hide-at-1024'
 				},
 				{
 					type: 'toggle',
 					iconId: 'outline',
 					underLabel: 'Overview',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light'
+					classes: 'toolbar-dark hide-at-1024',
+					underLabelClasses: 'light hide-at-1024'
 				}
 			]
 		},
 		{
 			type: 'spacer',
-			variant: 'fixed'
+			variant: 'fixed',
+			classes: 'hide-at-1024'
 		},
 		{
 			type: 'section',

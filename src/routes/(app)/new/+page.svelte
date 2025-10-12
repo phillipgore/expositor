@@ -65,7 +65,8 @@
 	}
 
 	form {
-		width: 48rem;
+		width: 41.4rem;
+		min-width: 36.0rem
 	}
 
 </style>
