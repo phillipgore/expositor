@@ -63,7 +63,7 @@
 		min-width: 0rem;
 		border-radius: 0.6rem;
 		border: solid 0.1rem var(--gray-700);
-		background-color: var(--gray-950);
+		background-color: var(--gray-lighter);
 		position: relative;
 	}
 
@@ -71,6 +71,6 @@
 		padding: 0.4rem 0.9rem;
 		border: solid 0.1rem var(--gray-700);
 		border-radius: 0.6rem;
-		background-color: var(--gray-950);
+		background-color: var(--gray-lighter);
 	}
 </style>

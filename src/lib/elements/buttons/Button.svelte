@@ -189,6 +189,16 @@
 	 * @param {KeyboardEvent} event
 	 */
 	const handleKeyDown = (event) => {
+		// Handle Tab key for buttons with popovertarget - close menu if open
+		if (popovertarget && event.key === 'Tab') {
+			const menu = document.getElementById(popovertarget);
+			if (menu && menu.matches(':popover-open')) {
+				menu.hidePopover();
+			}
+			// Don't preventDefault - allow Tab to move focus naturally
+			return;
+		}
+		
 		// For buttons with popovertarget, let browser handle Enter/Space natively
 		if (popovertarget && (event.key === 'Enter' || event.key === ' ')) {
 			// Don't preventDefault - let the browser open the popover

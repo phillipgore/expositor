@@ -19,10 +19,9 @@ export function getAppToolbarConfig() {
 			id: 'documents',
 			items: [
 				{
-					type: 'icon',
+					type: 'toggle',
 					iconId: 'book',
-					underLabel: 'Open',
-					href: '/open',
+					underLabel: 'Studies',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				},
@@ -183,16 +182,16 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'fixed'
+			variant: 'flex'
 		},
 		{
 			type: 'section',
-			id: 'settings',
+			id: 'logout',
 			items: [
 				{
 					type: 'icon',
-					iconId: 'gear',
-					underLabel: 'Settings',
+					iconId: 'power',
+					underLabel: 'Sign Out',
 					href: '/settings',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'

@@ -761,7 +761,7 @@
 		justify-content: center;
 		border: 0.1rem dashed var(--blue);
 		border-radius: 0.8rem;
-		background-color: rgba(0, 123, 255, 0.05);
+		background-color: var(--blue-lighter);
 		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	}
 

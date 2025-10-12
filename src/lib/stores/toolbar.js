@@ -29,6 +29,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canUseTextItems - Whether Text menu items should be enabled
  * @property {boolean} canUseLiteraryItems - Whether Literary menu items should be enabled
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
+ * @property {boolean} studiesPanelOpen - Whether the studies panel is open
  */
 
 /**
@@ -51,7 +52,8 @@ const defaultState = {
 	canUseStructureItems: false,
 	canUseTextItems: false,
 	canUseLiteraryItems: false,
-	canUseColorItems: false
+	canUseColorItems: false,
+	studiesPanelOpen: true
 };
 
 /**
@@ -76,7 +78,6 @@ export function updateToolbarForRoute(pathname) {
 	const isDocumentRoute = pathname.includes('/document') || pathname.includes('/study');
 	const isSettingsRoute = pathname === '/settings';
 	const isNewRoute = pathname === '/new';
-	const isOpenRoute = pathname === '/open';
 
 	toolbarStateStore.update(state => {
 		// On document/study pages, most tools should be available
@@ -102,28 +103,28 @@ export function updateToolbarForRoute(pathname) {
 			};
 		}
 
-		// On utility pages (settings, new, open), enable menu buttons but disable menu items
-		if (isSettingsRoute || isNewRoute || isOpenRoute) {
-			return {
-				...state,
-				canDelete: false,
-				canFormat: false,
-				canToggleNotes: false,
-				canToggleVerses: false,
-				canToggleWide: false,
-				canToggleOverview: false,
-				canSwitchMode: false,
-				canZoom: true,
-				canStructure: true,
-				canText: true,
-				canLiterary: true,
-				canColor: true,
-				canUseStructureItems: false, // Menu button enabled, items disabled
-				canUseTextItems: false, // Menu button enabled, items disabled
-				canUseLiteraryItems: false, // Menu button enabled, items disabled
-				canUseColorItems: false // Menu button enabled, items disabled
-			};
-		}
+	// On utility pages (settings, new), enable menu buttons but disable menu items
+	if (isSettingsRoute || isNewRoute) {
+		return {
+			...state,
+			canDelete: false,
+			canFormat: false,
+			canToggleNotes: false,
+			canToggleVerses: false,
+			canToggleWide: false,
+			canToggleOverview: false,
+			canSwitchMode: false,
+			canZoom: false,
+			canStructure: true,
+			canText: true,
+			canLiterary: true,
+			canColor: true,
+			canUseStructureItems: false, // Menu button enabled, items disabled
+			canUseTextItems: false, // Menu button enabled, items disabled
+			canUseLiteraryItems: false, // Menu button enabled, items disabled
+			canUseColorItems: false // Menu button enabled, items disabled
+		};
+	}
 
 		// Default: keep current state
 		return state;
@@ -218,4 +219,14 @@ export function resetToolbarState() {
  */
 export function getToolbarState() {
 	return get(toolbarStateStore);
+}
+
+/**
+ * Toggle the studies panel open/closed
+ */
+export function toggleStudiesPanel() {
+	toolbarStateStore.update(state => ({
+		...state,
+		studiesPanelOpen: !state.studiesPanelOpen
+	}));
 }

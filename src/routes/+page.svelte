@@ -1,8 +1,20 @@
 <script>
 	import { isAuthenticated } from '$lib/stores/auth.js';
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import ToolbarAuth from '$lib/components/ToolbarAuth.svelte';
 	import Icon from '$lib/elements/Icon.svelte';
 	import Heading from '$lib/elements/Heading.svelte';
+
+	onMount(() => {
+		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
+			if (authenticated) {
+				goto('/new');
+			}
+		});
+
+		return unsubscribe;
+	});
 </script>
 
 <ToolbarAuth></ToolbarAuth>

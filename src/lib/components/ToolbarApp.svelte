@@ -41,6 +41,7 @@
 	 */
 
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import ButtonGrouped from '$lib/elements/buttons/ButtonGrouped.svelte';
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import MenuButton from '$lib/elements/buttons/MenuButton.svelte';
@@ -54,7 +55,8 @@
 	import MenuLiterary from '$lib/components/menus/MenuLiterary.svelte';
 	import MenuColor from '$lib/components/menus/MenuColor.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
-	import { toolbarState, updateToolbarForRoute } from '$lib/stores/toolbar.js';
+	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel } from '$lib/stores/toolbar.js';
+	import { signOut } from '$lib/stores/auth.js';
 
 	/** @type {string} Current zoom level label */
 	let zoomLabel = $state('100%');
@@ -66,6 +68,14 @@
 	$effect(() => {
 		updateToolbarForRoute($page.url.pathname);
 	});
+
+	/** Handle logout */
+	const handleLogout = async () => {
+		const result = await signOut();
+		if (result.success) {
+			goto('/signin');
+		}
+	};
 </script>
 
 <Toolbar classes="dark" position="sticky" zIndex="1000">
@@ -88,6 +98,7 @@
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
 						isDisabled={button.iconId === 'trashcan' ? !$toolbarState.canDelete : false}
+						handleClick={button.iconId === 'power' ? handleLogout : undefined}
 					/>
 				{:else if button.type === 'menu'}
 					<MenuButton
@@ -112,6 +123,8 @@
 						underLabel={button.underLabel}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
+						isActive={button.iconId === 'book' ? $toolbarState.studiesPanelOpen : undefined}
+						onToggle={button.iconId === 'book' ? toggleStudiesPanel : undefined}
 						isDisabled={
 							button.iconId === 'note' ? !$toolbarState.canToggleNotes :
 							button.iconId === 'reference' ? !$toolbarState.canToggleVerses :
