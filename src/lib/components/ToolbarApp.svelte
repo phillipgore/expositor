@@ -77,7 +77,7 @@
 					<IconButton
 						iconId={button.iconId}
 						underLabel={button.underLabel}
-						url={button.url}
+						href={button.href}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
 						isDisabled={button.isDisabled}

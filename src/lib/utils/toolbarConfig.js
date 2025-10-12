@@ -22,7 +22,7 @@ export function getAppToolbarConfig() {
 					type: 'icon',
 					iconId: 'book',
 					underLabel: 'Open',
-					url: '/open',
+					href: '/open',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				},
@@ -30,7 +30,7 @@ export function getAppToolbarConfig() {
 					type: 'icon',
 					iconId: 'plus',
 					underLabel: 'New',
-					url: '/new',
+					href: '/new',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}
@@ -199,7 +199,7 @@ export function getAppToolbarConfig() {
 					type: 'icon',
 					iconId: 'gear',
 					underLabel: 'Settings',
-					url: '/settings',
+					href: '/settings',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}
@@ -223,7 +223,7 @@ export function getAuthToolbarConfig() {
 					type: 'icon',
 					iconId: 'home',
 					underLabel: 'Home',
-					url: '/',
+					href: '/',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}
@@ -241,7 +241,7 @@ export function getAuthToolbarConfig() {
 					type: 'icon',
 					iconId: 'account',
 					underLabel: 'Sign In',
-					url: '/signin',
+					href: '/signin',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				},
@@ -249,7 +249,7 @@ export function getAuthToolbarConfig() {
 					type: 'icon',
 					iconId: 'plus',
 					underLabel: 'Sign Up',
-					url: '/signup',
+					href: '/signup',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}
@@ -267,7 +267,7 @@ export function getAuthToolbarConfig() {
 					type: 'icon',
 					iconId: 'lock',
 					underLabel: 'Password',
-					url: '/password',
+					href: '/password',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}
