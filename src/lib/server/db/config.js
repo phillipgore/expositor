@@ -1,14 +1,16 @@
 import { DATABASE_URL } from '$env/static/private';
-import postgres, { type Options } from 'postgres';
+import postgres from 'postgres';
 
 /**
  * Database configuration based on environment
+ * @returns {import('postgres').Options<{}>}
  */
-export function getDatabaseConfig(): Options<{}> {
+export function getDatabaseConfig() {
   const isProduction = process.env.NODE_ENV === 'production';
   const isDevelopment = process.env.NODE_ENV === 'development';
 
-  const baseConfig: Options<{}> = {
+  /** @type {import('postgres').Options<{}>} */
+  const baseConfig = {
     // Connection pooling
     max: isProduction ? 20 : 10,           // Maximum connections in pool
     idle_timeout: isProduction ? 30 : 20,  // Close idle connections (seconds)
@@ -64,8 +66,10 @@ export function getDatabaseConfig(): Options<{}> {
 
 /**
  * Validate database URL format
+ * @param {string} url
+ * @returns {boolean}
  */
-export function validateDatabaseUrl(url: string): boolean {
+export function validateDatabaseUrl(url) {
   try {
     const parsed = new URL(url);
     return parsed.protocol === 'postgres:' || parsed.protocol === 'postgresql:';
@@ -76,6 +80,7 @@ export function validateDatabaseUrl(url: string): boolean {
 
 /**
  * Get database connection info for logging (without sensitive data)
+ * @returns {{host: string, port: string, database: string, ssl: boolean}}
  */
 export function getDatabaseInfo() {
   if (!DATABASE_URL) {

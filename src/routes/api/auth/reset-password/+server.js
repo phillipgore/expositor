@@ -1,13 +1,16 @@
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
-import { verifyPasswordResetToken, deletePasswordResetToken } from '$lib/server/verification';
-import { db } from '$lib/server/db';
-import { account } from '$lib/server/db/schema';
+import { verifyPasswordResetToken, deletePasswordResetToken } from '$lib/server/verification.js';
+import { db } from '$lib/server/db/index.js';
+import { account } from '$lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import messages from '$lib/data/messages.json';
 
-export const POST: RequestHandler = async ({ request }) => {
+/**
+ * Reset password endpoint
+ * @type {import('./$types').RequestHandler}
+ */
+export const POST = async ({ request }) => {
 	try {
 		const { token, newPassword } = await request.json();
 
@@ -32,7 +35,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Update the password in the account table
 		await db
 			.update(account)
-			.set({ 
+			.set({
 				password: hashedPassword,
 				updatedAt: new Date()
 			})

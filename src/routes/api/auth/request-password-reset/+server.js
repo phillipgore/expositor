@@ -1,12 +1,15 @@
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
-import { createPasswordResetToken, sendPasswordResetEmail } from '$lib/server/verification';
-import { db } from '$lib/server/db';
-import { user } from '$lib/server/db/schema';
+import { createPasswordResetToken, sendPasswordResetEmail } from '$lib/server/verification.js';
+import { db } from '$lib/server/db/index.js';
+import { user } from '$lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
 import messages from '$lib/data/messages.json';
 
-export const POST: RequestHandler = async ({ request }) => {
+/**
+ * Request password reset endpoint
+ * @type {import('./$types').RequestHandler}
+ */
+export const POST = async ({ request }) => {
 	try {
 		const { email } = await request.json();
 

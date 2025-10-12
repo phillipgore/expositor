@@ -40,6 +40,7 @@
 	 * @component
 	 */
 
+	import { page } from '$app/stores';
 	import ButtonGrouped from '$lib/elements/buttons/ButtonGrouped.svelte';
 	import IconButton from '$lib/elements/buttons/IconButton.svelte';
 	import MenuButton from '$lib/elements/buttons/MenuButton.svelte';
@@ -53,12 +54,18 @@
 	import MenuLiterary from '$lib/components/menus/MenuLiterary.svelte';
 	import MenuColor from '$lib/components/menus/MenuColor.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
+	import { toolbarState, updateToolbarForRoute } from '$lib/stores/toolbar.js';
 
 	/** @type {string} Current zoom level label */
 	let zoomLabel = $state('100%');
 
 	// Get toolbar configuration
 	const toolbarConfig = getAppToolbarConfig();
+
+	// Update toolbar state when route changes
+	$effect(() => {
+		updateToolbarForRoute($page.url.pathname);
+	});
 </script>
 
 <Toolbar classes="dark" position="sticky" zIndex="1000">
@@ -80,7 +87,7 @@
 						href={button.href}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
-						isDisabled={button.isDisabled}
+						isDisabled={button.iconId === 'trashcan' ? !$toolbarState.canDelete : button.isDisabled}
 					/>
 				{:else if button.type === 'menu'}
 					<MenuButton
@@ -90,6 +97,14 @@
 						underLabel={button.underLabel}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
+						isDisabled={
+							button.menuId === 'MenuZoom' ? !$toolbarState.canZoom :
+							button.menuId === 'MenuStructure' ? !$toolbarState.canStructure :
+							button.menuId === 'MenuText' ? !$toolbarState.canText :
+							button.menuId === 'MenuLiterary' ? !$toolbarState.canLiterary :
+							button.menuId === 'MenuColor' ? !$toolbarState.canColor :
+							false
+						}
 					/>
 				{:else if button.type === 'toggle'}
 					<ToggleButton
@@ -97,7 +112,13 @@
 						underLabel={button.underLabel}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
-						isDisabled={button.isDisabled}
+						isDisabled={
+							button.iconId === 'note' ? !$toolbarState.canToggleNotes :
+							button.iconId === 'reference' ? !$toolbarState.canToggleVerses :
+							button.iconId === 'wide' ? !$toolbarState.canToggleWide :
+							button.iconId === 'outline' ? !$toolbarState.canToggleOverview :
+							button.isDisabled
+						}
 					/>
 				{:else if button.type === 'grouped'}
 					<ButtonGrouped

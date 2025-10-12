@@ -2,20 +2,23 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
 import { user } from '$lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
-import type { RequestHandler } from './$types.js';
 import messages from '$lib/data/messages.json';
 
-export const POST: RequestHandler = async ({ request }) => {
+/**
+ * Update user names endpoint
+ * @type {import('./$types').RequestHandler}
+ */
+export const POST = async ({ request }) => {
 	try {
 		const { userId, firstName, lastName } = await request.json();
-		
+
 		if (!userId || !firstName || !lastName) {
 			return json({ error: messages.errors.missingFields }, { status: 400 });
 		}
 
 		// Update the user record with separate firstName and lastName
 		await db.update(user)
-			.set({ 
+			.set({
 				firstName: firstName.trim(),
 				lastName: lastName.trim()
 			})

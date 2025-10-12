@@ -1,21 +1,19 @@
 import { client, db } from './index.js';
-import { runDatabaseDiagnostics, type DatabaseHealth, type ConnectionPoolMetrics } from './health.js';
+import { runDatabaseDiagnostics } from './health.js';
 
 /**
  * Get comprehensive database status for monitoring
+ * @returns {Promise<{health: import('./health.js').DatabaseHealth, poolMetrics: import('./health.js').ConnectionPoolMetrics | null, isReady: boolean}>}
  */
-export async function getDatabaseStatus(): Promise<{
-  health: DatabaseHealth;
-  poolMetrics: ConnectionPoolMetrics | null;
-  isReady: boolean;
-}> {
+export async function getDatabaseStatus() {
   return await runDatabaseDiagnostics(client);
 }
 
 /**
  * Simple health check for API endpoints
+ * @returns {Promise<boolean>}
  */
-export async function isHealthy(): Promise<boolean> {
+export async function isHealthy() {
   try {
     const status = await getDatabaseStatus();
     return status.health.status === 'healthy' && status.isReady;
@@ -26,13 +24,19 @@ export async function isHealthy(): Promise<boolean> {
 
 /**
  * Retry database operation with exponential backoff
+ * @template T
+ * @param {() => Promise<T>} operation
+ * @param {number} [maxRetries=3]
+ * @param {number} [baseDelay=1000]
+ * @returns {Promise<T>}
  */
-export async function retryDatabaseOperation<T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000
-): Promise<T> {
-  let lastError: Error;
+export async function retryDatabaseOperation(
+  operation,
+  maxRetries = 3,
+  baseDelay = 1000
+) {
+  /** @type {Error} */
+  let lastError;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -52,20 +56,24 @@ export async function retryDatabaseOperation<T>(
     }
   }
   
-  throw lastError!;
+  throw lastError;
 }
 
 /**
  * Execute database operation with automatic retry
+ * @template T
+ * @param {() => Promise<T>} operation
+ * @returns {Promise<T>}
  */
-export async function withRetry<T>(operation: () => Promise<T>): Promise<T> {
+export async function withRetry(operation) {
   return retryDatabaseOperation(operation);
 }
 
 /**
  * Log database performance metrics
+ * @returns {Promise<void>}
  */
-export async function logDatabaseMetrics(): Promise<void> {
+export async function logDatabaseMetrics() {
   try {
     const status = await getDatabaseStatus();
     

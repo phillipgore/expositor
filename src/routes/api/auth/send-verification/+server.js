@@ -1,12 +1,15 @@
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
-import { createEmailVerificationToken, sendVerificationEmail } from '$lib/server/verification';
-import { db } from '$lib/server/db';
-import { user } from '$lib/server/db/schema';
+import { createEmailVerificationToken, sendVerificationEmail } from '$lib/server/verification.js';
+import { db } from '$lib/server/db/index.js';
+import { user } from '$lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
 import messages from '$lib/data/messages.json';
 
-export const POST: RequestHandler = async ({ request }) => {
+/**
+ * Send verification email endpoint
+ * @type {import('./$types').RequestHandler}
+ */
+export const POST = async ({ request }) => {
 	try {
 		const { email } = await request.json();
 

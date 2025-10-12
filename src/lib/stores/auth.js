@@ -1,31 +1,44 @@
 import { writable } from 'svelte/store';
 import { authClient } from '$lib/auth-client.js';
 
-// Use a more flexible user type that matches what better-auth actually returns
-type AuthUser = {
-	id: string;
-	name: string;
-	email: string;
-	emailVerified: boolean;
-	image?: string;
-	createdAt: Date;
-	updatedAt: Date;
-	firstName?: string;
-	lastName?: string;
-};
+/**
+ * @typedef {Object} AuthUser
+ * @property {string} id
+ * @property {string} name
+ * @property {string} email
+ * @property {boolean} emailVerified
+ * @property {string} [image]
+ * @property {Date} createdAt
+ * @property {Date} updatedAt
+ * @property {string} [firstName]
+ * @property {string} [lastName]
+ */
 
-export const user = writable<AuthUser | null>(null);
+/**
+ * @type {import('svelte/store').Writable<AuthUser | null>}
+ */
+export const user = writable(null);
+
+/**
+ * @type {import('svelte/store').Writable<boolean>}
+ */
 export const isAuthenticated = writable(false);
+
+/**
+ * @type {import('svelte/store').Writable<boolean>}
+ */
 export const isLoading = writable(true);
 
-// Initialize auth state
+/**
+ * Initialize auth state
+ */
 export async function initializeAuth() {
 	try {
 		isLoading.set(true);
 		const sessionData = await authClient.getSession();
 		
 		if (sessionData.data?.user) {
-			user.set(sessionData.data.user as AuthUser);
+			user.set(/** @type {AuthUser} */ (sessionData.data.user));
 			isAuthenticated.set(true);
 		} else {
 			user.set(null);
@@ -40,8 +53,13 @@ export async function initializeAuth() {
 	}
 }
 
-// Sign in function
-export async function signIn(email: string, password: string) {
+/**
+ * Sign in function
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<{success: boolean, error?: string, needsVerification?: boolean}>}
+ */
+export async function signIn(email, password) {
 	try {
 		const result = await authClient.signIn.email({
 			email,
@@ -49,7 +67,7 @@ export async function signIn(email: string, password: string) {
 		});
 		
 		if (result.data?.user) {
-			const userData = result.data.user as AuthUser;
+			const userData = /** @type {AuthUser} */ (result.data.user);
 			
 			// Check if email is verified
 			if (!userData.emailVerified) {
@@ -73,8 +91,15 @@ export async function signIn(email: string, password: string) {
 	}
 }
 
-// Sign up function
-export async function signUp(firstName: string, lastName: string, email: string, password: string) {
+/**
+ * Sign up function
+ * @param {string} firstName
+ * @param {string} lastName
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<{success: boolean, error?: string, requiresVerification?: boolean, email?: string}>}
+ */
+export async function signUp(firstName, lastName, email, password) {
 	try {
 		console.log('Starting signup process...');
 		const result = await authClient.signUp.email({
@@ -175,7 +200,10 @@ export async function signUp(firstName: string, lastName: string, email: string,
 	}
 }
 
-// Sign out function
+/**
+ * Sign out function
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
 export async function signOut() {
 	try {
 		await authClient.signOut();

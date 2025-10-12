@@ -1,8 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { getDatabaseStatus } from '$lib/server/db/utils.js';
-import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async () => {
+/**
+ * Health check endpoint
+ * @type {import('./$types').RequestHandler}
+ */
+export const GET = async () => {
   try {
     const status = await getDatabaseStatus();
     

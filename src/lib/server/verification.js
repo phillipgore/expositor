@@ -7,15 +7,18 @@ import mailchimp from '@mailchimp/mailchimp_transactional';
 
 /**
  * Generate a secure verification token
+ * @returns {string}
  */
-function generateVerificationToken(): string {
+function generateVerificationToken() {
 	return randomBytes(32).toString('hex');
 }
 
 /**
  * Create a verification token for email verification
+ * @param {string} email
+ * @returns {Promise<string>}
  */
-export async function createEmailVerificationToken(email: string): Promise<string> {
+export async function createEmailVerificationToken(email) {
 	const token = generateVerificationToken();
 	const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -33,8 +36,10 @@ export async function createEmailVerificationToken(email: string): Promise<strin
 
 /**
  * Verify an email verification token
+ * @param {string} token
+ * @returns {Promise<{success: boolean, email?: string, error?: string}>}
  */
-export async function verifyEmailToken(token: string): Promise<{ success: boolean; email?: string; error?: string }> {
+export async function verifyEmailToken(token) {
 	try {
 		console.log('🔍 Attempting to verify token:', token);
 		
@@ -93,8 +98,10 @@ export async function verifyEmailToken(token: string): Promise<{ success: boolea
 
 /**
  * Create a password reset token
+ * @param {string} email
+ * @returns {Promise<string>}
  */
-export async function createPasswordResetToken(email: string): Promise<string> {
+export async function createPasswordResetToken(email) {
 	const token = generateVerificationToken();
 	const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
@@ -112,8 +119,10 @@ export async function createPasswordResetToken(email: string): Promise<string> {
 
 /**
  * Verify a password reset token
+ * @param {string} token
+ * @returns {Promise<{success: boolean, email?: string, error?: string}>}
  */
-export async function verifyPasswordResetToken(token: string): Promise<{ success: boolean; email?: string; error?: string }> {
+export async function verifyPasswordResetToken(token) {
 	try {
 		const verificationRecord = await db
 			.select()
@@ -145,15 +154,20 @@ export async function verifyPasswordResetToken(token: string): Promise<{ success
 
 /**
  * Delete a password reset token after use
+ * @param {string} token
+ * @returns {Promise<void>}
  */
-export async function deletePasswordResetToken(token: string): Promise<void> {
+export async function deletePasswordResetToken(token) {
 	await db.delete(verification).where(eq(verification.value, token));
 }
 
 /**
  * Send verification email via Mandrill
+ * @param {string} email
+ * @param {string} token
+ * @returns {Promise<void>}
  */
-export async function sendVerificationEmail(email: string, token: string): Promise<void> {
+export async function sendVerificationEmail(email, token) {
 	const verificationUrl = `${BETTER_AUTH_URL}/verify-email?token=${token}`;
 	const mandrillKey = MANDRILL_KEY;
 	
@@ -232,8 +246,11 @@ export async function sendVerificationEmail(email: string, token: string): Promi
 
 /**
  * Send password reset email via Mandrill
+ * @param {string} email
+ * @param {string} token
+ * @returns {Promise<void>}
  */
-export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
+export async function sendPasswordResetEmail(email, token) {
 	const resetUrl = `${BETTER_AUTH_URL}/reset-password?token=${token}`;
 	const mandrillKey = MANDRILL_KEY;
 	

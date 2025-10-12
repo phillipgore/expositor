@@ -1,30 +1,26 @@
-import type postgres from 'postgres';
+/**
+ * @typedef {Object} DatabaseHealth
+ * @property {'healthy' | 'unhealthy' | 'degraded'} status
+ * @property {Date} timestamp
+ * @property {number} responseTime
+ * @property {number} [connectionCount]
+ * @property {string} [error]
+ */
 
 /**
- * Database health check result
+ * @typedef {Object} ConnectionPoolMetrics
+ * @property {number} totalConnections
+ * @property {number} idleConnections
+ * @property {number} activeConnections
+ * @property {number} waitingConnections
  */
-export interface DatabaseHealth {
-  status: 'healthy' | 'unhealthy' | 'degraded';
-  timestamp: Date;
-  responseTime: number;
-  connectionCount?: number;
-  error?: string;
-}
-
-/**
- * Connection pool metrics
- */
-export interface ConnectionPoolMetrics {
-  totalConnections: number;
-  idleConnections: number;
-  activeConnections: number;
-  waitingConnections: number;
-}
 
 /**
  * Perform a basic database health check
+ * @param {import('postgres').Sql} db
+ * @returns {Promise<DatabaseHealth>}
  */
-export async function checkDatabaseHealth(db: postgres.Sql): Promise<DatabaseHealth> {
+export async function checkDatabaseHealth(db) {
   const startTime = Date.now();
   
   try {
@@ -59,8 +55,10 @@ export async function checkDatabaseHealth(db: postgres.Sql): Promise<DatabaseHea
 
 /**
  * Check if database is ready for connections
+ * @param {import('postgres').Sql} db
+ * @returns {Promise<boolean>}
  */
-export async function checkDatabaseReadiness(db: postgres.Sql): Promise<boolean> {
+export async function checkDatabaseReadiness(db) {
   try {
     // Test basic connectivity and schema access
     await db`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' LIMIT 1`;
@@ -73,12 +71,14 @@ export async function checkDatabaseReadiness(db: postgres.Sql): Promise<boolean>
 
 /**
  * Get connection pool metrics (if available)
+ * @param {import('postgres').Sql} client
+ * @returns {ConnectionPoolMetrics | null}
  */
-export function getConnectionPoolMetrics(client: postgres.Sql): ConnectionPoolMetrics | null {
+export function getConnectionPoolMetrics(client) {
   try {
     // Access internal connection pool state if available
     // Note: This is implementation-specific and may not work with all postgres.js versions
-    const pool = (client as any).pool;
+    const pool = /** @type {any} */ (client).pool;
     
     if (pool) {
       return {
@@ -98,12 +98,10 @@ export function getConnectionPoolMetrics(client: postgres.Sql): ConnectionPoolMe
 
 /**
  * Perform comprehensive database diagnostics
+ * @param {import('postgres').Sql} db
+ * @returns {Promise<{health: DatabaseHealth, poolMetrics: ConnectionPoolMetrics | null, isReady: boolean}>}
  */
-export async function runDatabaseDiagnostics(db: postgres.Sql): Promise<{
-  health: DatabaseHealth;
-  poolMetrics: ConnectionPoolMetrics | null;
-  isReady: boolean;
-}> {
+export async function runDatabaseDiagnostics(db) {
   const [health, isReady] = await Promise.all([
     checkDatabaseHealth(db),
     checkDatabaseReadiness(db)
@@ -120,13 +118,9 @@ export async function runDatabaseDiagnostics(db: postgres.Sql): Promise<{
 
 /**
  * Log database connection info on startup
+ * @param {{host: string, port: string, database: string, ssl: boolean}} info
  */
-export function logDatabaseConnection(info: {
-  host: string;
-  port: string;
-  database: string;
-  ssl: boolean;
-}) {
+export function logDatabaseConnection(info) {
   console.log('🗄️  Database Connection Info:');
   console.log(`   Host: ${info.host}:${info.port}`);
   console.log(`   Database: ${info.database}`);
@@ -136,8 +130,10 @@ export function logDatabaseConnection(info: {
 
 /**
  * Graceful database shutdown
+ * @param {import('postgres').Sql} db
+ * @returns {Promise<void>}
  */
-export async function gracefulDatabaseShutdown(db: postgres.Sql): Promise<void> {
+export async function gracefulDatabaseShutdown(db) {
   try {
     console.log('🔄 Closing database connections...');
     await db.end();
