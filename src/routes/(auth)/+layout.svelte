@@ -2,7 +2,7 @@
 	import { isAuthenticated } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import ToolbarAuth from '$lib/components/ToolbarAuth.svelte';
+	import ToolbarAuth from '$lib/componentWidgets/ToolbarAuth.svelte';
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {

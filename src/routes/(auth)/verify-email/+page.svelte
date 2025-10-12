@@ -2,13 +2,13 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import Heading from '$lib/elements/Heading.svelte';
-	import Alert from '$lib/elements/Alert.svelte';
-	import Button from '$lib/elements/buttons/Button.svelte';
-	import InputField from '$lib/components/InputField.svelte';
-	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
-	import InstructionText from '$lib/elements/InstructionText.svelte';
-	import StatusMessage from '$lib/elements/StatusMessage.svelte';
+	import Heading from '$lib/componentElements/Heading.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
+	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import InputField from '$lib/componentWidgets/InputField.svelte';
+	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
+	import InstructionText from '$lib/componentElements/InstructionText.svelte';
+	import StatusMessage from '$lib/componentElements/StatusMessage.svelte';
 	import messages from '$lib/data/messages.json';
 
 	let isVerifying = true;

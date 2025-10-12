@@ -36,11 +36,11 @@
 		getVerseCount,
 		getDefaultPassageValues
 	} from '$lib/utils/bibleData.js';
-	import Button from '$lib/elements/buttons/Button.svelte';
-	import IconButton from '$lib/elements/buttons/IconButton.svelte';
-	import Fieldset from '$lib/elements/Fieldset.svelte';
-	import RadioButtons from '$lib/elements/RadioButtons.svelte';
-	import Select from '$lib/elements/Select.svelte';
+	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
+	import Fieldset from '$lib/componentElements/Fieldset.svelte';
+	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
+	import Select from '$lib/componentElements/Select.svelte';
 
 	/** @type {PassageSelectorProps} */
 	let { passages = $bindable(), onPassagesChange } = $props();

@@ -26,10 +26,10 @@
 	 * @component
 	 */
 
-	import IconButton from '$lib/elements/buttons/IconButton.svelte';
-	import SpacerFixed from '$lib/elements/SpacerFixed.svelte';
-	import SpacerFlex from '$lib/elements/SpacerFlex.svelte';
-	import Toolbar from '$lib/elements/Toolbar.svelte';
+	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
+	import SpacerFixed from '$lib/componentElements/SpacerFixed.svelte';
+	import SpacerFlex from '$lib/componentElements/SpacerFlex.svelte';
+	import Toolbar from '$lib/componentElements/Toolbar.svelte';
 	import { getAuthToolbarConfig } from '$lib/utils/toolbarConfig.js';
 
 	// Get toolbar configuration

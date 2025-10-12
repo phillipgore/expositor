@@ -1,13 +1,13 @@
 <script>
 	import { v4 as uuidv4 } from 'uuid';
 	import bibleData from '$lib/data/bible.json';
-	import Button from '$lib/elements/buttons/Button.svelte';
-	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
-	import Heading from '$lib/elements/Heading.svelte';
-	import Label from '$lib/elements/Label.svelte';
-	import InputField from '$lib/components/InputField.svelte';
-	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
-	import PassageSelector from '$lib/components/PassageSelector.svelte';
+	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
+	import Heading from '$lib/componentElements/Heading.svelte';
+	import Label from '$lib/componentElements/Label.svelte';
+	import InputField from '$lib/componentWidgets/InputField.svelte';
+	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
+	import PassageSelector from '$lib/componentWidgets/PassageSelector.svelte';
 
 	const testamentData = bibleData[0].testamentData;
 	const ntBookData = testamentData[1].bookData;

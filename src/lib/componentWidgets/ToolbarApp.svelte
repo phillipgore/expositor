@@ -42,20 +42,20 @@
 
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import ButtonGrouped from '$lib/elements/buttons/ButtonGrouped.svelte';
-	import IconButton from '$lib/elements/buttons/IconButton.svelte';
-	import MenuButton from '$lib/elements/buttons/MenuButton.svelte';
-	import ToggleButton from '$lib/elements/buttons/ToggleButton.svelte';
-	import SpacerFixed from '$lib/elements/SpacerFixed.svelte';
-	import SpacerFlex from '$lib/elements/SpacerFlex.svelte';
-	import Toolbar from '$lib/elements/Toolbar.svelte';
-	import MenuZoom from '$lib/components/menus/MenuZoom.svelte';
-	import MenuStructure from '$lib/components/menus/MenuStructure.svelte';
-	import MenuText from '$lib/components/menus/MenuText.svelte';
-	import MenuLiterary from '$lib/components/menus/MenuLiterary.svelte';
-	import MenuColor from '$lib/components/menus/MenuColor.svelte';
-	import MenuSettings from '$lib/components/menus/MenuSettings.svelte';
-	import MenuView from '$lib/components/menus/MenuView.svelte';
+	import ButtonGrouped from '$lib/componentElements/buttons/ButtonGrouped.svelte';
+	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
+	import MenuButton from '$lib/componentElements/buttons/MenuButton.svelte';
+	import ToggleButton from '$lib/componentElements/buttons/ToggleButton.svelte';
+	import SpacerFixed from '$lib/componentElements/SpacerFixed.svelte';
+	import SpacerFlex from '$lib/componentElements/SpacerFlex.svelte';
+	import Toolbar from '$lib/componentElements/Toolbar.svelte';
+	import MenuZoom from '$lib/componentWidgets/menus/MenuZoom.svelte';
+	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
+	import MenuText from '$lib/componentWidgets/menus/MenuText.svelte';
+	import MenuLiterary from '$lib/componentWidgets/menus/MenuLiterary.svelte';
+	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
+	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
+	import MenuView from '$lib/componentWidgets/menus/MenuView.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
 	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel } from '$lib/stores/toolbar.js';
 

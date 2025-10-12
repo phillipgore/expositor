@@ -3,8 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import ToolbarApp from '$lib/components/ToolbarApp.svelte';
-	import StudiesPanel from '$lib/components/StudiesPanel.svelte';
+	import ToolbarApp from '$lib/componentWidgets/ToolbarApp.svelte';
+	import StudiesPanel from '$lib/componentWidgets/StudiesPanel.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	onMount(() => {

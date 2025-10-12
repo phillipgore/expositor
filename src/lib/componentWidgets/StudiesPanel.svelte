@@ -16,7 +16,7 @@
 	 * 
 	 * @component
 	 */
-    import Heading from "$lib/elements/Heading.svelte";
+    import Heading from "$lib/componentElements/Heading.svelte";
 
 	let { isOpen = false } = $props();
 </script>

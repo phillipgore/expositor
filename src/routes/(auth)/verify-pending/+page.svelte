@@ -1,9 +1,9 @@
 <script>
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import Heading from '$lib/elements/Heading.svelte';
-	import Alert from '$lib/elements/Alert.svelte';
-	import InstructionText from '$lib/elements/InstructionText.svelte';
+	import Heading from '$lib/componentElements/Heading.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
+	import InstructionText from '$lib/componentElements/InstructionText.svelte';
 	import messages from '$lib/data/messages.json';
 
 	const email = $page.url.searchParams.get('email') || '';

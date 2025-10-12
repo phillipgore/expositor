@@ -89,9 +89,9 @@
 	 * @component
 	 */
 
-	import Label from '$lib/elements/Label.svelte';
-	import Input from '$lib/elements/Input.svelte';
-	import Badge from '$lib/elements/Badge.svelte';
+	import Label from '$lib/componentElements/Label.svelte';
+	import Input from '$lib/componentElements/Input.svelte';
+	import Badge from '$lib/componentElements/Badge.svelte';
 	import messages from '$lib/data/messages.json';
 
 	/** @type {InputFieldProps} */

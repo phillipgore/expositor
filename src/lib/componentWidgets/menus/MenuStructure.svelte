@@ -22,9 +22,9 @@
 	 * - Pin/unpin structural elements
 	 */
 
-	import IconButton from '$lib/elements/buttons/IconButton.svelte';
-	import DividerHorizontal from '$lib/elements/DividerHorizontal.svelte';
-	import Menu from '$lib/elements/Menu.svelte';
+	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
+	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
+	import Menu from '$lib/componentElements/Menu.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuStructure' } = $props();

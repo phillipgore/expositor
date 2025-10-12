@@ -1,10 +1,10 @@
 <script>
-	import Heading from '$lib/elements/Heading.svelte';
-	import Alert from '$lib/elements/Alert.svelte';
-	import Button from '$lib/elements/buttons/Button.svelte';
-	import InputField from '$lib/components/InputField.svelte';
-	import FormButtonBar from '$lib/elements/FormButtonBar.svelte';
-	import InstructionText from '$lib/elements/InstructionText.svelte';
+	import Heading from '$lib/componentElements/Heading.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
+	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import InputField from '$lib/componentWidgets/InputField.svelte';
+	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
+	import InstructionText from '$lib/componentElements/InstructionText.svelte';
 	import { goto } from '$app/navigation';
 	import messages from '$lib/data/messages.json';
 

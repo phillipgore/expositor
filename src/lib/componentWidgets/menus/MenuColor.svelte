@@ -22,8 +22,8 @@
 	 * - Data-driven for easy color additions
 	 */
 
-	import IconButton from '$lib/elements/buttons/IconButton.svelte';
-	import Menu from '$lib/elements/Menu.svelte';
+	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
+	import Menu from '$lib/componentElements/Menu.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuColor', onselect } = $props();

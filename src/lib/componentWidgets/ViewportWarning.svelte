@@ -20,7 +20,7 @@
 	 * @component
 	 */
 
-	import Icon from '$lib/elements/Icon.svelte';
+	import Icon from '$lib/componentElements/Icon.svelte';
 </script>
 
 <div class="viewport-warning">
