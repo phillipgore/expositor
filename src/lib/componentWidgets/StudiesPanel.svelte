@@ -21,13 +21,12 @@
 	 * @component
 	 */
 	import Heading from "$lib/componentElements/Heading.svelte";
-	import MenuButton from "$lib/componentElements/buttons/MenuButton.svelte";
 	import Input from "$lib/componentElements/Input.svelte";
-	import MenuOrder from "./menus/MenuOrder.svelte";
+	import Button from "$lib/componentElements/buttons/Button.svelte";
+	import { setToolbarState } from "$lib/stores/toolbar.js";
 
 	let { isOpen = false, studies = [] } = $props();
 
-	let orderLabel = $state('Title');
 	let searchQuery = $state('');
 	let sortedStudies = $derived(getSortedStudies());
 
@@ -50,14 +49,6 @@
 			// Multiple chapters: "Genesis 1:1-2:3"
 			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toChapter}:${passage.toVerse}`;
 		}
-	}
-
-	/**
-	 * Handle sort order selection
-	 * @param {Object} selection
-	 */
-	function handleOrderSelect(selection) {
-		orderLabel = selection.label;
 	}
 
 	/**
@@ -93,7 +84,7 @@
 	}
 
 	/**
-	 * Get sorted and filtered studies based on current sort order and search query
+	 * Get sorted and filtered studies - always sorted by title
 	 * @returns {Array}
 	 */
 	function getSortedStudies() {
@@ -121,39 +112,9 @@
 			});
 		}
 		
+		// Always sort by title
 		const sorted = [...filtered];
-		
-		switch (orderLabel) {
-			case 'Title':
-				sorted.sort((a, b) => a.title.localeCompare(b.title));
-				break;
-			case 'Date Opened':
-				sorted.sort((a, b) => {
-					// Handle null values - studies never opened go to the end
-					if (!a.openedAt && !b.openedAt) return 0;
-					if (!a.openedAt) return 1;
-					if (!b.openedAt) return -1;
-					
-					const dateA = new Date(a.openedAt).getTime();
-					const dateB = new Date(b.openedAt).getTime();
-					return dateB - dateA;
-				});
-				break;
-			case 'Date Created':
-				sorted.sort((a, b) => {
-					const dateA = new Date(a.createdAt).getTime();
-					const dateB = new Date(b.createdAt).getTime();
-					return dateB - dateA;
-				});
-				break;
-			case 'Date Modified':
-				sorted.sort((a, b) => {
-					const dateA = new Date(a.updatedAt).getTime();
-					const dateB = new Date(b.updatedAt).getTime();
-					return dateB - dateA;
-				});
-				break;
-		}
+		sorted.sort((a, b) => a.title.localeCompare(b.title));
 		
 		return sorted;
 	}
@@ -163,7 +124,7 @@
 	<div class="panel-content">
 		<div class="panel-header">
 			<Heading heading="h1" classes="h4 panel-heading">Studies</Heading>
-			<MenuButton label={orderLabel} menuId="MenuOrder" classes="gray" />
+			<Button label="New Group"></Button>
 		</div>
 		
 		<Input 
@@ -180,7 +141,11 @@
 			<ul class="studies-list">
 				{#each sortedStudies as study}
 					<li>
-						<a href="/study/{study.id}" class="study-item">
+						<a 
+							href="/study/{study.id}" 
+							class="study-item"
+							onclick={() => setToolbarState('studiesPanelOpen', false)}
+						>
 							<div class="study-title">{study.title}</div>
 							{#if study.passages && study.passages.length > 0}
 								<div class="study-references">
@@ -190,7 +155,6 @@
 								</div>
 							{/if}
 							<div class="study-dates">
-								<span class="study-date">Opened: {formatDate(study.openedAt)}</span>
 								<span class="study-date">Modified: {formatDate(study.updatedAt)}</span>
 								<span class="study-date">Created: {formatDate(study.createdAt)}</span>
 							</div>
@@ -201,8 +165,6 @@
 		{/if}
 	</div>
 </aside>
-
-<MenuOrder menuId="MenuOrder" onselect={handleOrderSelect} />
 
 <style>
 	.studies-panel {

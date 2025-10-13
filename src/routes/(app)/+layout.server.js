@@ -23,8 +23,7 @@ export async function load({ request, depends }) {
 				id: study.id,
 				title: study.title,
 				createdAt: study.createdAt,
-				updatedAt: study.updatedAt,
-				openedAt: study.openedAt
+				updatedAt: study.updatedAt
 			})
 			.from(study)
 			.where(eq(study.userId, session.user.id))

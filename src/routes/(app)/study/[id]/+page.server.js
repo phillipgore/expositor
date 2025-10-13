@@ -41,12 +41,6 @@ export async function load({ params, request, depends }) {
 			.where(eq(passage.studyId, studyId))
 			.orderBy(passage.displayOrder);
 
-		// Update the openedAt timestamp
-		await db
-			.update(study)
-			.set({ openedAt: new Date() })
-			.where(eq(study.id, studyId));
-
 		return {
 			study: studyData,
 			passages: passagesData,

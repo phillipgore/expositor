@@ -6,7 +6,7 @@
 	/** @type {import('./$types').PageData} */
 	let { data } = $props();
 
-	// Invalidate studies list when openedAt is updated
+	// Invalidate studies list when study is accessed
 	onMount(() => {
 		if (data.invalidateStudies) {
 			invalidate('app:studies');

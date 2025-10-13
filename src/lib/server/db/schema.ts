@@ -69,8 +69,7 @@ export const study = pgTable('study', {
 		.notNull(),
 	updatedAt: timestamp('updated_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
-		.notNull(),
-	openedAt: timestamp('opened_at')
+		.notNull()
 });
 
 export const passage = pgTable('passage', {

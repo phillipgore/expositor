@@ -1,0 +1,1 @@
+ALTER TABLE "study" DROP COLUMN "opened_at";
