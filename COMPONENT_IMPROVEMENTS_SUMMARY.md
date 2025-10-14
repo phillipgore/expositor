@@ -64,7 +64,7 @@ This document summarizes all improvements made to the components in `src/lib/com
 
 #### InputField.svelte
 **Added:** Computed property for warning badge display
-- `showWarningBadge` - Consistent with `showRequiredBadge` pattern
+- `showInfoBadge` - Consistent with `showRequiredBadge` pattern
 - Improves code consistency and readability
 
 #### PassageSelector.svelte

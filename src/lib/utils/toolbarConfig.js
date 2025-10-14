@@ -26,10 +26,10 @@ export function getAppToolbarConfig() {
 					underLabelClasses: 'light'
 				},
 				{
-					type: 'icon',
+					type: 'menu',
 					iconId: 'plus',
+					menuId: 'MenuNew',
 					underLabel: 'New',
-					href: '/new',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}

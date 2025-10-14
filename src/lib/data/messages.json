@@ -3,7 +3,11 @@
     "emailInvalid": "Invalid Email",
     "passwordTooShort": "6 Character Minimum",
     "passwordMismatch": "Password Mismatch",
-    "fieldRequired": "Required"
+    "fieldRequired": "Required",
+    "duplicateStudyTitle": "Duplicate Study Title",
+    "duplicateStudyTitleAlert": "A study with this title already exists. Please use a different title.",
+    "duplicateGroupName": "Duplicate Group Name",
+    "duplicateGroupNameAlert": "A group with this name already exists. Please use a different name."
   },
   "auth": {
     "signupSuccess": "Account created successfully.",

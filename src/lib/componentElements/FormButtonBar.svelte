@@ -17,7 +17,7 @@
 	 * ```svelte
 	 * <FormButtonBar>
 	 *   <Button label="Cancel" classes="gray" />
-	 *   <Button label="Submit" classes="blue" type="submit" />
+	 *   <Button label="Save" classes="blue" type="submit" />
 	 * </FormButtonBar>
 	 * ```
 	 * 

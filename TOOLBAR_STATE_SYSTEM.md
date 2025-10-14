@@ -64,7 +64,7 @@ The toolbar automatically updates when navigating between pages:
 
 **Current Route Logic:**
 - `/document`, `/study` routes → Most tools enabled
-- `/settings`, `/new`, `/open` routes → Document tools disabled
+- `/settings`, `/new-study`, `/open` routes → Document tools disabled
 - Other routes → Maintains current state
 
 ### 2. Document Events

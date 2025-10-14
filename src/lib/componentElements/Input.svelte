@@ -40,10 +40,11 @@
 	 * @property {boolean} [required=false] - Mark input as required with HTML5 validation
 	 * @property {string} value - Bindable input value
 	 * @property {string} [placeholder] - Placeholder text
+	 * @property {(event: KeyboardEvent) => void} [onkeydown] - Keydown event handler
 	 */
 
 	/** @type {InputProps} */
-	let { id, name, type = 'text', isDisabled = false, isLarge = false, required = false, placeholder, value = $bindable('') } = $props();
+	let { id, name, type = 'text', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable('') } = $props();
 </script>
 
 <input
@@ -56,6 +57,7 @@
 	disabled={isDisabled}
 	required={required}
 	aria-required={required}
+	onkeydown={onkeydown}
 />
 
 <style>

@@ -77,7 +77,7 @@ export function updateToolbarForRoute(pathname) {
 	// Route-based rules
 	const isDocumentRoute = pathname.includes('/document') || pathname.includes('/study');
 	const isSettingsRoute = pathname === '/settings';
-	const isNewRoute = pathname === '/new';
+	const isNewRoute = pathname === '/new-study' || pathname === '/new-study-group';
 
 	toolbarStateStore.update(state => {
 		// On document/study pages, most tools should be available

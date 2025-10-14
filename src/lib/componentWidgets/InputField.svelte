@@ -83,7 +83,7 @@
 	 * @property {boolean} [required=false] - Whether the field is required
 	 * @property {'always'|'onError'} [requiredMode='always'] - When to show the required badge
 	 * @property {boolean} [hasError=false] - Error state for conditional badge display
-	 * @property {string} [warningMessage=''] - Optional warning message to display as badge
+	 * @property {string} [infoMessage=''] - Optional informational message to display as badge
 	 * @property {(event?: FocusEvent) => void} [onBlur] - Blur event handler for validation
 	 * 
 	 * @component
@@ -118,8 +118,8 @@
 		requiredMode = 'always',
 		// Error state for conditional badge display
 		hasError = false,
-		// Warning message to display below input
-		warningMessage = '',
+		// Info message to display below input
+		infoMessage = '',
 		// Blur event handler
 		onBlur = undefined
 	} = $props();
@@ -137,12 +137,12 @@
 	);
 
 	/**
-	 * Computed property to determine if the warning badge should be displayed.
-	 * Shows badge when warningMessage has content.
+	 * Computed property to determine if the info badge should be displayed.
+	 * Shows badge when infoMessage has content.
 	 * 
 	 * @type {boolean}
 	 */
-	const showWarningBadge = $derived(warningMessage && warningMessage.length > 0);
+	const showInfoBadge = $derived(infoMessage && infoMessage.length > 0);
 </script>
 
 <div class="input-field {containerClasses}">
@@ -150,11 +150,11 @@
 		<Label forId={forId || id} text={label} classes={labelClasses} isInline={isLabelInline} isLarge={isLabelLarge}>
 			{label}
 		</Label>
-		{#if showRequiredBadge}
+		{#if showRequiredBadge && !infoMessage}
 			<Badge color="red" message={messages.validation.fieldRequired} size="small" look="subtle"/>
 		{/if}
-		{#if showWarningBadge}
-			<Badge color="blue" message={warningMessage} size="small" look="subtle"/>
+		{#if showInfoBadge}
+			<Badge color="blue" message={infoMessage} size="small" look="subtle"/>
 		{/if}
 	</div>
 	<Input

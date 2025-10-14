@@ -10,9 +10,10 @@
 	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
 	import PassageSelector from '$lib/componentWidgets/PassageSelector.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
+	import { setToolbarState } from '$lib/stores/toolbar.js';
+	import messages from '$lib/data/messages.json';
 
-	/** @type {import('./$types').ActionData} */
-	let { form } = $props();
+	let { form, data } = $props();
 
 	const testamentData = bibleData[0].testamentData;
 	const ntBookData = testamentData[1].bookData;
@@ -30,10 +31,32 @@
 	]);
 
 	let isSubmitting = $state(false);
+	let studyTitle = $state(form?.title || '');
+	let duplicateTitleMessage = $derived(getDuplicateTitleMessage(studyTitle));
+	let hasDuplicateTitle = $derived(duplicateTitleMessage.length > 0);
 
 	const handlePassagesChange = (updatedPassages) => {
 		passages = updatedPassages;
 	};
+
+	/**
+	 * Get duplicate title message if a study with this title already exists
+	 * @param {string} title
+	 * @returns {string}
+	 */
+	function getDuplicateTitleMessage(title) {
+		if (!title || !title.trim()) return '';
+		const trimmedTitle = title.trim().toLowerCase();
+		const hasDuplicate = data.studies?.some(study => 
+			study.title.toLowerCase() === trimmedTitle
+		) || false;
+		return hasDuplicate ? messages.validation.duplicateStudyTitle : '';
+	}
+
+	// Open the studies panel when this page loads
+	$effect(() => {
+		setToolbarState('studiesPanelOpen', true);
+	});
 </script>
 
 <div class="container">
@@ -57,9 +80,10 @@
 			label="Title"
 			id="title"
 			name="title"
-			value={form?.title || ''}
+			bind:value={studyTitle}
 			isLarge
 			required
+			infoMessage={duplicateTitleMessage}
 		/>
 
 		<input type="hidden" name="passages" value={JSON.stringify(passages)} />
@@ -72,7 +96,7 @@
 
 		<FormButtonBar>
 			<Button href="/open" label="Cancel" classes="gray" isDisabled={isSubmitting}></Button>
-			<Button type="submit" label={isSubmitting ? 'Creating...' : 'Submit'} classes="blue" isDisabled={isSubmitting}></Button>
+			<Button type="submit" label={isSubmitting ? 'Saving...' : 'Save'} classes="blue" isDisabled={isSubmitting || hasDuplicateTitle}></Button>
 		</FormButtonBar>
 	</form>
 </div>

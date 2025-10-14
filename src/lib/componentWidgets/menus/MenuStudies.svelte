@@ -47,7 +47,7 @@
 		iconId="plus"
 		label="New Study"
 		role="menuitem"
-		url="/new"
+		url="/new-study"
 		handleClick={closeMenu}
 	/>
 

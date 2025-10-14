@@ -22,13 +22,16 @@
 	 */
 	import Heading from "$lib/componentElements/Heading.svelte";
 	import Input from "$lib/componentElements/Input.svelte";
-	import Button from "$lib/componentElements/buttons/Button.svelte";
+	import Icon from "$lib/componentElements/Icon.svelte";
 	import { setToolbarState } from "$lib/stores/toolbar.js";
+	import { invalidate } from '$app/navigation';
 
-	let { isOpen = false, studies = [] } = $props();
+	let { isOpen = false, studies = [], groups = [], ungroupedStudies = [] } = $props();
 
 	let searchQuery = $state('');
 	let sortedStudies = $derived(getSortedStudies());
+	let filteredGroups = $derived(getFilteredGroups());
+	let filteredUngroupedStudies = $derived(getFilteredUngroupedStudies());
 
 	/**
 	 * Format a passage reference for display
@@ -52,39 +55,7 @@
 	}
 
 	/**
-	 * Format a date to human readable format
-	 * @param {Date | string | null} date
-	 * @returns {string}
-	 */
-	function formatDate(date) {
-		if (!date) return 'Never';
-		
-		const d = new Date(date);
-		const now = new Date();
-		const diffMs = now.getTime() - d.getTime();
-		const diffMins = Math.floor(diffMs / 60000);
-		const diffHours = Math.floor(diffMs / 3600000);
-		const diffDays = Math.floor(diffMs / 86400000);
-		
-		// Less than 1 minute
-		if (diffMins < 1) return 'Just now';
-		// Less than 1 hour
-		if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
-		// Less than 24 hours
-		if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-		// Less than 7 days
-		if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-		
-		// Format as date
-		return d.toLocaleDateString('en-US', { 
-			month: 'short', 
-			day: 'numeric', 
-			year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined 
-		});
-	}
-
-	/**
-	 * Get sorted and filtered studies - always sorted by title
+	 * Get sorted and filtered studies - always sorted by title (for backwards compatibility)
 	 * @returns {Array}
 	 */
 	function getSortedStudies() {
@@ -118,26 +89,118 @@
 		
 		return sorted;
 	}
+
+	/**
+	 * Get filtered groups with filtered studies
+	 * @returns {Array}
+	 */
+	function getFilteredGroups() {
+		if (!groups || groups.length === 0) return [];
+		
+		if (searchQuery.trim() === '') {
+			return groups;
+		}
+
+		const query = searchQuery.toLowerCase();
+		
+		// Keep all groups, but filter studies within each group
+		return groups.map(group => {
+			const filteredStudies = group.studies.filter(study => {
+				// Search in title
+				if (study.title.toLowerCase().includes(query)) {
+					return true;
+				}
+				
+				// Search in passage references
+				if (study.passages && study.passages.length > 0) {
+					return study.passages.some(passage => {
+						const reference = formatPassageReference(passage).toLowerCase();
+						return reference.includes(query);
+					});
+				}
+				
+				return false;
+			});
+
+			return {
+				...group,
+				studies: filteredStudies
+			};
+		});
+	}
+
+	/**
+	 * Get filtered ungrouped studies
+	 * @returns {Array}
+	 */
+	function getFilteredUngroupedStudies() {
+		if (!ungroupedStudies || ungroupedStudies.length === 0) return [];
+		
+		if (searchQuery.trim() === '') {
+			return ungroupedStudies;
+		}
+
+		const query = searchQuery.toLowerCase();
+		
+		return ungroupedStudies.filter(study => {
+			// Search in title
+			if (study.title.toLowerCase().includes(query)) {
+				return true;
+			}
+			
+			// Search in passage references
+			if (study.passages && study.passages.length > 0) {
+				return study.passages.some(passage => {
+					const reference = formatPassageReference(passage).toLowerCase();
+					return reference.includes(query);
+				});
+			}
+			
+			return false;
+		});
+	}
+
+	/**
+	 * Toggle group collapsed state
+	 */
+	async function toggleGroupCollapse(groupId, currentState) {
+		try {
+			const response = await fetch(`/api/groups/${groupId}`, {
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ isCollapsed: !currentState })
+			});
+
+			if (response.ok) {
+				// Reload the studies data
+				await invalidate('app:studies');
+			}
+		} catch (error) {
+			console.error('Error toggling group:', error);
+		}
+	}
+
 </script>
 
 <aside class="studies-panel" class:open={isOpen}>
 	<div class="panel-content">
 		<div class="panel-header">
-			<Heading heading="h1" classes="h4 panel-heading">Studies</Heading>
-			<Button label="New Group"></Button>
+			<Input 
+				id="search-studies" 
+				name="search" 
+				type="search" 
+				placeholder="Search Studies"
+				bind:value={searchQuery}
+			/>
 		</div>
 		
-		<Input 
-			id="search-studies" 
-			name="search" 
-			type="search" 
-			placeholder="Search Studies"
-			bind:value={searchQuery}
-		/>
-		
-		{#if studies.length === 0}
-			<p class="empty-message">No studies yet. Create one to get started!</p>
-		{:else}
+		<div class="panel-scrollable">
+			{#if studies.length === 0}
+				<p class="empty-message">No studies yet. Create one to get started!</p>
+			{:else if filteredGroups.length === 0 && filteredUngroupedStudies.length === 0 && searchQuery.trim() === ''}
+			<!-- Fallback: Show all studies if groups/ungrouped not working -->
 			<ul class="studies-list">
 				{#each sortedStudies as study}
 					<li>
@@ -154,15 +217,86 @@
 									{/each}
 								</div>
 							{/if}
-							<div class="study-dates">
-								<span class="study-date">Modified: {formatDate(study.updatedAt)}</span>
-								<span class="study-date">Created: {formatDate(study.createdAt)}</span>
-							</div>
 						</a>
 					</li>
 				{/each}
 			</ul>
-		{/if}
+		{:else}
+			<div class="studies-container">
+				<!-- Groups -->
+				{#if filteredGroups.length > 0}
+					{#each filteredGroups as group}
+						<div class="group-section">
+							<button 
+								class="group-header"
+								onclick={() => toggleGroupCollapse(group.id, group.isCollapsed)}
+							>
+								<Icon 
+									iconId={group.isCollapsed ? 'caret-right' : 'caret-down'}
+								/>
+								<span class="group-name">{group.name}</span>
+								<span class="group-count">({group.studies.length})</span>
+							</button>
+							
+							{#if !group.isCollapsed}
+								<ul class="studies-list grouped">
+									{#each group.studies as study}
+										<li>
+											<a 
+												href="/study/{study.id}" 
+												class="study-item"
+												onclick={() => setToolbarState('studiesPanelOpen', false)}
+											>
+												<div class="study-title">{study.title}</div>
+												{#if study.passages && study.passages.length > 0}
+													<div class="study-references">
+														{#each study.passages as passage, i}
+															{formatPassageReference(passage)}{#if i < study.passages.length - 1},&nbsp;{/if}
+														{/each}
+													</div>
+												{/if}
+											</a>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</div>
+					{/each}
+				{/if}
+
+				<!-- Ungrouped Studies -->
+				{#if filteredUngroupedStudies.length > 0}
+					<div class="group-section">
+						<div class="group-header ungrouped">
+							<span class="group-name">Ungrouped</span>
+							<span class="group-count">({filteredUngroupedStudies.length})</span>
+						</div>
+						
+						<ul class="studies-list">
+							{#each filteredUngroupedStudies as study}
+								<li>
+									<a 
+										href="/study/{study.id}" 
+										class="study-item"
+										onclick={() => setToolbarState('studiesPanelOpen', false)}
+									>
+										<div class="study-title">{study.title}</div>
+										{#if study.passages && study.passages.length > 0}
+											<div class="study-references">
+												{#each study.passages as passage, i}
+													{formatPassageReference(passage)}{#if i < study.passages.length - 1},&nbsp;{/if}
+												{/each}
+											</div>
+										{/if}
+									</a>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
+			</div>
+			{/if}
+		</div>
 	</div>
 </aside>
 
@@ -186,23 +320,31 @@
 	.panel-content {
 		width: 300px;
 		height: 100%;
-		padding: 1.8rem;
-		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.panel-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 0.9rem;
+		gap: 0.9rem;
+		padding: 1.8rem 1.8rem 1.8rem 1.8rem;
+		background-color: var(--gray-lighter);
+		position: sticky;
+		top: 0;
+		z-index: 1;
+		flex-shrink: 0;
 	}
 
 	.panel-header :global(h1) {
 		margin: 0;
 	}
 
-	.panel-content :global(#search-studies) {
-		margin-bottom: 1.8rem;
+	.panel-scrollable {
+		flex: 1;
+		overflow-y: auto;
+		padding: 0 1.8rem 1.8rem 1.8rem;
 	}
 
 	.empty-message {
@@ -242,18 +384,6 @@
 	.study-references {
 		font-size: 1.0rem;
 		color: var(--gray-400);
-		margin-bottom: 0.6rem;
-	}
-
-	.study-dates {
-		display: flex;
-		flex-direction: column;
-		gap: 0.2rem;
-	}
-
-	.study-date {
-		font-size: 0.9rem;
-		color: var(--gray-500);
 	}
 
 	.study-item:hover {
@@ -264,5 +394,60 @@
 	.study-item:focus {
 		outline: 0.2rem solid var(--blue);
 		outline-offset: 0.1rem;
+	}
+
+	.studies-container {
+		display: flex;
+		flex-direction: column;
+		gap: 1.2rem;
+	}
+
+	.group-section {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.group-header {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0.9rem 1.2rem;
+		background-color: var(--gray-700);
+		border: none;
+		border-radius: 0.3rem;
+		color: var(--black);
+		font-size: 1.2rem;
+		font-weight: 600;
+		cursor: pointer;
+		margin-bottom: 0.6rem;
+		transition: background-color 0.2s;
+	}
+
+	.group-header:hover {
+		background-color: var(--gray-600);
+	}
+
+	.group-header.ungrouped {
+		cursor: default;
+		background-color: transparent;
+		border: 1px solid var(--gray-700);
+	}
+
+	.group-header.ungrouped:hover {
+		background-color: transparent;
+	}
+
+	.group-name {
+		flex: 1;
+	}
+
+	.group-count {
+		color: var(--gray-400);
+		font-weight: normal;
+		font-size: 1.0rem;
+	}
+
+	.studies-list.grouped {
+		padding-left: 1.2rem;
 	}
 </style>

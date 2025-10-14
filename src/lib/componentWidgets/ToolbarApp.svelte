@@ -49,6 +49,7 @@
 	import SpacerFixed from '$lib/componentElements/SpacerFixed.svelte';
 	import SpacerFlex from '$lib/componentElements/SpacerFlex.svelte';
 	import Toolbar from '$lib/componentElements/Toolbar.svelte';
+	import MenuNew from '$lib/componentWidgets/menus/MenuNew.svelte';
 	import MenuZoom from '$lib/componentWidgets/menus/MenuZoom.svelte';
 	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
 	import MenuText from '$lib/componentWidgets/menus/MenuText.svelte';
@@ -166,6 +167,7 @@
 	{/each}
 </Toolbar>
 
+<MenuNew menuId="MenuNew" />
 <MenuZoom menuId="MenuZoom" onselect={(value) => (zoomLabel = value)} />
 <MenuStructure menuId="MenuStructure" />
 <MenuText menuId="MenuText" />

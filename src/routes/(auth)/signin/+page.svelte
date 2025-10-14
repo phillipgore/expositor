@@ -43,7 +43,7 @@
 		const result = await signIn(email, password);
 		
 		if (result.success) {
-			goto('/new');
+			goto('/new-study');
 		} else {
 			error = result.error;
 		}
@@ -68,7 +68,7 @@
 		required={true}
 		requiredMode="onError"
 		hasError={formSubmitted && !email}
-		warningMessage={emailWarning}
+		infoMessage={emailWarning}
 	/>
 	<InputField
 		label="Password"

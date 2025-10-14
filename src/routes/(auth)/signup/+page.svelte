@@ -54,7 +54,7 @@
 				goto(`/verify-pending?email=${encodeURIComponent(result.email)}`);
 			} else {
 				// Fallback in case verification is not required
-				goto('/new');
+				goto('/new-study');
 			}
 		} else {
 			error = result.error;
@@ -76,7 +76,6 @@
 			name="firstName"
 			type="text"
 			bind:value={firstName}
-			isFullWidth
 			isDisabled={isLoading}
 			required={true}
 			requiredMode="onError"
@@ -88,7 +87,6 @@
 			name="lastName"
 			type="text"
 			bind:value={lastName}
-			isFullWidth
 			isDisabled={isLoading}
 			required={true}
 			requiredMode="onError"
@@ -105,7 +103,7 @@
 		required={true}
 		requiredMode="onError"
 		hasError={formSubmitted && !email}
-		warningMessage={emailWarning}
+		infoMessage={emailWarning}
 	/>
 	<InputField
 		label="Password"
@@ -117,7 +115,7 @@
 		required={true}
 		requiredMode="onError"
 		hasError={formSubmitted && !password}
-		warningMessage={passwordWarning}
+		infoMessage={passwordWarning}
 	/>
 	<InputField
 		label="Confirm Password"
@@ -129,7 +127,7 @@
 		required={true}
 		requiredMode="onError"
 		hasError={formSubmitted && !confirmPassword}
-		warningMessage={confirmPasswordWarning}
+		infoMessage={confirmPasswordWarning}
 	/>
 
 	<FormButtonBar>

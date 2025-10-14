@@ -7,7 +7,7 @@
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
 			if (authenticated) {
-				goto('/new');
+				goto('/new-study');
 			}
 		});
 

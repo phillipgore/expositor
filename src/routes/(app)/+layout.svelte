@@ -15,8 +15,8 @@
 			if (!authenticated) {
 				goto('/signin');
 			} else if ($page.url.pathname === '/') {
-				// Redirect to /new if on root path
-				goto('/new');
+				// Redirect to /new-study if on root path
+				goto('/new-study');
 			}
 		});
 
@@ -27,7 +27,12 @@
 {#if $isAuthenticated}
 	<ToolbarApp></ToolbarApp>
 	<div class="app-container">
-		<StudiesPanel isOpen={$toolbarState.studiesPanelOpen} studies={data.studies} />
+		<StudiesPanel 
+			isOpen={$toolbarState.studiesPanelOpen} 
+			studies={data.studies}
+			groups={data.groups || []}
+			ungroupedStudies={data.ungroupedStudies || []}
+		/>
 		<div class="content-wrapper">
 			{@render children()}
 		</div>

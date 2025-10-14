@@ -58,12 +58,29 @@ export const verification = pgTable('verification', {
 	updatedAt: timestamp('updated_at').$defaultFn(() => /* @__PURE__ */ new Date())
 });
 
+export const studyGroup = pgTable('study_group', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	displayOrder: integer('display_order').notNull().default(0),
+	isCollapsed: boolean('is_collapsed').notNull().default(false),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+});
+
 export const study = pgTable('study', {
 	id: text('id').primaryKey(),
 	title: text('title').notNull(),
 	userId: text('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),
+	groupId: text('group_id').references(() => studyGroup.id, { onDelete: 'set null' }),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

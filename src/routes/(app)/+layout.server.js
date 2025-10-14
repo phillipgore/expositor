@@ -1,7 +1,7 @@
 import { db } from '$lib/server/db/index.js';
-import { study, passage } from '$lib/server/db/schema.js';
+import { study, passage, studyGroup } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 
 /** @type {import('./$types').LayoutServerLoad} */
 export async function load({ request, depends }) {
@@ -9,25 +9,33 @@ export async function load({ request, depends }) {
 	// Get the current user from session
 	const session = await auth.api.getSession({ headers: request.headers });
 	
-	// If not logged in, return empty studies array
+	// If not logged in, return empty arrays
 	if (!session?.user?.id) {
 		return {
+			groups: [],
+			ungroupedStudies: [],
 			studies: []
 		};
 	}
 
 	try {
-		// Query all studies for the logged-in user with their passages
+		// Query all groups for the logged-in user
+		const groupsData = await db
+			.select()
+			.from(studyGroup)
+			.where(eq(studyGroup.userId, session.user.id))
+			.orderBy(asc(studyGroup.displayOrder));
+
+		// Query all studies for the logged-in user
 		const studiesData = await db
 			.select({
 				id: study.id,
 				title: study.title,
-				createdAt: study.createdAt,
-				updatedAt: study.updatedAt
+				groupId: study.groupId
 			})
 			.from(study)
 			.where(eq(study.userId, session.user.id))
-			.orderBy(desc(study.updatedAt)); // Most recently updated first
+			.orderBy(asc(study.title));
 
 		console.log('Loaded studies:', studiesData); // Debug log
 		
@@ -47,12 +55,29 @@ export async function load({ request, depends }) {
 			})
 		);
 		
-		return {
+		// Organize studies by group
+		const groupsWithStudies = groupsData.map(group => ({
+			...group,
 			studies: studiesWithPassages
+				.filter(s => s.groupId === group.id)
+				.sort((a, b) => a.title.localeCompare(b.title))
+		}));
+
+		// Get ungrouped studies
+		const ungroupedStudies = studiesWithPassages
+			.filter(s => !s.groupId)
+			.sort((a, b) => a.title.localeCompare(b.title));
+		
+		return {
+			groups: groupsWithStudies,
+			ungroupedStudies,
+			studies: studiesWithPassages // Keep for backwards compatibility
 		};
 	} catch (error) {
 		console.error('Error loading studies:', error);
 		return {
+			groups: [],
+			ungroupedStudies: [],
 			studies: []
 		};
 	}
