@@ -305,7 +305,7 @@
 		align-items: center;
 		white-space: nowrap;
 		border-radius: 0.3rem;
-		height: 2.6rem;
+		height: 2.8rem;
 		min-width: 4.8rem;
 		padding: 0rem 0.6rem;
 		border: none;
@@ -331,8 +331,8 @@
 	button.round,
 	a.round {
 		border-radius: 50%;
-		min-width: 2.6rem;
-		width: 2.6rem;
+		min-width: 2.8rem;
+		width: 2.8rem;
 		padding: 0rem;
 	}
 
@@ -442,7 +442,7 @@
 		background-color: transparent;
 		border: none;
 		text-decoration: none;
-		height: 2.6rem;
+		height: 2.8rem;
 		margin: 0rem;
 		justify-content: left;
 	}

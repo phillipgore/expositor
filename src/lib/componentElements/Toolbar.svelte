@@ -101,7 +101,7 @@
 		align-items: center;
 		margin: 0.0rem;
 		padding: 0.0rem 0.9rem;
-		min-height: 5.2rem;
+		min-height: 5.4rem;
 		border: none;
 
 		&.rounded {

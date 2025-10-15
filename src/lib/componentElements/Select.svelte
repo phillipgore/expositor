@@ -137,7 +137,7 @@
 		appearance: none;
 		border: solid 0.1rem var(--gray-700);
 		border-radius: 0.3rem;
-		height: 2.6rem;
+		height: 2.8rem;
 		padding: 0rem 2.9rem 0rem 0.6rem;
 		font-size: 1.4rem;
 		color: var(--black);

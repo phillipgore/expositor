@@ -40,7 +40,7 @@
 
 <Menu {menuId} classes="dark">
 	<IconButton
-		iconId="outline-group"
+		iconId="folder"
 		label="New Study Group"
 		classes="menu-light justify-content-left"
 		role="menuitem"

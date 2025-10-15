@@ -203,7 +203,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
-		height: 2.6rem;
+		height: 2.8rem;
 
 		&.inline {
 			flex-direction: row;
