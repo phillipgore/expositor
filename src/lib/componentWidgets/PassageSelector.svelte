@@ -64,6 +64,12 @@
 	let currentMouseX = $state(0);
 	/** @type {number} Current mouse Y position for drag ghost */
 	let currentMouseY = $state(0);
+	/** @type {number} Starting mouse X position for threshold detection */
+	let dragStartX = $state(0);
+	/** @type {number} Starting mouse Y position for threshold detection */
+	let dragStartY = $state(0);
+	/** @type {number} Drag threshold in pixels before drag starts */
+	const DRAG_THRESHOLD = 5;
 
 	/**
 	 * Updates the testament for a passage and resets dependent values.
@@ -235,67 +241,146 @@
 	let keyboardMode = $state(false);
 
 	/**
-	 * Handles the start of a drag operation.
-	 * Sets up drag state and creates a custom drag image.
-	 * 
-	 * @param {DragEvent} event - The drag start event
-	 * @param {string} passageId - ID of the passage being dragged
+	 * Handle mousedown on a passage drag handle
 	 */
-	const handleDragStart = (event, passageId) => {
-		event.dataTransfer.effectAllowed = 'move';
-		event.dataTransfer.setData('text/plain', passageId);
-
-		// Initialize mouse position immediately
+	function handlePassageMouseDown(event, passage) {
+		// Only handle left click
+		if (event.button !== 0) return;
+		
+		// Prevent browser's default drag behavior
+		event.preventDefault();
+		
+		// Record starting position
+		dragStartX = event.clientX;
+		dragStartY = event.clientY;
 		currentMouseX = event.clientX;
 		currentMouseY = event.clientY;
+		draggedPassageId = passage.id;
+		draggedPassage = passage;
+		
+		// Add document listeners
+		document.addEventListener('mousemove', handleDocumentMouseMove);
+		document.addEventListener('mouseup', handleDocumentMouseUp);
+	}
 
-		// Add global mouse move listener to track cursor position during drag
-		const handleGlobalMouseMove = (e) => {
-			currentMouseX = e.clientX;
-			currentMouseY = e.clientY;
-		};
-		document.addEventListener('dragover', handleGlobalMouseMove);
-
-		// Set drag state after a small delay to allow the drag to start
-		setTimeout(() => {
-			draggedPassageId = passageId;
-			// Find and store the full passage object
-			const passage = passages.find((p) => p.id === passageId);
-			draggedPassage = passage || null;
+	/**
+	 * Handle document mousemove - check if drag threshold exceeded
+	 */
+	function handleDocumentMouseMove(event) {
+		if (!draggedPassageId) return;
+		
+		currentMouseX = event.clientX;
+		currentMouseY = event.clientY;
+		
+		// Check if we've moved beyond threshold
+		const deltaX = Math.abs(currentMouseX - dragStartX);
+		const deltaY = Math.abs(currentMouseY - dragStartY);
+		
+		if (!isDragging && (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD)) {
 			isDragging = true;
 			dragStarted = true;
 			// Initialize drop position to the dragged item's current position
-			const draggedIndex = passages.findIndex((p) => p.id === passageId);
+			const draggedIndex = passages.findIndex((p) => p.id === draggedPassageId);
 			dragPosition = draggedIndex;
 			dropIndicatorPosition = draggedIndex;
-		}, 0);
+		}
+		
+		// Update drop target if dragging
+		if (isDragging) {
+			updateDropTarget(event);
+		}
+	}
 
-		// Create an invisible drag image to hide the native browser ghost
-		const dragImage = document.createElement('div');
-		dragImage.style.position = 'absolute';
-		dragImage.style.top = '-1000px';
-		dragImage.style.width = '1px';
-		dragImage.style.height = '1px';
-		dragImage.style.opacity = '0';
-		document.body.appendChild(dragImage);
+	/**
+	 * Update which position is the current drop target
+	 */
+	function updateDropTarget(event) {
+		const fieldsetWrappers = document.querySelectorAll('.fieldset-wrapper');
+		let newDropPosition = -1;
 		
-		// Set the invisible element as the drag image
-		event.dataTransfer.setDragImage(dragImage, 0, 0);
-		
-		// Remove the temporary drag image after a short delay
-		setTimeout(() => {
-			if (document.body.contains(dragImage)) {
-				document.body.removeChild(dragImage);
+		for (let i = 0; i < fieldsetWrappers.length; i++) {
+			const wrapper = fieldsetWrappers[i];
+			const rect = wrapper.getBoundingClientRect();
+			
+			if (
+				event.clientX >= rect.left &&
+				event.clientX <= rect.right &&
+				event.clientY >= rect.top &&
+				event.clientY <= rect.bottom
+			) {
+				// Mouse is over this wrapper - determine if drop above or below
+				const mouseY = event.clientY;
+				const elementMiddle = rect.top + rect.height / 2;
+				
+				if (mouseY < elementMiddle) {
+					newDropPosition = i;
+				} else {
+					newDropPosition = i + 1;
+				}
+				break;
 			}
-		}, 0);
+		}
 		
-		// Clean up the global listener when drag ends
-		const cleanupListener = () => {
-			document.removeEventListener('dragover', handleGlobalMouseMove);
-			document.removeEventListener('dragend', cleanupListener);
-		};
-		document.addEventListener('dragend', cleanupListener);
-	};
+		// If no wrapper found, check if we're below all items
+		if (newDropPosition === -1 && fieldsetWrappers.length > 0) {
+			const lastWrapper = fieldsetWrappers[fieldsetWrappers.length - 1];
+			const lastRect = lastWrapper.getBoundingClientRect();
+			if (event.clientY > lastRect.bottom) {
+				newDropPosition = passages.length;
+			}
+		}
+		
+		if (newDropPosition !== -1) {
+			dragPosition = newDropPosition;
+			dropIndicatorPosition = newDropPosition;
+		}
+	}
+
+	/**
+	 * Handle document mouseup - finalize action
+	 */
+	function handleDocumentMouseUp(event) {
+		// Remove document listeners
+		document.removeEventListener('mousemove', handleDocumentMouseMove);
+		document.removeEventListener('mouseup', handleDocumentMouseUp);
+		
+		if (!draggedPassageId) return;
+		
+		// If we were dragging and have a valid drop position
+		if (isDragging && dragPosition >= 0) {
+			event.preventDefault();
+			
+			const draggedIndex = passages.findIndex((p) => p.id === draggedPassageId);
+			if (draggedIndex !== -1 && dragPosition !== draggedIndex && dragPosition !== draggedIndex + 1) {
+				// Perform the reorder
+				const newPassages = [...passages];
+				const [movedPassage] = newPassages.splice(draggedIndex, 1);
+				
+				let insertPosition = dragPosition;
+				if (draggedIndex < dragPosition) {
+					insertPosition = dragPosition - 1;
+				}
+				
+				newPassages.splice(insertPosition, 0, movedPassage);
+				passages = newPassages;
+				onPassagesChange?.(passages);
+			}
+		}
+		// else: No drag occurred - this was a click, allow normal behavior
+		
+		// Reset drag state immediately for instant visual feedback
+		isDragging = false;
+		dragStarted = false;
+		draggedPassageId = null;
+		draggedPassage = null;
+		dragOverPassageId = null;
+		dragPosition = -1;
+		dropIndicatorPosition = -1;
+		dragStartX = 0;
+		dragStartY = 0;
+		currentMouseX = 0;
+		currentMouseY = 0;
+	}
 
 	// Keyboard accessibility for drag and drop
 	const handleKeyDown = (event, passageId) => {
@@ -345,133 +430,6 @@
 		}
 	};
 
-	// Calculate drop position based on mouse position
-	const calculateDropPosition = (event, passageId) => {
-		if (!draggedPassageId || draggedPassageId === passageId) return;
-
-		const rect = event.currentTarget.getBoundingClientRect();
-		const mouseY = event.clientY;
-		const elementMiddle = rect.top + rect.height / 2;
-
-		const currentIndex = passages.findIndex((p) => p.id === passageId);
-
-		// Simple logic: if cursor is above middle, drop above; if below middle, drop below
-		if (mouseY < elementMiddle) {
-			// Cursor is above middle - drop area should appear above this PassageSelector
-			dragPosition = currentIndex;
-			dropIndicatorPosition = currentIndex;
-		} else {
-			// Cursor is below middle - drop area should appear below this PassageSelector
-			dragPosition = currentIndex + 1;
-			dropIndicatorPosition = currentIndex + 1;
-		}
-	};
-
-	const handleDragOver = (event, passageId) => {
-		event.preventDefault();
-		event.dataTransfer.dropEffect = 'move';
-
-		// Update mouse position for drag ghost
-		currentMouseX = event.clientX;
-		currentMouseY = event.clientY;
-
-		if (draggedPassageId && draggedPassageId !== passageId) {
-			calculateDropPosition(event, passageId);
-			// Clear the old drag-over styling
-			dragOverPassageId = null;
-		}
-	};
-
-	const handleDragLeave = (event) => {
-		// Only clear dragOverPassageId if we're leaving the entire fieldset area
-		if (!event.currentTarget.contains(event.relatedTarget)) {
-			dragOverPassageId = null;
-		}
-	};
-
-	const handleDrop = (event, targetPassageId) => {
-		event.preventDefault();
-
-		if (draggedPassageId && dragPosition >= 0) {
-			const draggedIndex = passages.findIndex((p) => p.id === draggedPassageId);
-
-			if (draggedIndex !== -1) {
-				// Create a new array with reordered passages
-				const newPassages = [...passages];
-				const [draggedPassage] = newPassages.splice(draggedIndex, 1);
-
-				// Adjust position if needed after removal
-				let insertPosition = dragPosition;
-				if (draggedIndex < dragPosition) {
-					insertPosition = dragPosition - 1;
-				}
-
-				newPassages.splice(insertPosition, 0, draggedPassage);
-
-				passages = newPassages;
-				onPassagesChange?.(passages);
-			}
-		}
-
-		// Reset drag state
-		draggedPassageId = null;
-		draggedPassage = null;
-		dragOverPassageId = null;
-		isDragging = false;
-		dragStarted = false;
-		dragPosition = -1;
-		dropIndicatorPosition = -1;
-		currentMouseX = 0;
-		currentMouseY = 0;
-	};
-
-	const handleDragEnd = (event) => {
-		// Remove dragging class from all fieldsets
-		const draggedElement = event.target.closest('fieldset');
-		if (draggedElement) {
-			draggedElement.classList.remove('dragging');
-		}
-
-		// Reset drag state
-		draggedPassageId = null;
-		draggedPassage = null;
-		dragOverPassageId = null;
-		isDragging = false;
-		dragStarted = false;
-		dragPosition = -1;
-		dropIndicatorPosition = -1;
-		currentMouseX = 0;
-		currentMouseY = 0;
-	};
-
-	// Shared drop handler for the snippet
-	const handleDropOperation = (event) => {
-		event.preventDefault();
-		if (draggedPassageId && dragPosition >= 0) {
-			const draggedIndex = passages.findIndex((p) => p.id === draggedPassageId);
-			if (draggedIndex !== -1) {
-				const newPassages = [...passages];
-				const [draggedPassage] = newPassages.splice(draggedIndex, 1);
-				let insertPosition = dragPosition;
-				if (draggedIndex < insertPosition) {
-					insertPosition = insertPosition - 1;
-				}
-				newPassages.splice(insertPosition, 0, draggedPassage);
-				passages = newPassages;
-				onPassagesChange?.(passages);
-			}
-		}
-		// Reset drag state
-		draggedPassageId = null;
-		draggedPassage = null;
-		dragOverPassageId = null;
-		isDragging = false;
-		dragStarted = false;
-		dragPosition = -1;
-		dropIndicatorPosition = -1;
-		currentMouseX = 0;
-		currentMouseY = 0;
-	};
 </script>
 
 {#snippet PassageFieldset(passage, index, showControls = true, interactive = true)}
@@ -485,7 +443,6 @@
 				class="btn-draggable"
 				in:fade={{ duration: 100 }}
 				out:fade={{ duration: 100 }}
-				draggable="true"
 				role="button"
 				tabindex="0"
 				aria-label="Drag handle for passage {index + 1}"
@@ -494,8 +451,7 @@
 				keyboardDraggedPassageId === passage.id
 					? 'true'
 					: 'false'}
-				ondragstart={(event) => handleDragStart(event, passage.id)}
-				ondragend={handleDragEnd}
+				onmousedown={(event) => handlePassageMouseDown(event, passage)}
 				onkeydown={(event) => handleKeyDown(event, passage.id)}
 			>
 				<IconButton classes="gray" iconId="draggable" isRound></IconButton>
@@ -619,42 +575,6 @@
 	</div>
 {/if}
 
-{#snippet DropAreaPlaceholder(
-	position,
-	isEndPosition,
-	passages,
-	draggedPassageId,
-	dragPosition,
-	onDrop
-)}
-	<div
-		class="drop-area-placeholder"
-		role="button"
-		aria-label="Drop zone for position {position + 1}"
-		aria-describedby="drop-instructions-{position}"
-		tabindex="0"
-		ondragover={(event) => {
-			event.preventDefault();
-			event.dataTransfer.dropEffect = 'move';
-		}}
-		ondrop={onDrop}
-	>
-		<div id="drop-instructions-{position}" class="sr-only">
-			{#if isEndPosition}
-				Drop zone for inserting passage at position {position + 1}. Release the dragged passage here
-				to place it at the end of the list.
-			{:else}
-				Drop zone for inserting passage at position {position + 1}. Release the dragged passage here
-				to place it at this position.
-			{/if}
-		</div>
-		<div class="drop-area-content">
-			<div class="drop-line"></div>
-			<div class="drop-text">Drop here</div>
-		</div>
-	</div>
-{/snippet}
-
 <div class="reference-container">
 	<div class="reference-button">
 		<IconButton iconId="plus" handleClick={addPassage} isRound></IconButton>
@@ -669,14 +589,12 @@
 		{#each passages as passage, index (passage.id)}
 			<!-- Show drop area at this position if needed -->
 			{#if isDragging && dropIndicatorPosition === index}
-				{@render DropAreaPlaceholder(
-					index,
-					false,
-					passages,
-					draggedPassageId,
-					dragPosition,
-					handleDropOperation
-				)}
+				<div class="drop-area-placeholder">
+					<div class="drop-area-content">
+						<div class="drop-line"></div>
+						<div class="drop-text">Drop here</div>
+					</div>
+				</div>
 			{/if}
 
 			<!-- Only show the passage if it's not being dragged -->
@@ -686,9 +604,6 @@
 					role="listitem"
 					aria-label="Passage {index + 1}"
 					aria-describedby={passages.length > 1 ? `drag-instructions-${passage.id}` : undefined}
-					ondragover={(event) => handleDragOver(event, passage.id)}
-					ondragleave={handleDragLeave}
-					ondrop={(event) => handleDrop(event, passage.id)}
 				>
 					{@render PassageFieldset(passage, index, true, true)}
 				</div>
@@ -697,14 +612,12 @@
 
 		<!-- Drop area at the end -->
 		{#if isDragging && dropIndicatorPosition === passages.length}
-			{@render DropAreaPlaceholder(
-				passages.length,
-				true,
-				passages,
-				draggedPassageId,
-				dragPosition,
-				handleDropOperation
-			)}
+			<div class="drop-area-placeholder">
+				<div class="drop-area-content">
+					<div class="drop-line"></div>
+					<div class="drop-text">Drop here</div>
+				</div>
+			</div>
 		{/if}
 	</div>
 </div>
@@ -870,6 +783,7 @@
 		position: fixed;
 		pointer-events: none;
 		z-index: 9999;
+		width: 37.2rem;
 		border-radius: 0.6rem;
 		box-shadow: 0rem 0.4rem 1.2rem var(--black-alpha);
 	}
