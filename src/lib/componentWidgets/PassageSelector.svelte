@@ -48,6 +48,8 @@
 	// Drag and drop state tracking
 	/** @type {string|null} ID of the passage currently being dragged */
 	let draggedPassageId = $state(null);
+	/** @type {Passage|null} Full passage object currently being dragged */
+	let draggedPassage = $state(null);
 	/** @type {string|null} ID of the passage being dragged over */
 	let dragOverPassageId = $state(null);
 	/** @type {boolean} Whether a drag operation is in progress */
@@ -58,6 +60,10 @@
 	let dragPosition = $state(-1);
 	/** @type {number} Position for drop indicator visual */
 	let dropIndicatorPosition = $state(-1);
+	/** @type {number} Current mouse X position for drag ghost */
+	let currentMouseX = $state(0);
+	/** @type {number} Current mouse Y position for drag ghost */
+	let currentMouseY = $state(0);
 
 	/**
 	 * Updates the testament for a passage and resets dependent values.
@@ -196,6 +202,32 @@
 		onPassagesChange?.(passages);
 	};
 
+	/**
+	 * Format a passage reference for display
+	 * @param {Passage} passage - The passage object to format
+	 * @returns {string} Formatted passage reference
+	 */
+	const formatPassageReference = (passage) => {
+		// Get the book name from the available books
+		const books = getBooks(passage.testament, passage.book);
+		const bookInfo = books.find(b => b.value === passage.book);
+		const bookName = bookInfo ? bookInfo.text : passage.book;
+
+		const sameChapter = passage.fromChapter === passage.toChapter;
+		const singleVerse = passage.fromVerse === passage.toVerse;
+		
+		if (sameChapter && singleVerse) {
+			// Single verse: "John 3:16"
+			return `${bookName} ${passage.fromChapter}:${passage.fromVerse}`;
+		} else if (sameChapter) {
+			// Multiple verses same chapter: "John 3:16-17"
+			return `${bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toVerse}`;
+		} else {
+			// Multiple chapters: "Genesis 1:1-2:3"
+			return `${bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toChapter}:${passage.toVerse}`;
+		}
+	};
+
 	// Keyboard navigation state for accessibility
 	/** @type {string|null} ID of passage being dragged via keyboard */
 	let keyboardDraggedPassageId = $state(null);
@@ -213,9 +245,23 @@
 		event.dataTransfer.effectAllowed = 'move';
 		event.dataTransfer.setData('text/plain', passageId);
 
+		// Initialize mouse position immediately
+		currentMouseX = event.clientX;
+		currentMouseY = event.clientY;
+
+		// Add global mouse move listener to track cursor position during drag
+		const handleGlobalMouseMove = (e) => {
+			currentMouseX = e.clientX;
+			currentMouseY = e.clientY;
+		};
+		document.addEventListener('dragover', handleGlobalMouseMove);
+
 		// Set drag state after a small delay to allow the drag to start
 		setTimeout(() => {
 			draggedPassageId = passageId;
+			// Find and store the full passage object
+			const passage = passages.find((p) => p.id === passageId);
+			draggedPassage = passage || null;
 			isDragging = true;
 			dragStarted = true;
 			// Initialize drop position to the dragged item's current position
@@ -224,49 +270,31 @@
 			dropIndicatorPosition = draggedIndex;
 		}, 0);
 
-		// Create a custom drag image using the entire fieldset wrapper
-		const wrapper = event.target.closest('.fieldset-wrapper');
-		const fieldset = event.target.closest('fieldset');
-		if (wrapper && fieldset) {
-			// Create a container for the drag image with extra space for buttons
-			const dragContainer = document.createElement('div');
-			dragContainer.style.position = 'absolute';
-			dragContainer.style.top = '-200.0rem';
-			dragContainer.style.left = '-200.orem';
-			dragContainer.style.width = (fieldset.offsetWidth + 40) / 10 + 'rem'; // Extra space for buttons
-			dragContainer.style.height = (fieldset.offsetHeight + 40) / 10 + 'rem'; // Extra space for buttons
-			dragContainer.style.opacity = '0.8';
-			dragContainer.style.transform = 'rotate(1deg)';
-			dragContainer.style.pointerEvents = 'none';
-			dragContainer.style.zIndex = '9999';
-			dragContainer.style.overflow = 'visible';
-			// dragContainer.style.visibility = 'hidden';
-
-			// Clone the entire wrapper content
-			const dragContent = wrapper.cloneNode(true);
-			dragContent.style.position = 'relative';
-			dragContent.style.margin = '0';
-			Array.from(dragContent.children[0].children).forEach((child) => {
-				child.style.visibility = 'hidden';
-			});
-			// dragContent.children[0].style.visibility = 'hidden';
-
-			dragContainer.appendChild(dragContent);
-			document.body.appendChild(dragContainer);
-
-			// Set the drag image with proper offset accounting for padding
-			const rect = fieldset.getBoundingClientRect();
-			const offsetX = event.clientX - rect.left + 20; // Add padding offset
-			const offsetY = event.clientY - rect.top + 20; // Add padding offset
-			event.dataTransfer.setDragImage(dragContainer, offsetX, offsetY);
-
-			// Remove the temporary drag image after a short delay
-			setTimeout(() => {
-				if (document.body.contains(dragContainer)) {
-					document.body.removeChild(dragContainer);
-				}
-			}, 0);
-		}
+		// Create an invisible drag image to hide the native browser ghost
+		const dragImage = document.createElement('div');
+		dragImage.style.position = 'absolute';
+		dragImage.style.top = '-1000px';
+		dragImage.style.width = '1px';
+		dragImage.style.height = '1px';
+		dragImage.style.opacity = '0';
+		document.body.appendChild(dragImage);
+		
+		// Set the invisible element as the drag image
+		event.dataTransfer.setDragImage(dragImage, 0, 0);
+		
+		// Remove the temporary drag image after a short delay
+		setTimeout(() => {
+			if (document.body.contains(dragImage)) {
+				document.body.removeChild(dragImage);
+			}
+		}, 0);
+		
+		// Clean up the global listener when drag ends
+		const cleanupListener = () => {
+			document.removeEventListener('dragover', handleGlobalMouseMove);
+			document.removeEventListener('dragend', cleanupListener);
+		};
+		document.addEventListener('dragend', cleanupListener);
 	};
 
 	// Keyboard accessibility for drag and drop
@@ -343,6 +371,10 @@
 		event.preventDefault();
 		event.dataTransfer.dropEffect = 'move';
 
+		// Update mouse position for drag ghost
+		currentMouseX = event.clientX;
+		currentMouseY = event.clientY;
+
 		if (draggedPassageId && draggedPassageId !== passageId) {
 			calculateDropPosition(event, passageId);
 			// Clear the old drag-over styling
@@ -383,11 +415,14 @@
 
 		// Reset drag state
 		draggedPassageId = null;
+		draggedPassage = null;
 		dragOverPassageId = null;
 		isDragging = false;
 		dragStarted = false;
 		dragPosition = -1;
 		dropIndicatorPosition = -1;
+		currentMouseX = 0;
+		currentMouseY = 0;
 	};
 
 	const handleDragEnd = (event) => {
@@ -399,11 +434,14 @@
 
 		// Reset drag state
 		draggedPassageId = null;
+		draggedPassage = null;
 		dragOverPassageId = null;
 		isDragging = false;
 		dragStarted = false;
 		dragPosition = -1;
 		dropIndicatorPosition = -1;
+		currentMouseX = 0;
+		currentMouseY = 0;
 	};
 
 	// Shared drop handler for the snippet
@@ -425,13 +463,26 @@
 		}
 		// Reset drag state
 		draggedPassageId = null;
+		draggedPassage = null;
 		dragOverPassageId = null;
 		isDragging = false;
 		dragStarted = false;
 		dragPosition = -1;
 		dropIndicatorPosition = -1;
+		currentMouseX = 0;
+		currentMouseY = 0;
 	};
 </script>
+
+<!-- Drag ghost that follows cursor -->
+{#if isDragging && draggedPassage}
+	<div 
+		class="drag-ghost" 
+		style="left: {(currentMouseX + 6) / 10}rem; top: {(currentMouseY + 6) / 10}rem;"
+	>
+		<div class="passage-reference">{formatPassageReference(draggedPassage)}</div>
+	</div>
+{/if}
 
 {#snippet DropAreaPlaceholder(
 	position,
@@ -801,6 +852,24 @@
 		border-radius: 1.2rem;
 		font-size: 1.2rem;
 		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	/* Drag ghost styles */
+	.drag-ghost {
+		position: fixed;
+		pointer-events: none;
+		z-index: 9999;
+		background-color: var(--blue);
+		padding: 0.9rem 1.2rem;
+		border-radius: 0.6rem;
+		box-shadow: 0rem 0.4rem 1.2rem var(--black-alpha);
+	}
+
+	.passage-reference {
+		font-size: 1.4rem;
+		font-weight: 500;
+		color: white;
 		white-space: nowrap;
 	}
 </style>
