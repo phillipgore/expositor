@@ -474,13 +474,148 @@
 	};
 </script>
 
+{#snippet PassageFieldset(passage, index, showControls = true, interactive = true)}
+	<Fieldset>
+		{#if showControls && passages.length > 1}
+			<div id="drag-instructions-{passage.id}" class="sr-only">
+				Use the drag handle to reorder this passage. Press space or enter to grab, arrow
+				keys to move, space or enter to drop.
+			</div>
+			<div
+				class="btn-draggable"
+				in:fade={{ duration: 100 }}
+				out:fade={{ duration: 100 }}
+				draggable="true"
+				role="button"
+				tabindex="0"
+				aria-label="Drag handle for passage {index + 1}"
+				aria-describedby="drag-instructions-{passage.id}"
+				aria-grabbed={draggedPassageId === passage.id ||
+				keyboardDraggedPassageId === passage.id
+					? 'true'
+					: 'false'}
+				ondragstart={(event) => handleDragStart(event, passage.id)}
+				ondragend={handleDragEnd}
+				onkeydown={(event) => handleKeyDown(event, passage.id)}
+			>
+				<IconButton classes="gray" iconId="draggable" isRound></IconButton>
+			</div>
+			<div class="btn-delete" in:fade={{ duration: 100 }} out:fade={{ duration: 100 }}>
+				<IconButton
+					classes="red"
+					iconId="x"
+					handleClick={() => removePassage(passage.id)}
+					isRound
+				></IconButton>
+			</div>
+		{/if}
+		<div class="testaments">
+			<RadioButtons
+				RadioButtonProperties={getTestaments(passage.testament, passage.id)}
+				name="testaments-{passage.id}"
+				handleChange={interactive ? (event) => updateTestament(passage.id, event.currentTarget.value) : undefined}
+				isInline
+				disabled={!interactive}
+			></RadioButtons>
+		</div>
+		<div class="book">
+			<Select
+				id="{passage.testament}-{passage.id}"
+				name="{passage.testament}-{passage.id}"
+				optionProperties={getBooks(passage.testament, passage.book)}
+				selectedValue={passage.book}
+				handleChange={interactive ? (event) => updateBook(passage.id, event.currentTarget.value) : undefined}
+				isFullWidth
+				disabled={!interactive}
+			></Select>
+		</div>
+		<div class="chapters-verses">
+			<div class="from-chapter-verse">
+				<div class="from-chapter">
+					<Select
+						id="from-{passage.book}-{passage.id}"
+						name="from-{passage.book}-{passage.id}"
+						optionProperties={getChapters(
+							passage.testament,
+							passage.book,
+							passage.fromChapter
+						)}
+						selectedValue={passage.fromChapter}
+						handleChange={interactive ? (event) =>
+							updateChapters(passage.id, event.currentTarget.value, true) : undefined}
+						isFullWidth
+						disabled={!interactive}
+					></Select>
+				</div>
+				<div class="colon">:</div>
+				<div class="from-verse">
+					<Select
+						id="from-{passage.chapter}-{passage.id}"
+						name="from-{passage.chapter}-{passage.id}"
+						optionProperties={getVerses(
+							passage.testament,
+							passage.book,
+							passage.fromChapter,
+							passage.fromVerse
+						)}
+						selectedValue={passage.fromVerse}
+						handleChange={interactive ? (event) =>
+							updateVerses(passage.id, event.currentTarget.value, true) : undefined}
+						isFullWidth
+						disabled={!interactive}
+					></Select>
+				</div>
+			</div>
+			<div>to</div>
+			<div class="to-chapter-verse">
+				<div class="to-chapter">
+					<Select
+						id="to-{passage.book}-{passage.id}"
+						name="to-{passage.book}-{passage.id}"
+						optionProperties={getChapters(
+							passage.testament,
+							passage.book,
+							passage.toChapter,
+							passage.fromChapter
+						)}
+						selectedValue={passage.toChapter}
+						handleChange={interactive ? (event) =>
+							updateChapters(passage.id, event.currentTarget.value, false) : undefined}
+						isFullWidth
+						disabled={!interactive}
+					></Select>
+				</div>
+				<div class="colon">:</div>
+				<div class="to-verse">
+					<Select
+						id="to-{passage.chapter}-{passage.id}"
+						name="to-{passage.chapter}-{passage.id}"
+						optionProperties={getVerses(
+							passage.testament,
+							passage.book,
+							passage.toChapter,
+							passage.toVerse,
+							passage.fromChapter === passage.toChapter ? passage.fromVerse : 1
+						)}
+						selectedValue={passage.toVerse}
+						handleChange={interactive ? (event) =>
+							updateVerses(passage.id, event.currentTarget.value, false) : undefined}
+						isFullWidth
+						disabled={!interactive}
+					></Select>
+				</div>
+			</div>
+		</div>
+	</Fieldset>
+{/snippet}
+
 <!-- Drag ghost that follows cursor -->
 {#if isDragging && draggedPassage}
 	<div 
 		class="drag-ghost" 
 		style="left: {(currentMouseX + 6) / 10}rem; top: {(currentMouseY + 6) / 10}rem;"
 	>
-		<div class="passage-reference">{formatPassageReference(draggedPassage)}</div>
+		{@render PassageFieldset(draggedPassage, -1, false, false)}
 	</div>
 {/if}
 
@@ -555,132 +690,7 @@
 					ondragleave={handleDragLeave}
 					ondrop={(event) => handleDrop(event, passage.id)}
 				>
-					<Fieldset>
-						{#if passages.length > 1}
-							<div id="drag-instructions-{passage.id}" class="sr-only">
-								Use the drag handle to reorder this passage. Press space or enter to grab, arrow
-								keys to move, space or enter to drop.
-							</div>
-							<div
-								class="btn-draggable"
-								in:fade={{ duration: 100 }}
-								out:fade={{ duration: 100 }}
-								draggable="true"
-								role="button"
-								tabindex="0"
-								aria-label="Drag handle for passage {index + 1}"
-								aria-describedby="drag-instructions-{passage.id}"
-								aria-grabbed={draggedPassageId === passage.id ||
-								keyboardDraggedPassageId === passage.id
-									? 'true'
-									: 'false'}
-								ondragstart={(event) => handleDragStart(event, passage.id)}
-								ondragend={handleDragEnd}
-								onkeydown={(event) => handleKeyDown(event, passage.id)}
-							>
-								<IconButton classes="gray" iconId="draggable" isRound></IconButton>
-							</div>
-							<div class="btn-delete" in:fade={{ duration: 100 }} out:fade={{ duration: 100 }}>
-								<IconButton
-									classes="red"
-									iconId="x"
-									handleClick={() => removePassage(passage.id)}
-									isRound
-								></IconButton>
-							</div>
-						{/if}
-						<div class="testaments">
-							<RadioButtons
-								RadioButtonProperties={getTestaments(passage.testament, passage.id)}
-								name="testaments-{passage.id}"
-								handleChange={(event) => updateTestament(passage.id, event.currentTarget.value)}
-								isInline
-							></RadioButtons>
-						</div>
-						<div class="book">
-							<Select
-								id="{passage.testament}-{passage.id}"
-								name="{passage.testament}-{passage.id}"
-								optionProperties={getBooks(passage.testament, passage.book)}
-								selectedValue={passage.book}
-								handleChange={(event) => updateBook(passage.id, event.currentTarget.value)}
-								isFullWidth
-							></Select>
-						</div>
-						<div class="chapters-verses">
-							<div class="from-chapter-verse">
-								<div class="from-chapter">
-									<Select
-										id="from-{passage.book}-{passage.id}"
-										name="from-{passage.book}-{passage.id}"
-										optionProperties={getChapters(
-											passage.testament,
-											passage.book,
-											passage.fromChapter
-										)}
-										selectedValue={passage.fromChapter}
-										handleChange={(event) =>
-											updateChapters(passage.id, event.currentTarget.value, true)}
-										isFullWidth
-									></Select>
-								</div>
-								<div class="colon">:</div>
-								<div class="from-verse">
-									<Select
-										id="from-{passage.chapter}-{passage.id}"
-										name="from-{passage.chapter}-{passage.id}"
-										optionProperties={getVerses(
-											passage.testament,
-											passage.book,
-											passage.fromChapter,
-											passage.fromVerse
-										)}
-										selectedValue={passage.fromVerse}
-										handleChange={(event) =>
-											updateVerses(passage.id, event.currentTarget.value, true)}
-										isFullWidth
-									></Select>
-								</div>
-							</div>
-							<div>to</div>
-							<div class="to-chapter-verse">
-								<div class="to-chapter">
-									<Select
-										id="to-{passage.book}-{passage.id}"
-										name="to-{passage.book}-{passage.id}"
-										optionProperties={getChapters(
-											passage.testament,
-											passage.book,
-											passage.toChapter,
-											passage.fromChapter
-										)}
-										selectedValue={passage.toChapter}
-										handleChange={(event) =>
-											updateChapters(passage.id, event.currentTarget.value, false)}
-										isFullWidth
-									></Select>
-								</div>
-								<div class="colon">:</div>
-								<div class="to-verse">
-									<Select
-										id="to-{passage.chapter}-{passage.id}"
-										name="to-{passage.chapter}-{passage.id}"
-										optionProperties={getVerses(
-											passage.testament,
-											passage.book,
-											passage.toChapter,
-											passage.toVerse,
-											passage.fromChapter === passage.toChapter ? passage.fromVerse : 1
-										)}
-										selectedValue={passage.toVerse}
-										handleChange={(event) =>
-											updateVerses(passage.id, event.currentTarget.value, false)}
-										isFullWidth
-									></Select>
-								</div>
-							</div>
-						</div>
-					</Fieldset>
+					{@render PassageFieldset(passage, index, true, true)}
 				</div>
 			{/if}
 		{/each}
@@ -860,8 +870,6 @@
 		position: fixed;
 		pointer-events: none;
 		z-index: 9999;
-		background-color: var(--blue);
-		padding: 0.9rem 1.2rem;
 		border-radius: 0.6rem;
 		box-shadow: 0rem 0.4rem 1.2rem var(--black-alpha);
 	}
