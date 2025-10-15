@@ -46,6 +46,13 @@
 	let currentMouseY = $state(0);
 	let dropTargetGroupId = $state(null);
 	const DRAG_THRESHOLD = 5; // pixels to move before initiating drag
+	
+	// Auto-scroll state
+	let autoScrollAnimationId = null;
+	let autoScrollSpeed = $state(0);
+	let autoScrollDirection = $state(0);
+	const AUTO_SCROLL_EDGE_SIZE = 50; // pixels from edge to trigger auto-scroll
+	const AUTO_SCROLL_MAX_SPEED = 20; // max pixels per frame
 
 	/**
 	 * Format a passage reference for display
@@ -278,6 +285,7 @@
 		// Update drop target if dragging
 		if (isDragging) {
 			updateDropTarget(event);
+			handleAutoScroll(event);
 		}
 	}
 
@@ -306,9 +314,117 @@
 	}
 
 	/**
+	 * Handle auto-scrolling when dragging near edges of the scrollable panel
+	 */
+	function handleAutoScroll(event) {
+		const scrollable = document.querySelector('.panel-scrollable');
+		const header = document.querySelector('.panel-header');
+		if (!scrollable) return;
+		
+		const scrollableRect = scrollable.getBoundingClientRect();
+		const mouseY = event.clientY;
+		
+		// Check if mouse is within the panel horizontally
+		if (event.clientX < scrollableRect.left || event.clientX > scrollableRect.right) {
+			stopAutoScroll();
+			return;
+		}
+		
+		// Check if cursor is in the header area - if so, scroll up
+		if (header) {
+			const headerRect = header.getBoundingClientRect();
+			if (
+				event.clientX >= headerRect.left &&
+				event.clientX <= headerRect.right &&
+				mouseY >= headerRect.top &&
+				mouseY <= headerRect.bottom
+			) {
+				// Cursor is in header - scroll up at moderate speed
+				autoScrollDirection = -1;
+				autoScrollSpeed = AUTO_SCROLL_MAX_SPEED * 0.7; // 70% of max speed
+				startAutoScroll(scrollable);
+				return;
+			}
+		}
+		
+		// Calculate distance from top and bottom edges of scrollable area
+		const distanceFromTop = mouseY - scrollableRect.top;
+		const distanceFromBottom = scrollableRect.bottom - mouseY;
+		
+		// Determine if we should scroll and in which direction
+		let shouldScroll = false;
+		
+		if (distanceFromTop < AUTO_SCROLL_EDGE_SIZE && distanceFromTop >= 0) {
+			// Near top edge - scroll up
+			shouldScroll = true;
+			autoScrollDirection = -1;
+			// Speed increases as we get closer to edge
+			autoScrollSpeed = AUTO_SCROLL_MAX_SPEED * (1 - distanceFromTop / AUTO_SCROLL_EDGE_SIZE);
+		} else if (distanceFromBottom < AUTO_SCROLL_EDGE_SIZE && distanceFromBottom >= 0) {
+			// Near bottom edge - scroll down
+			shouldScroll = true;
+			autoScrollDirection = 1;
+			// Speed increases as we get closer to edge
+			autoScrollSpeed = AUTO_SCROLL_MAX_SPEED * (1 - distanceFromBottom / AUTO_SCROLL_EDGE_SIZE);
+		}
+		
+		if (shouldScroll) {
+			startAutoScroll(scrollable);
+		} else {
+			stopAutoScroll();
+		}
+	}
+
+	/**
+	 * Start auto-scroll animation
+	 */
+	function startAutoScroll(scrollable) {
+		// If already scrolling, don't restart the animation loop
+		if (autoScrollAnimationId !== null) return;
+		
+		function scroll() {
+			const currentScroll = scrollable.scrollTop;
+			const maxScroll = scrollable.scrollHeight - scrollable.clientHeight;
+			
+			// Calculate new scroll position using current speed and direction
+			const newScroll = currentScroll + (autoScrollDirection * autoScrollSpeed);
+			
+			// Check boundaries
+			if (newScroll < 0) {
+				scrollable.scrollTop = 0;
+			} else if (newScroll > maxScroll) {
+				scrollable.scrollTop = maxScroll;
+			} else {
+				// Apply scroll
+				scrollable.scrollTop = newScroll;
+			}
+			
+			// Continue animation
+			autoScrollAnimationId = requestAnimationFrame(scroll);
+		}
+		
+		autoScrollAnimationId = requestAnimationFrame(scroll);
+	}
+
+	/**
+	 * Stop auto-scroll animation
+	 */
+	function stopAutoScroll() {
+		if (autoScrollAnimationId !== null) {
+			cancelAnimationFrame(autoScrollAnimationId);
+			autoScrollAnimationId = null;
+		}
+		autoScrollSpeed = 0;
+		autoScrollDirection = 0;
+	}
+
+	/**
 	 * Handle document mouseup - finalize action
 	 */
 	async function handleDocumentMouseUp(event) {
+		// Stop any ongoing auto-scroll
+		stopAutoScroll();
+		
 		// Remove document listeners
 		document.removeEventListener('mousemove', handleDocumentMouseMove);
 		document.removeEventListener('mouseup', handleDocumentMouseUp);
@@ -386,7 +502,16 @@
 		style="left: {(currentMouseX + 6) / 10}rem; top: {(currentMouseY + 6) / 10}rem;"
 	>
 		<Icon iconId={'book'} classes="book-icon" />
-		<div class="drag-ghost-title">{draggedStudy.title}</div>
+		<div class="study-info">
+			<div class="study-title">{draggedStudy.title}</div>
+			{#if draggedStudy.passages && draggedStudy.passages.length > 0}
+				<div class="study-references">
+					{#each draggedStudy.passages as passage, i}
+						{formatPassageReference(passage)}{#if i < draggedStudy.passages.length - 1},&nbsp;{/if}
+					{/each}
+				</div>
+			{/if}
+		</div>
 	</div>
 {/if}
 
@@ -708,8 +833,23 @@
 
 	/* Drag and drop styles */
 	.study-item.being-dragged {
-		opacity: 0.5;
+		border-radius: 0.0rem;
+		border-left: 0.2rem solid var(--blue);
 		cursor: grabbing;
+		padding-left: 0.9rem;
+		margin-left: 2.3rem;
+	}
+
+	.study-item.being-dragged * {
+		opacity: 0;
+	}
+
+	.study-item.being-dragged :global(.icon) {
+		opacity: 0;
+	}
+
+	.study-item.being-dragged:hover {
+		background-color: transparent;
 	}
 
 	.group-section.drop-target {
@@ -721,32 +861,10 @@
 		position: fixed;
 		pointer-events: none;
 		z-index: 9999;
-		max-width: 25.0rem;
-		display: flex;
-		justify-content: flex-start;
-		align-content: center;
-		gap: 0.6rem;
-		background-color: transparent;
-		color: var(--black);
-		text-decoration: none;
-	}
-
-	.drag-ghost-title {
-		font-size: 1.4rem;
-		font-weight: 500;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		border-radius: 2.5vh;
-		background-color: var(--blue);
-		color: var(--white);
-		padding: 0.2rem 0.9rem;
-	}
-
-	.drag-ghost :global(.book-icon) {
-		height: 1.2rem;
-		margin-top: 0.4rem;
-		fill: var(--gray-300);
+		width: 28.2rem;
+		background-color: var(--gray-lighter);
+		padding: 0.9rem;
+		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
 	}
 
 	/* Prevent text selection while dragging */
