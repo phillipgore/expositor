@@ -12,8 +12,16 @@
 import { writable, get } from 'svelte/store';
 
 /**
+ * @typedef {Object} SelectedItem
+ * @property {string} type - Type of selected item ('group' or 'study')
+ * @property {string} id - ID of selected item
+ * @property {Object} data - Full data of selected item
+ */
+
+/**
  * @typedef {Object} ToolbarState
  * @property {boolean} canDelete - Whether Delete button should be enabled (has document open)
+ * @property {boolean} canEdit - Whether Edit button should be enabled (has selected item)
  * @property {boolean} canFormat - Whether formatting buttons should be enabled (has content/selection)
  * @property {boolean} canToggleNotes - Whether Notes toggle should be enabled (document supports notes)
  * @property {boolean} canToggleVerses - Whether Verses toggle should be enabled (document has verses)
@@ -30,6 +38,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canUseLiteraryItems - Whether Literary menu items should be enabled
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
+ * @property {SelectedItem|null} selectedItem - Currently selected item from studies panel
  */
 
 /**
@@ -38,6 +47,7 @@ import { writable, get } from 'svelte/store';
  */
 const defaultState = {
 	canDelete: false,
+	canEdit: false,
 	canFormat: false,
 	canToggleNotes: false,
 	canToggleVerses: false,
@@ -53,7 +63,8 @@ const defaultState = {
 	canUseTextItems: false,
 	canUseLiteraryItems: false,
 	canUseColorItems: false,
-	studiesPanelOpen: true
+	studiesPanelOpen: true,
+	selectedItem: null
 };
 
 /**
@@ -81,10 +92,10 @@ export function updateToolbarForRoute(pathname) {
 
 	toolbarStateStore.update(state => {
 		// On document/study pages, most tools should be available
+		// Note: canEdit and canDelete are controlled by selection state, not route
 		if (isDocumentRoute) {
 			return {
 				...state,
-				canDelete: true,
 				canFormat: true,
 				canToggleNotes: true,
 				canToggleVerses: true,
@@ -104,10 +115,10 @@ export function updateToolbarForRoute(pathname) {
 		}
 
 	// On utility pages (settings, new), enable menu buttons but disable menu items
+	// Note: canEdit and canDelete remain controlled by selection state
 	if (isSettingsRoute || isNewRoute) {
 		return {
 			...state,
-			canDelete: false,
 			canFormat: false,
 			canToggleNotes: false,
 			canToggleVerses: false,
@@ -134,11 +145,11 @@ export function updateToolbarForRoute(pathname) {
 /**
  * Update toolbar state when a document is opened
  * Enables document-specific tools
+ * Note: canEdit and canDelete are controlled by selection state
  */
 export function onDocumentOpen() {
 	toolbarStateStore.update(state => ({
 		...state,
-		canDelete: true,
 		canFormat: true,
 		canToggleNotes: true,
 		canToggleVerses: true,
@@ -160,11 +171,11 @@ export function onDocumentOpen() {
 /**
  * Update toolbar state when a document is closed
  * Disables document-specific tools
+ * Note: canEdit and canDelete are controlled by selection state
  */
 export function onDocumentClose() {
 	toolbarStateStore.update(state => ({
 		...state,
-		canDelete: false,
 		canFormat: false,
 		canToggleNotes: false,
 		canToggleVerses: false,
@@ -228,5 +239,30 @@ export function toggleStudiesPanel() {
 	toolbarStateStore.update(state => ({
 		...state,
 		studiesPanelOpen: !state.studiesPanelOpen
+	}));
+}
+
+/**
+ * Set the selected item in the studies panel
+ * @param {Object|null} item - Selected item with type, id, and data, or null to clear
+ */
+export function setSelectedItem(item) {
+	toolbarStateStore.update(state => ({
+		...state,
+		selectedItem: item,
+		canEdit: item !== null, // Enable edit when something is selected
+		canDelete: item !== null // Enable delete when something is selected
+	}));
+}
+
+/**
+ * Clear the selected item
+ */
+export function clearSelectedItem() {
+	toolbarStateStore.update(state => ({
+		...state,
+		selectedItem: null,
+		canEdit: false,
+		canDelete: false
 	}));
 }

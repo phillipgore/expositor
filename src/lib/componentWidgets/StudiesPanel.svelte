@@ -23,8 +23,8 @@
 	import Heading from "$lib/componentElements/Heading.svelte";
 	import Input from "$lib/componentElements/Input.svelte";
 	import Icon from "$lib/componentElements/Icon.svelte";
-	import { setToolbarState } from "$lib/stores/toolbar.js";
-	import { invalidate } from '$app/navigation';
+	import { setToolbarState, setSelectedItem, clearSelectedItem, toolbarState } from "$lib/stores/toolbar.js";
+	import { goto, invalidate } from '$app/navigation';
 	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import DividerHorizontal from "$lib/componentElements/DividerHorizontal.svelte";
@@ -36,6 +36,12 @@
 	let filteredGroups = $derived(getFilteredGroups());
 	let filteredUngroupedStudies = $derived(getFilteredUngroupedStudies());
 	let sortedGroupsAndStudies = $derived(getSortedGroupsAndStudies());
+
+	// Selection state
+	let selectedItemId = $state(null);
+	let selectedItemType = $state(null);
+	let lastClickTime = $state(0);
+	const DOUBLE_CLICK_THRESHOLD = 300; // ms
 
 	// Drag and drop state
 	let isDragging = $state(false);
@@ -221,6 +227,92 @@
 		items.sort((a, b) => a.name.localeCompare(b.name));
 		
 		return items;
+	}
+
+	/**
+	 * Select a group
+	 */
+	function selectGroup(group) {
+		selectedItemId = group.id;
+		selectedItemType = 'group';
+		setSelectedItem({
+			type: 'group',
+			id: group.id,
+			data: group
+		});
+	}
+
+	/**
+	 * Select a study
+	 */
+	function selectStudy(study) {
+		selectedItemId = study.id;
+		selectedItemType = 'study';
+		setSelectedItem({
+			type: 'study',
+			id: study.id,
+			data: study
+		});
+	}
+
+	/**
+	 * Deselect current item
+	 */
+	function deselectItem() {
+		selectedItemId = null;
+		selectedItemType = null;
+		clearSelectedItem();
+	}
+
+	/**
+	 * Handle group header click for selection
+	 */
+	function handleGroupHeaderClick(event, group) {
+		event.preventDefault();
+		event.stopPropagation();
+		
+		// Toggle selection
+		if (selectedItemId === group.id && selectedItemType === 'group') {
+			deselectItem();
+		} else {
+			selectGroup(group);
+		}
+	}
+
+	/**
+	 * Handle study click - single click selects, double click navigates
+	 */
+	function handleStudyClick(event, study) {
+		event.preventDefault();
+		
+		const currentTime = Date.now();
+		const timeSinceLastClick = currentTime - lastClickTime;
+		
+		// Check if this is a double-click
+		if (timeSinceLastClick < DOUBLE_CLICK_THRESHOLD && selectedItemId === study.id) {
+			// Double-click: navigate to study
+			setToolbarState('studiesPanelOpen', false);
+			goto(`/study/${study.id}`);
+		} else {
+			// Single click: select the study
+			selectStudy(study);
+			lastClickTime = currentTime;
+		}
+	}
+
+	/**
+	 * Handle panel click (for deselection)
+	 */
+	function handlePanelClick(event) {
+		// Check if click is on a study item or group button
+		const clickedOnStudy = event.target.closest('.study-item');
+		const clickedOnGroupButton = event.target.closest('.group-select-button');
+		const clickedOnChevron = event.target.closest('.chevron-button');
+		
+		// Deselect if clicked outside of any interactive item
+		if (!clickedOnStudy && !clickedOnGroupButton && !clickedOnChevron) {
+			deselectItem();
+		}
 	}
 
 	/**
@@ -493,6 +585,35 @@
 		}
 	}
 
+	/**
+	 * Set up document-level click handler for deselection
+	 */
+	$effect(() => {
+		function handleDocumentClick(event) {
+			// Only deselect if something is selected
+			if (selectedItemId === null) return;
+			
+			// Check if click is inside the studies container
+			const container = document.querySelector('.studies-container');
+			if (!container) return;
+			
+			const clickedInsideContainer = container.contains(event.target);
+			
+			if (!clickedInsideContainer) {
+				// Clicked outside the studies container - deselect
+				deselectItem();
+			}
+		}
+		
+		// Add listener
+		document.addEventListener('click', handleDocumentClick);
+		
+		// Cleanup
+		return () => {
+			document.removeEventListener('click', handleDocumentClick);
+		};
+	});
+
 </script>
 
 <!-- Drag ghost that follows cursor -->
@@ -527,7 +648,7 @@
 			/>
 		</div>
 		
-		<div class="panel-scrollable">
+		<div class="panel-scrollable" onclick={handlePanelClick}>
 			{#if studies.length === 0}
 				<p class="empty-message">No studies yet. Create one to get started!</p>
 			{:else if filteredGroups.length === 0 && filteredUngroupedStudies.length === 0 && searchQuery.trim() === ''}
@@ -565,34 +686,45 @@
 							<div 
 								class="group-section"
 								class:drop-target={dropTargetGroupId === item.data.id}
+								class:selected={selectedItemType === 'group' && selectedItemId === item.data.id}
 								data-group-id={item.data.id}
 							>
-								<button 
-									class="group-header"
-									onclick={() => toggleGroupCollapse(item.data.id, item.data.isCollapsed)}
-								>
+								<div class="group-header">
 									<div class="group-info">
-										<Icon iconId={item.data.isCollapsed ? 'chevron-right' : 'chevron-down'} classes="chevron-icon" />
-										<Icon iconId={'folder'} classes="folder-icon" />
-										<span class="group-name">{item.data.name}</span>
+										<button 
+											class="chevron-button"
+											onclick={(e) => { e.stopPropagation(); toggleGroupCollapse(item.data.id, item.data.isCollapsed); }}
+											aria-label={item.data.isCollapsed ? 'Expand group' : 'Collapse group'}
+											aria-expanded={!item.data.isCollapsed}
+										>
+											<Icon iconId={item.data.isCollapsed ? 'chevron-right' : 'chevron-down'} classes="chevron-icon" />
+										</button>
+										<button 
+											class="group-select-button"
+											onclick={(e) => handleGroupHeaderClick(e, item.data)}
+											aria-label="Select group {item.data.name}"
+										>
+											<Icon iconId={'folder'} classes="folder-icon" />
+											<span class="group-name">{item.data.name}</span>
+										</button>
 									</div>
 									<span class="group-count">{item.data.studies.length}</span>
-								</button>
+								</div>
 								
 								{#if !item.data.isCollapsed}
 									<ul class="studies-list grouped" transition:slide={{ duration: 200 }}>
 										{#each item.data.studies as study (study.id)}
 											<li animate:flip={{ duration: 300 }}>
-												<a 
-													href="/study/{study.id}" 
+												<button 
 													class="study-item"
 													class:being-dragged={isDragging && draggedStudy?.id === study.id}
+													class:selected={selectedItemType === 'study' && selectedItemId === study.id}
 													onmousedown={(e) => handleStudyMouseDown(e, study)}
 													onclick={(e) => {
-														if (isDragging) {
-															e.preventDefault();
+														if (!isDragging) {
+															handleStudyClick(e, study);
 														} else {
-															setToolbarState('studiesPanelOpen', false);
+															e.preventDefault();
 														}
 													}}
 												>
@@ -609,7 +741,7 @@
 															</div>
 														{/if}
 													</div>
-												</a>
+												</button>
 											</li>
 										{/each}
 									</ul>
@@ -618,18 +750,18 @@
 						{:else}
 							<!-- Ungrouped Study -->
 							<div class="study-wrapper">
-								<a 
-									href="/study/{item.data.id}" 
+								<button 
 									class="study-item ungrouped"
 									class:being-dragged={isDragging && draggedStudy?.id === item.data.id}
+									class:selected={selectedItemType === 'study' && selectedItemId === item.data.id}
 									onmousedown={(e) => handleStudyMouseDown(e, item.data)}
 									onclick={(e) => {
-										if (isDragging) {
-											e.preventDefault();
-										} else {
-											setToolbarState('studiesPanelOpen', false);
-										}
-									}}
+														if (!isDragging) {
+															handleStudyClick(e, item.data);
+														} else {
+															e.preventDefault();
+														}
+													}}
 								>
 									<Icon iconId={'book'} classes="book-icon" />
 									<div class="study-info">
@@ -644,7 +776,7 @@
 											</div>
 										{/if}
 									</div>
-								</a>
+								</button>
 							</div>
 						{/if}
 					</div>
@@ -725,14 +857,31 @@
 		gap: 0.7rem;
 		padding: 0.9rem 0.9rem 0.9rem 2.3rem;
 		background-color: transparent;
+		border: none;
 		border-radius: 0.3rem;
 		color: var(--black);
 		text-decoration: none;
+		text-align: left;
+		width: 100%;
+		cursor: pointer;
 		transition: background-color 0.2s, border-color 0.2s;
 	}
 
 	.study-item.ungrouped {
 		padding: 0.9rem 0.9rem 0.9rem 2.2rem;
+	}
+
+	.study-item.selected {
+		background-color: var(--blue);
+		color: var(--white);
+	}
+
+	.study-item.selected :global(.book-icon) {
+		fill: var(--white);
+	}
+
+	.study-item.selected .study-references {
+		color: var(--white);
 	}
 
 	.study-item :global(.book-icon) {
@@ -785,24 +934,35 @@
 		flex-direction: column;
 	}
 
+	.group-section.selected {
+		background-color: var(--blue-light);
+		border-radius: 0.3rem;
+	}
+
+	.group-section.selected .group-select-button {
+		color: var(--blue);
+	}
+
+	.group-section.selected .group-select-button :global(.folder-icon) {
+		fill: var(--blue);
+	}
+
 	.group-header {
 		display: flex;
 		justify-content: space-between;
 		padding: 0.9rem 0.6rem;
 		background-color: transparent;
-		border: none;
 		border-radius: 0.3rem;
 		color: var(--black);
 		font-size: 1.4rem;
 		font-weight: 600;
-		cursor: pointer;
-		transition: background-color 0.2s;
 	}
 
 	.group-info {
 		display: flex;
 		align-items: center;
 		gap: 0.6rem;
+		flex: 1;
 	}
 
 	.group-count {
@@ -810,21 +970,68 @@
 		color: var(--gray-400);
 	}
 
-	.group-header :global(button) {
-		margin-bottom: 0.0rem;
+	.chevron-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1.3rem 0.6rem;
+		background-color: transparent;
+		border: none;
+		border-radius: 0.3rem;
+		cursor: pointer;
+		margin: -1.3rem -0.6rem -1.3rem -0.6rem;
+		flex-shrink: 0;
 	}
 
-	.group-header :global(.chevron-icon) {
+	.chevron-button:hover {
+		background-color: var(--gray-700);
+	}
+
+	.chevron-button:focus {
+		outline: 0.2rem solid var(--blue);
+		outline-offset: 0.1rem;
+	}
+
+	.chevron-button :global(.chevron-icon) {
 		height: 0.9rem;
 		fill: var(--gray-200);
 	}
 
-	.group-header :global(.folder-icon) {
-		fill: var(--gray-300);
+	.group-select-button {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0;
+		background-color: transparent;
+		border: none;
+		color: inherit;
+		font-size: inherit;
+		font-weight: inherit;
+		cursor: pointer;
+		text-align: left;
+		flex: 1;
+		border-radius: 0.3rem;
+		padding: 0.3rem;
+		margin: -0.3rem;
+		transition: background-color 0.2s;
 	}
 
-	.group-header:hover {
-		background-color: var(--blue-light);
+	.group-select-button:hover {
+		background-color: var(--gray-700);
+	}
+
+	.group-select-button:focus {
+		outline: 0.2rem solid var(--blue);
+		outline-offset: 0.1rem;
+	}
+
+	.group-select-button :global(.folder-icon) {
+		fill: var(--gray-300);
+		transition: fill 0.2s;
+	}
+
+	.group-name {
+		flex: 1;
 	}
 
 	.studies-list.grouped {
