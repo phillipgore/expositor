@@ -816,7 +816,7 @@
 
 	.group-header :global(.chevron-icon) {
 		height: 0.9rem;
-		fill: var(--gray-300);
+		fill: var(--gray-200);
 	}
 
 	.group-header :global(.folder-icon) {
