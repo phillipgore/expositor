@@ -298,6 +298,9 @@
 		const fieldsetWrappers = document.querySelectorAll('.fieldset-wrapper');
 		let newDropPosition = -1;
 		
+		// Get the dragged item's index to adjust for the missing DOM element
+		const draggedIndex = passages.findIndex((p) => p.id === draggedPassageId);
+		
 		for (let i = 0; i < fieldsetWrappers.length; i++) {
 			const wrapper = fieldsetWrappers[i];
 			const rect = wrapper.getBoundingClientRect();
@@ -308,14 +311,18 @@
 				event.clientY >= rect.top &&
 				event.clientY <= rect.bottom
 			) {
+				// Adjust index to account for hidden dragged item
+				// If we're at or past the dragged item's position, add 1
+				const adjustedIndex = i >= draggedIndex ? i + 1 : i;
+				
 				// Mouse is over this wrapper - determine if drop above or below
 				const mouseY = event.clientY;
 				const elementMiddle = rect.top + rect.height / 2;
 				
 				if (mouseY < elementMiddle) {
-					newDropPosition = i;
+					newDropPosition = adjustedIndex;
 				} else {
-					newDropPosition = i + 1;
+					newDropPosition = adjustedIndex + 1;
 				}
 				break;
 			}
@@ -569,9 +576,9 @@
 {#if isDragging && draggedPassage}
 	<div 
 		class="drag-ghost" 
-		style="left: {(currentMouseX + 6) / 10}rem; top: {(currentMouseY + 6) / 10}rem;"
+		style="left: {(currentMouseX - 6) / 10}rem; top: {(currentMouseY - 6) / 10}rem;"
 	>
-		{@render PassageFieldset(draggedPassage, -1, false, false)}
+		{@render PassageFieldset(draggedPassage, -1, true, true)}
 	</div>
 {/if}
 
