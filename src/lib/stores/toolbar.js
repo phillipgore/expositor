@@ -19,6 +19,14 @@ import { writable, get } from 'svelte/store';
  */
 
 /**
+ * @typedef {Object} Selection
+ * @property {Array<SelectedItem>} items - Array of selected items
+ * @property {number} count - Number of selected items
+ * @property {boolean} hasGroups - Whether selection includes groups
+ * @property {boolean} hasStudies - Whether selection includes studies
+ */
+
+/**
  * @typedef {Object} ToolbarState
  * @property {boolean} canDelete - Whether Delete button should be enabled (has document open)
  * @property {boolean} canEdit - Whether Edit button should be enabled (has selected item)
@@ -38,7 +46,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canUseLiteraryItems - Whether Literary menu items should be enabled
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
- * @property {SelectedItem|null} selectedItem - Currently selected item from studies panel
+ * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
  */
 
 /**
@@ -243,15 +251,19 @@ export function toggleStudiesPanel() {
 }
 
 /**
- * Set the selected item in the studies panel
- * @param {Object|null} item - Selected item with type, id, and data, or null to clear
+ * Set the selected item(s) in the studies panel
+ * @param {object} selection - Selection object with items array
+ * @param {Array} selection.items - Array of selected items with type, id, and data
+ * @param {number} selection.count - Number of selected items
+ * @param {boolean} selection.hasGroups - Whether selection includes groups
+ * @param {boolean} selection.hasStudies - Whether selection includes studies
  */
-export function setSelectedItem(item) {
+export function setSelectedItem(selection) {
 	toolbarStateStore.update(state => ({
 		...state,
-		selectedItem: item,
-		canEdit: item !== null, // Enable edit when something is selected
-		canDelete: item !== null // Enable delete when something is selected
+		selectedItem: selection,
+		canEdit: selection !== null && selection.count > 0,
+		canDelete: selection !== null && selection.count > 0
 	}));
 }
 

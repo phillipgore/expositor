@@ -37,15 +37,15 @@
 	let filteredUngroupedStudies = $derived(getFilteredUngroupedStudies());
 	let sortedGroupsAndStudies = $derived(getSortedGroupsAndStudies());
 
-	// Selection state
-	let selectedItemId = $state(null);
-	let selectedItemType = $state(null);
+	// Multi-selection state
+	let selectedItems = $state([]); // Array of {type, id, data, index}
+	let lastSelectedIndex = $state(null); // For Shift+Click range selection
 	let lastClickTime = $state(0);
 	const DOUBLE_CLICK_THRESHOLD = 300; // ms
 
 	// Drag and drop state
 	let isDragging = $state(false);
-	let draggedStudy = $state(null);
+	let draggedStudies = $state([]); // Array of studies being dragged
 	let dragStartX = $state(0);
 	let dragStartY = $state(0);
 	let currentMouseX = $state(0);
@@ -230,53 +230,218 @@
 	}
 
 	/**
-	 * Select a group
+	 * Get flattened list of all items in display order for range selection
 	 */
-	function selectGroup(group) {
-		selectedItemId = group.id;
-		selectedItemType = 'group';
-		setSelectedItem({
-			type: 'group',
-			id: group.id,
-			data: group
+	function getFlattenedItemsList() {
+		const items = [];
+		let index = 0;
+		
+		sortedGroupsAndStudies.forEach(item => {
+			if (item.type === 'group') {
+				// Add group
+				items.push({
+					type: 'group',
+					id: item.data.id,
+					data: item.data,
+					index: index++
+				});
+				
+				// Add studies in group if not collapsed
+				if (!item.data.isCollapsed) {
+					item.data.studies.forEach(study => {
+						items.push({
+							type: 'study',
+							id: study.id,
+							data: study,
+							index: index++
+						});
+					});
+				}
+			} else {
+				// Add ungrouped study
+				items.push({
+					type: 'study',
+					id: item.data.id,
+					data: item.data,
+					index: index++
+				});
+			}
 		});
+		
+		return items;
 	}
 
 	/**
-	 * Select a study
+	 * Check if an item is selected
 	 */
-	function selectStudy(study) {
-		selectedItemId = study.id;
-		selectedItemType = 'study';
-		setSelectedItem({
-			type: 'study',
-			id: study.id,
-			data: study
-		});
+	function isItemSelected(type, id) {
+		return selectedItems.some(item => item.type === type && item.id === id);
 	}
 
 	/**
-	 * Deselect current item
+	 * Clear all selections
 	 */
-	function deselectItem() {
-		selectedItemId = null;
-		selectedItemType = null;
+	function clearSelection() {
+		selectedItems = [];
+		lastSelectedIndex = null;
 		clearSelectedItem();
+	}
+
+	/**
+	 * Update toolbar with current selection
+	 */
+	function updateToolbarSelection() {
+		if (selectedItems.length === 0) {
+			clearSelectedItem();
+		} else {
+			setSelectedItem({
+				items: selectedItems,
+				count: selectedItems.length,
+				hasGroups: selectedItems.some(i => i.type === 'group'),
+				hasStudies: selectedItems.some(i => i.type === 'study')
+			});
+		}
+	}
+
+	/**
+	 * Expand group and add its studies to selection
+	 */
+	async function expandGroupAndSelectStudies(group) {
+		// If group is collapsed, expand it
+		if (group.isCollapsed) {
+			await toggleGroupCollapse(group.id, true);
+		}
+		
+		// Add all studies in the group to selection
+		group.studies.forEach(study => {
+			// Check if study is already selected
+			if (!isItemSelected('study', study.id)) {
+				// Need to find the study's index in flattened list after expansion
+				// For now, add with a temporary index (will be recalculated)
+				selectedItems.push({
+					type: 'study',
+					id: study.id,
+					data: study,
+					index: -1 // Temporary, will be updated
+				});
+			}
+		});
+		
+		// Recalculate indices for all selected items
+		const flattenedList = getFlattenedItemsList();
+		selectedItems.forEach(item => {
+			const foundItem = flattenedList.find(
+				fi => fi.type === item.type && fi.id === item.id
+			);
+			if (foundItem) {
+				item.index = foundItem.index;
+			}
+		});
+	}
+
+	/**
+	 * Handle item click with modifier keys
+	 */
+	async function handleItemClick(event, type, id, data) {
+		event.preventDefault();
+		event.stopPropagation();
+		
+		const flattenedList = getFlattenedItemsList();
+		const clickedItem = flattenedList.find(item => item.type === type && item.id === id);
+		
+		if (!clickedItem) return;
+		
+		// Check for modifier keys
+		const isShift = event.shiftKey;
+		const isCmd = event.metaKey || event.ctrlKey;
+		
+		if (isShift && lastSelectedIndex !== null) {
+			// Shift+Click: Range selection (multi-select)
+			const startIndex = Math.min(lastSelectedIndex, clickedItem.index);
+			const endIndex = Math.max(lastSelectedIndex, clickedItem.index);
+			
+			// Select all items in range
+			const rangeItems = flattenedList.filter(
+				item => item.index >= startIndex && item.index <= endIndex
+			);
+			
+			// Add range to selection (avoiding duplicates)
+			for (const item of rangeItems) {
+				if (!isItemSelected(item.type, item.id)) {
+					selectedItems.push({
+						type: item.type,
+						id: item.id,
+						data: item.data,
+						index: item.index
+					});
+					
+					// If this is a group in a multi-select, expand and select its studies
+					if (item.type === 'group') {
+						await expandGroupAndSelectStudies(item.data);
+					}
+				}
+			}
+			
+		} else if (isCmd) {
+			// Cmd/Ctrl+Click: Toggle individual item
+			const existingIndex = selectedItems.findIndex(
+				item => item.type === type && item.id === id
+			);
+			
+			if (existingIndex >= 0) {
+				// Remove from selection
+				// If removing a group, also remove its studies
+				if (type === 'group') {
+					const groupData = selectedItems[existingIndex].data;
+					selectedItems = selectedItems.filter(item => {
+						// Keep items that are not this group and not studies in this group
+						if (item.type === 'group' && item.id === id) return false;
+						if (item.type === 'study' && groupData.studies.some(s => s.id === item.id)) return false;
+						return true;
+					});
+				} else {
+					selectedItems.splice(existingIndex, 1);
+				}
+			} else {
+				// Add to selection
+				selectedItems.push({
+					type,
+					id,
+					data,
+					index: clickedItem.index
+				});
+				
+				// If this is a group being added to an existing multi-select, expand and select its studies
+				// Check if there are already other items selected
+				if (type === 'group' && selectedItems.length > 1) {
+					await expandGroupAndSelectStudies(data);
+				}
+			}
+			
+			lastSelectedIndex = clickedItem.index;
+			
+		} else {
+			// Regular click: Single selection
+			selectedItems = [{
+				type,
+				id,
+				data,
+				index: clickedItem.index
+			}];
+			
+			// Don't expand or select studies for single group selection
+			
+			lastSelectedIndex = clickedItem.index;
+		}
+		
+		updateToolbarSelection();
 	}
 
 	/**
 	 * Handle group header click for selection
 	 */
 	function handleGroupHeaderClick(event, group) {
-		event.preventDefault();
-		event.stopPropagation();
-		
-		// Toggle selection
-		if (selectedItemId === group.id && selectedItemType === 'group') {
-			deselectItem();
-		} else {
-			selectGroup(group);
-		}
+		handleItemClick(event, 'group', group.id, group);
 	}
 
 	/**
@@ -288,14 +453,16 @@
 		const currentTime = Date.now();
 		const timeSinceLastClick = currentTime - lastClickTime;
 		
-		// Check if this is a double-click
-		if (timeSinceLastClick < DOUBLE_CLICK_THRESHOLD && selectedItemId === study.id) {
+		// Check if this is a double-click on already selected study
+		if (timeSinceLastClick < DOUBLE_CLICK_THRESHOLD && 
+		    selectedItems.length === 1 &&
+		    isItemSelected('study', study.id)) {
 			// Double-click: navigate to study
 			setToolbarState('studiesPanelOpen', false);
 			goto(`/study/${study.id}`);
 		} else {
 			// Single click: select the study
-			selectStudy(study);
+			handleItemClick(event, 'study', study.id, study);
 			lastClickTime = currentTime;
 		}
 	}
@@ -311,7 +478,7 @@
 		
 		// Deselect if clicked outside of any interactive item
 		if (!clickedOnStudy && !clickedOnGroupButton && !clickedOnChevron) {
-			deselectItem();
+			clearSelection();
 		}
 	}
 
@@ -347,10 +514,27 @@
 		// Prevent browser's default drag behavior
 		event.preventDefault();
 		
-		// Record starting position
+		// Record starting position and study
 		dragStartX = event.clientX;
 		dragStartY = event.clientY;
-		draggedStudy = study;
+		
+		// Check if this study is in the current selection
+		const isStudySelected = isItemSelected('study', study.id);
+		
+		if (isStudySelected) {
+			// Dragging a selected study - prepare to drag all selected studies
+			// Filter out groups, only drag studies
+			draggedStudies = selectedItems
+				.filter(item => item.type === 'study')
+				.map(item => item.data);
+			
+			// Remove groups from selection
+			selectedItems = selectedItems.filter(item => item.type === 'study');
+			updateToolbarSelection();
+		} else {
+			// Dragging a non-selected study - only drag this one
+			draggedStudies = [study];
+		}
 		
 		// Add document listeners
 		document.addEventListener('mousemove', handleDocumentMouseMove);
@@ -361,7 +545,7 @@
 	 * Handle document mousemove - check if drag threshold exceeded
 	 */
 	function handleDocumentMouseMove(event) {
-		if (!draggedStudy) return;
+		if (draggedStudies.length === 0) return;
 		
 		currentMouseX = event.clientX;
 		currentMouseY = event.clientY;
@@ -521,15 +705,15 @@
 		document.removeEventListener('mousemove', handleDocumentMouseMove);
 		document.removeEventListener('mouseup', handleDocumentMouseUp);
 		
-		if (!draggedStudy) return;
+		if (draggedStudies.length === 0) return;
 		
 		// If we were dragging
 		if (isDragging) {
 			event.preventDefault();
 			
 			if (dropTargetGroupId !== null) {
-				// Dropped on a group - move to that group
-				await moveStudyToGroup(draggedStudy.id, dropTargetGroupId);
+				// Dropped on a group - move all dragged studies to that group
+				await moveStudiesToGroup(draggedStudies.map(s => s.id), dropTargetGroupId);
 			} else {
 				// Check if dropped within the panel (but not on a group)
 				const panel = document.querySelector('.studies-panel');
@@ -542,17 +726,19 @@
 						event.clientY <= rect.bottom;
 					
 					if (isInPanel) {
-						// Dropped in panel but not on a group - ungroup the study
-						await moveStudyToGroup(draggedStudy.id, null);
+						// Dropped in panel but not on a group - ungroup the studies
+						await moveStudiesToGroup(draggedStudies.map(s => s.id), null);
 					}
 				}
 			}
+			
+			// Clear selection after successful drop
+			clearSelection();
 		}
-		// else: No drag occurred - this was a click, allow navigation (anchor tag handles it)
 		
 		// Reset drag state
 		isDragging = false;
-		draggedStudy = null;
+		draggedStudies = [];
 		dropTargetGroupId = null;
 		dragStartX = 0;
 		dragStartY = 0;
@@ -561,27 +747,30 @@
 	}
 
 	/**
-	 * Move a study to a different group
+	 * Move multiple studies to a different group
 	 */
-	async function moveStudyToGroup(studyId, groupId) {
+	async function moveStudiesToGroup(studyIds, groupId) {
 		try {
 			// Convert 'ungrouped' to null
 			const targetGroupId = groupId === 'ungrouped' ? null : groupId;
 			
-			const response = await fetch(`/api/studies/${studyId}`, {
-				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ groupId: targetGroupId })
-			});
+			// Move all studies
+			await Promise.all(
+				studyIds.map(studyId =>
+					fetch(`/api/studies/${studyId}`, {
+						method: 'PATCH',
+						headers: {
+							'Content-Type': 'application/json'
+						},
+						body: JSON.stringify({ groupId: targetGroupId })
+					})
+				)
+			);
 
-			if (response.ok) {
-				// Reload the studies data
-				await invalidate('app:studies');
-			}
+			// Reload the studies data
+			await invalidate('app:studies');
 		} catch (error) {
-			console.error('Error moving study:', error);
+			console.error('Error moving studies:', error);
 		}
 	}
 
@@ -591,7 +780,7 @@
 	$effect(() => {
 		function handleDocumentClick(event) {
 			// Only deselect if something is selected
-			if (selectedItemId === null) return;
+			if (selectedItems.length === 0) return;
 			
 			// Check if click is inside the studies container
 			const container = document.querySelector('.studies-container');
@@ -601,7 +790,7 @@
 			
 			if (!clickedInsideContainer) {
 				// Clicked outside the studies container - deselect
-				deselectItem();
+				clearSelection();
 			}
 		}
 		
@@ -617,22 +806,32 @@
 </script>
 
 <!-- Drag ghost that follows cursor -->
-{#if isDragging && draggedStudy}
+{#if isDragging && draggedStudies.length > 0}
 	<div 
 		class="drag-ghost" 
+		class:multi={draggedStudies.length > 1}
 		style="left: {(currentMouseX + 6) / 10}rem; top: {(currentMouseY + 6) / 10}rem;"
 	>
-		<Icon iconId={'book'} classes="book-icon" />
-		<div class="study-info">
-			<div class="study-title">{draggedStudy.title}</div>
-			{#if draggedStudy.passages && draggedStudy.passages.length > 0}
-				<div class="study-references">
-					{#each draggedStudy.passages as passage, i}
-						{formatPassageReference(passage)}{#if i < draggedStudy.passages.length - 1},&nbsp;{/if}
-					{/each}
-				</div>
-			{/if}
-		</div>
+		{#if draggedStudies.length === 1}
+			<!-- Single study ghost -->
+			<Icon iconId={'book'} classes="book-icon" />
+			<div class="study-info">
+				<div class="study-title">{draggedStudies[0].title}</div>
+				{#if draggedStudies[0].passages && draggedStudies[0].passages.length > 0}
+					<div class="study-references">
+						{#each draggedStudies[0].passages as passage, i}
+							{formatPassageReference(passage)}{#if i < draggedStudies[0].passages.length - 1},&nbsp;{/if}
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{:else}
+			<!-- Multiple studies ghost -->
+			<div class="multi-drag-info">
+				<Icon iconId={'book'} classes="book-icon" />
+				<span class="drag-count">Dragging {draggedStudies.length} studies</span>
+			</div>
+		{/if}
 	</div>
 {/if}
 
@@ -686,7 +885,7 @@
 							<div 
 								class="group-section"
 								class:drop-target={dropTargetGroupId === item.data.id}
-								class:selected={selectedItemType === 'group' && selectedItemId === item.data.id}
+								class:selected={isItemSelected('group', item.data.id)}
 								data-group-id={item.data.id}
 							>
 								<div class="group-header">
@@ -717,8 +916,8 @@
 											<li animate:flip={{ duration: 300 }}>
 												<button 
 													class="study-item"
-													class:being-dragged={isDragging && draggedStudy?.id === study.id}
-													class:selected={selectedItemType === 'study' && selectedItemId === study.id}
+													class:being-dragged={isDragging && draggedStudies.some(s => s.id === study.id)}
+													class:selected={isItemSelected('study', study.id)}
 													onmousedown={(e) => handleStudyMouseDown(e, study)}
 													onclick={(e) => {
 														if (!isDragging) {
@@ -752,8 +951,8 @@
 							<div class="study-wrapper">
 								<button 
 									class="study-item ungrouped"
-									class:being-dragged={isDragging && draggedStudy?.id === item.data.id}
-									class:selected={selectedItemType === 'study' && selectedItemId === item.data.id}
+									class:being-dragged={isDragging && draggedStudies.some(s => s.id === item.data.id)}
+									class:selected={isItemSelected('study', item.data.id)}
 									onmousedown={(e) => handleStudyMouseDown(e, item.data)}
 									onclick={(e) => {
 														if (!isDragging) {
@@ -1072,6 +1271,33 @@
 		background-color: var(--gray-lighter);
 		padding: 0.9rem;
 		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
+		display: flex;
+		gap: 0.7rem;
+	}
+
+	.drag-ghost.multi {
+		width: auto;
+		min-width: 20rem;
+	}
+
+	.drag-ghost :global(.book-icon) {
+		height: 1.2rem;
+		margin-top: 0.2rem;
+		fill: var(--gray-300);
+		flex-shrink: 0;
+	}
+
+	.multi-drag-info {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+	}
+
+	.drag-count {
+		font-size: 1.4rem;
+		font-weight: 500;
+		color: var(--black);
+		white-space: nowrap;
 	}
 
 	/* Prevent text selection while dragging */
