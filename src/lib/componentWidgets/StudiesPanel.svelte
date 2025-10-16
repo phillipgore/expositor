@@ -572,7 +572,7 @@
 									onclick={() => toggleGroupCollapse(item.data.id, item.data.isCollapsed)}
 								>
 									<div class="group-info">
-										<Icon iconId={item.data.isCollapsed ? 'caret-right' : 'caret-down'} classes="caret-icon" />
+										<Icon iconId={item.data.isCollapsed ? 'chevron-right' : 'chevron-down'} classes="chevron-icon" />
 										<Icon iconId={'folder'} classes="folder-icon" />
 										<span class="group-name">{item.data.name}</span>
 									</div>
@@ -814,9 +814,9 @@
 		margin-bottom: 0.0rem;
 	}
 
-	.group-header :global(.caret-icon) {
+	.group-header :global(.chevron-icon) {
 		height: 0.9rem;
-		fill: var(--gray-400);
+		fill: var(--gray-300);
 	}
 
 	.group-header :global(.folder-icon) {
