@@ -888,7 +888,7 @@
 			<div class="studies-container">
 				<!-- Unified alphabetized list of groups and ungrouped studies -->
 				{#each sortedGroupsAndStudies as item (item.type === 'group' ? 'group-' + item.data.id : 'study-' + item.data.id)}
-					<div animate:flip={{ duration: 300 }}>
+					<div role="presentation" animate:flip={{ duration: 300 }}>
 						{#if item.type === 'group'}
 							<!-- Group -->
 							<div 
@@ -922,7 +922,7 @@
 								{#if !item.data.isCollapsed}
 									<ul class="studies-list grouped" transition:slide={{ duration: 200 }}>
 										{#each item.data.studies as study (study.id)}
-											<li animate:flip={{ duration: 300 }}>
+											<li role="presentation" animate:flip={{ duration: 300 }}>
 												<button 
 													class="study-item"
 													class:being-dragged={isDragging && draggedStudies.some(s => s.id === study.id)}
