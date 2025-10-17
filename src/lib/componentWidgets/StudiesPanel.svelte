@@ -291,6 +291,11 @@
 	 * Update toolbar with current selection
 	 */
 	function updateToolbarSelection() {
+		console.log('=== UPDATE TOOLBAR SELECTION ===');
+		console.log('Selected items:', selectedItems.map(i => ({type: i.type, id: i.id})));
+		console.log('Has groups:', selectedItems.some(i => i.type === 'group'));
+		console.log('Has studies:', selectedItems.some(i => i.type === 'study'));
+		
 		if (selectedItems.length === 0) {
 			clearSelectedItem();
 		} else {
@@ -374,11 +379,6 @@
 						data: item.data,
 						index: item.index
 					});
-					
-					// If this is a group in a multi-select, expand and select its studies
-					if (item.type === 'group') {
-						await expandGroupAndSelectStudies(item.data);
-					}
 				}
 			}
 			
@@ -387,6 +387,11 @@
 			const existingIndex = selectedItems.findIndex(
 				item => item.type === type && item.id === id
 			);
+			
+			console.log('=== CMD+CLICK REMOVAL DEBUG ===');
+			console.log('Removing:', type, id);
+			console.log('Selected items BEFORE:', selectedItems.map(i => ({type: i.type, id: i.id})));
+			console.log('Existing index:', existingIndex);
 			
 			if (existingIndex >= 0) {
 				// Remove from selection
@@ -400,8 +405,12 @@
 						return true;
 					});
 				} else {
-					selectedItems.splice(existingIndex, 1);
+					// Use filter instead of splice to ensure Svelte 5 reactivity
+					const beforeFilter = selectedItems.length;
+					selectedItems = selectedItems.filter((item, index) => index !== existingIndex);
+					console.log('Filtered items - before:', beforeFilter, 'after:', selectedItems.length);
 				}
+				console.log('Selected items AFTER:', selectedItems.map(i => ({type: i.type, id: i.id})));
 			} else {
 				// Add to selection
 				selectedItems.push({
@@ -411,11 +420,9 @@
 					index: clickedItem.index
 				});
 				
-				// If this is a group being added to an existing multi-select, expand and select its studies
-				// Check if there are already other items selected
-				if (type === 'group' && selectedItems.length > 1) {
-					await expandGroupAndSelectStudies(data);
-				}
+				console.log('=== ADDED ITEM TO SELECTION ===');
+				console.log('Added:', type, id);
+				console.log('Selection now:', selectedItems.map(i => ({type: i.type, id: i.id})));
 			}
 			
 			lastSelectedIndex = clickedItem.index;
@@ -521,18 +528,13 @@
 		// Check if this study is in the current selection
 		const isStudySelected = isItemSelected('study', study.id);
 		
+		// DON'T prepare drag lists yet - wait until actual drag starts
+		// Just store which study was clicked and whether it's selected
 		if (isStudySelected) {
-			// Dragging a selected study - prepare to drag all selected studies
-			// Filter out groups, only drag studies
 			draggedStudies = selectedItems
 				.filter(item => item.type === 'study')
 				.map(item => item.data);
-			
-			// Remove groups from selection
-			selectedItems = selectedItems.filter(item => item.type === 'study');
-			updateToolbarSelection();
 		} else {
-			// Dragging a non-selected study - only drag this one
 			draggedStudies = [study];
 		}
 		
@@ -556,6 +558,13 @@
 		
 		if (!isDragging && (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD)) {
 			isDragging = true;
+			
+			// NOW remove groups from selection (only when drag actually starts)
+			console.log('=== DRAG STARTED - REMOVING GROUPS ===');
+			console.log('Selection before:', selectedItems.map(i => ({type: i.type, id: i.id})));
+			selectedItems = selectedItems.filter(item => item.type === 'study');
+			console.log('Selection after:', selectedItems.map(i => ({type: i.type, id: i.id})));
+			updateToolbarSelection();
 		}
 		
 		// Update drop target if dragging
