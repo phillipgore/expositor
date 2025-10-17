@@ -13,6 +13,7 @@
 	let {
 		group,
 		isSelected = false,
+		selectionPosition = null,
 		isActive = false,
 		isDropTarget = false,
 		onToggleCollapse,
@@ -20,6 +21,7 @@
 		onStudyMouseDown,
 		onStudyClick,
 		isStudySelected,
+		getStudySelectionPosition,
 		isStudyActive,
 		isStudyBeingDragged,
 		isDragging = false,
@@ -32,7 +34,15 @@
 	class:drop-target={isDropTarget}
 	data-group-id={group.id}
 >
-	<div class="group-header" class:selected={isSelected} class:active={isActive}>
+	<div 
+		class="group-header" 
+		class:selected={isSelected}
+		class:selection-first={isSelected && selectionPosition === 'first'}
+		class:selection-middle={isSelected && selectionPosition === 'middle'}
+		class:selection-last={isSelected && selectionPosition === 'last'}
+		class:selection-isolated={isSelected && selectionPosition === 'isolated'}
+		class:active={isActive}
+	>
 		<div class="group-info">
 			<button 
 				class="chevron-button"
@@ -61,6 +71,7 @@
 					<StudyItem
 						{study}
 						isSelected={isStudySelected(study.id)}
+						selectionPosition={getStudySelectionPosition(study.id)}
 						isActive={isStudyActive(study.id)}
 						beingDragged={isStudyBeingDragged(study.id)}
 						{isDragging}
@@ -94,6 +105,23 @@
 
 	.group-header.selected {
 		background-color: var(--gray-light);
+	}
+
+	/* Multi-selection border-radius styles */
+	.group-header.selected.selection-first {
+		border-radius: 0.3rem 0.3rem 0 0;
+	}
+
+	.group-header.selected.selection-middle {
+		border-radius: 0;
+	}
+
+	.group-header.selected.selection-last {
+		border-radius: 0 0 0.3rem 0.3rem;
+	}
+
+	.group-header.selected.selection-isolated {
+		border-radius: 0.3rem;
 	}
 
 	.group-header.active,

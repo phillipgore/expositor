@@ -171,6 +171,37 @@ export function useMultiSelect(updateToolbarCallback) {
 		updateToolbarSelection();
 	}
 
+	/**
+	 * Get the position of an item within a continuous selection run
+	 * @param {string} type - Item type ('study' or 'group')
+	 * @param {string} id - Item ID
+	 * @returns {'first' | 'middle' | 'last' | 'isolated' | null}
+	 */
+	function getSelectionPosition(type, id) {
+		if (selectedItems.length === 0) return null;
+		
+		// Find the item in selected items
+		const item = selectedItems.find(i => i.type === type && i.id === id);
+		if (!item) return null;
+		
+		// Sort selected items by index
+		const sortedItems = [...selectedItems].sort((a, b) => a.index - b.index);
+		const itemIndex = sortedItems.findIndex(i => i.id === id && i.type === type);
+		
+		// Check if adjacent items are consecutive in the flattened list
+		const prevItem = sortedItems[itemIndex - 1];
+		const nextItem = sortedItems[itemIndex + 1];
+		
+		const hasConsecutivePrev = prevItem && prevItem.index === item.index - 1;
+		const hasConsecutiveNext = nextItem && nextItem.index === item.index + 1;
+		
+		// Determine position
+		if (!hasConsecutivePrev && !hasConsecutiveNext) return 'isolated';
+		if (!hasConsecutivePrev && hasConsecutiveNext) return 'first';
+		if (hasConsecutivePrev && !hasConsecutiveNext) return 'last';
+		return 'middle';
+	}
+
 	return {
 		// State
 		get selectedItems() { return selectedItems; },
@@ -183,6 +214,7 @@ export function useMultiSelect(updateToolbarCallback) {
 		handleItemClick,
 		handleStudyDoubleClick,
 		getSelectedStudies,
-		removeGroupsFromSelection
+		removeGroupsFromSelection,
+		getSelectionPosition
 	};
 }

@@ -11,6 +11,7 @@
 	let {
 		study,
 		isSelected = false,
+		selectionPosition = null,
 		isActive = false,
 		beingDragged = false,
 		isDragging = false,
@@ -72,6 +73,10 @@
 		class:ungrouped
 		class:being-dragged={beingDragged}
 		class:selected={isSelected}
+		class:selection-first={isSelected && selectionPosition === 'first'}
+		class:selection-middle={isSelected && selectionPosition === 'middle'}
+		class:selection-last={isSelected && selectionPosition === 'last'}
+		class:selection-isolated={isSelected && selectionPosition === 'isolated'}
 		class:active={isActive && isSelected}
 		onmousedown={(e) => onMouseDown?.(e, study)}
 		onclick={(e) => {
@@ -130,6 +135,23 @@
 
 	.study-item.selected {
 		background-color: var(--gray-light);
+	}
+
+	/* Multi-selection border-radius styles */
+	.study-item.selected.selection-first {
+		border-radius: 0.3rem 0.3rem 0 0;
+	}
+
+	.study-item.selected.selection-middle {
+		border-radius: 0;
+	}
+
+	.study-item.selected.selection-last {
+		border-radius: 0 0 0.3rem 0.3rem;
+	}
+
+	.study-item.selected.selection-isolated {
+		border-radius: 0.3rem;
 	}
 
 	.study-item.active,

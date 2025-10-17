@@ -385,6 +385,7 @@
 								<StudyGroup
 									group={item.data}
 									isSelected={multiSelect.isItemSelected('group', item.data.id)}
+									selectionPosition={multiSelect.getSelectionPosition('group', item.data.id)}
 									isActive={item.data.id === activeGroupId}
 									isDropTarget={dragDrop.dropTargetGroupId === item.data.id}
 									onToggleCollapse={toggleGroupCollapse}
@@ -392,6 +393,7 @@
 									onStudyMouseDown={handleStudyMouseDown}
 									onStudyClick={handleStudyClick}
 									isStudySelected={(studyId) => multiSelect.isItemSelected('study', studyId)}
+									getStudySelectionPosition={(studyId) => multiSelect.getSelectionPosition('study', studyId)}
 									isStudyActive={(studyId) => studyId === activeStudyId}
 									isStudyBeingDragged={dragDrop.isStudyBeingDragged}
 									isDragging={dragDrop.isDragging}
@@ -402,6 +404,7 @@
 									<StudyItem
 										study={item.data}
 										isSelected={multiSelect.isItemSelected('study', item.data.id)}
+										selectionPosition={multiSelect.getSelectionPosition('study', item.data.id)}
 										isActive={item.data.id === activeStudyId}
 										beingDragged={dragDrop.isStudyBeingDragged(item.data.id)}
 										isDragging={dragDrop.isDragging}
