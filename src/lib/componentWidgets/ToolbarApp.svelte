@@ -118,7 +118,11 @@
 						href={button.href}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
-						isDisabled={button.iconId === 'trashcan' ? !$toolbarState.canDelete : false}
+						isDisabled={
+							button.iconId === 'trashcan' ? !$toolbarState.canDelete :
+							button.iconId === 'pencil' ? !$toolbarState.canEdit :
+							false
+						}
 					/>
 				{:else if button.type === 'menu'}
 					<MenuButton

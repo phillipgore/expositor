@@ -38,26 +38,36 @@ export function getAppToolbarConfig() {
 		{
 			type: 'spacer',
 			variant: 'fixed',
-			classes: 'hide-at-960'
+		},
+		{
+			type: 'section',
+			id: 'actions',
+			items: [
+				{
+					type: 'icon',
+					iconId: 'pencil',
+					underLabel: 'Edit',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light'
+				},
+				{
+					type: 'icon',
+					iconId: 'trashcan',
+					underLabel: 'Delete',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light'
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
+			classes: 'hide-at-narrower'
 		},
 		{
 			type: 'spacer',
 			variant: 'flex',
-			classes: 'show-at-960'
-		},
-		{
-			type: 'section',
-			id: 'zoom',
-			items: [
-				{
-					type: 'menu',
-					menuId: 'MenuZoom',
-					underLabel: 'Zoom',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					dynamicLabel: true // Indicates label comes from state
-				}
-			]
+			classes: 'show-at-narrower'
 		},
 		{
 			type: 'spacer',
@@ -104,12 +114,12 @@ export function getAppToolbarConfig() {
 		{
 			type: 'spacer',
 			variant: 'fixed',
-			classes: 'hide-at-960'
+			classes: 'hide-at-narrower'
 		},
 		{
 			type: 'spacer',
 			variant: 'flex',
-			classes: 'show-at-960'
+			classes: 'show-at-narrower'
 		},
 		{
 			type: 'section',
@@ -120,34 +130,34 @@ export function getAppToolbarConfig() {
 					iconId: 'outline',
 					menuId: 'MenuView',
 					underLabel: 'View',
-					classes: 'toolbar-dark show-at-1024',
-					underLabelClasses: 'light show-at-1024'
+					classes: 'toolbar-dark show-at-narrow',
+					underLabelClasses: 'light show-at-narrow'
 				},
 				{
 					type: 'toggle',
 					iconId: 'note',
 					underLabel: 'Notes',
-					classes: 'toolbar-dark hide-at-1024',
-					underLabelClasses: 'light hide-at-1024'
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow'
 				},
 				{
 					type: 'toggle',
 					iconId: 'reference',
 					underLabel: 'Verses',
-					classes: 'toolbar-dark hide-at-1024',
-					underLabelClasses: 'light hide-at-1024'
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow'
 				}
 			]
 		},
 		{
 			type: 'spacer',
 			variant: 'fixed',
-			classes: 'hide-at-960'
+			classes: 'hide-at-narrower'
 		},
 		{
 			type: 'spacer',
 			variant: 'flex',
-			classes: 'show-at-960'
+			classes: 'show-at-narrower'
 		},
 		{
 			type: 'section',
@@ -157,35 +167,22 @@ export function getAppToolbarConfig() {
 					type: 'toggle',
 					iconId: 'wide',
 					underLabel: 'Wide',
-					classes: 'toolbar-dark hide-at-1024',
-					underLabelClasses: 'light hide-at-1024'
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow'
 				},
 				{
 					type: 'toggle',
 					iconId: 'outline',
 					underLabel: 'Overview',
-					classes: 'toolbar-dark hide-at-1024',
-					underLabelClasses: 'light hide-at-1024'
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow'
 				}
 			]
 		},
 		{
 			type: 'spacer',
 			variant: 'fixed',
-			classes: 'hide-at-1024'
-		},
-		{
-			type: 'section',
-			id: 'actions',
-			items: [
-				{
-					type: 'icon',
-					iconId: 'trashcan',
-					underLabel: 'Delete',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light'
-				}
-			]
+			classes: 'hide-at-narrow'
 		},
 		{
 			type: 'spacer',
@@ -204,6 +201,24 @@ export function getAppToolbarConfig() {
 					defaultActive: 'analyze',
 					buttonClasses: 'toolbar-dark',
 					underLabelClasses: 'light'
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed'
+		},
+		{
+			type: 'section',
+			id: 'zoom',
+			items: [
+				{
+					type: 'menu',
+					menuId: 'MenuZoom',
+					underLabel: 'Zoom',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					dynamicLabel: true // Indicates label comes from state
 				}
 			]
 		},

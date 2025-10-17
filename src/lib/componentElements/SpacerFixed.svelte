@@ -30,7 +30,7 @@
 	 * With responsive classes:
 	 * ```svelte
 	 * <Button label="Back" />
-	 * <SpacerFixed classes="hide-at-1024" />
+	 * <SpacerFixed classes="hide-at-narrow" />
 	 * <Button label="Next" />
 	 * ```
 	 * 

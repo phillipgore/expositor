@@ -67,27 +67,27 @@ body {
 /* Responsive toolbar utilities */
 /* Hide buttons at narrow widths (≤99.0rem) */
 @media (max-width: 960px) {
-	.hide-at-960 {
+	.hide-at-narrower {
 		display: none !important;
 	}
 }
 
 /* Show buttons only at narrow widths (≤99.0rem) */
 @media (min-width: 961px) {
-	.show-at-960 {
+	.show-at-narrower {
 		display: none !important;
 	}
 }
 
 @media (max-width: 1024px) {
-	.hide-at-1024 {
+	.hide-at-narrow {
 		display: none !important;
 	}
 }
 
 /* Show buttons only at narrow widths (≤99.0rem) */
 @media (min-width: 1025px) {
-	.show-at-1024 {
+	.show-at-narrow {
 		display: none !important;
 	}
 }
