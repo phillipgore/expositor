@@ -203,12 +203,15 @@
 	}
 
 	/* Drag state */
-	.study-item.being-dragged {
+	.study-item.being-dragged,
+	.study-item.active.being-dragged,
+	.study-item.selected.active.being-dragged {
 		border-radius: 0.0rem;
 		border-left: 0.2rem solid var(--blue);
 		cursor: grabbing;
 		padding-left: 0.9rem;
 		margin-left: 2.3rem;
+		background-color: transparent;
 	}
 
 	.study-item.being-dragged * {

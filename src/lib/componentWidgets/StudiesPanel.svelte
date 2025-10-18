@@ -331,18 +331,20 @@
 		class:multi={dragDrop.draggedStudies.length > 1}
 		style="left: {(dragDrop.currentMouseX + 6) / 10}rem; top: {(dragDrop.currentMouseY + 6) / 10}rem;"
 	>
-		{#if dragDrop.draggedStudies.length === 1}
+		{#if dragDrop.draggedStudies.length > 1}
+			<div class="drag-count">{dragDrop.draggedStudies.length}</div>
+		{/if}
 			<StudyItem
 				study={dragDrop.draggedStudies[0]}
 				ghost={true}
 				{formatPassageReference}
 			/>
-		{:else}
+		<!-- {:else}
 			<div class="multi-drag-info">
 				<Icon iconId={'book'} classes="book-icon" />
-				<span class="drag-count">Dragging {dragDrop.draggedStudies.length} studies</span>
+				
 			</div>
-		{/if}
+		{/if} -->
 	</div>
 {/if}
 
@@ -494,29 +496,54 @@
 		pointer-events: none;
 		z-index: 9999;
 		width: 28.2rem;
+		border-radius: 0.3rem;
+	}
+
+	.drag-ghost :global(.study-item) {
+		position: relative;
+		z-index: 3;
 		background-color: var(--gray-lighter);
-		padding: 0.9rem;
 		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
-		display: flex;
-		gap: 0.7rem;
+		padding: 0.9rem 0.9rem 0.9rem 2.2rem;
 	}
 
-	.drag-ghost.multi {
-		width: auto;
-		min-width: 20rem;
+	.drag-ghost.multi::before,
+	.drag-ghost.multi::after {
+		content: "";
+		position: absolute;
+		top: 0.5rem;
+		right: -0.5rem;
+		bottom: -0.5rem;
+		left: 0.5rem;
+		padding: 0.9rem 0.9rem 0.9rem 2.2rem;
+		background-color: var(--gray-lighter);
+		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
+		z-index: 2;
 	}
 
-	.multi-drag-info {
+	.drag-ghost.multi::after {
+		top: 1.0rem;
+		right: -1.0rem;
+		bottom: -1.0rem;
+		left: 1.0rem;
+		z-index: 1;
+	}
+
+	.drag-ghost.multi .drag-count {
 		display: flex;
 		align-items: center;
-		gap: 0.7rem;
-	}
-
-	.drag-count {
+		justify-content: center;
+		position: absolute;
+		z-index: 4;
 		font-size: 1.4rem;
 		font-weight: 500;
-		color: var(--black);
-		white-space: nowrap;
+		color: var(--white);
+		background-color: var(--red);
+		border-radius: 100vw;
+		height: 2.4rem;
+		width: 2.4rem;
+		top: -0.9rem;
+		right: -0.9rem;
 	}
 
 	:global(body.dragging) {

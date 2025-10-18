@@ -181,7 +181,6 @@
 		gap: 0.6rem;
 		padding: 0;
 		background-color: transparent;
-		/* background-color: pink; */
 		border: none;
 		color: inherit;
 		font-size: inherit;
