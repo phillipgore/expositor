@@ -32,6 +32,7 @@
 			studies={data.studies}
 			groups={data.groups || []}
 			ungroupedStudies={data.ungroupedStudies || []}
+			initialWidth={data.studiesPanelWidth || 300}
 		/>
 		<div class="content-wrapper">
 			{@render children()}

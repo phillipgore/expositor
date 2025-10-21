@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db/index.js';
-import { study, passage, studyGroup } from '$lib/server/db/schema.js';
+import { study, passage, studyGroup, user } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, asc } from 'drizzle-orm';
 
@@ -14,11 +14,21 @@ export async function load({ request, depends }) {
 		return {
 			groups: [],
 			ungroupedStudies: [],
-			studies: []
+			studies: [],
+			studiesPanelWidth: 300
 		};
 	}
 
 	try {
+		// Get user preferences
+		const userData = await db
+			.select({ studiesPanelWidth: user.studiesPanelWidth })
+			.from(user)
+			.where(eq(user.id, session.user.id))
+			.limit(1);
+		
+		const studiesPanelWidth = userData[0]?.studiesPanelWidth || 300;
+		
 		// Query all groups for the logged-in user
 		const groupsData = await db
 			.select()
@@ -71,7 +81,8 @@ export async function load({ request, depends }) {
 		return {
 			groups: groupsWithStudies,
 			ungroupedStudies,
-			studies: studiesWithPassages // Keep for backwards compatibility
+			studies: studiesWithPassages, // Keep for backwards compatibility
+			studiesPanelWidth
 		};
 	} catch (error) {
 		console.error('Error loading studies:', error);

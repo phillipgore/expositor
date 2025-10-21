@@ -20,10 +20,21 @@
 	import { page } from '$app/stores';
 	import { flip } from 'svelte/animate';
 
-	let { isOpen = false, studies = [], groups = [], ungroupedStudies = [] } = $props();
+	let { isOpen = false, studies = [], groups = [], ungroupedStudies = [], initialWidth = 300 } = $props();
 
 	// Search state
 	let searchQuery = $state('');
+	
+	// Panel width state (initialized from localStorage or user data)
+	const savedWidth = typeof window !== 'undefined' 
+		? localStorage.getItem('studiesPanelWidth')
+		: null;
+	let panelWidth = $state(savedWidth ? parseInt(savedWidth) : initialWidth);
+	
+	// Resize state
+	let isResizing = $state(false);
+	let startX = 0;
+	let startWidth = 0;
 	
 	// Derived filtered/sorted data
 	let sortedStudies = $derived(getSortedStudies());
@@ -324,6 +335,68 @@
 	});
 
 	/**
+	 * Handle resize start
+	 */
+	function handleResizeStart(event) {
+		if (!isOpen) return;
+		event.preventDefault();
+		isResizing = true;
+		startX = event.clientX;
+		startWidth = panelWidth;
+		document.body.style.cursor = 'ew-resize';
+		document.body.style.userSelect = 'none';
+	}
+
+	/**
+	 * Handle resize move
+	 */
+	function handleResizeMove(event) {
+		if (!isResizing) return;
+		const delta = event.clientX - startX;
+		const newWidth = startWidth + delta;
+		// Min: 300px, Max: 600px or 50% viewport
+		panelWidth = Math.max(300, Math.min(600, Math.min(newWidth, window.innerWidth * 0.5)));
+	}
+
+	/**
+	 * Handle resize end
+	 */
+	async function handleResizeEnd() {
+		if (!isResizing) return;
+		isResizing = false;
+		document.body.style.cursor = '';
+		document.body.style.userSelect = '';
+		
+		// Save to localStorage immediately
+		localStorage.setItem('studiesPanelWidth', panelWidth.toString());
+		
+		// Save to database (background)
+		try {
+			await fetch('/api/user/preferences', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ studiesPanelWidth: panelWidth })
+			});
+		} catch (error) {
+			console.error('Failed to save panel width:', error);
+		}
+	}
+
+	/**
+	 * Effect for global resize listeners
+	 */
+	$effect(() => {
+		if (isResizing) {
+			window.addEventListener('mousemove', handleResizeMove);
+			window.addEventListener('mouseup', handleResizeEnd);
+			return () => {
+				window.removeEventListener('mousemove', handleResizeMove);
+				window.removeEventListener('mouseup', handleResizeEnd);
+			};
+		}
+	});
+
+	/**
 	 * Auto-select active group or study on page load
 	 */
 	$effect(() => {
@@ -387,8 +460,8 @@
 	</div>
 {/if}
 
-<aside class="studies-panel" class:open={isOpen}>
-	<div class="panel-content">
+<aside class="studies-panel" class:open={isOpen} class:resizing={isResizing} style:width="{isOpen ? panelWidth : 0}px">
+	<div class="panel-content" style:width="{panelWidth}px">
 		<div class="panel-header">
 			<Input 
 				id="search-studies" 
@@ -462,30 +535,42 @@
 			{/if}
 		</div>
 	</div>
+	{#if isOpen}
+		<div class="resize-handle" onmousedown={handleResizeStart}></div>
+	{/if}
 </aside>
 
 <style>
 	.studies-panel {
-		width: 0;
+		position: relative;
 		min-width: 0;
 		height: 100%;
 		background-color: var(--gray-lighter);
 		border-right: 1px solid var(--gray-700);
 		overflow: hidden;
-		transition: width 0.3s ease-in-out, min-width 0.3s ease-in-out;
+		transition: width 0.3s ease-in-out;
 		flex-shrink: 0;
 	}
 
-	.studies-panel.open {
-		width: 300px;
-		min-width: 300px;
+	.studies-panel.resizing {
+		transition: none;
 	}
 
 	.panel-content {
-		width: 300px;
 		height: 100%;
 		display: flex;
 		flex-direction: column;
+	}
+
+	.resize-handle {
+		position: absolute;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		width: 6px;
+		cursor: ew-resize;
+		z-index: 10;
+		background-color: transparent;
 	}
 
 	.panel-header {
