@@ -206,6 +206,8 @@ export function useMultiSelect(updateToolbarCallback) {
 		// State
 		get selectedItems() { return selectedItems; },
 		set selectedItems(value) { selectedItems = value; },
+		get lastSelectedIndex() { return lastSelectedIndex; },
+		set lastSelectedIndex(value) { lastSelectedIndex = value; },
 		
 		// Functions
 		isItemSelected,

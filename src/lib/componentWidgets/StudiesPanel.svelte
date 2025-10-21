@@ -322,6 +322,45 @@
 		// This is set up by dragDrop.handleStudyMouseDown
 		return () => {};
 	});
+
+	/**
+	 * Auto-select active group or study on page load
+	 */
+	$effect(() => {
+		if (activeGroupId) {
+			// Find the group in the flattened list
+			const flatList = getFlattenedItemsList();
+			const groupItem = flatList.find(item => item.type === 'group' && item.id === activeGroupId);
+			
+			if (groupItem && !multiSelect.isItemSelected('group', activeGroupId)) {
+				// Select the active group
+				multiSelect.selectedItems = [{
+					type: 'group',
+					id: activeGroupId,
+					data: groupItem.data,
+					index: groupItem.index
+				}];
+				multiSelect.lastSelectedIndex = groupItem.index;
+				multiSelect.updateToolbarSelection();
+			}
+		} else if (activeStudyId) {
+			// Find the study in the flattened list
+			const flatList = getFlattenedItemsList();
+			const studyItem = flatList.find(item => item.type === 'study' && item.id === activeStudyId);
+			
+			if (studyItem && !multiSelect.isItemSelected('study', activeStudyId)) {
+				// Select the active study
+				multiSelect.selectedItems = [{
+					type: 'study',
+					id: activeStudyId,
+					data: studyItem.data,
+					index: studyItem.index
+				}];
+				multiSelect.lastSelectedIndex = studyItem.index;
+				multiSelect.updateToolbarSelection();
+			}
+		}
+	});
 </script>
 
 <!-- Drag ghost -->

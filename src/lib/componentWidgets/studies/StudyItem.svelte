@@ -134,7 +134,7 @@
 	}
 
 	.study-item.selected {
-		background-color: var(--gray-light);
+		background-color: var(--blue-light);
 	}
 
 	/* Multi-selection border-radius styles */
