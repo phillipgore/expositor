@@ -65,6 +65,7 @@ export const studyGroup = pgTable('study_group', {
 	userId: text('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),
+	parentGroupId: text('parent_group_id').references(() => studyGroup.id, { onDelete: 'cascade' }),
 	displayOrder: integer('display_order').notNull().default(0),
 	isCollapsed: boolean('is_collapsed').notNull().default(false),
 	createdAt: timestamp('created_at')

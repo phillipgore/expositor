@@ -24,7 +24,17 @@ export function getAppToolbarConfig() {
 					underLabel: 'Studies',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
-				},
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'flex',
+		},
+		{
+			type: 'section',
+			id: 'documents',
+			items: [
 				{
 					type: 'menu',
 					iconId: 'plus',

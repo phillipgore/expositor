@@ -65,13 +65,22 @@ export async function load({ request, depends }) {
 			})
 		);
 		
-		// Organize studies by group
-		const groupsWithStudies = groupsData.map(group => ({
-			...group,
-			studies: studiesWithPassages
-				.filter(s => s.groupId === group.id)
-				.sort((a, b) => a.title.localeCompare(b.title))
-		}));
+		// Build hierarchical group tree
+		function buildGroupTree(groups, parentId = null, depth = 0) {
+			return groups
+				.filter(g => g.parentGroupId === parentId)
+				.sort((a, b) => a.displayOrder - b.displayOrder)
+				.map(group => ({
+					...group,
+					depth,
+					subgroups: buildGroupTree(groups, group.id, depth + 1),
+					studies: studiesWithPassages
+						.filter(s => s.groupId === group.id)
+						.sort((a, b) => a.title.localeCompare(b.title))
+				}));
+		}
+		
+		const groupsWithStudies = buildGroupTree(groupsData);
 
 		// Get ungrouped studies
 		const ungroupedStudies = studiesWithPassages

@@ -11,6 +11,7 @@
 export function useDragAndDrop(invalidateCallback) {
 	let isDragging = $state(false);
 	let draggedStudies = $state([]);
+	let draggedGroups = $state([]);
 	let dragStartX = $state(0);
 	let dragStartY = $state(0);
 	let currentMouseX = $state(0);
@@ -26,6 +27,33 @@ export function useDragAndDrop(invalidateCallback) {
 	const AUTO_SCROLL_MAX_SPEED = 20; // max pixels per frame
 
 	/**
+	 * Check if groupA is an ancestor of groupB
+	 */
+	function isAncestor(groupAId, groupBId, allGroups) {
+		let currentId = groupBId;
+		while (currentId) {
+			const current = allGroups.find(g => g.id === currentId);
+			if (!current) break;
+			if (current.parentGroupId === groupAId) return true;
+			currentId = current.parentGroupId;
+		}
+		return false;
+	}
+
+	/**
+	 * Remove child groups when parent is in selection
+	 */
+	function removeRedundantChildren(groups, allGroups) {
+		return groups.filter(group => {
+			// Check if any other selected group is an ancestor
+			return !groups.some(otherGroup => 
+				otherGroup.id !== group.id && 
+				isAncestor(otherGroup.id, group.id, allGroups)
+			);
+		});
+	}
+
+	/**
 	 * Handle mousedown on a study item
 	 */
 	function handleStudyMouseDown(event, study, isStudySelected, getSelectedStudiesCallback) {
@@ -38,6 +66,9 @@ export function useDragAndDrop(invalidateCallback) {
 		// Record starting position
 		dragStartX = event.clientX;
 		dragStartY = event.clientY;
+		
+		// Clear any group drags
+		draggedGroups = [];
 		
 		// Prepare drag list based on selection
 		if (isStudySelected) {
@@ -54,10 +85,42 @@ export function useDragAndDrop(invalidateCallback) {
 	}
 
 	/**
+	 * Handle mousedown on a group item
+	 */
+	function handleGroupMouseDown(event, group, isGroupSelected, getSelectedItemsCallback, allGroups) {
+		// Only handle left click
+		if (event.button !== 0) return;
+		
+		// Prevent browser's default drag behavior
+		event.preventDefault();
+		
+		// Record starting position
+		dragStartX = event.clientX;
+		dragStartY = event.clientY;
+		
+		// Prepare drag list based on selection
+		if (isGroupSelected) {
+			const selectedItems = getSelectedItemsCallback();
+			draggedGroups = selectedItems.filter(i => i.type === 'group').map(i => i.data);
+			draggedStudies = selectedItems.filter(i => i.type === 'study').map(i => i.data);
+			
+			// Remove child groups if parent is selected
+			draggedGroups = removeRedundantChildren(draggedGroups, allGroups);
+		} else {
+			draggedGroups = [group];
+			draggedStudies = [];
+		}
+		
+		// Add document listeners
+		document.addEventListener('mousemove', handleDocumentMouseMove);
+		document.addEventListener('mouseup', handleDocumentMouseUp);
+	}
+
+	/**
 	 * Handle document mousemove - check if drag threshold exceeded
 	 */
 	function handleDocumentMouseMove(event) {
-		if (draggedStudies.length === 0) return;
+		if (draggedStudies.length === 0 && draggedGroups.length === 0) return;
 		
 		currentMouseX = event.clientX;
 		currentMouseY = event.clientY;
@@ -81,23 +144,22 @@ export function useDragAndDrop(invalidateCallback) {
 	 * Update which group is the current drop target
 	 */
 	function updateDropTarget(event) {
-		const groupSections = document.querySelectorAll('.group-section[data-group-id]');
-		let newDropTarget = null;
+		// Get the topmost element at cursor position
+		const elementAtPoint = document.elementFromPoint(event.clientX, event.clientY);
 		
-		for (const section of groupSections) {
-			const rect = section.getBoundingClientRect();
-			if (
-				event.clientX >= rect.left &&
-				event.clientX <= rect.right &&
-				event.clientY >= rect.top &&
-				event.clientY <= rect.bottom
-			) {
-				newDropTarget = section.getAttribute('data-group-id');
-				break;
-			}
+		if (!elementAtPoint) {
+			dropTargetGroupId = null;
+			return;
 		}
 		
-		dropTargetGroupId = newDropTarget;
+		// Find the closest group-section ancestor
+		const groupSection = elementAtPoint.closest('.group-section[data-group-id]');
+		
+		if (groupSection) {
+			dropTargetGroupId = groupSection.getAttribute('data-group-id');
+		} else {
+			dropTargetGroupId = null;
+		}
 	}
 
 	/**
@@ -198,6 +260,55 @@ export function useDragAndDrop(invalidateCallback) {
 	}
 
 	/**
+	 * Check if moving groups would create circular nesting (client-side check)
+	 */
+	async function wouldCreateCircularNesting(groupIds, targetGroupId) {
+		// Check if any dragged group is an ancestor of target
+		for (const groupId of groupIds) {
+			if (groupId === targetGroupId) return true;
+			
+			// Check via API
+			try {
+				const response = await fetch(`/api/groups/${groupId}`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ checkCircular: targetGroupId })
+				});
+				if (!response.ok) return true;
+			} catch (error) {
+				console.error('Error checking circular nesting:', error);
+				return true; // Err on the side of caution
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Move multiple groups to a parent group
+	 */
+	async function moveGroupsToParent(groupIds, parentGroupId) {
+		try {
+			await Promise.all(
+				groupIds.map(groupId =>
+					fetch(`/api/groups/${groupId}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ parentGroupId })
+					})
+				)
+			);
+
+			// Reload data
+			if (invalidateCallback) {
+				await invalidateCallback();
+			}
+		} catch (error) {
+			console.error('Error moving groups:', error);
+			alert('Failed to move groups. They may create circular nesting.');
+		}
+	}
+
+	/**
 	 * Handle document mouseup - finalize drop
 	 */
 	async function handleDocumentMouseUp(event, clearSelectionCallback) {
@@ -206,15 +317,41 @@ export function useDragAndDrop(invalidateCallback) {
 		document.removeEventListener('mousemove', handleDocumentMouseMove);
 		document.removeEventListener('mouseup', handleDocumentMouseUp);
 		
-		if (draggedStudies.length === 0) return;
+		if (draggedStudies.length === 0 && draggedGroups.length === 0) return;
 		
 		if (isDragging) {
 			event.preventDefault();
 			
-			if (dropTargetGroupId !== null) {
-				// Dropped on a group
+			// Handle group drops
+			if (draggedGroups.length > 0 && dropTargetGroupId !== null) {
+				// Check if any dragged group is the target (can't drop on self)
+				const droppingOnSelf = draggedGroups.some(g => g.id === dropTargetGroupId);
+				
+				if (!droppingOnSelf) {
+					// The API will validate circular nesting
+					await moveGroupsToParent(draggedGroups.map(g => g.id), dropTargetGroupId);
+				}
+			} else if (draggedGroups.length > 0) {
+				// Dropped outside - ungroup (set parentGroupId to null)
+				const panel = document.querySelector('.studies-panel');
+				if (panel) {
+					const rect = panel.getBoundingClientRect();
+					const isInPanel = 
+						event.clientX >= rect.left &&
+						event.clientX <= rect.right &&
+						event.clientY >= rect.top &&
+						event.clientY <= rect.bottom;
+					
+					if (isInPanel) {
+						await moveGroupsToParent(draggedGroups.map(g => g.id), null);
+					}
+				}
+			}
+			
+			// Handle study drops
+			if (draggedStudies.length > 0 && dropTargetGroupId !== null) {
 				await moveStudiesToGroup(draggedStudies.map(s => s.id), dropTargetGroupId);
-			} else {
+			} else if (draggedStudies.length > 0) {
 				// Check if dropped within panel
 				const panel = document.querySelector('.studies-panel');
 				if (panel) {
@@ -241,6 +378,7 @@ export function useDragAndDrop(invalidateCallback) {
 		// Reset drag state
 		isDragging = false;
 		draggedStudies = [];
+		draggedGroups = [];
 		dropTargetGroupId = null;
 		dragStartX = 0;
 		dragStartY = 0;
@@ -287,12 +425,14 @@ export function useDragAndDrop(invalidateCallback) {
 		// State
 		get isDragging() { return isDragging; },
 		get draggedStudies() { return draggedStudies; },
+		get draggedGroups() { return draggedGroups; },
 		get currentMouseX() { return currentMouseX; },
 		get currentMouseY() { return currentMouseY; },
 		get dropTargetGroupId() { return dropTargetGroupId; },
 		
 		// Functions
 		handleStudyMouseDown,
+		handleGroupMouseDown,
 		handleDocumentMouseUp,
 		isStudyBeingDragged
 	};

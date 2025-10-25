@@ -12,12 +12,14 @@
 
 	let {
 		group,
+		depth = 0,
 		isSelected = false,
 		selectionPosition = null,
 		isActive = false,
-		isDropTarget = false,
+		dropTargetGroupId = null,
 		onToggleCollapse,
 		onGroupHeaderClick,
+		onGroupMouseDown,
 		onStudyMouseDown,
 		onStudyClick,
 		isStudySelected,
@@ -25,14 +27,27 @@
 		isStudyActive,
 		isStudyBeingDragged,
 		isDragging = false,
-		formatPassageReference
+		formatPassageReference,
+		// For nested groups
+		isGroupSelected,
+		getGroupSelectionPosition,
+		isGroupActive
 	} = $props();
+	
+	// Compute if THIS group is the drop target
+	let isDropTarget = $derived(dropTargetGroupId === group.id);
+	
+	// Visual depth indicator (warn if too deep)
+	let isVeryDeep = $derived(depth >= 5);
 </script>
 
 <div 
 	class="group-section"
 	class:drop-target={isDropTarget}
+	class:very-deep={isVeryDeep}
 	data-group-id={group.id}
+	data-depth={depth}
+	style:padding-left="{depth * 2}rem"
 >
 	<div 
 		class="group-header" 
@@ -55,33 +70,72 @@
 			<button 
 				class="group-select-button"
 				onclick={(e) => onGroupHeaderClick?.(e, group)}
+				onmousedown={(e) => onGroupMouseDown?.(e, group)}
 				aria-label="Select group {group.name}"
 			>
 				<Icon iconId={'folder'} classes="folder-icon" />
 				<span class="group-name">{group.name}</span>
+				{#if isVeryDeep}
+					<span class="depth-warning" title="This group is nested very deep">⚠️</span>
+				{/if}
 				<span class="group-count">{group.studies.length}</span>
 			</button>
 		</div>
 	</div>
 	
 	{#if !group.isCollapsed}
-		<ul class="studies-list grouped" transition:slide={{ duration: 200 }}>
-			{#each group.studies as study (study.id)}
-				<li role="presentation" animate:flip={{ duration: 300 }}>
-					<StudyItem
-						{study}
-						isSelected={isStudySelected(study.id)}
-						selectionPosition={getStudySelectionPosition(study.id)}
-						isActive={isStudyActive(study.id)}
-						beingDragged={isStudyBeingDragged(study.id)}
-						{isDragging}
-						{formatPassageReference}
-						onMouseDown={onStudyMouseDown}
-						onClick={onStudyClick}
-					/>
-				</li>
-			{/each}
-		</ul>
+		<div class="group-contents" transition:slide={{ duration: 200 }}>
+			<!-- Render nested groups FIRST -->
+			{#if group.subgroups && group.subgroups.length > 0}
+				{#each group.subgroups as subgroup (subgroup.id)}
+					<div animate:flip={{ duration: 300 }}>
+						<svelte:self
+							group={subgroup}
+							depth={depth + 1}
+							isSelected={isGroupSelected?.(subgroup.id) || false}
+							selectionPosition={getGroupSelectionPosition?.(subgroup.id)}
+							isActive={isGroupActive?.(subgroup.id) || false}
+							{dropTargetGroupId}
+							{onToggleCollapse}
+							{onGroupHeaderClick}
+							{onGroupMouseDown}
+							{onStudyMouseDown}
+							{onStudyClick}
+							{isStudySelected}
+							{getStudySelectionPosition}
+							{isStudyActive}
+							{isStudyBeingDragged}
+							{isDragging}
+							{formatPassageReference}
+							{isGroupSelected}
+							{getGroupSelectionPosition}
+							{isGroupActive}
+						/>
+					</div>
+				{/each}
+			{/if}
+			
+			<!-- Then render studies -->
+			{#if group.studies && group.studies.length > 0}
+				<ul class="studies-list grouped">
+					{#each group.studies as study (study.id)}
+						<li role="presentation" animate:flip={{ duration: 300 }}>
+							<StudyItem
+								{study}
+								isSelected={isStudySelected(study.id)}
+								selectionPosition={getStudySelectionPosition(study.id)}
+								isActive={isStudyActive(study.id)}
+								beingDragged={isStudyBeingDragged(study.id)}
+								{isDragging}
+								{formatPassageReference}
+								onMouseDown={onStudyMouseDown}
+								onClick={onStudyClick}
+							/>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
 	{/if}
 </div>
 
@@ -89,6 +143,18 @@
 	.group-section {
 		display: flex;
 		flex-direction: column;
+		position: relative;
+	}
+	
+	.group-contents {
+		display: flex;
+		flex-direction: column;
+	}
+	
+	.very-deep .depth-warning {
+		color: var(--orange);
+		font-size: 1.2rem;
+		margin-left: 0.4rem;
 	}
 
 	.group-header {

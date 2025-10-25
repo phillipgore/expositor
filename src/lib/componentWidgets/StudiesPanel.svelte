@@ -185,6 +185,44 @@
 	}
 
 	/**
+	 * Recursively flatten a group and its subgroups
+	 */
+	function flattenGroupRecursive(group, items, index) {
+		// Add the group itself
+		items.push({
+			type: 'group',
+			id: group.id,
+			data: group,
+			index: index++,
+			depth: group.depth || 0
+		});
+		
+		if (!group.isCollapsed) {
+			// Add subgroups recursively
+			if (group.subgroups && group.subgroups.length > 0) {
+				for (const subgroup of group.subgroups) {
+					index = flattenGroupRecursive(subgroup, items, index);
+				}
+			}
+			
+			// Add studies
+			if (group.studies && group.studies.length > 0) {
+				for (const study of group.studies) {
+					items.push({
+						type: 'study',
+						id: study.id,
+						data: study,
+						index: index++,
+						depth: (group.depth || 0) + 1
+					});
+				}
+			}
+		}
+		
+		return index;
+	}
+
+	/**
 	 * Get flattened list of all items in display order
 	 */
 	function getFlattenedItemsList() {
@@ -193,29 +231,14 @@
 		
 		sortedGroupsAndStudies.forEach(item => {
 			if (item.type === 'group') {
-				items.push({
-					type: 'group',
-					id: item.data.id,
-					data: item.data,
-					index: index++
-				});
-				
-				if (!item.data.isCollapsed) {
-					item.data.studies.forEach(study => {
-						items.push({
-							type: 'study',
-							id: study.id,
-							data: study,
-							index: index++
-						});
-					});
-				}
+				index = flattenGroupRecursive(item.data, items, index);
 			} else {
 				items.push({
 					type: 'study',
 					id: item.data.id,
 					data: item.data,
-					index: index++
+					index: index++,
+					depth: 0
 				});
 			}
 		});
@@ -286,6 +309,28 @@
 		const getSelectedStudies = () => multiSelect.getSelectedStudies().map(item => item.data);
 		
 		dragDrop.handleStudyMouseDown(event, study, isStudySelected, getSelectedStudies);
+	}
+
+	/**
+	 * Handle group mousedown for drag
+	 */
+	function handleGroupMouseDown(event, group) {
+		const isGroupSelected = multiSelect.isItemSelected('group', group.id);
+		const getSelectedItems = () => multiSelect.selectedItems;
+		
+		// Get all groups (flat list) for ancestry checking
+		const allGroups = [];
+		function collectGroups(groupList) {
+			for (const g of groupList) {
+				allGroups.push(g);
+				if (g.subgroups && g.subgroups.length > 0) {
+					collectGroups(g.subgroups);
+				}
+			}
+		}
+		collectGroups(groups);
+		
+		dragDrop.handleGroupMouseDown(event, group, isGroupSelected, getSelectedItems, allGroups);
 	}
 
 	/**
@@ -437,26 +482,30 @@
 </script>
 
 <!-- Drag ghost -->
-{#if dragDrop.isDragging && dragDrop.draggedStudies.length > 0}
+{#if dragDrop.isDragging && (dragDrop.draggedStudies.length > 0 || dragDrop.draggedGroups.length > 0)}
 	<div 
 		class="drag-ghost" 
-		class:multi={dragDrop.draggedStudies.length > 1}
+		class:multi={dragDrop.draggedStudies.length + dragDrop.draggedGroups.length > 1}
 		style="left: {(dragDrop.currentMouseX + 6) / 10}rem; top: {(dragDrop.currentMouseY + 6) / 10}rem;"
 	>
-		{#if dragDrop.draggedStudies.length > 1}
-			<div class="drag-count">{dragDrop.draggedStudies.length}</div>
+		{#if dragDrop.draggedStudies.length + dragDrop.draggedGroups.length > 1}
+			<div class="drag-count">{dragDrop.draggedStudies.length + dragDrop.draggedGroups.length}</div>
 		{/if}
+		{#if dragDrop.draggedGroups.length > 0}
+			<!-- Dragging groups -->
+			<div class="drag-ghost-group">
+				<Icon iconId={'folder'} classes="folder-icon" />
+				<span class="group-name">{dragDrop.draggedGroups[0].name}</span>
+				<span class="item-count">{dragDrop.draggedGroups[0].studies?.length || 0}</span>
+			</div>
+		{:else}
+			<!-- Dragging studies -->
 			<StudyItem
 				study={dragDrop.draggedStudies[0]}
 				ghost={true}
 				{formatPassageReference}
 			/>
-		<!-- {:else}
-			<div class="multi-drag-info">
-				<Icon iconId={'book'} classes="book-icon" />
-				
-			</div>
-		{/if} -->
+		{/if}
 	</div>
 {/if}
 
@@ -501,9 +550,10 @@
 									isSelected={multiSelect.isItemSelected('group', item.data.id)}
 									selectionPosition={multiSelect.getSelectionPosition('group', item.data.id)}
 									isActive={item.data.id === activeGroupId}
-									isDropTarget={dragDrop.dropTargetGroupId === item.data.id}
+									dropTargetGroupId={dragDrop.dropTargetGroupId}
 									onToggleCollapse={toggleGroupCollapse}
 									onGroupHeaderClick={handleGroupHeaderClick}
+									onGroupMouseDown={handleGroupMouseDown}
 									onStudyMouseDown={handleStudyMouseDown}
 									onStudyClick={handleStudyClick}
 									isStudySelected={(studyId) => multiSelect.isItemSelected('study', studyId)}
@@ -512,6 +562,9 @@
 									isStudyBeingDragged={dragDrop.isStudyBeingDragged}
 									isDragging={dragDrop.isDragging}
 									{formatPassageReference}
+									isGroupSelected={(groupId) => multiSelect.isItemSelected('group', groupId)}
+									getGroupSelectionPosition={(groupId) => multiSelect.getSelectionPosition('group', groupId)}
+									isGroupActive={(groupId) => groupId === activeGroupId}
 								/>
 							{:else}
 								<div class="study-wrapper">
@@ -668,6 +721,35 @@
 		width: 2.4rem;
 		top: -0.9rem;
 		right: -0.9rem;
+	}
+
+	.drag-ghost-group {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0.9rem 0.9rem 0.9rem 2.2rem;
+		background-color: var(--gray-lighter);
+		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
+		border-radius: 0.3rem;
+		font-size: 1.4rem;
+		font-weight: 600;
+		color: var(--black);
+		position: relative;
+		z-index: 3;
+	}
+
+	.drag-ghost-group :global(.folder-icon) {
+		height: 1.2rem;
+		fill: var(--gray-300);
+	}
+
+	.drag-ghost-group .group-name {
+		flex: 1;
+	}
+
+	.drag-ghost-group .item-count {
+		font-size: 1.2rem;
+		color: var(--gray-400);
 	}
 
 	:global(body.dragging) {
