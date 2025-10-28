@@ -82,7 +82,7 @@ export const study = pgTable('study', {
 	userId: text('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),
-	groupId: text('group_id').references(() => studyGroup.id, { onDelete: 'set null' }),
+	groupId: text('group_id').references(() => studyGroup.id, { onDelete: 'cascade' }),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

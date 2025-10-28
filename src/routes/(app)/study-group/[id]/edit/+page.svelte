@@ -1,5 +1,5 @@
 <script>
-	import StudyForm from '$lib/componentWidgets/forms/StudyForm.svelte';
+	import StudyGroupForm from '$lib/componentWidgets/forms/StudyGroupForm.svelte';
 	import { setToolbarState } from '$lib/stores/toolbar.js';
 
 	let { form, data } = $props();
@@ -11,11 +11,12 @@
 </script>
 
 <div class="container">
-	<StudyForm
-		mode="new"
+	<StudyGroupForm
+		mode="edit"
+		initialData={data.group}
 		{form}
-		existingStudies={data.studies}
-		cancelHref="/dashboard"
+		existingGroups={data.groups}
+		cancelHref="/study-group/{data.group.id}"
 	/>
 </div>
 
@@ -26,9 +27,8 @@
 		margin-top: 3.6rem;
 	}
 
-	form {
+	:global(form) {
 		width: 41.4rem;
 		min-width: 36.0rem
 	}
-
 </style>

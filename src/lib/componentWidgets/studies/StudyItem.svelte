@@ -10,6 +10,7 @@
 
 	let {
 		study,
+		depth = 0,
 		isSelected = false,
 		selectionPosition = null,
 		isActive = false,
@@ -23,11 +24,14 @@
 		onClick = null,
 		formatPassageReference
 	} = $props();
+	
+	// Calculate padding based on depth (studies are one level deeper than their group)
+	let paddingLeft = $derived(ungrouped ? '2.2rem' : `${(depth * 1.4) + 2.2}rem`);
 </script>
 
 {#if ghost}
 	<!-- Ghost mode: purely visual, no interactivity -->
-	<div class="study-item ghost">
+	<div class="study-item ghost" style:padding-left={paddingLeft}>
 		<Icon iconId={'book'} classes="book-icon" />
 		<div class="study-info">
 			<div class="study-title">{study.title}</div>
@@ -50,6 +54,7 @@
 		class:ungrouped
 		class:selected={isSelected}
 		class:active={isActive}
+		style:padding-left={paddingLeft}
 		onclick={(e) => onClick?.(e, study)}
 	>
 		<Icon iconId={'book'} classes="book-icon" />
@@ -78,6 +83,7 @@
 		class:selection-last={isSelected && selectionPosition === 'last'}
 		class:selection-isolated={isSelected && selectionPosition === 'isolated'}
 		class:active={isActive && isSelected}
+		style:padding-left={paddingLeft}
 		onmousedown={(e) => onMouseDown?.(e, study)}
 		onclick={(e) => {
 			if (!isDragging) {
@@ -107,8 +113,8 @@
 	.study-item {
 		display: flex;
 		justify-content: flex-start;
-		gap: 0.7rem;
-		padding: 0.9rem 0.9rem 0.9rem 3.5rem;
+		gap: 0.6rem;
+		padding: 0.9rem 0.9rem 0.9rem 3.5rem; /* Default, overridden by inline style */
 		background-color: transparent;
 		border: none;
 		border-radius: 0.3rem;
@@ -122,15 +128,13 @@
 
 	.study-item.ghost {
 		cursor: default;
-		padding: 0;
+		padding-top: 0;
+		padding-bottom: 0;
+		padding-right: 0;
 	}
 
 	.study-item.ghost:hover {
 		background-color: transparent;
-	}
-
-	.study-item.ungrouped {
-		padding: 0.9rem 0.9rem 0.9rem 2.2rem;
 	}
 
 	.study-item.selected {
@@ -173,6 +177,7 @@
 	.study-item :global(.book-icon) {
 		height: 1.2rem;
 		margin-top: 0.2rem;
+		padding: 0.0rem 0.1rem;
 		fill: var(--gray-300);
 	}
 

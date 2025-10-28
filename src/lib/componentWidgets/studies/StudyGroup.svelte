@@ -39,6 +39,43 @@
 	
 	// Visual depth indicator (warn if too deep)
 	let isVeryDeep = $derived(depth >= 5);
+	
+	// Click timing for distinguishing single-click from double-click
+	let clickTimeout = $state(null);
+	const CLICK_DELAY = 250; // ms to wait before treating as single-click
+	
+	/**
+	 * Handle click with delay to distinguish from double-click
+	 */
+	function handleClick(event) {
+		// Clear any existing timeout
+		if (clickTimeout) {
+			clearTimeout(clickTimeout);
+			clickTimeout = null;
+		}
+		
+		// Set a timeout to handle as single-click
+		clickTimeout = setTimeout(() => {
+			onGroupHeaderClick?.(event, group);
+			clickTimeout = null;
+		}, CLICK_DELAY);
+	}
+	
+	/**
+	 * Handle double-click - only expand/collapse, don't select
+	 */
+	function handleDoubleClick(event) {
+		event.stopPropagation();
+		
+		// Cancel any pending single-click selection
+		if (clickTimeout) {
+			clearTimeout(clickTimeout);
+			clickTimeout = null;
+		}
+		
+		// Only toggle collapse state
+		onToggleCollapse?.(group.id, group.isCollapsed);
+	}
 </script>
 
 <div 
@@ -47,7 +84,6 @@
 	class:very-deep={isVeryDeep}
 	data-group-id={group.id}
 	data-depth={depth}
-	style:padding-left="{depth * 2}rem"
 >
 	<div 
 		class="group-header" 
@@ -57,6 +93,7 @@
 		class:selection-last={isSelected && selectionPosition === 'last'}
 		class:selection-isolated={isSelected && selectionPosition === 'isolated'}
 		class:active={isActive}
+		style:padding-left="{depth ? (depth * 1.4) + 0.6 : 0.6}rem"
 	>
 		<div class="group-info">
 			<button 
@@ -69,14 +106,17 @@
 			</button>
 			<button 
 				class="group-select-button"
-				onclick={(e) => onGroupHeaderClick?.(e, group)}
+				onclick={handleClick}
+				ondblclick={handleDoubleClick}
 				onmousedown={(e) => onGroupMouseDown?.(e, group)}
 				aria-label="Select group {group.name}"
 			>
 				<Icon iconId={'folder'} classes="folder-icon" />
 				<span class="group-name">{group.name}</span>
 				{#if isVeryDeep}
-					<span class="depth-warning" title="This group is nested very deep">⚠️</span>
+					<div class="depth-warning" title="This group is nested very deep">
+						<Icon iconId={'warning'} classes="warning-icon" />
+					</div>
 				{/if}
 				<span class="group-count">{group.studies.length}</span>
 			</button>
@@ -122,6 +162,7 @@
 						<li role="presentation" animate:flip={{ duration: 300 }}>
 							<StudyItem
 								{study}
+								depth={depth + 1}
 								isSelected={isStudySelected(study.id)}
 								selectionPosition={getStudySelectionPosition(study.id)}
 								isActive={isStudyActive(study.id)}
@@ -152,9 +193,15 @@
 	}
 	
 	.very-deep .depth-warning {
+		display: flex;
 		color: var(--orange);
 		font-size: 1.2rem;
 		margin-left: 0.4rem;
+	}
+
+	.very-deep .depth-warning :global(.warning-icon) {
+		height: 1.2rem;
+		fill: var(--yellow);
 	}
 
 	.group-header {
@@ -222,7 +269,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 1.3rem 0.6rem;
+		padding: 1.3rem 0.0rem;
+		width: 2.2rem;
 		background-color: transparent;
 		border: none;
 		border-radius: 0.3rem;

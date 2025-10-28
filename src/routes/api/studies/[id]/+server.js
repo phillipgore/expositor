@@ -5,6 +5,44 @@ import { auth } from '$lib/server/auth.js';
 import { eq, and } from 'drizzle-orm';
 
 /**
+ * Delete a study
+ * @type {import('./$types').RequestHandler}
+ */
+export const DELETE = async ({ request, params }) => {
+	try {
+		// Get the current user from session
+		const session = await auth.api.getSession({ headers: request.headers });
+		
+		if (!session?.user?.id) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		const { id } = params;
+
+		// Verify the study belongs to the current user before deleting
+		const existingStudy = await db
+			.select()
+			.from(study)
+			.where(and(eq(study.id, id), eq(study.userId, session.user.id)))
+			.limit(1);
+
+		if (existingStudy.length === 0) {
+			return json({ error: 'Study not found' }, { status: 404 });
+		}
+
+		// Delete the study
+		await db
+			.delete(study)
+			.where(and(eq(study.id, id), eq(study.userId, session.user.id)));
+
+		return json({ success: true }, { status: 200 });
+	} catch (error) {
+		console.error('Delete study error:', error);
+		return json({ error: 'Internal server error' }, { status: 500 });
+	}
+};
+
+/**
  * Update a study (e.g., change its groupId)
  * @type {import('./$types').RequestHandler}
  */
