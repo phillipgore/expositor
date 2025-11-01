@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Icon from '$lib/componentElements/Icon.svelte';
+	import Button from '$lib/componentElements/buttons/Button.svelte';
 
 	let { data } = $props();
 
@@ -35,6 +36,18 @@
 <div class="container">
 	<Icon iconId="folder" isActive={false}  classes=""></Icon>
 	<Heading heading="h1" alignCenter>{data.group.name}</Heading>
+	<div class="button-group">
+		<Button 
+			href="/new-study-group?parentGroupId={data.group.id}" 
+			label="New Study Group" 
+			classes="blue"
+		/>
+		<Button 
+			href="/new-study?groupId={data.group.id}" 
+			label="New Study" 
+			classes="blue"
+		/>
+	</div>
 </div>
 
 <style>
@@ -52,5 +65,10 @@
 		max-width: initial;
 		margin-bottom: 2.7rem;
 		fill: var(--gray-700);
+	}
+
+	.button-group {
+		display: flex;
+		gap: 1.5rem;
 	}
 </style>

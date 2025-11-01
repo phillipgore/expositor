@@ -30,7 +30,9 @@
 		existingStudies = [],
 		form = null,
 		onSubmittingChange = null,
-		cancelHref = '/'
+		cancelHref = '/',
+		groupId = null,
+		groupName = null
 	} = $props();
 
 	let isSubmitting = $state(false);
@@ -97,10 +99,13 @@
 		};
 	}}
 >
-	<Heading heading="h1" classes="h4">{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading>
+	<Heading heading="h1" classes="h4" hasSub={groupName? true : false}>{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading>
+	{#if groupName}
+		<Heading heading="h1" classes="h6" isMuted notBold>{`To be created in "${groupName}".`}</Heading>
+	{/if}
 
 	{#if form?.error}
-		<Alert color="red" message={form.error} />
+		<Alert color="red" look="subtle" message={form.error} />
 	{/if}
 
 	<InputField
@@ -114,6 +119,9 @@
 	/>
 
 	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
+	{#if groupId}
+		<input type="hidden" name="groupId" value={groupId} />
+	{/if}
 
 	<Label text="Passages"></Label>
 

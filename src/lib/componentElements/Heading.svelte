@@ -37,16 +37,17 @@
 	 * @property {boolean} [alignRight=false] - Right align text
 	 * @property {boolean} [hasSub=false] - Sub-heading style (reduced margin for grouping)
 	 * @property {boolean} [isMuted=false] - Gray color for less emphasis
+	 * @property {boolean} [notBold=false] - Remove bold for less emphasis
 	 * @property {import('svelte').Snippet} children - Heading content (required)
 	 */
 
 	/** @type {HeadingProps} */
-	let { heading, classes = '', children, alignCenter = false, alignRight = false, hasSub = false, isMuted = false } = $props();
+	let { heading, classes = '', children, alignCenter = false, alignRight = false, hasSub = false, isMuted = false, notBold = false } = $props();
 </script>
 
 <svelte:element
 	this={heading}
-	class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''}"
+	class="{classes} {alignCenter ? 'align-center' : ''} {alignRight ? 'align-right' : ''} {isMuted ? 'muted' : ''} {hasSub ? 'has-sub' : ''} {notBold ? 'not-bold' : ''}"
 >
 	{@render children()}
 </svelte:element>
@@ -74,7 +75,7 @@
 	.h5,
 	h6,
 	.h6 {
-		margin: 0em 0em 0.75em;
+		margin: 0em 0em 2.0rem;
 		color: var(--black);
 	}
 	h1,
@@ -107,5 +108,8 @@
 	}
 	.muted {
 		color: var(--gray-500)
+	}
+	.not-bold {
+		font-weight: normal;
 	}
 </style>

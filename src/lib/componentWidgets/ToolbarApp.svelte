@@ -270,7 +270,11 @@
 			const deletedIds = items.map(i => i.id);
 			
 			if (currentPath.includes('/study/') || currentPath.includes('/study-group/')) {
-				const currentId = currentPath.split('/').pop();
+				// Extract the item ID, handling both view and edit pages
+				const pathParts = currentPath.split('/');
+				const lastPart = pathParts[pathParts.length - 1];
+				const currentId = lastPart === 'edit' ? pathParts[pathParts.length - 2] : lastPart;
+				
 				if (deletedIds.includes(currentId)) {
 					goto('/dashboard');
 				}

@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '$lib/server/db/index.js';
 import { studyGroup } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 
 /**
  * Create a new group
@@ -18,10 +18,26 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { name } = await request.json();
+		const { name, parentGroupId } = await request.json();
 
 		if (!name || !name.trim()) {
 			return json({ error: 'Group name is required' }, { status: 400 });
+		}
+
+		// If parentGroupId is provided, verify it exists and belongs to the user
+		if (parentGroupId) {
+			const parentGroups = await db
+				.select()
+				.from(studyGroup)
+				.where(and(
+					eq(studyGroup.id, parentGroupId),
+					eq(studyGroup.userId, session.user.id)
+				))
+				.limit(1);
+
+			if (parentGroups.length === 0) {
+				return json({ error: 'Parent group not found' }, { status: 404 });
+			}
 		}
 
 		// Get the highest display order for this user's groups
@@ -41,6 +57,7 @@ export const POST = async ({ request }) => {
 			id: uuidv4(),
 			name: name.trim(),
 			userId: session.user.id,
+			parentGroupId: parentGroupId || null,
 			displayOrder: nextDisplayOrder,
 			isCollapsed: false,
 			createdAt: new Date(),
