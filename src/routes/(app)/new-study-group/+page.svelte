@@ -15,6 +15,8 @@
 		mode="new"
 		{form}
 		existingGroups={data.groups}
+		parentGroupId={data.parentGroupId}
+		parentGroupName={data.parentGroupName}
 		cancelHref="/dashboard"
 	/>
 </div>

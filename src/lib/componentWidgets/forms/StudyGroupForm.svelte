@@ -25,7 +25,9 @@
 		existingGroups = [],
 		form = null,
 		onSubmittingChange = null,
-		cancelHref = '/'
+		cancelHref = '/',
+		parentGroupId = null,
+		parentGroupName = null
 	} = $props();
 
 	let isSubmitting = $state(false);
@@ -74,10 +76,13 @@
 		};
 	}}
 >
-	<Heading heading="h1" classes="h4">{mode === 'new' ? 'New Study Group' : 'Edit Study Group'}</Heading>
+	<Heading heading="h1" classes="h4" hasSub={parentGroupName ? true : false}>{mode === 'new' ? 'New Study Group' : 'Edit Study Group'}</Heading>
+	{#if parentGroupName}
+		<Heading heading="h1" classes="h6" isMuted notBold>{`To be created in "${parentGroupName}".`}</Heading>
+	{/if}
 
 	{#if form?.error}
-		<Alert color="red" message={form.error} />
+		<Alert color="red" look="subtle" message={form.error} />
 	{/if}
 
 	<InputField
@@ -90,8 +95,19 @@
 		infoMessage={duplicateNameMessage}
 	/>
 
+	{#if parentGroupId}
+		<input type="hidden" name="parentGroupId" value={parentGroupId} />
+	{/if}
+
 	<FormButtonBar>
 		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting}></Button>
 		<Button type="submit" label={isSubmitting ? 'Saving...' : 'Save'} classes="blue" isDisabled={isSubmitting || hasDuplicateName}></Button>
 	</FormButtonBar>
 </form>
+
+<style>
+	form {
+		width: 41.4rem;
+		min-width: 36.0rem;
+	}
+</style>

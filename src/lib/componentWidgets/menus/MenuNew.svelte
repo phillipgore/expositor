@@ -3,10 +3,12 @@
 	 * # MenuNew Component
 	 * 
 	 * Menu for creating new items (studies and study groups).
+	 * Context-aware: shows option to create study in selected group when applicable.
 	 * 
 	 * ## Features
-	 * - New Study option - navigates to /new-study
 	 * - New Study Group option - navigates to /new-study-group
+	 * - New Study in [Group] option - shown when single group is selected
+	 * - New Study option - always available
 	 * - Dark themed menu
 	 * 
 	 * ## Props
@@ -23,34 +25,91 @@
 	import { goto } from '$app/navigation';
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
+	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
+	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	/** @type {{ menuId: string }} Props */
 	let { menuId } = $props();
 
-	/** Navigate to new study page */
-	const handleNewStudy = () => {
-		goto('/new-study');
+	// Check if a single group is selected
+	let selectedGroup = $derived(
+		$toolbarState.selectedItem?.count === 1 && 
+		$toolbarState.selectedItem?.items[0]?.type === 'group'
+			? $toolbarState.selectedItem.items[0]
+			: null
+	);
+
+	let selectedGroupName = $derived.by(() => {
+		return selectedGroup? ` "${selectedGroup.data.name}"` : '...';
+	});
+
+	/** Navigate to new study page, optionally with groupId */
+	const handleNewStudy = (groupId = null) => {
+		// Close the menu first
+		const menu = document.getElementById(menuId);
+		if (menu && menu.matches(':popover-open')) {
+			menu.hidePopover();
+		}
+		
+		// Then navigate
+		if (groupId) {
+			goto(`/new-study?groupId=${groupId}`);
+		} else {
+			goto('/new-study');
+		}
 	};
 
-	/** Navigate to new group page */
-	const handleNewGroup = () => {
-		goto('/new-study-group');
+	/** Navigate to new group page, optionally with parentGroupId */
+	const handleNewGroup = (parentGroupId = null) => {
+		// Close the menu first
+		const menu = document.getElementById(menuId);
+		if (menu && menu.matches(':popover-open')) {
+			menu.hidePopover();
+		}
+		
+		// Then navigate
+		if (parentGroupId) {
+			goto(`/new-study-group?parentGroupId=${parentGroupId}`);
+		} else {
+			goto('/new-study-group');
+		}
 	};
 </script>
 
 <Menu {menuId} classes="dark">
 	<IconButton
-		iconId="folder"
-		label="New Study Group"
-		classes="menu-light justify-content-left"
-		role="menuitem"
-		handleClick={handleNewGroup}
-	/>
-	<IconButton
 		iconId="book"
 		label="New Study"
 		classes="menu-light justify-content-left"
 		role="menuitem"
-		handleClick={handleNewStudy}
+		handleClick={() => handleNewStudy(null)}
+	/>
+
+	<IconButton
+		iconId="book"
+		label={`New Study in${selectedGroupName}`}
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={() => handleNewStudy(selectedGroup.id)}
+		isDisabled={!selectedGroup}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		iconId="folder"
+		label="New Study Group"
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={() => handleNewGroup(null)}
+	/>
+
+	<IconButton
+		iconId="folder"
+		label={`New Study Group in${selectedGroupName}`}
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={() => handleNewGroup(selectedGroup.id)}
+		isDisabled={!selectedGroup}
 	/>
 </Menu>

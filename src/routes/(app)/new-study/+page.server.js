@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { study, passage } from '$lib/server/db/schema.js';
+import { study, passage, studyGroup } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
+import { eq, and } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
 
 /**
@@ -30,6 +31,44 @@ function getBookName(testamentId, bookId) {
 	return book ? book.title : bookId;
 }
 
+/** @type {import('./$types').PageServerLoad} */
+export async function load({ url, request }) {
+	const session = await auth.api.getSession({ headers: request.headers });
+	if (!session?.user?.id) {
+		throw redirect(303, '/signin');
+	}
+
+	// Get groupId from URL if provided
+	const groupId = url.searchParams.get('groupId');
+	let group = null;
+
+	if (groupId) {
+		// Verify group exists and belongs to user
+		const groups = await db
+			.select()
+			.from(studyGroup)
+			.where(and(
+				eq(studyGroup.id, groupId),
+				eq(studyGroup.userId, session.user.id)
+			))
+			.limit(1);
+
+		group = groups[0] || null;
+	}
+
+	// Get all studies for duplicate title checking
+	const studies = await db
+		.select()
+		.from(study)
+		.where(eq(study.userId, session.user.id));
+
+	return {
+		studies,
+		groupId: group?.id || null,
+		groupName: group?.name || null
+	};
+}
+
 /** @type {import('./$types').Actions} */
 export const actions = {
 	default: async ({ request }) => {
@@ -43,6 +82,7 @@ export const actions = {
 			const formData = await request.formData();
 			const title = formData.get('title');
 			const passagesJson = formData.get('passages');
+			const groupId = formData.get('groupId');
 
 			// Validate title
 			if (!title || typeof title !== 'string' || title.trim() === '') {
@@ -50,6 +90,25 @@ export const actions = {
 					error: 'Title is required',
 					title: title || ''
 				});
+			}
+
+			// Validate groupId if provided
+			if (groupId && typeof groupId === 'string' && groupId.trim() !== '') {
+				const groups = await db
+					.select()
+					.from(studyGroup)
+					.where(and(
+						eq(studyGroup.id, groupId),
+						eq(studyGroup.userId, session.user.id)
+					))
+					.limit(1);
+
+				if (groups.length === 0) {
+					return fail(400, {
+						error: 'Invalid group selected',
+						title: title.toString()
+					});
+				}
 			}
 
 			// Parse and validate passages
@@ -89,11 +148,12 @@ export const actions = {
 			const studyId = uuidv4();
 			const now = new Date();
 
-			// Insert study
+			// Insert study with groupId if provided
 			await db.insert(study).values({
 				id: studyId,
 				title: title.toString().trim(),
 				userId: session.user.id,
+				groupId: groupId && typeof groupId === 'string' && groupId.trim() !== '' ? groupId : null,
 				createdAt: now,
 				updatedAt: now
 			});

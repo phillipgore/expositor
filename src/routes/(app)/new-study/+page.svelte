@@ -15,6 +15,8 @@
 		mode="new"
 		{form}
 		existingStudies={data.studies}
+		groupId={data.groupId}
+		groupName={data.groupName}
 		cancelHref="/dashboard"
 	/>
 </div>

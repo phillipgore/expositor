@@ -187,7 +187,74 @@ export const DELETE = async ({ request, params }) => {
 			return json({ error: 'Group not found' }, { status: 404 });
 		}
 
-		// Delete the group (studies will be set to null due to SET NULL on delete)
+		const groupToDelete = existingGroup[0];
+
+		// Get selection context from request body (if provided)
+		let selectedGroupIds = [];
+		let selectedStudyIds = [];
+		
+		try {
+			const body = await request.json();
+			selectedGroupIds = body.selectedGroupIds || [];
+			selectedStudyIds = body.selectedStudyIds || [];
+		} catch (e) {
+			// No body provided, treat as single delete (all children will cascade)
+		}
+
+		// If we have selection context, preserve unselected children
+		if (selectedGroupIds.length > 0 || selectedStudyIds.length > 0) {
+			// Import study schema
+			const { study } = await import('$lib/server/db/schema.js');
+			
+			// Find all immediate child groups
+			const childGroups = await db
+				.select()
+				.from(studyGroup)
+				.where(and(
+					eq(studyGroup.parentGroupId, id),
+					eq(studyGroup.userId, session.user.id)
+				));
+
+			// Find all studies in this group
+			const childStudies = await db
+				.select()
+				.from(study)
+				.where(and(
+					eq(study.groupId, id),
+					eq(study.userId, session.user.id)
+				));
+
+			// Filter to unselected children
+			const unselectedGroups = childGroups.filter(g => !selectedGroupIds.includes(g.id));
+			const unselectedStudies = childStudies.filter(s => !selectedStudyIds.includes(s.id));
+
+			// Move unselected children to the parent of the deleted group
+			const newParentId = groupToDelete.parentGroupId; // null if top-level
+
+			// Update unselected child groups
+			for (const childGroup of unselectedGroups) {
+				await db
+					.update(studyGroup)
+					.set({ 
+						parentGroupId: newParentId,
+						updatedAt: new Date()
+					})
+					.where(eq(studyGroup.id, childGroup.id));
+			}
+
+			// Update unselected studies
+			for (const childStudy of unselectedStudies) {
+				await db
+					.update(study)
+					.set({ 
+						groupId: newParentId,
+						updatedAt: new Date()
+					})
+					.where(eq(study.id, childStudy.id));
+			}
+		}
+
+		// Delete the group (cascade will handle selected children)
 		await db
 			.delete(studyGroup)
 			.where(and(
