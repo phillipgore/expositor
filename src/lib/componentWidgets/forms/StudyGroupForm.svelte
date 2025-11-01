@@ -95,3 +95,10 @@
 		<Button type="submit" label={isSubmitting ? 'Saving...' : 'Save'} classes="blue" isDisabled={isSubmitting || hasDuplicateName}></Button>
 	</FormButtonBar>
 </form>
+
+<style>
+	form {
+		width: 41.4rem;
+		min-width: 36.0rem;
+	}
+</style>

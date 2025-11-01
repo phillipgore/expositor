@@ -206,8 +206,15 @@
 	/**
 	 * Handle delete button click
 	 */
-	function handleDeleteClick() {
+	function handleDeleteClick(event) {
 		if (!$toolbarState.canDelete || !$toolbarState.selectedItem) return;
+		
+		// Prevent event propagation to avoid clearing multi-selection
+		if (event) {
+			event.stopPropagation();
+			event.preventDefault();
+		}
+		
 		deleteError = '';
 		showDeleteModal = true;
 	}
@@ -224,15 +231,25 @@
 		try {
 			const { items } = $toolbarState.selectedItem;
 			
-			// Delete all selected items
+			// Collect all selected IDs by type
+			const selectedGroupIds = items.filter(i => i.type === 'group').map(i => i.id);
+			const selectedStudyIds = items.filter(i => i.type === 'study').map(i => i.id);
+			
+			// Delete all selected items, passing selection context for groups
 			const deletePromises = items.map(item => {
 				const endpoint = item.type === 'group' 
 					? `/api/groups/${item.id}`
 					: `/api/studies/${item.id}`;
 				
+				// For groups, pass the selection context so unselected children can be preserved
+				const body = item.type === 'group' 
+					? { selectedGroupIds, selectedStudyIds }
+					: undefined;
+				
 				return fetch(endpoint, {
 					method: 'DELETE',
-					headers: { 'Content-Type': 'application/json' }
+					headers: { 'Content-Type': 'application/json' },
+					...(body && { body: JSON.stringify(body) })
 				});
 			});
 
@@ -255,7 +272,7 @@
 			if (currentPath.includes('/study/') || currentPath.includes('/study-group/')) {
 				const currentId = currentPath.split('/').pop();
 				if (deletedIds.includes(currentId)) {
-					goto('/');
+					goto('/dashboard');
 				}
 			}
 		} catch (error) {

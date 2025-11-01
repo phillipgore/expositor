@@ -522,8 +522,8 @@
 		</div>
 		
 		<div class="panel-scrollable" onclick={handlePanelClick}>
-			{#if studies.length === 0}
-				<p class="empty-message">No studies yet. Create one to get started!</p>
+			{#if studies.length === 0 && groups.length === 0}
+				<p class="empty-message">No studies yet.<br>Create one to get started.</p>
 			{:else if filteredGroups.length === 0 && filteredUngroupedStudies.length === 0 && searchQuery.trim() === ''}
 				<!-- Fallback -->
 				<ul class="studies-list">
@@ -651,9 +651,10 @@
 
 	.empty-message {
 		color: var(--gray-400);
-		font-size: 1.2rem;
+		font-size: 1.4rem;
 		text-align: center;
-		padding: 2rem 0;
+		line-height: 1.5;
+		padding: 25vh 0;
 	}
 
 	.studies-list {
