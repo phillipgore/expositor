@@ -15,6 +15,7 @@
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import InputField from '$lib/componentWidgets/InputField.svelte';
+	import TextareaField from '$lib/componentWidgets/TextareaField.svelte';
 	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import messages from '$lib/data/messages.json';
@@ -34,6 +35,8 @@
 
 	// Initialize form state
 	let groupName = $state(initialData?.name || form?.name || '');
+	let groupSubtitle = $state(initialData?.subtitle || form?.subtitle || '');
+	let groupDescription = $state(initialData?.description || form?.description || '');
 
 	// Duplicate name validation
 	let duplicateNameMessage = $derived(getDuplicateNameMessage(groupName));
@@ -93,6 +96,22 @@
 		isLarge
 		required
 		infoMessage={duplicateNameMessage}
+	/>
+
+	<InputField
+		label="Subtitle"
+		id="subtitle"
+		name="subtitle"
+		bind:value={groupSubtitle}
+	/>
+
+	<TextareaField
+		label="Description"
+		id="description"
+		name="description"
+		bind:value={groupDescription}
+		isLarge
+		rows={3}
 	/>
 
 	{#if parentGroupId}

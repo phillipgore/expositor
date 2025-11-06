@@ -5,6 +5,7 @@ import { study, passage, studyGroup } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, and } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
+import { expandGroupAncestors } from '$lib/server/db/utils.js';
 
 /**
  * @typedef {Object} PassageData
@@ -81,6 +82,7 @@ export const actions = {
 		try {
 			const formData = await request.formData();
 			const title = formData.get('title');
+			const subtitle = formData.get('subtitle');
 			const passagesJson = formData.get('passages');
 			const groupId = formData.get('groupId');
 
@@ -152,6 +154,7 @@ export const actions = {
 			await db.insert(study).values({
 				id: studyId,
 				title: title.toString().trim(),
+				subtitle: subtitle && typeof subtitle === 'string' && subtitle.trim() !== '' ? subtitle.toString().trim() : null,
 				userId: session.user.id,
 				groupId: groupId && typeof groupId === 'string' && groupId.trim() !== '' ? groupId : null,
 				createdAt: now,
@@ -174,6 +177,11 @@ export const actions = {
 			}));
 
 			await db.insert(passage).values(passageValues);
+
+			// If study was created in a group, expand that group and all ancestors
+			if (groupId && typeof groupId === 'string' && groupId.trim() !== '') {
+				await expandGroupAncestors(groupId, session.user.id);
+			}
 
 			// Redirect to the study view page (adjust URL as needed)
 			throw redirect(303, `/study/${studyId}`);

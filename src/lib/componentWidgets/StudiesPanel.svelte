@@ -462,7 +462,7 @@
 	});
 
 	/**
-	 * Auto-select active group or study on page load
+	 * Auto-select active group or study on page load, or clear selection on dashboard
 	 */
 	$effect(() => {
 		if (activeGroupId) {
@@ -496,6 +496,11 @@
 				}];
 				multiSelect.lastSelectedIndex = studyItem.index;
 				multiSelect.updateToolbarSelection();
+			}
+		} else {
+			// Clear selection when no active item (e.g., on dashboard)
+			if (multiSelect.selectedItems.length > 0) {
+				multiSelect.clearSelection();
 			}
 		}
 	});

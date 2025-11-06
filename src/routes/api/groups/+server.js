@@ -4,6 +4,7 @@ import { db } from '$lib/server/db/index.js';
 import { studyGroup } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, desc, and } from 'drizzle-orm';
+import { expandGroupAncestors } from '$lib/server/db/utils.js';
 
 /**
  * Create a new group
@@ -18,7 +19,7 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { name, parentGroupId } = await request.json();
+		const { name, subtitle, description, parentGroupId } = await request.json();
 
 		if (!name || !name.trim()) {
 			return json({ error: 'Group name is required' }, { status: 400 });
@@ -56,6 +57,8 @@ export const POST = async ({ request }) => {
 		const newGroup = {
 			id: uuidv4(),
 			name: name.trim(),
+			subtitle: subtitle && subtitle.trim() ? subtitle.trim() : null,
+			description: description && description.trim() ? description.trim() : null,
 			userId: session.user.id,
 			parentGroupId: parentGroupId || null,
 			displayOrder: nextDisplayOrder,
@@ -65,6 +68,11 @@ export const POST = async ({ request }) => {
 		};
 
 		await db.insert(studyGroup).values(newGroup);
+
+		// If group was created in a parent group, expand that parent and all ancestors
+		if (parentGroupId) {
+			await expandGroupAncestors(parentGroupId, session.user.id);
+		}
 
 		return json({ success: true, group: newGroup }, { status: 201 });
 	} catch (error) {

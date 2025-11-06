@@ -106,7 +106,7 @@
 
 	<IconButton
 		iconId="folder"
-		label={`New Study Group in${selectedGroupName}`}
+		label={`New Group in${selectedGroupName}`}
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewGroup(selectedGroup.id)}

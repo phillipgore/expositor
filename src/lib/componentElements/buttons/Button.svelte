@@ -70,6 +70,7 @@
 	 * @property {boolean} [isDisabled=false] - Whether button/link is disabled. Prevents all interaction
 	 * @property {boolean} [isFullWidth=false] - Whether button stretches to full container width
 	 * @property {boolean} [isRound=false] - Whether button is circular. Useful for icon-only buttons
+	 * @property {boolean} [isLarge=false] - Large size variant (4.4rem height, 2rem font). Matches Input.large dimensions
 	 * @property {ButtonType} [type='button'] - HTML button type attribute. Use 'submit' for forms. Only used for buttons
 	 * @property {boolean} [isActive=false] - Active state. Applies 'active' class for visual feedback
 	 * @property {string} [ariaLabel] - Accessible label for screen readers. Required if no visible label
@@ -95,6 +96,7 @@
 		isDisabled,
 		isFullWidth,
 		isRound,
+		isLarge = false,
 		type = 'button',
 		isActive = false,
 		ariaLabel,
@@ -237,7 +239,7 @@
 		{id}
 		{style}
 		{role}
-		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isFullWidth
+		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isLarge ? 'large' : ''} {isFullWidth
 			? 'full-width'
 			: ''} {hasNoFocusClass ? 'no-focus' : ''}"
 		tabindex={isDisabled ? -1 : role === 'menuitem' ? -1 : 0}
@@ -270,7 +272,7 @@
 		{type}
 		{style}
 		{role}
-		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isFullWidth
+		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isLarge ? 'large' : ''} {isFullWidth
 			? 'full-width'
 			: ''} {hasNoFocusClass ? 'no-focus' : ''}"
 		onclick={(e) => buttonClick(e)}
@@ -328,6 +330,13 @@
 	/* ============================================
 	   SIZE VARIANTS
 	   ============================================ */
+	button.large,
+	a.large {
+		height: 4.4rem;
+		padding: 0rem 1.2rem;
+		font-size: 2rem;
+	}
+
 	button.round,
 	a.round {
 		border-radius: 50%;
@@ -412,8 +421,6 @@
 	   ============================================ */
 	button.toolbar-dark,
 	a.toolbar-dark {
-		border: 0.1rem solid;
-		border-color: var(--gray-200);
 		background-color: var(--gray-400);
 		margin: 0rem 0.2rem;
 	}

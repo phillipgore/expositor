@@ -38,6 +38,9 @@
 <div class="container">
 	<div class="study-header">
 		<Heading heading="h1" classes="h4">{data.study.title}</Heading>
+		{#if data.study.subtitle}
+			<p class="study-subtitle">{data.study.subtitle}</p>
+		{/if}
 		{#if data.passages && data.passages.length > 0}
 			<p class="study-references">
 				{#each data.passages as passage, i}
@@ -59,6 +62,13 @@
 		max-width: 60rem;
 		width: 100%;
 		text-align: center;
+	}
+
+	.study-subtitle {
+		font-size: 1.6rem;
+		color: var(--gray-300);
+		margin-top: 0.6rem;
+		line-height: 1.5;
 	}
 
 	.study-references {

@@ -62,6 +62,8 @@ export const verification = pgTable('verification', {
 export const studyGroup = pgTable('study_group', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
+	subtitle: text('subtitle'),
+	description: text('description'),
 	userId: text('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),
@@ -79,6 +81,7 @@ export const studyGroup = pgTable('study_group', {
 export const study = pgTable('study', {
 	id: text('id').primaryKey(),
 	title: text('title').notNull(),
+	subtitle: text('subtitle'),
 	userId: text('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),

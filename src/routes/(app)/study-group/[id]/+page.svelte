@@ -2,6 +2,7 @@
 	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
+	import InstructionText from '$lib/componentElements/InstructionText.svelte';
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 
@@ -35,16 +36,24 @@
 
 <div class="container">
 	<Icon iconId="folder" isActive={false}  classes=""></Icon>
-	<Heading heading="h1" alignCenter>{data.group.name}</Heading>
+	<Heading heading="h1" alignCenter hasSub={data.group.subtitle ? true : false}>{data.group.name}</Heading>
+	{#if data.group.subtitle}
+		<Heading heading="h2" classes="h3" isMuted>{data.group.subtitle}</Heading>
+	{/if}
+	{#if data.group.description}
+		<InstructionText>
+			<p class="group-description">{data.group.description}</p>
+		</InstructionText>
+	{/if}
 	<div class="button-group">
 		<Button 
 			href="/new-study-group?parentGroupId={data.group.id}" 
-			label="New Study Group" 
+			label="New Group in Group" 
 			classes="blue"
 		/>
 		<Button 
 			href="/new-study?groupId={data.group.id}" 
-			label="New Study" 
+			label="New Study in Group" 
 			classes="blue"
 		/>
 	</div>
@@ -63,12 +72,18 @@
 		margin-top: -15.5rem;
 		height: 10.0rem;
 		max-width: initial;
-		margin-bottom: 2.7rem;
+		margin-bottom: 5.4rem;
 		fill: var(--gray-700);
+	}
+
+	.group-description {
+		max-width: 60rem;
+		white-space: pre-wrap;
 	}
 
 	.button-group {
 		display: flex;
 		gap: 1.5rem;
+		padding-top: 1.8rem;
 	}
 </style>

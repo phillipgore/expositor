@@ -42,6 +42,7 @@
 
 	// Initialize form state
 	let studyTitle = $state(initialData?.title || form?.title || '');
+	let studySubtitle = $state(initialData?.subtitle || form?.subtitle || '');
 	let passages = $state(initialData?.passages || [
 		{
 			id: uuidv4(),
@@ -116,6 +117,13 @@
 		isLarge
 		required
 		infoMessage={duplicateTitleMessage}
+	/>
+
+	<InputField
+		label="Subtitle"
+		id="subtitle"
+		name="subtitle"
+		bind:value={studySubtitle}
 	/>
 
 	<input type="hidden" name="passages" value={JSON.stringify(passages)} />

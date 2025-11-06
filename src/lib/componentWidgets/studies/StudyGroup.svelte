@@ -40,6 +40,13 @@
 	// Visual depth indicator (warn if too deep)
 	let isVeryDeep = $derived(depth >= 5);
 	
+	// Calculate total count of child items (studies + subgroups)
+	let totalChildCount = $derived.by(() => {
+		const studiesCount = group.studies?.length || 0;
+		const subgroupsCount = group.subgroups?.length || 0;
+		return studiesCount + subgroupsCount;
+	});
+	
 	// Click timing for distinguishing single-click from double-click
 	let clickTimeout = $state(null);
 	const CLICK_DELAY = 250; // ms to wait before treating as single-click
@@ -118,7 +125,7 @@
 						<Icon iconId={'warning'} classes="warning-icon" />
 					</div>
 				{/if}
-				<span class="group-count">{group.studies.length}</span>
+				<span class="group-count">{totalChildCount}</span>
 			</button>
 		</div>
 	</div>

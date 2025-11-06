@@ -24,7 +24,7 @@
 	 * With paragraphs:
 	 * ```svelte
 	 * <InstructionText>
-	 *   <p>First paragraph of instructions.</p>
+	 *   <p>First paragraph of text.</p>
 	 *   <p>Second paragraph with more details.</p>
 	 * </InstructionText>
 	 * ```
@@ -48,27 +48,27 @@
 	let { children } = $props();
 </script>
 
-<div class="instructions">
+<div class="text">
 	{@render children()}
 </div>
 
 <style>
-	.instructions {
+	.text {
 		color: var(--gray-500);
-		line-height: 1.5;
+		line-height: 1.7;
 		margin-bottom: 1.8rem;
 	}
 
-	.instructions :global(p) {
+	.text :global(p) {
 		margin: 0.0rem 0.0rem 0.9rem;
 	}
 
-	.instructions :global(ol) {
+	.text :global(ol) {
 		margin: 0;
 		padding-left: 2.4rem;
 	}
 
-	.instructions :global(li) {
+	.text :global(li) {
 		margin-bottom: 0.9rem;
 	}
 </style>

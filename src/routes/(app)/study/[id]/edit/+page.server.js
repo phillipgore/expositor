@@ -79,6 +79,7 @@ export async function load({ params, request, depends }) {
 			study: {
 				id: studyData.id,
 				title: studyData.title,
+				subtitle: studyData.subtitle,
 				passages: formattedPassages
 			},
 			studies: allStudies
@@ -123,6 +124,7 @@ export const actions = {
 
 			const formData = await request.formData();
 			const title = formData.get('title');
+			const subtitle = formData.get('subtitle');
 			const passagesJson = formData.get('passages');
 
 			// Validate title
@@ -172,6 +174,7 @@ export const actions = {
 				.update(study)
 				.set({
 					title: title.toString().trim(),
+					subtitle: subtitle && typeof subtitle === 'string' && subtitle.trim() !== '' ? subtitle.toString().trim() : null,
 					updatedAt: now
 				})
 				.where(eq(study.id, studyId));

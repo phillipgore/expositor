@@ -75,7 +75,7 @@
 	.h5,
 	h6,
 	.h6 {
-		margin: 0em 0em 2.0rem;
+		margin: 0em 0em 2.4rem;
 		color: var(--black);
 	}
 	h1,
@@ -104,7 +104,7 @@
 	}
 	.has-sub{
 		margin: 0.0rem;
-		line-height: 1.5;
+		line-height: 1.7em;
 	}
 	.muted {
 		color: var(--gray-500)

@@ -60,6 +60,8 @@ export const actions = {
 
 			const data = await request.formData();
 			const name = data.get('name');
+			const subtitle = data.get('subtitle');
+			const description = data.get('description');
 			const parentGroupId = data.get('parentGroupId');
 
 			if (!name || typeof name !== 'string' || !name.trim()) {
@@ -71,6 +73,12 @@ export const actions = {
 
 			// Build request body
 			const requestBody = { name: name.trim() };
+			if (subtitle && typeof subtitle === 'string' && subtitle.trim() !== '') {
+				requestBody.subtitle = subtitle.trim();
+			}
+			if (description && typeof description === 'string' && description.trim() !== '') {
+				requestBody.description = description.trim();
+			}
 			if (parentGroupId && typeof parentGroupId === 'string' && parentGroupId.trim() !== '') {
 				requestBody.parentGroupId = parentGroupId;
 			}

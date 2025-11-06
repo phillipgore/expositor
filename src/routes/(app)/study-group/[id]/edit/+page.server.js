@@ -44,7 +44,9 @@ export async function load({ params, request, depends }) {
 		return {
 			group: {
 				id: groupData.id,
-				name: groupData.name
+				name: groupData.name,
+				subtitle: groupData.subtitle,
+				description: groupData.description
 			},
 			groups: allGroups
 		};
@@ -88,6 +90,8 @@ export const actions = {
 
 			const formData = await request.formData();
 			const name = formData.get('name');
+			const subtitle = formData.get('subtitle');
+			const description = formData.get('description');
 
 			// Validate name
 			if (!name || typeof name !== 'string' || name.trim() === '') {
@@ -104,6 +108,8 @@ export const actions = {
 				.update(studyGroup)
 				.set({
 					name: name.toString().trim(),
+					subtitle: subtitle && typeof subtitle === 'string' && subtitle.trim() !== '' ? subtitle.toString().trim() : null,
+					description: description && typeof description === 'string' && description.trim() !== '' ? description.toString().trim() : null,
 					updatedAt: now
 				})
 				.where(eq(studyGroup.id, groupId));
