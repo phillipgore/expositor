@@ -47,17 +47,22 @@
 	const dragDrop = useDragAndDrop(() => invalidate('app:studies'));
 	
 	// Track active study from current route
-	let activeStudyId = $derived(
-		$page.url.pathname.startsWith('/study/') 
-			? $page.url.pathname.split('/study/')[1] 
-			: null
-	);
+	let activeStudyId = $derived.by(() => {
+		if ($page.url.pathname.startsWith('/study/')) {
+			const pathPart = $page.url.pathname.split('/study/')[1];
+			// Extract just the ID (remove /edit or other suffixes)
+			return pathPart.split('/')[0];
+		}
+		return null;
+	});
 	
 	// Track active group from current route or URL parameter
 	let activeGroupId = $derived.by(() => {
 		// Check if we're on a study-group page
 		if ($page.url.pathname.startsWith('/study-group/')) {
-			return $page.url.pathname.split('/study-group/')[1];
+			const pathPart = $page.url.pathname.split('/study-group/')[1];
+			// Extract just the ID (remove /edit or other suffixes)
+			return pathPart.split('/')[0];
 		}
 		// Check if we're on the new-study page with a groupId parameter
 		if ($page.url.pathname === '/new-study') {

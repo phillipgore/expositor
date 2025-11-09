@@ -17,7 +17,7 @@
 		existingStudies={data.studies}
 		groupId={data.groupId}
 		groupName={data.groupName}
-		cancelHref="/dashboard"
+		cancelHref={data.groupId ? `/study-group/${data.groupId}` : '/dashboard'}
 	/>
 </div>
 

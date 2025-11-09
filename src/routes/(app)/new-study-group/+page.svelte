@@ -17,7 +17,7 @@
 		existingGroups={data.groups}
 		parentGroupId={data.parentGroupId}
 		parentGroupName={data.parentGroupName}
-		cancelHref="/dashboard"
+		cancelHref={data.parentGroupId ? `/study-group/${data.parentGroupId}` : '/dashboard'}
 	/>
 </div>
 
@@ -26,10 +26,5 @@
 		display: flex;
 		justify-content: center;
 		margin-top: 3.6rem;
-	}
-
-	form {
-		width: 41.4rem;
-		min-width: 36.0rem
 	}
 </style>

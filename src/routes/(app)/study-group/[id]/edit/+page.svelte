@@ -16,7 +16,7 @@
 		initialData={data.group}
 		{form}
 		existingGroups={data.groups}
-		cancelHref="/dashboard"
+		cancelHref="/study-group/{data.group.id}"
 	/>
 </div>
 

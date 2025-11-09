@@ -110,7 +110,6 @@
 		id="description"
 		name="description"
 		bind:value={groupDescription}
-		isLarge
 		rows={3}
 	/>
 

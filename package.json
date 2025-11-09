@@ -15,7 +15,8 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:push": "drizzle-kit push",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"db:export-seed": "tsx scripts/export-seed-data.ts"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
@@ -25,6 +26,7 @@
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"@types/pg": "^8.15.4",
 		"@types/uuid": "^10.0.0",
+		"dotenv": "^17.2.3",
 		"drizzle-kit": "^0.31.4",
 		"eslint": "^9.18.0",
 		"eslint-config-prettier": "^10.0.1",
@@ -35,6 +37,7 @@
 		"sass": "^1.89.2",
 		"svelte": "^5.0.0",
 		"svelte-check": "^4.2.2",
+		"tsx": "^4.20.6",
 		"typescript": "^5.8.3",
 		"vite": "^6.2.6"
 	},

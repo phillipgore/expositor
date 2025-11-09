@@ -123,14 +123,8 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'fixed',
-			classes: 'hide-at-narrower'
-		},
-		{
-			type: 'spacer',
 			variant: 'flex',
-			classes: 'show-at-narrower'
-		},
+		}
 		{
 			type: 'section',
 			id: 'toggles',
@@ -156,23 +150,7 @@ export function getAppToolbarConfig() {
 					underLabel: 'Verses',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow'
-				}
-			]
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
-			classes: 'hide-at-narrower'
-		},
-		{
-			type: 'spacer',
-			variant: 'flex',
-			classes: 'show-at-narrower'
-		},
-		{
-			type: 'section',
-			id: 'layout',
-			items: [
+				},
 				{
 					type: 'toggle',
 					iconId: 'wide',

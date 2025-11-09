@@ -16,7 +16,7 @@
 		initialData={data.study}
 		{form}
 		existingStudies={data.studies}
-		cancelHref="/dashboard"
+		cancelHref="/study/{data.study.id}"
 	/>
 </div>
 
