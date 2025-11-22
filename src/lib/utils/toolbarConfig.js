@@ -124,7 +124,7 @@ export function getAppToolbarConfig() {
 		{
 			type: 'spacer',
 			variant: 'flex',
-		}
+		},
 		{
 			type: 'section',
 			id: 'toggles',

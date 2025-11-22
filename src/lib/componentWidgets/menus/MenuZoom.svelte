@@ -27,7 +27,7 @@
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
 
-	let { menuId = 'MenuZoom', onselect } = $props();
+	let { menuId = 'MenuZoom', onselect = undefined } = $props();
 
 	let menuItems = $state([
 		{ id: '25', type: 'button', label: '25%', iconId: 'blank', isActive: false },

@@ -34,11 +34,9 @@ function getBookName(testamentId, bookId) {
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ url, request }) {
+	// Get the current user from session (guaranteed by layout)
 	const session = await auth.api.getSession({ headers: request.headers });
-	if (!session?.user?.id) {
-		throw redirect(303, '/signin');
-	}
-
+	
 	// Get groupId from URL if provided
 	const groupId = url.searchParams.get('groupId');
 	let group = null;

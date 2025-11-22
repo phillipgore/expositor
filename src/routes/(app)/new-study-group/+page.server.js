@@ -6,13 +6,9 @@ import { eq, and } from 'drizzle-orm';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ url, request }) {
-	// Verify user is authenticated
+	// Get the current user from session (guaranteed by layout)
 	const session = await auth.api.getSession({ headers: request.headers });
 	
-	if (!session?.user?.id) {
-		throw redirect(303, '/signin');
-	}
-
 	// Get parentGroupId from URL if provided
 	const parentGroupId = url.searchParams.get('parentGroupId');
 	let parentGroup = null;

@@ -24,12 +24,8 @@ function getBookName(testamentId, bookId) {
 export async function load({ params, request, depends }) {
 	depends('app:studies');
 	
-	// Get the current user from session
+	// Get the current user from session (guaranteed by layout)
 	const session = await auth.api.getSession({ headers: request.headers });
-	if (!session?.user?.id) {
-		throw error(401, 'You must be logged in to edit studies');
-	}
-
 	const studyId = params.id;
 
 	try {

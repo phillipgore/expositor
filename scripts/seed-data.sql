@@ -1,6 +1,6 @@
 -- =====================================================
 -- Expositor Seed Data
--- Generated: 2025-11-06T13:04:47.208Z
+-- Generated: 2025-11-11T12:38:59.259Z
 -- =====================================================
 -- This script will DELETE all existing data from study_group, 
 -- study, and passage tables, then INSERT the snapshot data.
@@ -19,18 +19,24 @@ DELETE FROM study_group;
 
 -- Insert data for study_group
 INSERT INTO study_group (id, name, subtitle, description, userId, parentGroupId, displayOrder, isCollapsed, createdAt, updatedAt) VALUES
-  ('9d3173fe-4c2e-4b34-80d6-28c415f8cadd', 'Set Free', NULL, 'A Study of Galatians', 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 3, true, '2025-11-01T12:44:53.960Z', '2025-11-03T16:43:43.005Z'),
-  ('dd4968a7-d0f9-4b34-9f83-584d57c037af', '24 Hours', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 7, true, '2025-11-03T02:30:59.294Z', '2025-11-03T15:59:39.036Z'),
+  ('15d13607-7df7-45d9-99db-29e863a4570e', 'SG 006', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'aee2f9c2-c3d2-410a-b236-1d4f8fd4f576', 20, true, '2025-11-11T12:27:32.969Z', '2025-11-11T12:32:46.506Z'),
+  ('aee2f9c2-c3d2-410a-b236-1d4f8fd4f576', 'SG 005', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '855f0a14-5195-4a67-b9de-11a791408948', 19, true, '2025-11-11T12:27:23.290Z', '2025-11-11T12:32:47.880Z'),
+  ('e9f6ad0e-7ea1-491f-9d99-5c1b36a93521', 'Early Church of Jerusalem', 'Acts 1-7', 'A comprehensive expository study of the first church as presented in the book of Acts. Beginning with the ascension of Jesus and concluding with the martyrdom of Stephen.', 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 0, true, '2025-11-01T12:28:39.372Z', '2025-11-11T12:26:33.378Z'),
+  ('9d3173fe-4c2e-4b34-80d6-28c415f8cadd', 'Set Free', 'A Study of Galatians', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 3, true, '2025-11-01T12:44:53.960Z', '2025-11-09T13:53:58.771Z'),
+  ('855f0a14-5195-4a67-b9de-11a791408948', 'SG 004', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '9b25404e-3d68-465c-9fc8-7e52ce4ab817', 18, true, '2025-11-11T12:27:05.639Z', '2025-11-11T12:32:49.124Z'),
   ('3e40ec90-ad8b-4c68-8ec9-d2dfe8ebcfc2', 'Church 101', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 9, true, '2025-11-03T02:34:39.789Z', '2025-11-03T16:07:02.935Z'),
   ('c273fbc0-f49f-449e-bf02-93557b634cc6', 'Epic', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 10, true, '2025-11-03T02:34:52.130Z', '2025-11-03T16:10:02.549Z'),
   ('8016a476-7b20-4dbf-9b09-8c6e7381a325', 'Generous', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 11, true, '2025-11-03T02:35:12.130Z', '2025-11-03T16:12:46.562Z'),
   ('deb1913c-4a07-494b-82cf-4bffdf220300', 'One', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 14, true, '2025-11-03T02:36:00.011Z', '2025-11-03T16:25:23.183Z'),
-  ('0c409bbd-b648-4085-96ab-589417b8a0ab', 'A Life of Faith', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 8, true, '2025-11-03T02:34:25.101Z', '2025-11-03T16:26:25.437Z'),
+  ('9b25404e-3d68-465c-9fc8-7e52ce4ab817', 'SG 003', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '2daa61c7-94f4-4ee0-bd3f-d61e3efd9436', 17, true, '2025-11-11T12:26:57.368Z', '2025-11-11T12:32:51.312Z'),
+  ('2daa61c7-94f4-4ee0-bd3f-d61e3efd9436', 'SG 002', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '71a28f86-f4e9-4672-b352-a4731ad4fef5', 16, true, '2025-11-09T21:05:35.416Z', '2025-11-11T12:32:52.845Z'),
+  ('71a28f86-f4e9-4672-b352-a4731ad4fef5', 'SG 001', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 15, true, '2025-11-09T21:05:24.729Z', '2025-11-11T12:32:53.944Z'),
   ('20d4e395-0d0e-4a6e-98fe-cab2601095cb', 'Love & Respect', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 12, true, '2025-11-03T02:35:34.339Z', '2025-11-03T16:38:21.144Z'),
-  ('eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 'Sermons 2012-2013', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 5, true, '2025-11-03T02:29:06.595Z', '2025-11-03T16:38:22.329Z'),
-  ('e9f6ad0e-7ea1-491f-9d99-5c1b36a93521', 'Early Church of Jerusalem', 'Acts 1-7', 'A comprehensive expository study of the first church as presented in the book of Acts. Beginning with the ascension of Jesus and concluding with the martyrdom of Stephen.', 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 0, true, '2025-11-01T12:28:39.372Z', '2025-11-03T16:41:20.988Z'),
-  ('470a2744-648e-4203-9543-e8d19057af51', 'Jesus Who', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 2, true, '2025-11-01T12:29:27.367Z', '2025-11-03T15:48:10.357Z'),
-  ('ac7b1b03-b83a-442e-927f-c17918ba706c', 'Messiah', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 4, true, '2025-11-01T13:10:43.132Z', '2025-11-03T15:48:13.871Z');
+  ('dd4968a7-d0f9-4b34-9f83-584d57c037af', '24 Hours', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 7, true, '2025-11-03T02:30:59.294Z', '2025-11-09T13:17:55.010Z'),
+  ('470a2744-648e-4203-9543-e8d19057af51', 'Jesus Who', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 2, true, '2025-11-01T12:29:27.367Z', '2025-11-09T04:45:09.010Z'),
+  ('ac7b1b03-b83a-442e-927f-c17918ba706c', 'Messiah', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 4, true, '2025-11-01T13:10:43.132Z', '2025-11-09T04:45:11.577Z'),
+  ('eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 'Sermons 2012-2013', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', NULL, 5, true, '2025-11-03T02:29:06.595Z', '2025-11-09T21:33:22.187Z'),
+  ('0c409bbd-b648-4085-96ab-589417b8a0ab', 'A Life of Faith', NULL, NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'eb8dc38f-d9ba-4f4c-8dce-b75719b4f22a', 8, true, '2025-11-03T02:34:25.101Z', '2025-11-06T14:16:25.325Z');
 
 -- Insert data for study
 INSERT INTO study (id, title, subtitle, userId, groupId, createdAt, updatedAt) VALUES
@@ -106,7 +112,25 @@ INSERT INTO study (id, title, subtitle, userId, groupId, createdAt, updatedAt) V
   ('7364ef09-84f9-49a5-8f26-76477beeaa99', '02 One Spirit. One Hope.', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'deb1913c-4a07-494b-82cf-4bffdf220300', '2025-11-03T16:21:59.256Z', '2025-11-03T16:22:06.507Z'),
   ('c4572b01-f7fd-4371-b9a7-32738729f039', '01 One Body', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'deb1913c-4a07-494b-82cf-4bffdf220300', '2025-11-03T16:19:58.703Z', '2025-11-03T16:22:29.971Z'),
   ('37fb648a-1584-484c-85b5-59b1af45f4fc', '03 One Lord. One Faith.', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'deb1913c-4a07-494b-82cf-4bffdf220300', '2025-11-03T16:23:39.281Z', '2025-11-03T16:23:39.281Z'),
-  ('aece5063-9b9d-4a2a-a23d-13196dafa3e7', '04 One Baptism. One Father', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'deb1913c-4a07-494b-82cf-4bffdf220300', '2025-11-03T16:25:18.127Z', '2025-11-03T16:25:18.127Z');
+  ('aece5063-9b9d-4a2a-a23d-13196dafa3e7', '04 One Baptism. One Father', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'deb1913c-4a07-494b-82cf-4bffdf220300', '2025-11-03T16:25:18.127Z', '2025-11-03T16:25:18.127Z'),
+  ('b9d158a2-8ad1-4dcd-820c-64d909989974', 'SG 001 - SI 002', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '71a28f86-f4e9-4672-b352-a4731ad4fef5', '2025-11-09T21:28:21.532Z', '2025-11-09T21:28:21.532Z'),
+  ('b0a239f4-3262-482e-8a6e-c375b0cbcad4', 'SG 001 - SI 003', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '71a28f86-f4e9-4672-b352-a4731ad4fef5', '2025-11-09T21:28:35.814Z', '2025-11-09T21:28:35.814Z'),
+  ('2d11b2b6-b097-4127-8bc2-1b1801d3ad1f', 'SG 002 - SI 002', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '2daa61c7-94f4-4ee0-bd3f-d61e3efd9436', '2025-11-09T21:28:57.413Z', '2025-11-09T21:28:57.413Z'),
+  ('cfe19e58-8e8f-4fa1-93b4-dcb267023e7f', 'SG 002 - SI 003', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '2daa61c7-94f4-4ee0-bd3f-d61e3efd9436', '2025-11-09T21:29:04.755Z', '2025-11-09T21:29:04.755Z'),
+  ('ff818436-1493-453b-805c-f4fc27544f02', 'SG 003 - SI 002', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '9b25404e-3d68-465c-9fc8-7e52ce4ab817', '2025-11-09T21:29:21.235Z', '2025-11-11T12:27:38.839Z'),
+  ('b09a9871-69a7-4121-bf61-88ead09e1954', 'SG 003 - SI 003', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '9b25404e-3d68-465c-9fc8-7e52ce4ab817', '2025-11-09T21:29:30.154Z', '2025-11-11T12:27:43.492Z'),
+  ('574816ee-eea4-41e2-8f32-c2fc8afa92c6', 'SG 001 - SI 001', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '71a28f86-f4e9-4672-b352-a4731ad4fef5', '2025-11-11T12:28:15.892Z', '2025-11-11T12:28:15.892Z'),
+  ('fe2b1859-6d74-4446-9927-8773c9547918', 'SG 002 - SI 001', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '2daa61c7-94f4-4ee0-bd3f-d61e3efd9436', '2025-11-11T12:28:40.131Z', '2025-11-11T12:28:40.131Z'),
+  ('c589df0d-f7f7-4d97-b607-b483f365a48f', 'SG 003 - SI 001', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '9b25404e-3d68-465c-9fc8-7e52ce4ab817', '2025-11-11T12:29:15.986Z', '2025-11-11T12:29:15.986Z'),
+  ('e935987e-492b-4c0a-9cbe-094b05c82f87', 'SG 004 - SI 001', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '855f0a14-5195-4a67-b9de-11a791408948', '2025-11-11T12:31:29.338Z', '2025-11-11T12:31:29.338Z'),
+  ('0e2cd4bb-d65c-497d-87eb-b4c84404f9e9', 'SG 004 - SI 002', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '855f0a14-5195-4a67-b9de-11a791408948', '2025-11-11T12:31:37.530Z', '2025-11-11T12:31:37.530Z'),
+  ('2e226e88-8a7a-492e-9aeb-a4c08fda9ce1', 'SG 004 - SI 003', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '855f0a14-5195-4a67-b9de-11a791408948', '2025-11-11T12:31:44.897Z', '2025-11-11T12:31:44.897Z'),
+  ('8321b062-a65b-405e-ae5d-0647d0dcc6e8', 'SG 005 - SI 001', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'aee2f9c2-c3d2-410a-b236-1d4f8fd4f576', '2025-11-11T12:32:01.622Z', '2025-11-11T12:32:01.622Z'),
+  ('249cb9c4-9e3d-4d4a-a48b-15386454bed9', 'SG 005 - SI 002', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'aee2f9c2-c3d2-410a-b236-1d4f8fd4f576', '2025-11-11T12:32:08.839Z', '2025-11-11T12:32:08.839Z'),
+  ('9eab4ac2-b3fb-4b44-ad5d-22f0341b45c8', 'SG 005 - SI 003', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', 'aee2f9c2-c3d2-410a-b236-1d4f8fd4f576', '2025-11-11T12:32:15.356Z', '2025-11-11T12:32:15.356Z'),
+  ('9c682ecf-c34b-4604-87c6-57225aa46e6a', 'SG 006 - SI 001', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '15d13607-7df7-45d9-99db-29e863a4570e', '2025-11-11T12:32:28.066Z', '2025-11-11T12:32:28.066Z'),
+  ('317fb9de-05d7-46b0-9f8b-e478a94ae319', 'SG 006 - SI 002', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '15d13607-7df7-45d9-99db-29e863a4570e', '2025-11-11T12:32:35.290Z', '2025-11-11T12:32:35.290Z'),
+  ('00b8e754-9cbd-498f-bb7d-eaabf8ed08d4', 'SG 006 - SI 003', NULL, 'SlBDdjqnZ5hCyXG7MidBkDDq5y0K2o31', '15d13607-7df7-45d9-99db-29e863a4570e', '2025-11-11T12:32:42.266Z', '2025-11-11T12:32:42.266Z');
 
 -- Insert data for passage
 INSERT INTO passage (id, studyId, testament, bookId, bookName, fromChapter, toChapter, fromVerse, toVerse, displayOrder, createdAt) VALUES
@@ -166,6 +190,7 @@ INSERT INTO passage (id, studyId, testament, bookId, bookName, fromChapter, toCh
   ('8d35a31b-a776-4c52-8217-20cb81aec637', '303aaee6-1000-480a-b6b0-ef10cb9cf836', 'NT', 'LK', 'Luke', 2, 2, 39, 40, 1, '2025-11-02T15:03:09.621Z'),
   ('30f92d74-a983-4a3b-90b6-67f4261ac84f', '7be71e32-9105-465f-a72d-be8a56481490', 'NT', 'GA', 'Galatians', 1, 1, 1, 12, 0, '2025-11-02T15:05:00.877Z'),
   ('031dad8f-a1c0-4714-8d61-2001f8c2f0c2', '8b1220e8-bf81-45e4-94a7-f807b3c3fc2c', 'NT', 'GA', 'Galatians', 1, 2, 13, 10, 0, '2025-11-02T15:05:59.542Z'),
+  ('03eec57f-b8d7-4604-aad4-783a53796c36', '574816ee-eea4-41e2-8f32-c2fc8afa92c6', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:28:15.892Z'),
   ('54681c6e-d09a-477f-818f-c19d8ee213e8', '4346b6c4-7dcc-4710-9358-55643563a52a', 'NT', 'GA', 'Galatians', 3, 3, 1, 14, 0, '2025-11-02T15:07:11.653Z'),
   ('a6902904-3875-4aa6-9457-2bc6acac07eb', '21caa8d9-ab6c-499b-8d0f-cb90c75c754c', 'NT', 'MT', 'Matthew', 2, 2, 11, 23, 0, '2025-11-02T15:07:17.425Z'),
   ('77d42ae7-d2f8-4070-be76-de586eaee213', 'b5a9312f-707f-4b06-ae35-2c313ecda47c', 'NT', 'GA', 'Galatians', 3, 3, 15, 29, 0, '2025-11-02T15:07:49.447Z'),
@@ -217,6 +242,11 @@ INSERT INTO passage (id, studyId, testament, bookId, bookName, fromChapter, toCh
   ('a54cfe88-5efc-4eef-8947-b05ca09bb908', '06711569-142b-49da-80aa-8939d210de33', 'NT', 'IPE', '1 Peter', 3, 3, 7, 7, 1, '2025-11-03T16:16:41.739Z'),
   ('e2877880-b6e1-43c5-858f-8f79f1aa7c22', 'deecc6cb-a37f-4c90-a43b-9bd94d85497f', 'NT', 'EP', 'Ephesians', 5, 5, 22, 24, 0, '2025-11-03T16:17:19.415Z'),
   ('a9684a5e-fa12-486d-8869-36519ef154f0', 'e5933297-37b0-47ce-ad4f-a050897fe8b0', 'NT', '1CO', '1 Corinthians', 7, 7, 3, 5, 0, '2025-11-03T16:18:13.694Z'),
+  ('f6962dea-66cb-4f3b-98f3-db1277954c75', 'fe2b1859-6d74-4446-9927-8773c9547918', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:28:40.131Z'),
+  ('b96d804b-51a5-4261-b6f1-0c540ba6b409', 'c589df0d-f7f7-4d97-b607-b483f365a48f', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:29:15.986Z'),
+  ('cd5a8a7e-4e76-4163-ba1a-b6111378a6d6', 'e935987e-492b-4c0a-9cbe-094b05c82f87', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:31:29.338Z'),
+  ('827032d9-591d-42db-87d3-b7909d3f208a', '0e2cd4bb-d65c-497d-87eb-b4c84404f9e9', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:31:37.530Z'),
+  ('3f001d30-fcb8-4d8e-aeaf-9e28bdc8fd0b', '2e226e88-8a7a-492e-9aeb-a4c08fda9ce1', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:31:44.897Z'),
   ('cbf33d9e-b0d6-4b86-a77c-77a947bb7b64', '7364ef09-84f9-49a5-8f26-76477beeaa99', 'NT', 'EP', 'Ephesians', 4, 4, 1, 6, 0, '2025-11-03T16:22:06.507Z'),
   ('20eb4b4c-4d0b-4ec6-bcdf-c07b1bb2842b', '7364ef09-84f9-49a5-8f26-76477beeaa99', 'NT', 'EP', 'Ephesians', 1, 1, 13, 14, 1, '2025-11-03T16:22:06.507Z'),
   ('b87eb6ec-3634-44ed-9ba8-f8a6999d261e', '7364ef09-84f9-49a5-8f26-76477beeaa99', 'NT', 'EP', 'Ephesians', 2, 2, 18, 18, 2, '2025-11-03T16:22:06.507Z'),
@@ -227,7 +257,19 @@ INSERT INTO passage (id, studyId, testament, bookId, bookName, fromChapter, toCh
   ('e1abb016-a5cc-4f0a-a6bf-16782acfc3f2', 'aece5063-9b9d-4a2a-a23d-13196dafa3e7', 'NT', 'EP', 'Ephesians', 4, 4, 1, 6, 0, '2025-11-03T16:25:18.127Z'),
   ('d5940d11-6bad-4a8b-9090-ae01b7028d55', 'aece5063-9b9d-4a2a-a23d-13196dafa3e7', 'NT', 'MK', 'Mark', 16, 16, 16, 16, 1, '2025-11-03T16:25:18.127Z'),
   ('1cd4c68d-c340-45f3-8942-40e645a94946', 'aece5063-9b9d-4a2a-a23d-13196dafa3e7', 'NT', 'AC', 'Acts', 2, 2, 38, 38, 2, '2025-11-03T16:25:18.127Z'),
-  ('905e1e39-4581-458c-8333-bb6dfd291f4d', 'aece5063-9b9d-4a2a-a23d-13196dafa3e7', 'NT', 'IPE', '1 Peter', 3, 3, 21, 21, 3, '2025-11-03T16:25:18.127Z');
+  ('905e1e39-4581-458c-8333-bb6dfd291f4d', 'aece5063-9b9d-4a2a-a23d-13196dafa3e7', 'NT', 'IPE', '1 Peter', 3, 3, 21, 21, 3, '2025-11-03T16:25:18.127Z'),
+  ('0872f5aa-8953-4d17-b19e-95c22c35d2df', '8321b062-a65b-405e-ae5d-0647d0dcc6e8', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:32:01.622Z'),
+  ('d9f6fbf4-4ce0-4b15-890b-40703d6f983b', 'b9d158a2-8ad1-4dcd-820c-64d909989974', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-09T21:28:21.532Z'),
+  ('5edda7a1-bc42-4dc9-9fab-761f2481a414', 'b0a239f4-3262-482e-8a6e-c375b0cbcad4', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-09T21:28:35.814Z'),
+  ('fc8d5207-7e92-4920-883a-3ac25a5ec37b', '249cb9c4-9e3d-4d4a-a48b-15386454bed9', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:32:08.839Z'),
+  ('57b7a8da-2a57-4b7e-bde3-417739ab6368', '2d11b2b6-b097-4127-8bc2-1b1801d3ad1f', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-09T21:28:57.413Z'),
+  ('c9a5efd0-4737-4cf9-8690-8800201f5d69', 'cfe19e58-8e8f-4fa1-93b4-dcb267023e7f', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-09T21:29:04.755Z'),
+  ('496b04a1-422f-43ad-9b29-9c36883c601a', '9eab4ac2-b3fb-4b44-ad5d-22f0341b45c8', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:32:15.356Z'),
+  ('6c19a3d6-db7f-4a3a-a19a-8caf3725caa2', 'ff818436-1493-453b-805c-f4fc27544f02', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-09T21:29:21.235Z'),
+  ('85837c07-53ca-4012-bf75-366654deae17', 'b09a9871-69a7-4121-bf61-88ead09e1954', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-09T21:29:30.154Z'),
+  ('3d08376c-213e-4605-8869-8a89a01ccd62', '9c682ecf-c34b-4604-87c6-57225aa46e6a', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:32:28.066Z'),
+  ('be931994-fed3-4577-9d0f-6469eb524cd5', '317fb9de-05d7-46b0-9f8b-e478a94ae319', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:32:35.290Z'),
+  ('5922f968-a189-49a8-979e-601a56bdfcd4', '00b8e754-9cbd-498f-bb7d-eaabf8ed08d4', 'NT', 'MT', 'Matthew', 1, 1, 1, 25, 0, '2025-11-11T12:32:42.266Z');
 
 -- Re-enable triggers
 SET session_replication_role = DEFAULT;

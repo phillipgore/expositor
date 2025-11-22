@@ -1,3 +1,4 @@
+import { redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
 import { study, passage, studyGroup, user } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
@@ -9,14 +10,9 @@ export async function load({ request, depends }) {
 	// Get the current user from session
 	const session = await auth.api.getSession({ headers: request.headers });
 	
-	// If not logged in, return empty arrays
+	// Redirect to login if not authenticated
 	if (!session?.user?.id) {
-		return {
-			groups: [],
-			ungroupedStudies: [],
-			studies: [],
-			studiesPanelWidth: 300
-		};
+		throw redirect(303, '/signin');
 	}
 
 	try {

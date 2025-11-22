@@ -138,42 +138,23 @@
 			}
 		}
 
-		// Multiple items
+		// Multiple items - show only selected counts (smart preservation handles unselected items)
 		const groupItems = items.filter(i => i.type === 'group');
 		const studyItems = items.filter(i => i.type === 'study');
 		
-		let totalNestedGroups = 0;
-		let totalNestedStudies = studyItems.length;
-		
-		// Count nested items in all selected groups
-		for (const groupItem of groupItems) {
-			const counts = countNestedItems(groupItem.data);
-			totalNestedGroups += counts.groups;
-			totalNestedStudies += counts.studies;
-		}
+		const selectedGroupCount = groupItems.length;
+		const selectedStudyCount = studyItems.length;
 
 		let parts = [];
-		const directGroupCount = groupItems.length;
-		if (directGroupCount > 0) {
-			parts.push(`${directGroupCount} ${directGroupCount === 1 ? 'group' : 'groups'}`);
+		if (selectedGroupCount > 0) {
+			parts.push(`${selectedGroupCount} ${selectedGroupCount === 1 ? 'group' : 'groups'}`);
 		}
-		if (totalNestedStudies > 0) {
-			parts.push(`${totalNestedStudies} ${totalNestedStudies === 1 ? 'study' : 'studies'}`);
+		if (selectedStudyCount > 0) {
+			parts.push(`${selectedStudyCount} ${selectedStudyCount === 1 ? 'study' : 'studies'}`);
 		}
 
-		let warning = 'This action cannot be undone.';
-		if (totalNestedGroups > 0 || (directGroupCount > 0 && totalNestedStudies > 0)) {
-			let warningParts = [];
-			if (totalNestedGroups > 0) {
-				warningParts.push(`${totalNestedGroups} nested ${totalNestedGroups === 1 ? 'group' : 'groups'}`);
-			}
-			if (totalNestedStudies > 0 && directGroupCount > 0) {
-				warningParts.push(`${totalNestedStudies} ${totalNestedStudies === 1 ? 'study' : 'studies'}`);
-			}
-			if (warningParts.length > 0) {
-				warning = `This will permanently delete ${warningParts.join(' and ')}.`;
-			}
-		}
+		// Warning: Mention that unselected items will be preserved
+		let warning = 'Unselected items within groups will be preserved and moved to safe locations. This action cannot be undone.';
 
 		return {
 			title: 'Delete Multiple Items',
@@ -229,36 +210,36 @@
 		deleteError = '';
 
 		try {
-			const { items } = $toolbarState.selectedItem;
+			const { items, count } = $toolbarState.selectedItem;
 			
 			// Collect all selected IDs by type
 			const selectedGroupIds = items.filter(i => i.type === 'group').map(i => i.id);
 			const selectedStudyIds = items.filter(i => i.type === 'study').map(i => i.id);
 			
-			// Delete all selected items, passing selection context for groups
-			const deletePromises = items.map(item => {
-				const endpoint = item.type === 'group' 
-					? `/api/groups/${item.id}`
-					: `/api/studies/${item.id}`;
-				
-				// For groups, pass the selection context so unselected children can be preserved
-				const body = item.type === 'group' 
-					? { selectedGroupIds, selectedStudyIds }
-					: undefined;
-				
-				return fetch(endpoint, {
-					method: 'DELETE',
+			// Use bulk delete for multiple items OR when groups are involved
+			// (to ensure proper handling of unselected descendants)
+			if (count > 1 || selectedGroupIds.length > 0) {
+				const response = await fetch('/api/bulk-delete', {
+					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					...(body && { body: JSON.stringify(body) })
+					body: JSON.stringify({ selectedGroupIds, selectedStudyIds })
 				});
-			});
 
-			const results = await Promise.all(deletePromises);
-			
-			// Check if any failed
-			const failures = results.filter(r => !r.ok);
-			if (failures.length > 0) {
-				throw new Error(`Failed to delete ${failures.length} item(s)`);
+				if (!response.ok) {
+					const error = await response.json();
+					throw new Error(error.error || 'Failed to delete items');
+				}
+			} else {
+				// Single study deletion - use direct endpoint
+				const study = items[0];
+				const response = await fetch(`/api/studies/${study.id}`, {
+					method: 'DELETE',
+					headers: { 'Content-Type': 'application/json' }
+				});
+
+				if (!response.ok) {
+					throw new Error('Failed to delete study');
+				}
 			}
 
 			// Success - close modal and refresh data
@@ -437,7 +418,7 @@
 		
 		{#if deleteError}
 			<p class="modal-message error">
-				{deleteError}This is a test message.
+				{deleteError}
 			</p>
 		{/if}
 	</Modal>

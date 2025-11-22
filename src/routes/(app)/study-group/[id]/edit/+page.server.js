@@ -8,12 +8,8 @@ import { eq } from 'drizzle-orm';
 export async function load({ params, request, depends }) {
 	depends('app:studies');
 	
-	// Get the current user from session
+	// Get the current user from session (guaranteed by layout)
 	const session = await auth.api.getSession({ headers: request.headers });
-	if (!session?.user?.id) {
-		throw error(401, 'You must be logged in to edit study groups');
-	}
-
 	const groupId = params.id;
 
 	try {
