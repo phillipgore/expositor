@@ -117,6 +117,63 @@
 	}
 
 	/**
+	 * Check if a study matches the search query
+	 */
+	function studyMatchesQuery(study, query) {
+		if (study.title.toLowerCase().includes(query)) return true;
+		if (study.passages && study.passages.length > 0) {
+			return study.passages.some(passage => 
+				formatPassageReference(passage).toLowerCase().includes(query)
+			);
+		}
+		return false;
+	}
+
+	/**
+	 * Recursively filter a group and its subgroups
+	 * Returns null if the group and all its children have no matches
+	 */
+	function filterGroupRecursive(group, query) {
+		// Check if group name matches
+		const groupNameMatches = group.name.toLowerCase().includes(query);
+		
+		// Filter studies
+		const filteredStudies = group.studies.filter(study => studyMatchesQuery(study, query));
+		
+		// Recursively filter subgroups
+		let filteredSubgroups = [];
+		if (group.subgroups && group.subgroups.length > 0) {
+			filteredSubgroups = group.subgroups
+				.map(subgroup => filterGroupRecursive(subgroup, query))
+				.filter(subgroup => subgroup !== null);
+		}
+		
+		// If group name matches, include ALL studies and subgroups (no filtering)
+		if (groupNameMatches) {
+			return {
+				...group,
+				studies: [...group.studies].sort((a, b) => a.title.localeCompare(b.title)),
+				subgroups: group.subgroups || [],
+				matchedByName: true
+			};
+		}
+		
+		// If nothing matched in this group or its children, return null
+		if (filteredStudies.length === 0 && filteredSubgroups.length === 0) {
+			return null;
+		}
+		
+		// Return group with filtered content
+		filteredStudies.sort((a, b) => a.title.localeCompare(b.title));
+		return {
+			...group,
+			studies: filteredStudies,
+			subgroups: filteredSubgroups,
+			matchedByName: false
+		};
+	}
+
+	/**
 	 * Get filtered groups with filtered and alphabetized studies
 	 */
 	function getFilteredGroups() {
@@ -130,23 +187,13 @@
 		}
 
 		const query = searchQuery.toLowerCase();
-		return groups.map(group => {
-			const filteredStudies = group.studies.filter(study => {
-				if (study.title.toLowerCase().includes(query)) return true;
-				if (study.passages && study.passages.length > 0) {
-					return study.passages.some(passage => 
-						formatPassageReference(passage).toLowerCase().includes(query)
-					);
-				}
-				return false;
-			});
-
-			filteredStudies.sort((a, b) => a.title.localeCompare(b.title));
-			return {
-				...group,
-				studies: filteredStudies
-			};
-		});
+		
+		// Filter groups recursively
+		const filteredGroups = groups
+			.map(group => filterGroupRecursive(group, query))
+			.filter(group => group !== null);
+		
+		return filteredGroups;
 	}
 
 	/**
@@ -595,6 +642,7 @@
 									isGroupSelected={(groupId) => multiSelect.isItemSelected('group', groupId)}
 									getGroupSelectionPosition={(groupId) => multiSelect.getSelectionPosition('group', groupId)}
 									isGroupActive={(groupId) => groupId === activeGroupId}
+									forceExpanded={searchQuery.trim() !== ''}
 								/>
 							{:else}
 								<div class="study-wrapper">

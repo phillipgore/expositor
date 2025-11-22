@@ -31,7 +31,9 @@
 		// For nested groups
 		isGroupSelected,
 		getGroupSelectionPosition,
-		isGroupActive
+		isGroupActive,
+		// For search - force expand groups during search
+		forceExpanded = false
 	} = $props();
 	
 	// Compute if THIS group is the drop target
@@ -39,6 +41,9 @@
 	
 	// Visual depth indicator (warn if too deep)
 	let isVeryDeep = $derived(depth >= 5);
+	
+	// Compute effective expanded state (considers both actual collapse state and force expansion)
+	let isEffectivelyExpanded = $derived(!group.isCollapsed || forceExpanded);
 	
 	// Click timing for distinguishing single-click from double-click
 	let clickTimeout = $state(null);
@@ -99,10 +104,10 @@
 			<button 
 				class="chevron-button"
 				onclick={(e) => { e.stopPropagation(); onToggleCollapse?.(group.id, group.isCollapsed); }}
-				aria-label={group.isCollapsed ? 'Expand group' : 'Collapse group'}
-				aria-expanded={!group.isCollapsed}
+				aria-label={isEffectivelyExpanded ? 'Collapse group' : 'Expand group'}
+				aria-expanded={isEffectivelyExpanded}
 			>
-				<Icon iconId={group.isCollapsed ? 'chevron-right' : 'chevron-down'} classes="chevron-icon" />
+				<Icon iconId={isEffectivelyExpanded ? 'chevron-down' : 'chevron-right'} classes="chevron-icon" />
 			</button>
 			<button 
 				class="group-select-button"
@@ -122,7 +127,7 @@
 		</div>
 	</div>
 	
-	{#if !group.isCollapsed}
+	{#if !group.isCollapsed || forceExpanded}
 		<div class="group-contents" transition:slide={{ duration: 200 }}>
 			<!-- Render nested groups FIRST -->
 			{#if group.subgroups && group.subgroups.length > 0}
@@ -149,6 +154,7 @@
 							{isGroupSelected}
 							{getGroupSelectionPosition}
 							{isGroupActive}
+							{forceExpanded}
 						/>
 					</div>
 				{/each}
