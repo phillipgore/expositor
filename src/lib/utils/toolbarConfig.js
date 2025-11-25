@@ -29,7 +29,7 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'flex',
+			variant: 'fixed',
 		},
 		{
 			type: 'section',
@@ -46,24 +46,14 @@ export function getAppToolbarConfig() {
 			]
 		},
 		{
-			type: 'spacer',
-			variant: 'fixed',
-		},
-		{
 			type: 'section',
 			id: 'actions',
 			items: [
 				{
-					type: 'icon',
-					iconId: 'pencil',
-					underLabel: 'Edit',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light'
-				},
-				{
-					type: 'icon',
-					iconId: 'trashcan',
-					underLabel: 'Delete',
+					type: 'menu',
+					iconId: 'gear',
+					menuId: 'MenuActions',
+					underLabel: 'Actions',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}
@@ -220,9 +210,9 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'menu',
-					iconId: 'gear',
+					iconId: 'account',
 					menuId: 'MenuSettings',
-					underLabel: 'Settings',
+					underLabel: 'Account',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}

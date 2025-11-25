@@ -57,10 +57,14 @@
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
 	import MenuView from '$lib/componentWidgets/menus/MenuView.svelte';
+	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
 	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel } from '$lib/stores/toolbar.js';
 	import { invalidate } from '$app/navigation';
+
+	// Props to receive data from layout
+	let { groups = [] } = $props();
 
 	/** @type {string} Current zoom level label */
 	let zoomLabel = $state('100%');
@@ -182,6 +186,54 @@
 			: `/study/${item.id}/edit`;
 		
 		goto(editUrl);
+	}
+
+	/**
+	 * Handle move to group from Actions menu
+	 */
+	async function handleMoveToGroup(targetGroupId) {
+		// Get multiSelect instance from StudiesPanel via toolbar state
+		// For now, we'll call the API directly since we have the selected items
+		if (!$toolbarState.selectedItem) return;
+
+		try {
+			const { items } = $toolbarState.selectedItem;
+			
+			// Separate studies and groups
+			const studyItems = items.filter(item => item.type === 'study');
+			const groupItems = items.filter(item => item.type === 'group');
+
+			// Move studies
+			if (studyItems.length > 0) {
+				await Promise.all(
+					studyItems.map(item =>
+						fetch(`/api/studies/${item.id}`, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ groupId: targetGroupId })
+						})
+					)
+				);
+			}
+
+			// Move groups
+			if (groupItems.length > 0) {
+				await Promise.all(
+					groupItems.map(item =>
+						fetch(`/api/groups/${item.id}`, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ parentGroupId: targetGroupId })
+						})
+					)
+				);
+			}
+
+			// Reload data
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Error moving items:', error);
+		}
 	}
 
 	/**
@@ -330,16 +382,6 @@
 						href={button.href}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
-						handleClick={
-							button.iconId === 'trashcan' ? handleDeleteClick :
-							button.iconId === 'pencil' ? handleEditClick :
-							undefined
-						}
-						isDisabled={
-							button.iconId === 'trashcan' ? !$toolbarState.canDelete :
-							button.iconId === 'pencil' ? !$toolbarState.canEdit :
-							false
-						}
 					/>
 				{:else if button.type === 'menu'}
 					<MenuButton
@@ -350,6 +392,7 @@
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
 						isDisabled={
+							button.menuId === 'MenuActions' ? !$toolbarState.canDelete && !$toolbarState.canEdit :
 							button.menuId === 'MenuZoom' ? !$toolbarState.canZoom :
 							button.menuId === 'MenuStructure' ? !$toolbarState.canStructure :
 							button.menuId === 'MenuText' ? !$toolbarState.canText :
@@ -396,6 +439,13 @@
 <MenuColor menuId="MenuColor" />
 <MenuSettings menuId="MenuSettings" alignment="end" />
 <MenuView menuId="MenuView" />
+<MenuActions 
+	menuId="MenuActions" 
+	{groups}
+	onMoveToGroup={handleMoveToGroup}
+	onEdit={handleEditClick}
+	onDelete={handleDeleteClick}
+/>
 
 <!-- Delete Confirmation Modal -->
 {#if deleteModalContent}

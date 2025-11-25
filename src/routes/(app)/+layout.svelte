@@ -7,7 +7,6 @@
 	import StudiesPanel from '$lib/componentWidgets/StudiesPanel.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
-	/** @type {import('./$types').LayoutData} */
 	let { data, children } = $props();
 
 	onMount(() => {
@@ -25,7 +24,7 @@
 </script>
 
 {#if $isAuthenticated}
-	<ToolbarApp></ToolbarApp>
+	<ToolbarApp groups={data.groups || []}></ToolbarApp>
 	<div class="app-container">
 		<StudiesPanel 
 			isOpen={$toolbarState.studiesPanelOpen} 

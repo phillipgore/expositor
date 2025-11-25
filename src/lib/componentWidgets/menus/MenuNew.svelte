@@ -39,10 +39,6 @@
 			: null
 	);
 
-	let selectedGroupName = $derived.by(() => {
-		return selectedGroup? ` "${selectedGroup.data.name}"` : '...';
-	});
-
 	/** Navigate to new study page, optionally with groupId */
 	const handleNewStudy = (groupId = null) => {
 		// Close the menu first
@@ -87,7 +83,7 @@
 
 	<IconButton
 		iconId="book"
-		label={`New Study in${selectedGroupName}`}
+		label="New Study in Selected Group"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewStudy(selectedGroup.id)}
@@ -98,7 +94,7 @@
 
 	<IconButton
 		iconId="folder"
-		label="New Study Group"
+		label="New Group"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewGroup(null)}
@@ -106,7 +102,7 @@
 
 	<IconButton
 		iconId="folder"
-		label={`New Group in${selectedGroupName}`}
+		label="New Group in Selected Group"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewGroup(selectedGroup.id)}

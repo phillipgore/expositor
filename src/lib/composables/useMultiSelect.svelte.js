@@ -202,6 +202,63 @@ export function useMultiSelect(updateToolbarCallback) {
 		return 'middle';
 	}
 
+	/**
+	 * Move selected items to a target group
+	 * @param {string|null} targetGroupId - ID of target group, or null for ungrouped
+	 * @param {Function} invalidateCallback - Callback to reload data after move
+	 * @returns {Promise<{success: boolean, error?: string}>}
+	 */
+	async function moveSelectionToGroup(targetGroupId, invalidateCallback) {
+		if (selectedItems.length === 0) {
+			return { success: false, error: 'No items selected' };
+		}
+
+		try {
+			// Separate studies and groups
+			const studyItems = selectedItems.filter(item => item.type === 'study');
+			const groupItems = selectedItems.filter(item => item.type === 'group');
+
+			// Move studies
+			if (studyItems.length > 0) {
+				await Promise.all(
+					studyItems.map(item =>
+						fetch(`/api/studies/${item.id}`, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ groupId: targetGroupId })
+						})
+					)
+				);
+			}
+
+			// Move groups
+			if (groupItems.length > 0) {
+				await Promise.all(
+					groupItems.map(item =>
+						fetch(`/api/groups/${item.id}`, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ parentGroupId: targetGroupId })
+						})
+					)
+				);
+			}
+
+			// Reload data
+			if (invalidateCallback) {
+				await invalidateCallback();
+			}
+
+			// Clear selection after successful move
+			clearSelection();
+
+			return { success: true };
+		} catch (error) {
+			console.error('Error moving items:', error);
+			return { success: false, error: error.message || 'Failed to move items' };
+		}
+	}
+
 	return {
 		// State
 		get selectedItems() { return selectedItems; },
@@ -217,6 +274,7 @@ export function useMultiSelect(updateToolbarCallback) {
 		handleStudyDoubleClick,
 		getSelectedStudies,
 		removeGroupsFromSelection,
-		getSelectionPosition
+		getSelectionPosition,
+		moveSelectionToGroup
 	};
 }
