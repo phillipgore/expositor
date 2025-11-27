@@ -24,6 +24,10 @@
 
 	// Search state
 	let searchQuery = $state('');
+	let searchInputRef = $state(null);
+	
+	// Keyboard navigation state
+	let focusedItemIndex = $state(-1);
 	
 	// Panel width state (initialized from localStorage or user data)
 	const savedWidth = typeof window !== 'undefined' 
@@ -309,6 +313,122 @@
 	}
 
 	/**
+	 * Handle keyboard navigation through the list
+	 */
+	function handleListKeyDown(event) {
+		const flattenedItems = getFlattenedItemsList();
+		const itemCount = flattenedItems.length;
+		
+		if (itemCount === 0) return;
+
+		// Initialize focus if not set
+		if (focusedItemIndex === -1 && itemCount > 0) {
+			focusedItemIndex = 0;
+		}
+
+		switch (event.key) {
+			case 'ArrowDown':
+				event.preventDefault();
+				focusedItemIndex = Math.min(focusedItemIndex + 1, itemCount - 1);
+				focusItem(focusedItemIndex, flattenedItems);
+				break;
+
+			case 'ArrowUp':
+				event.preventDefault();
+				focusedItemIndex = Math.max(focusedItemIndex - 1, 0);
+				focusItem(focusedItemIndex, flattenedItems);
+				break;
+
+			case 'ArrowLeft':
+				event.preventDefault();
+				handleArrowLeft(flattenedItems);
+				break;
+
+			case 'ArrowRight':
+				event.preventDefault();
+				handleArrowRight(flattenedItems);
+				break;
+
+			case 'Home':
+				event.preventDefault();
+				focusedItemIndex = 0;
+				focusItem(focusedItemIndex, flattenedItems);
+				break;
+
+			case 'End':
+				event.preventDefault();
+				focusedItemIndex = itemCount - 1;
+				focusItem(focusedItemIndex, flattenedItems);
+				break;
+
+			case 'PageDown':
+				event.preventDefault();
+				// Jump 10 items or to end
+				focusedItemIndex = Math.min(focusedItemIndex + 10, itemCount - 1);
+				focusItem(focusedItemIndex, flattenedItems);
+				break;
+
+			case 'PageUp':
+				event.preventDefault();
+				// Jump 10 items or to start
+				focusedItemIndex = Math.max(focusedItemIndex - 10, 0);
+				focusItem(focusedItemIndex, flattenedItems);
+				break;
+		}
+	}
+
+	/**
+	 * Handle Arrow Left - collapse expanded groups
+	 */
+	function handleArrowLeft(flattenedItems) {
+		const currentItem = flattenedItems[focusedItemIndex];
+		if (!currentItem || currentItem.type !== 'group') return;
+
+		const group = currentItem.data;
+		
+		// If group is expanded, collapse it
+		if (!group.isCollapsed) {
+			toggleGroupCollapse(group.id, group.isCollapsed);
+		}
+	}
+
+	/**
+	 * Handle Arrow Right - expand collapsed groups
+	 */
+	function handleArrowRight(flattenedItems) {
+		const currentItem = flattenedItems[focusedItemIndex];
+		if (!currentItem || currentItem.type !== 'group') return;
+
+		const group = currentItem.data;
+		
+		// If group is collapsed, expand it
+		if (group.isCollapsed) {
+			toggleGroupCollapse(group.id, group.isCollapsed);
+		}
+	}
+
+	/**
+	 * Focus a specific item by index
+	 */
+	function focusItem(index, flattenedItems) {
+		const item = flattenedItems[index];
+		if (!item) return;
+
+		// Find the DOM element and focus it
+		// For groups, target the button specifically since there are multiple elements with data-group-id
+		const selector = item.type === 'group' 
+			? `.group-select-button[data-group-id="${item.id}"]`
+			: `[data-study-id="${item.id}"]`;
+		
+		const element = document.querySelector(selector);
+		if (element) {
+			element.focus();
+			// Scroll into view if needed
+			element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		}
+	}
+
+	/**
 	 * Toggle group collapsed state
 	 */
 	async function toggleGroupCollapse(groupId, currentState) {
@@ -556,6 +676,20 @@
 			}
 		}
 	});
+
+	/**
+	 * Focus search input when panel opens
+	 */
+	$effect(() => {
+		if (isOpen && searchInputRef) {
+			// Small delay to allow transition
+			const timeoutId = setTimeout(() => {
+				searchInputRef?.focus();
+			}, 100);
+			
+			return () => clearTimeout(timeoutId);
+		}
+	});
 </script>
 
 <!-- Drag ghost -->
@@ -590,10 +724,12 @@
 	<div class="panel-content" style:width="{panelWidth}px">
 		<div class="panel-header">
 			<Input 
+				bind:this={searchInputRef}
 				id="search-studies" 
 				name="search" 
 				type="search" 
 				placeholder="Search"
+				aria-label="Search studies"
 				bind:value={searchQuery}
 			/>
 		</div>
@@ -618,12 +754,13 @@
 					{/each}
 				</ul>
 			{:else}
-				<div class="studies-container">
-					{#each sortedGroupsAndStudies as item (item.type === 'group' ? 'group-' + item.data.id : 'study-' + item.data.id)}
+				<div class="studies-container" onkeydown={handleListKeyDown}>
+					{#each sortedGroupsAndStudies as item, index (item.type === 'group' ? 'group-' + item.data.id : 'study-' + item.data.id)}
 						<div role="presentation" animate:flip={{ duration: 300 }}>
 							{#if item.type === 'group'}
 								<StudyGroup
 									group={item.data}
+									tabindex={index === 0 ? 0 : -1}
 									isSelected={multiSelect.isItemSelected('group', item.data.id)}
 									selectionPosition={multiSelect.getSelectionPosition('group', item.data.id)}
 									isActive={item.data.id === activeGroupId}
@@ -643,11 +780,17 @@
 									getGroupSelectionPosition={(groupId) => multiSelect.getSelectionPosition('group', groupId)}
 									isGroupActive={(groupId) => groupId === activeGroupId}
 									forceExpanded={searchQuery.trim() !== ''}
+									onfocus={() => {
+										const flatList = getFlattenedItemsList();
+										const itemIndex = flatList.findIndex(i => i.type === 'group' && i.id === item.data.id);
+										if (itemIndex !== -1) focusedItemIndex = itemIndex;
+									}}
 								/>
 							{:else}
 								<div class="study-wrapper">
 									<StudyItem
 										study={item.data}
+										tabindex={index === 0 && sortedGroupsAndStudies[0]?.type === 'study' ? 0 : -1}
 										isSelected={multiSelect.isItemSelected('study', item.data.id)}
 										selectionPosition={multiSelect.getSelectionPosition('study', item.data.id)}
 										isActive={item.data.id === activeStudyId}
@@ -657,6 +800,11 @@
 										{formatPassageReference}
 										onMouseDown={handleStudyMouseDown}
 										onClick={handleStudyClick}
+										onfocus={() => {
+											const flatList = getFlattenedItemsList();
+											const itemIndex = flatList.findIndex(i => i.type === 'study' && i.id === item.data.id);
+											if (itemIndex !== -1) focusedItemIndex = itemIndex;
+										}}
 									/>
 								</div>
 							{/if}
@@ -709,8 +857,7 @@
 		justify-content: space-between;
 		align-items: center;
 		gap: 1.5rem;
-		padding: 1.5rem;
-		background-color: var(--gray-lighter);
+		padding: 1.5rem 1.5rem 0.6rem;
 		position: sticky;
 		top: 0;
 		z-index: 1;
@@ -724,7 +871,7 @@
 	.panel-scrollable {
 		flex: 1;
 		overflow-y: auto;
-		padding: 0 0.9rem 0.9rem;
+		padding: 0.9rem;
 	}
 
 	.empty-message {

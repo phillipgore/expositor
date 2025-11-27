@@ -26,11 +26,14 @@
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Input from '$lib/componentElements/Input.svelte';
 	import Icon from '$lib/componentElements/Icon.svelte';
+	import Button from '$lib/componentElements/buttons/Button.svelte';
 
 	let { isOpen = false, groups = [], selectedItems = [], onMoveToGroup, onClose } = $props();
 
 	let searchQuery = $state('');
+	let searchInputRef = $state(null);
 	let groupListElement = $state(null);
+	let focusedGroupIndex = $state(0);
 
 	/**
 	 * Check if moving selected groups to target would create circular nesting
@@ -161,11 +164,65 @@
 	}
 
 	/**
+	 * Handle keyboard navigation through the group list
+	 */
+	function handleListKeyDown(event) {
+		const itemCount = filteredGroups.length;
+		if (itemCount === 0) return;
+
+		switch (event.key) {
+			case 'ArrowDown':
+				event.preventDefault();
+				focusedGroupIndex = Math.min(focusedGroupIndex + 1, itemCount - 1);
+				focusGroup(focusedGroupIndex);
+				break;
+
+			case 'ArrowUp':
+				event.preventDefault();
+				focusedGroupIndex = Math.max(focusedGroupIndex - 1, 0);
+				focusGroup(focusedGroupIndex);
+				break;
+
+			case 'Home':
+				event.preventDefault();
+				focusedGroupIndex = 0;
+				focusGroup(focusedGroupIndex);
+				break;
+
+			case 'End':
+				event.preventDefault();
+				focusedGroupIndex = itemCount - 1;
+				focusGroup(focusedGroupIndex);
+				break;
+
+			case 'Enter':
+				event.preventDefault();
+				const focusedGroup = filteredGroups[focusedGroupIndex];
+				if (focusedGroup && !focusedGroup.disabled) {
+					handleGroupSelect(focusedGroup.id);
+				}
+				break;
+		}
+	}
+
+	/**
+	 * Focus a specific group by index
+	 */
+	function focusGroup(index) {
+		const button = groupListElement?.querySelector(`[data-group-index="${index}"]`);
+		if (button) {
+			button.focus();
+			button.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		}
+	}
+
+	/**
 	 * Reset state when modal opens
 	 */
 	$effect(() => {
 		if (isOpen) {
 			searchQuery = '';
+			focusedGroupIndex = 0;
 		}
 	});
 </script>
@@ -176,27 +233,34 @@
 	size="medium"
 	showConfirm={false}
 	showCancel={false}
+	showCloseButton={false}
 	onClose={handleClose}
 >
 	<div class="modal-search">
 		<Input
+			bind:this={searchInputRef}
 			id="group-search"
 			name="group-search"
 			type="search"
 			placeholder="Search groups..."
+			aria-label="Search groups"
+			autofocus={true}
 			bind:value={searchQuery}
 		/>
 	</div>
 
-	<div class="group-list" bind:this={groupListElement}>
+	<div class="group-list" bind:this={groupListElement} onkeydown={handleListKeyDown}>
 		{#if filteredGroups.length > 0}
-			{#each filteredGroups as group}
+			{#each filteredGroups as group, index}
 				<button
 					class="group-item"
 					class:disabled={group.disabled}
 					class:highlighted={group.matches && searchQuery.trim() !== ''}
 					style="padding-left: {1.2 + (group.depth * 1.2)}rem;"
+					tabindex={index === 0 ? 0 : -1}
+					data-group-index={index}
 					disabled={group.disabled}
+					onfocus={() => focusedGroupIndex = index}
 					onclick={() => handleGroupSelect(group.id)}
 				>
 					<Icon iconId="folder" />
@@ -208,6 +272,14 @@
 				<p>No groups found matching your search</p>
 			</div>
 		{/if}
+	</div>
+
+	<div class="modal-footer">
+		<Button
+			label="Close"
+			classes="gray"
+			handleClick={handleClose}
+		/>
 	</div>
 </Modal>
 
@@ -223,6 +295,8 @@
 	.group-list {
 		max-height: 40rem;
 		overflow-y: auto;
+		padding: 0.3rem;
+		margin: -0.3rem;
 	}
 
 	.group-item {
@@ -238,6 +312,7 @@
 		font-size: 1.4rem;
 		text-align: left;
 		transition: background-color 0.15s;
+		margin: 0.1rem 0;
 	}
 
 	.group-item:hover:not(.disabled) {
@@ -250,6 +325,11 @@
 
 	.group-item:hover:not(.disabled) :global(.icon) {
 		fill: var(--white);
+	}
+
+	.group-item:focus {
+		outline: 0.2rem solid var(--blue);
+		outline-offset: 0.1rem;
 	}
 
 	.group-item.disabled {
@@ -279,5 +359,13 @@
 		margin: 0;
 		font-size: 1.4rem;
 		color: var(--gray-400);
+	}
+
+	.modal-footer {
+		display: flex;
+		justify-content: flex-end;
+		padding-top: 1.2rem;
+		margin-top: 1.2rem;
+		/* border-top: 0.1rem solid var(--gray-700); */
 	}
 </style>

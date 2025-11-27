@@ -476,6 +476,205 @@ $effect(() => {
 - Don't blur focused element when starting drag
 - Return focus to appropriate item after drag completes
 
+### Step 17.5: Implement Keyboard Navigation for Study List
+**Files:** 
+- `src/lib/componentWidgets/StudiesPanel.svelte`
+- `src/lib/componentWidgets/studies/StudyItem.svelte`
+- `src/lib/componentWidgets/studies/StudyGroup.svelte`
+
+**Issue:** Cannot navigate through studies/groups with keyboard (WCAG 2.1.1, 2.4.3)
+
+**Implementation Approach:** Use the "Roving Tabindex" pattern (ARIA Authoring Practices Guide)
+
+#### Changes to StudiesPanel.svelte
+
+**Add state for keyboard navigation:**
+```javascript
+let focusedItemIndex = $state(-1);
+let flattenedItems = $derived.by(() => {
+  // Flatten the hierarchical structure into a linear array for keyboard nav
+  const items = [];
+  sortedGroupsAndStudies.forEach(item => {
+    if (item.type === 'group') {
+      items.push({ type: 'group', id: item.data.id, element: null });
+      if (item.data.isExpanded) {
+        // Add nested items if expanded
+        item.data.studies?.forEach(study => {
+          items.push({ type: 'study', id: study.id, element: null });
+        });
+        // Recursively add nested groups
+        // ... (similar logic for nested groups)
+      }
+    } else {
+      items.push({ type: 'study', id: item.data.id, element: null });
+    }
+  });
+  return items;
+});
+```
+
+**Add keyboard event handler:**
+```javascript
+function handleListKeyDown(event) {
+  const itemCount = flattenedItems.length;
+  if (itemCount === 0) return;
+
+  // Initialize focus if not set
+  if (focusedItemIndex === -1 && itemCount > 0) {
+    focusedItemIndex = 0;
+  }
+
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      focusedItemIndex = Math.min(focusedItemIndex + 1, itemCount - 1);
+      focusItem(focusedItemIndex);
+      break;
+
+    case 'ArrowUp':
+      event.preventDefault();
+      focusedItemIndex = Math.max(focusedItemIndex - 1, 0);
+      focusItem(focusedItemIndex);
+      break;
+
+    case 'Home':
+      event.preventDefault();
+      focusedItemIndex = 0;
+      focusItem(focusedItemIndex);
+      break;
+
+    case 'End':
+      event.preventDefault();
+      focusedItemIndex = itemCount - 1;
+      focusItem(focusedItemIndex);
+      break;
+
+    case 'PageDown':
+      event.preventDefault();
+      // Jump 10 items or to end
+      focusedItemIndex = Math.min(focusedItemIndex + 10, itemCount - 1);
+      focusItem(focusedItemIndex);
+      break;
+
+    case 'PageUp':
+      event.preventDefault();
+      // Jump 10 items or to start
+      focusedItemIndex = Math.max(focusedItemIndex - 10, 0);
+      focusItem(focusedItemIndex);
+      break;
+  }
+}
+
+function focusItem(index) {
+  const item = flattenedItems[index];
+  if (!item) return;
+
+  // Find the DOM element and focus it
+  const selector = item.type === 'group' 
+    ? `[data-group-id="${item.id}"]`
+    : `[data-study-id="${item.id}"]`;
+  
+  const element = document.querySelector(selector);
+  if (element) {
+    element.focus();
+    // Scroll into view if needed
+    element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+```
+
+**Update markup:**
+```svelte
+<div 
+  class="studies-container"
+  onkeydown={handleListKeyDown}
+  role="list"
+>
+  {#each sortedGroupsAndStudies as item, index (item.type === 'group' ? 'group-' + item.data.id : 'study-' + item.data.id)}
+    <div role="listitem">
+      {#if item.type === 'group'}
+        <StudyGroup
+          group={item.data}
+          tabindex={index === 0 ? 0 : -1}
+          data-group-id={item.data.id}
+          onfocus={() => focusedItemIndex = index}
+          ...
+        />
+      {:else}
+        <StudyItem
+          study={item.data}
+          tabindex={index === 0 ? 0 : -1}
+          data-study-id={item.data.id}
+          onfocus={() => focusedItemIndex = index}
+          ...
+        />
+      {/if}
+    </div>
+  {/each}
+</div>
+```
+
+#### Changes to StudyItem.svelte
+
+**Add tabindex prop:**
+```javascript
+let { 
+  study,
+  tabindex = -1,  // New prop
+  ...otherProps 
+} = $props();
+```
+
+**Update button/link:**
+```svelte
+<button 
+  class="study-item"
+  tabindex={tabindex}
+  data-study-id={study.id}
+  ...
+>
+```
+
+#### Changes to StudyGroup.svelte
+
+**Add tabindex prop:**
+```javascript
+let { 
+  group,
+  tabindex = -1,  // New prop
+  ...otherProps 
+} = $props();
+```
+
+**Update button:**
+```svelte
+<button 
+  class="group-select-button"
+  tabindex={tabindex}
+  data-group-id={group.id}
+  ...
+>
+```
+
+#### Key Features:
+
+1. **Roving Tabindex:** Only one item in the list is tabbable (tabindex="0") at a time
+2. **Arrow Keys:** Navigate up/down through visible items
+3. **Home/End:** Jump to first/last item
+4. **Page Up/Down:** Jump by 10 items
+5. **Auto-scroll:** Focused item scrolls into view
+6. **Respects Hierarchy:** Only navigates through currently visible items (respects collapsed groups)
+7. **Focus Tracking:** Updates focused index when items receive focus
+
+#### Accessibility Benefits:
+
+- ✅ WCAG 2.1.1: Keyboard accessible
+- ✅ WCAG 2.4.3: Focus order is logical
+- ✅ WCAG 2.4.7: Focus visible
+- ✅ ARIA 1.2: Follows roving tabindex pattern
+- ✅ Efficient: Only one Tab stop for entire list
+- ✅ Intuitive: Arrow keys for navigation (standard pattern)
+
 ## Phase 6: Instructions and Help
 
 ### Step 18: Add Instructions for Multi-Select

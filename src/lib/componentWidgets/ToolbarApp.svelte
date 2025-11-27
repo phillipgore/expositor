@@ -73,6 +73,7 @@
 	let showDeleteModal = $state(false);
 	let deleteInProgress = $state(false);
 	let deleteError = $state('');
+	let deleteOpenedViaKeyboard = $state(false);
 
 	// Get toolbar configuration
 	const toolbarConfig = getAppToolbarConfig();
@@ -239,16 +240,11 @@
 	/**
 	 * Handle delete button click
 	 */
-	function handleDeleteClick(event) {
+	function handleDeleteClick(viaKeyboard) {
 		if (!$toolbarState.canDelete || !$toolbarState.selectedItem) return;
 		
-		// Prevent event propagation to avoid clearing multi-selection
-		if (event) {
-			event.stopPropagation();
-			event.preventDefault();
-		}
-		
 		deleteError = '';
+		deleteOpenedViaKeyboard = viaKeyboard;
 		showDeleteModal = true;
 	}
 
@@ -461,6 +457,7 @@
 		onClose={handleDeleteModalClose}
 		showCloseButton={false}
 		closeOnBackdropClick={false}
+		focusCancelOnOpen={deleteOpenedViaKeyboard}
 	>
 		<p class="modal-message">
 			{deleteModalContent.message}{#if deleteModalContent.warning}&nbsp;{deleteModalContent.warning}{/if}

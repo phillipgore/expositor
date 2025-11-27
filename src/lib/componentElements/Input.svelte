@@ -44,7 +44,7 @@
 	 */
 
 	/** @type {InputProps} */
-	let { id, name, type = 'text', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable('') } = $props();
+	let { id, name, type = 'text', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable(''), ...restProps } = $props();
 </script>
 
 <input
@@ -58,6 +58,7 @@
 	required={required}
 	aria-required={required}
 	onkeydown={onkeydown}
+	{...restProps}
 />
 
 <style>

@@ -80,6 +80,7 @@
 	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API). Only used for buttons
 	 * @property {string} [style] - Inline CSS styles for the element
 	 * @property {string} [role] - ARIA role attribute (e.g., 'menuitem' for menu items)
+	 * @property {HTMLButtonElement | HTMLAnchorElement} [buttonElement] - Bindable reference to the button/link element
 	 * @property {import('svelte').Snippet} [children] - Snippet for custom content. Takes precedence over label
 	 */
 
@@ -106,7 +107,8 @@
 		popovertarget,
 		style,
 		role,
-		children
+		children,
+		buttonElement = $bindable()
 	} = $props();
 
 	// Determine if this should render as a link
@@ -267,6 +269,7 @@
 	</a>
 {:else}
 	<button
+		bind:this={buttonElement}
 		tabindex={role === 'menuitem' ? -1 : 0}
 		{id}
 		{type}

@@ -13,10 +13,12 @@
 	let {
 		group,
 		depth = 0,
+		tabindex = -1,
 		isSelected = false,
 		selectionPosition = null,
 		isActive = false,
 		dropTargetGroupId = null,
+		onfocus = null,
 		onToggleCollapse,
 		onGroupHeaderClick,
 		onGroupMouseDown,
@@ -111,6 +113,9 @@
 			</button>
 			<button 
 				class="group-select-button"
+				{tabindex}
+				data-group-id={group.id}
+				onfocus={(e) => onfocus?.(e)}
 				onclick={handleClick}
 				ondblclick={handleDoubleClick}
 				onmousedown={(e) => onGroupMouseDown?.(e, group)}
@@ -136,6 +141,7 @@
 						<svelte:self
 							group={subgroup}
 							depth={depth + 1}
+							tabindex={-1}
 							isSelected={isGroupSelected?.(subgroup.id) || false}
 							selectionPosition={getGroupSelectionPosition?.(subgroup.id)}
 							isActive={isGroupActive?.(subgroup.id) || false}
@@ -168,6 +174,7 @@
 							<StudyItem
 								{study}
 								depth={depth + 1}
+								tabindex={-1}
 								isSelected={isStudySelected(study.id)}
 								selectionPosition={getStudySelectionPosition(study.id)}
 								isActive={isStudyActive(study.id)}
@@ -313,6 +320,10 @@
 	}
 
 	.group-select-button:focus {
+		outline: none;
+	}
+
+	.group-header:focus-within {
 		outline: 0.2rem solid var(--blue);
 		outline-offset: 0.1rem;
 	}

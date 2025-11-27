@@ -174,7 +174,7 @@
 	/**
 	 * Handle delete click
 	 */
-	function handleDeleteClick() {
+	function handleDeleteClick(event) {
 		// Close the menu
 		const menu = document.getElementById(menuId);
 		if (menu && menu.matches(':popover-open')) {
@@ -182,7 +182,10 @@
 		}
 		
 		if (onDelete) {
-			onDelete();
+			// Pass whether this was triggered via keyboard
+			// (Enter/Space on focused button) vs mouse click
+			const viaKeyboard = event.detail === 0 || event instanceof KeyboardEvent;
+			onDelete(viaKeyboard);
 		}
 	}
 

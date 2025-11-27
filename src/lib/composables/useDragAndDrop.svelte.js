@@ -19,6 +19,9 @@ export function useDragAndDrop(invalidateCallback) {
 	let dropTargetGroupId = $state(null);
 	const DRAG_THRESHOLD = 5; // pixels to move before initiating drag
 	
+	// Focus management
+	let focusedElementBeforeDrag = null;
+	
 	// Auto-scroll state
 	let autoScrollAnimationId = null;
 	let autoScrollSpeed = $state(0);
@@ -63,6 +66,9 @@ export function useDragAndDrop(invalidateCallback) {
 		// Prevent browser's default drag behavior
 		event.preventDefault();
 		
+		// Store currently focused element before drag starts
+		focusedElementBeforeDrag = document.activeElement;
+		
 		// Record starting position
 		dragStartX = event.clientX;
 		dragStartY = event.clientY;
@@ -93,6 +99,9 @@ export function useDragAndDrop(invalidateCallback) {
 		
 		// Prevent browser's default drag behavior
 		event.preventDefault();
+		
+		// Store currently focused element before drag starts
+		focusedElementBeforeDrag = document.activeElement;
 		
 		// Record starting position
 		dragStartX = event.clientX;
@@ -373,6 +382,16 @@ export function useDragAndDrop(invalidateCallback) {
 			if (clearSelectionCallback) {
 				clearSelectionCallback();
 			}
+			
+			// Restore focus to the element that had it before drag
+			if (focusedElementBeforeDrag && document.body.contains(focusedElementBeforeDrag)) {
+				// Small delay to allow DOM updates
+				setTimeout(() => {
+					if (focusedElementBeforeDrag && typeof focusedElementBeforeDrag.focus === 'function') {
+						focusedElementBeforeDrag.focus();
+					}
+				}, 50);
+			}
 		}
 		
 		// Reset drag state
@@ -384,6 +403,7 @@ export function useDragAndDrop(invalidateCallback) {
 		dragStartY = 0;
 		currentMouseX = 0;
 		currentMouseY = 0;
+		focusedElementBeforeDrag = null;
 	}
 
 	/**

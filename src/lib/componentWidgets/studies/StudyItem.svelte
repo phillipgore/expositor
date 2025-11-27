@@ -11,6 +11,7 @@
 	let {
 		study,
 		depth = 0,
+		tabindex = -1,
 		isSelected = false,
 		selectionPosition = null,
 		isActive = false,
@@ -20,6 +21,7 @@
 		asLink = false,
 		href = null,
 		ghost = false,
+		onfocus = null,
 		onMouseDown = null,
 		onClick = null,
 		formatPassageReference
@@ -84,6 +86,9 @@
 		class:selection-isolated={isSelected && selectionPosition === 'isolated'}
 		class:active={isActive && isSelected}
 		style:padding-left={paddingLeft}
+		{tabindex}
+		data-study-id={study.id}
+		onfocus={(e) => onfocus?.(e)}
 		onmousedown={(e) => onMouseDown?.(e, study)}
 		onclick={(e) => {
 			if (!isDragging) {

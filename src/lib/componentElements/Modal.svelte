@@ -45,6 +45,7 @@
 		confirmClasses = 'blue',
 		showConfirm = true,
 		showCancel = true,
+		focusCancelOnOpen = false,
 		onClose = () => {},
 		onConfirm = null,
 		onCancel = null,
@@ -52,6 +53,7 @@
 	} = $props();
 
 	let dialogElement = $state(null);
+	let cancelButtonElement = $state(null);
 
 	/**
 	 * Open or close the dialog based on isOpen prop
@@ -64,6 +66,26 @@
 		} else if (!isOpen && dialogElement.open) {
 			dialogElement.close();
 		}
+	});
+
+	/**
+	 * Manage focus when dialog opens
+	 * - If opened via keyboard (focusCancelOnOpen=true): focus Cancel button for safety
+	 * - If opened via mouse (focusCancelOnOpen=false): focus dialog itself (no button focused)
+	 */
+	$effect(() => {
+		if (!dialogElement || !isOpen) return;
+
+		// Use requestAnimationFrame to ensure dialog is fully rendered and open
+		requestAnimationFrame(() => {
+			if (focusCancelOnOpen && cancelButtonElement) {
+				// Keyboard interaction - focus Cancel button for safe default
+				cancelButtonElement.focus();
+			} else if (dialogElement.open) {
+				// Mouse interaction - focus dialog itself to remove button focus
+				dialogElement.focus();
+			}
+		});
 	});
 
 	/**
@@ -117,6 +139,7 @@
 
 <dialog
 	bind:this={dialogElement}
+	tabindex="-1"
 	class="modal"
 	class:modal-small={size === 'small'}
 	class:modal-medium={size === 'medium'}
@@ -146,6 +169,7 @@
 			<div class="modal-footer">
 				{#if showCancel}
 					<Button
+						bind:buttonElement={cancelButtonElement}
 						label={cancelLabel}
 						classes="gray"
 						handleClick={handleCancel}
@@ -171,6 +195,10 @@
 		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
 		max-width: 90vw;
 		max-height: 90vh;
+	}
+
+	.modal:focus-visible {
+		outline: none;
 	}
 
 	.modal::backdrop {
@@ -247,7 +275,7 @@
 	}
 
 	.modal-body {
-		padding: 1.2rem 1.2rem 2.4rem;
+		padding: 1.2rem 1.2rem;
 		overflow-y: auto;
 		flex: 1;
 		min-height: 0;
