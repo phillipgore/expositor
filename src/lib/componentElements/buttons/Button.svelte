@@ -425,7 +425,7 @@
 	button.toolbar-dark,
 	a.toolbar-dark {
 		background-color: var(--gray-400);
-		margin: 0rem 0.2rem;
+		margin: 0rem 0.3rem;
 	}
 
 	button.toolbar-dark :global(.icon path),
