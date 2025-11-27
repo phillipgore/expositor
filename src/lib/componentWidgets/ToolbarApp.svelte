@@ -6,13 +6,21 @@
 	 * Provides access to document operations, view controls, formatting tools, and settings.
 	 * 
 	 * ## Features
-	 * - Document operations (Open, New, Delete)
+	 * - Document operations (Studies panel, Actions)
 	 * - View controls (Zoom, Wide, Overview)
 	 * - Formatting menus (Outline, Text, Literary, Color)
 	 * - Mode toggles (Notes, Verses)
 	 * - View mode switching (Analyze, Document)
 	 * - Settings access
 	 * - Dark themed with sticky positioning
+	 * 
+	 * ## Architecture
+	 * This component is a pure renderer - all toolbar button configurations, state management,
+	 * and behavior are defined in toolbarConfig.js. The component:
+	 * - Reads configuration from getAppToolbarConfig()
+	 * - Maps state properties dynamically using config-defined props
+	 * - Handles button disabled states via config-defined functions or property names
+	 * - No hardcoded button-specific logic
 	 * 
 	 * ## Menu Integration
 	 * Integrates with several dropdown menus:
@@ -21,16 +29,18 @@
 	 * - MenuText: Text formatting options
 	 * - MenuLiterary: Literary device highlighting
 	 * - MenuColor: Color scheme selection
+	 * - MenuActions: Study/group creation and management
 	 * 
 	 * ## Layout Structure
-	 * Left section: Open, New buttons
-	 * Center-left: Zoom control
+	 * Left section: Studies toggle
+	 * Actions and Zoom
 	 * Center: Formatting menus (Outline, Text, Literary, Color)
-	 * Center-right: View toggles (Notes, Verses)
-	 * Right section: Layout toggles, mode switcher, Settings
+	 * Center-right: View toggles (Notes, Verses, Wide, Overview)
+	 * Right section: Mode switcher (Analyze/Document), Settings
 	 * 
 	 * ## State Management
 	 * @property {string} zoomLabel - Current zoom level display (default: '100%')
+	 * @property {Object} handlers - Map of handler functions referenced by config
 	 * 
 	 * ## Usage
 	 * ```svelte
@@ -49,7 +59,6 @@
 	import SpacerFixed from '$lib/componentElements/SpacerFixed.svelte';
 	import SpacerFlex from '$lib/componentElements/SpacerFlex.svelte';
 	import Toolbar from '$lib/componentElements/Toolbar.svelte';
-	import MenuNew from '$lib/componentWidgets/menus/MenuNew.svelte';
 	import MenuZoom from '$lib/componentWidgets/menus/MenuZoom.svelte';
 	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
 	import MenuText from '$lib/componentWidgets/menus/MenuText.svelte';
@@ -58,7 +67,7 @@
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
 	import MenuView from '$lib/componentWidgets/menus/MenuView.svelte';
 	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
-	import Modal from '$lib/componentElements/Modal.svelte';
+	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
 	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel } from '$lib/stores/toolbar.js';
 	import { invalidate } from '$app/navigation';
@@ -71,104 +80,15 @@
 
 	// Modal state
 	let showDeleteModal = $state(false);
-	let deleteInProgress = $state(false);
-	let deleteError = $state('');
 	let deleteOpenedViaKeyboard = $state(false);
 
 	// Get toolbar configuration
 	const toolbarConfig = getAppToolbarConfig();
 
-	/**
-	 * Recursively count all nested groups and studies within a group
-	 */
-	function countNestedItems(group) {
-		let nestedGroups = 0;
-		let nestedStudies = group.studies?.length || 0;
-
-		if (group.subgroups && group.subgroups.length > 0) {
-			for (const subgroup of group.subgroups) {
-				nestedGroups += 1;
-				const counts = countNestedItems(subgroup);
-				nestedGroups += counts.groups;
-				nestedStudies += counts.studies;
-			}
-		}
-
-		return { groups: nestedGroups, studies: nestedStudies };
-	}
-
-	// Derived state for delete modal content
-	let deleteModalContent = $derived.by(() => {
-		if (!$toolbarState.selectedItem) return null;
-
-		const { items, count, hasGroups, hasStudies } = $toolbarState.selectedItem;
-		
-		if (count === 0) return null;
-
-		// Single item
-		if (count === 1) {
-			const item = items[0];
-			if (item.type === 'group') {
-				const counts = countNestedItems(item.data);
-				const totalGroups = counts.groups;
-				const totalStudies = counts.studies;
-				
-				let warningParts = [];
-				if (totalGroups > 0) {
-					warningParts.push(`${totalGroups} nested ${totalGroups === 1 ? 'group' : 'groups'}`);
-				}
-				if (totalStudies > 0) {
-					warningParts.push(`${totalStudies} ${totalStudies === 1 ? 'study' : 'studies'}`);
-				}
-				
-				const warning = warningParts.length > 0
-					? `This will permanently delete ${warningParts.join(' and ')}.`
-					: 'This action cannot be undone.';
-
-				return {
-					title: 'Delete Study Group',
-					message: `Are you sure you want to delete the study group "${item.data.name}"?`,
-					warning: warning,
-					itemName: item.data.name,
-					itemType: 'group'
-				};
-			} else {
-				return {
-					title: 'Delete Study',
-					message: `Are you sure you want to delete the study "${item.data.title}"?`,
-					warning: 'This action cannot be undone.',
-					itemName: item.data.title,
-					itemType: 'study'
-				};
-			}
-		}
-
-		// Multiple items - show only selected counts (smart preservation handles unselected items)
-		const groupItems = items.filter(i => i.type === 'group');
-		const studyItems = items.filter(i => i.type === 'study');
-		
-		const selectedGroupCount = groupItems.length;
-		const selectedStudyCount = studyItems.length;
-
-		let parts = [];
-		if (selectedGroupCount > 0) {
-			parts.push(`${selectedGroupCount} ${selectedGroupCount === 1 ? 'group' : 'groups'}`);
-		}
-		if (selectedStudyCount > 0) {
-			parts.push(`${selectedStudyCount} ${selectedStudyCount === 1 ? 'study' : 'studies'}`);
-		}
-
-		// Warning: Mention that unselected items will be preserved
-		let warning = 'Unselected items within groups will be preserved and moved to safe locations. This action cannot be undone.';
-
-		return {
-			title: 'Delete Multiple Items',
-			message: `Are you sure you want to delete ${parts.join(' and ')}?`,
-			warning: warning,
-			itemName: `${count} items`,
-			itemType: 'multiple'
-		};
-	});
+	// Handlers map for toggle buttons and other callbacks
+	const handlers = {
+		toggleStudiesPanel
+	};
 
 	/**
 	 * Handle edit button click
@@ -243,76 +163,65 @@
 	function handleDeleteClick(viaKeyboard) {
 		if (!$toolbarState.canDelete || !$toolbarState.selectedItem) return;
 		
-		deleteError = '';
 		deleteOpenedViaKeyboard = viaKeyboard;
 		showDeleteModal = true;
 	}
 
 	/**
-	 * Handle delete confirmation
+	 * Handle delete confirmation from modal
 	 */
 	async function handleDeleteConfirm() {
-		if (!$toolbarState.selectedItem || deleteInProgress) return;
+		if (!$toolbarState.selectedItem) return;
 
-		deleteInProgress = true;
-		deleteError = '';
+		const { items, count } = $toolbarState.selectedItem;
+		
+		// Collect all selected IDs by type
+		const selectedGroupIds = items.filter(i => i.type === 'group').map(i => i.id);
+		const selectedStudyIds = items.filter(i => i.type === 'study').map(i => i.id);
+		
+		// Use bulk delete for multiple items OR when groups are involved
+		// (to ensure proper handling of unselected descendants)
+		if (count > 1 || selectedGroupIds.length > 0) {
+			const response = await fetch('/api/bulk-delete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ selectedGroupIds, selectedStudyIds })
+			});
 
-		try {
-			const { items, count } = $toolbarState.selectedItem;
-			
-			// Collect all selected IDs by type
-			const selectedGroupIds = items.filter(i => i.type === 'group').map(i => i.id);
-			const selectedStudyIds = items.filter(i => i.type === 'study').map(i => i.id);
-			
-			// Use bulk delete for multiple items OR when groups are involved
-			// (to ensure proper handling of unselected descendants)
-			if (count > 1 || selectedGroupIds.length > 0) {
-				const response = await fetch('/api/bulk-delete', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ selectedGroupIds, selectedStudyIds })
-				});
-
-				if (!response.ok) {
-					const error = await response.json();
-					throw new Error(error.error || 'Failed to delete items');
-				}
-			} else {
-				// Single study deletion - use direct endpoint
-				const study = items[0];
-				const response = await fetch(`/api/studies/${study.id}`, {
-					method: 'DELETE',
-					headers: { 'Content-Type': 'application/json' }
-				});
-
-				if (!response.ok) {
-					throw new Error('Failed to delete study');
-				}
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.error || 'Failed to delete items');
 			}
+		} else {
+			// Single study deletion - use direct endpoint
+			const study = items[0];
+			const response = await fetch(`/api/studies/${study.id}`, {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' }
+			});
 
-			// Success - close modal and refresh data
-			showDeleteModal = false;
-			await invalidate('app:studies');
-			
-			// Navigate away if we're on a deleted item's page
-			const currentPath = $page.url.pathname;
-			const deletedIds = items.map(i => i.id);
-			
-			if (currentPath.includes('/study/') || currentPath.includes('/study-group/')) {
-				// Extract the item ID, handling both view and edit pages
-				const pathParts = currentPath.split('/');
-				const lastPart = pathParts[pathParts.length - 1];
-				const currentId = lastPart === 'edit' ? pathParts[pathParts.length - 2] : lastPart;
-				
-				if (deletedIds.includes(currentId)) {
-					goto('/dashboard');
-				}
+			if (!response.ok) {
+				throw new Error('Failed to delete study');
 			}
-		} catch (error) {
-			console.error('Error deleting items:', error);
-			deleteError = error.message || 'Failed to delete. Please try again.';
-		} finally {
-			deleteInProgress = false;
+		}
+
+		// Success - close modal and refresh data
+		showDeleteModal = false;
+		await invalidate('app:studies');
+		
+		// Navigate away if we're on a deleted item's page
+		const currentPath = $page.url.pathname;
+		const deletedIds = items.map(i => i.id);
+		
+		if (currentPath.includes('/study/') || currentPath.includes('/study-group/')) {
+			// Extract the item ID, handling both view and edit pages
+			const pathParts = currentPath.split('/');
+			const lastPart = pathParts[pathParts.length - 1];
+			const currentId = lastPart === 'edit' ? pathParts[pathParts.length - 2] : lastPart;
+			
+			if (deletedIds.includes(currentId)) {
+				goto('/dashboard');
+			}
 		}
 	}
 
@@ -320,10 +229,7 @@
 	 * Handle delete modal close
 	 */
 	function handleDeleteModalClose() {
-		if (!deleteInProgress) {
-			showDeleteModal = false;
-			deleteError = '';
-		}
+		showDeleteModal = false;
 	}
 
 	// Update toolbar state when route changes
@@ -388,13 +294,11 @@
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
 						isDisabled={
-							button.menuId === 'MenuActions' ? !$toolbarState.canDelete && !$toolbarState.canEdit :
-							button.menuId === 'MenuZoom' ? !$toolbarState.canZoom :
-							button.menuId === 'MenuStructure' ? !$toolbarState.canStructure :
-							button.menuId === 'MenuText' ? !$toolbarState.canText :
-							button.menuId === 'MenuLiterary' ? !$toolbarState.canLiterary :
-							button.menuId === 'MenuColor' ? !$toolbarState.canColor :
-							false
+							button.disabledCheck
+								? button.disabledCheck($toolbarState)
+								: button.disabledStateProp
+									? !$toolbarState[button.disabledStateProp]
+									: false
 						}
 					/>
 				{:else if button.type === 'toggle'}
@@ -403,14 +307,12 @@
 						underLabel={button.underLabel}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
-						isActive={button.iconId === 'book' ? $toolbarState.studiesPanelOpen : undefined}
-						onToggle={button.iconId === 'book' ? toggleStudiesPanel : undefined}
+						isActive={button.activeStateProp ? $toolbarState[button.activeStateProp] : undefined}
+						onToggle={button.toggleHandler ? handlers[button.toggleHandler] : undefined}
 						isDisabled={
-							button.iconId === 'note' ? !$toolbarState.canToggleNotes :
-							button.iconId === 'reference' ? !$toolbarState.canToggleVerses :
-							button.iconId === 'wide' ? !$toolbarState.canToggleWide :
-							button.iconId === 'outline' ? !$toolbarState.canToggleOverview :
-							false
+							button.disabledStateProp
+								? !$toolbarState[button.disabledStateProp]
+								: false
 						}
 					/>
 				{:else if button.type === 'grouped'}
@@ -419,7 +321,11 @@
 						defaultActive={button.defaultActive}
 						buttonClasses={button.buttonClasses}
 						underLabelClasses={button.underLabelClasses}
-						isDisabled={!$toolbarState.canSwitchMode}
+						isDisabled={
+							button.disabledStateProp
+								? !$toolbarState[button.disabledStateProp]
+								: false
+						}
 					/>
 				{/if}
 			{/each}
@@ -427,7 +333,6 @@
 	{/each}
 </Toolbar>
 
-<MenuNew menuId="MenuNew" />
 <MenuZoom menuId="MenuZoom" onselect={(value) => (zoomLabel = value)} />
 <MenuStructure menuId="MenuStructure" />
 <MenuText menuId="MenuText" />
@@ -444,46 +349,10 @@
 />
 
 <!-- Delete Confirmation Modal -->
-{#if deleteModalContent}
-	<Modal
-		isOpen={showDeleteModal}
-		title={deleteModalContent.title}
-		size="small"
-		confirmLabel={deleteInProgress ? 'Deleting...' : 'Delete'}
-		confirmClasses="red"
-		cancelLabel="Cancel"
-		onConfirm={handleDeleteConfirm}
-		onCancel={handleDeleteModalClose}
-		onClose={handleDeleteModalClose}
-		showCloseButton={false}
-		closeOnBackdropClick={false}
-		focusCancelOnOpen={deleteOpenedViaKeyboard}
-	>
-		<p class="modal-message">
-			{deleteModalContent.message}{#if deleteModalContent.warning}&nbsp;{deleteModalContent.warning}{/if}
-		</p>
-		
-		{#if deleteError}
-			<p class="modal-message error">
-				{deleteError}
-			</p>
-		{/if}
-	</Modal>
-{/if}
-
-<style>
-	p.modal-message {
-		margin: 0.0rem; 
-		font-size: 1.6rem; 
-		line-height: 1.75; 
-		color: var(--gray-400);
-	}
-
-	p.modal-message.error {
-		background-color: var(--red-lighter);
-		color: var(--red-darker);
-		border: 0.1rem solid var(--red-light);
-		border-radius: 0.3rem;
-		padding: 0.3rem 0.9rem;
-	}
-</style>
+<DeleteConfirmationModal
+	isOpen={showDeleteModal}
+	selectedItem={$toolbarState.selectedItem}
+	onConfirm={handleDeleteConfirm}
+	onClose={handleDeleteModalClose}
+	openedViaKeyboard={deleteOpenedViaKeyboard}
+/>

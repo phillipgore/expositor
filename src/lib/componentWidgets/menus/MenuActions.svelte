@@ -31,10 +31,11 @@
 	 * @component
 	 */
 
+	import { goto } from '$app/navigation';
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
-	import MoveToGroupModal from './MoveToGroupModal.svelte';
+	import MoveToGroupModal from '../modals/MoveToGroupModal.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import { wouldCreateCircularNesting } from '$lib/utils/groupHierarchy.js';
 	import { flattenGroupsForMenu } from '$lib/utils/groupFlattening.js';
@@ -43,6 +44,14 @@
 	let { menuId, groups = [], onMoveToGroup, onEdit, onDelete } = $props();
 
 	let showMoveToModal = $state(false);
+
+	// Check if a single group is selected
+	let selectedGroup = $derived(
+		$toolbarState.selectedItem?.count === 1 && 
+		$toolbarState.selectedItem?.items[0]?.type === 'group'
+			? $toolbarState.selectedItem.items[0]
+			: null
+	);
 
 	// Check if any selected items are in groups
 	let hasGroupedItems = $derived(
@@ -58,6 +67,38 @@
 	);
 
 	// Note: flattenGroupsForMenu is no longer needed here as the modal handles flattening
+
+	/** Navigate to new study page, optionally with groupId */
+	const handleNewStudy = (groupId = null) => {
+		// Close the menu first
+		const menu = document.getElementById(menuId);
+		if (menu && menu.matches(':popover-open')) {
+			menu.hidePopover();
+		}
+		
+		// Then navigate
+		if (groupId) {
+			goto(`/new-study?groupId=${groupId}`);
+		} else {
+			goto('/new-study');
+		}
+	};
+
+	/** Navigate to new group page, optionally with parentGroupId */
+	const handleNewGroup = (parentGroupId = null) => {
+		// Close the menu first
+		const menu = document.getElementById(menuId);
+		if (menu && menu.matches(':popover-open')) {
+			menu.hidePopover();
+		}
+		
+		// Then navigate
+		if (parentGroupId) {
+			goto(`/new-study-group?parentGroupId=${parentGroupId}`);
+		} else {
+			goto('/new-study-group');
+		}
+	};
 
 	/**
 	 * Handle edit click
@@ -155,6 +196,44 @@
 </script>
 
 <Menu {menuId} classes="dark">
+	<IconButton
+		iconId="book"
+		label="New Study"
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={() => handleNewStudy(null)}
+	/>
+
+	<IconButton
+		iconId="book"
+		label="New Study in Selected Group"
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={() => handleNewStudy(selectedGroup.id)}
+		isDisabled={!selectedGroup}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		iconId="folder"
+		label="New Group"
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={() => handleNewGroup(null)}
+	/>
+
+	<IconButton
+		iconId="folder"
+		label="New Group in Selected Group"
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={() => handleNewGroup(selectedGroup.id)}
+		isDisabled={!selectedGroup}
+	/>
+	
+	<DividerHorizontal />
+	
 	<IconButton
 		iconId="pencil"
 		label="Edit"
