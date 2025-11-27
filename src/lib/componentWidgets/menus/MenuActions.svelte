@@ -53,6 +53,11 @@
 			: null
 	);
 
+	// Check if anything is selected
+	let hasSelection = $derived(
+		$toolbarState.selectedItem?.count > 0 || false
+	);
+
 	// Check if any selected items are in groups
 	let hasGroupedItems = $derived(
 		$toolbarState.selectedItem?.items.some(item => {
@@ -251,6 +256,7 @@
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleMoveToClick}
+		isDisabled={!hasSelection}
 	/>
 	
 	<IconButton
@@ -270,6 +276,7 @@
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleDeleteClick}
+		isDisabled={!hasSelection}
 	/>
 </Menu>
 

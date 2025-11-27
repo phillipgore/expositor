@@ -696,7 +696,6 @@
 	}
 
 	.testaments {
-		margin-bottom: 0.9rem;
 		display: flex;
 		justify-content: center;
 	}

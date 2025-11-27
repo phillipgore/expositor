@@ -213,6 +213,15 @@
 				return;
 			}
 			
+			// Preserve selection when interacting with Actions menu
+			const clickedOnActionsButton = event.target.closest('[popovertarget="MenuActions"]');
+			const clickedInActionsMenu = event.target.closest('#MenuActions');
+			const clickedInModal = event.target.closest('[role="dialog"]');
+			
+			if (clickedOnActionsButton || clickedInActionsMenu || clickedInModal) {
+				return;
+			}
+			
 			const container = document.querySelector('.studies-container');
 			if (!container) return;
 			

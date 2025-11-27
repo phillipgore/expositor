@@ -2,8 +2,8 @@
 	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
+	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 
-	/** @type {import('./$types').PageData} */
 	let { data } = $props();
 
 	// Invalidate studies list when study is accessed
@@ -11,6 +11,12 @@
 		if (data.invalidateStudies) {
 			invalidate('app:studies');
 		}
+	});
+
+	// Get translation abbreviation
+	let translationAbbr = $derived.by(() => {
+		const metadata = getTranslationMetadata(data.study.translation || 'esv');
+		return metadata?.abbreviation || data.study.translation?.toUpperCase() || 'ESV';
 	});
 
 	/**
@@ -46,6 +52,7 @@
 				{#each data.passages as passage, i}
 					{formatPassageReference(passage)}{#if i < data.passages.length - 1},&nbsp;{/if}
 				{/each}
+				<span class="translation-badge" aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span>
 			</p>
 		{/if}
 	</div>
@@ -76,5 +83,12 @@
 		color: var(--gray-400);
 		margin-top: 0.9rem;
 		margin-bottom: 2.7rem;
+	}
+
+	.translation-badge {
+		display: inline-block;
+		margin-left: 0.3rem;
+		font-size: 1.4rem;
+		color: var(--gray-400);
 	}
 </style>

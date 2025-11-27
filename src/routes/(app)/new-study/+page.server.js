@@ -81,6 +81,7 @@ export const actions = {
 			const formData = await request.formData();
 			const title = formData.get('title');
 			const subtitle = formData.get('subtitle');
+			const translation = formData.get('translation') || 'esv';
 			const passagesJson = formData.get('passages');
 			const groupId = formData.get('groupId');
 
@@ -89,6 +90,14 @@ export const actions = {
 				return fail(400, { 
 					error: 'Title is required',
 					title: title || ''
+				});
+			}
+
+			// Validate translation
+			if (!['esv', 'net'].includes(translation.toString())) {
+				return fail(400, {
+					error: 'Invalid translation selected',
+					title: title.toString()
 				});
 			}
 
@@ -148,11 +157,12 @@ export const actions = {
 			const studyId = uuidv4();
 			const now = new Date();
 
-			// Insert study with groupId if provided
+			// Insert study with groupId and translation
 			await db.insert(study).values({
 				id: studyId,
 				title: title.toString().trim(),
 				subtitle: subtitle && typeof subtitle === 'string' && subtitle.trim() !== '' ? subtitle.toString().trim() : null,
+				translation: translation.toString(),
 				userId: session.user.id,
 				groupId: groupId && typeof groupId === 'string' && groupId.trim() !== '' ? groupId : null,
 				createdAt: now,

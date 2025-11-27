@@ -22,6 +22,7 @@
 	 * - `text`: Label text
 	 * - `isChecked`: Initial checked state
 	 * - `isDisabled`: (optional) Individual button disabled state
+	 * - `title`: (optional) Tooltip text
 	 * 
 	 * ## Usage Examples
 	 * 
@@ -60,6 +61,7 @@
 	 * @property {string} text - Label text
 	 * @property {boolean} isChecked - Initial checked state
 	 * @property {boolean} [isDisabled] - Individual button disabled state
+	 * @property {string} [title] - Tooltip text for the radio button
 	 */
 
 	/**
@@ -192,8 +194,15 @@
 				bind:group={checkedValue}
 				onchange={handleChange}
 				onkeydown={(e) => handleKeydown(e, index)}
+				title={buttonProperty.title || ''}
 			/>
-			<Label forId={buttonProperty.id} text={buttonProperty.text} classes="dark" isInline></Label>
+			<Label 
+				forId={buttonProperty.id} 
+				text={buttonProperty.text} 
+				classes="dark" 
+				isInline
+				title={buttonProperty.title || ''}
+			></Label>
 		</div>
 	{/each}
 </div>
@@ -203,7 +212,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
-		height: 2.8rem;
+		margin-bottom: 1.8rem;
 
 		&.inline {
 			flex-direction: row;

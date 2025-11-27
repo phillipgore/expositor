@@ -1,0 +1,208 @@
+[
+  {
+    "id": "esv",
+    "name": "English Standard Version",
+    "abbreviation": "ESV",
+    "language": "en",
+    "publisher": "Crossway",
+    "yearPublished": 2001,
+    "api": {
+      "baseUrl": null,
+      "baseUrlEnvVar": "ESV_API_BASE_URL",
+      "requiresAuth": true,
+      "authType": "token",
+      "authTokenEnvVar": "ESV_API_TOKEN",
+      "authHeader": "Authorization",
+      "authPrefix": "Token",
+      "endpoints": {
+        "text": "/text/",
+        "html": "/html/",
+        "audio": "/audio/",
+        "search": "/search/"
+      },
+      "rateLimits": {
+        "perDay": 5000,
+        "perHour": 1000,
+        "perMinute": 60
+      },
+      "requestLimits": {
+        "maxVerses": 500,
+        "maxBookPortion": 0.5,
+        "description": "Maximum 500 verses or half a book, whichever is less"
+      },
+      "queryParameters": {
+        "passage": "q",
+        "includePassageReferences": "include-passage-references",
+        "includeVerseNumbers": "include-verse-numbers",
+        "includeFootnotes": "include-footnotes",
+        "includeHeadings": "include-headings",
+        "includeShortCopyright": "include-short-copyright"
+      }
+    },
+    "copyright": {
+      "short": "ESV",
+      "full": "Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved. The ESV text may not be quoted in any publication made available to the public by a Creative Commons license. The ESV may not be translated into any other language.",
+      "displayRequired": true,
+      "linkRequired": "https://www.esv.org",
+      "linkText": "www.esv.org"
+    },
+    "features": {
+      "includeVerseNumbers": true,
+      "includeFootnotes": true,
+      "includeHeadings": true,
+      "includeCrossReferences": true,
+      "includePassageReferences": true,
+      "audioAvailable": true,
+      "searchAvailable": true
+    },
+    "restrictions": {
+      "license": "non-commercial",
+      "caching": {
+        "allowed": true,
+        "maxVerses": 500,
+        "recommendation": "Periodically clear cache to ensure latest version"
+      },
+      "distribution": {
+        "maxVerses": 500,
+        "maxBookPortion": 0.5,
+        "cannotExceed": "50% of total work in which quoted"
+      },
+      "modification": {
+        "textChanges": false,
+        "omissionsAllowed": true,
+        "omissionMarker": "…"
+      }
+    },
+    "description": "The ESV Bible is an essentially literal translation that seeks to reproduce the precise wording of the original text and the personal style of each Bible writer.",
+    "translationPhilosophy": {
+      "approach": "essentially-literal",
+      "methodology": "word-for-word",
+      "equivalence": "formal-equivalence",
+      "summary": "An 'essentially literal' translation emphasizing word-for-word correspondence while taking full account of differences in grammar, syntax, and idiom between current literary English and the original languages.",
+      "characteristics": [
+        "Seeks to reproduce the precise wording of the original text",
+        "Maintains the personal style of each Bible writer",
+        "Transparent to the original text structure and force",
+        "Captures echoes and overtones of meaning in original texts",
+        "Uses same English word for important recurring words in original",
+        "Renders Old Testament passages cited in New Testament to show correspondence",
+        "Balances literal precision with readability and literary excellence"
+      ],
+      "strengths": [
+        "Ideal for in-depth Bible study",
+        "Suitable for public reading and preaching",
+        "Excellent for Scripture memorization",
+        "Maintains nuances of original meaning",
+        "Literary excellence in expression"
+      ],
+      "team": "More than 100 leading evangelical scholars and pastors"
+    }
+  },
+  {
+    "id": "net",
+    "name": "New English Translation",
+    "abbreviation": "NET",
+    "language": "en",
+    "publisher": "Biblical Studies Press",
+    "yearPublished": 1996,
+    "api": {
+      "baseUrl": null,
+      "baseUrlEnvVar": "NET_API_BASE_URL",
+      "requiresAuth": false,
+      "authType": null,
+      "endpoints": {
+        "passage": ""
+      },
+      "rateLimits": null,
+      "requestLimits": {
+        "maxVerses": null,
+        "maxBookPortion": null,
+        "description": "No explicit limits specified"
+      },
+      "queryParameters": {
+        "passage": "passage",
+        "type": "type",
+        "formatting": "formatting",
+        "callback": "callback"
+      },
+      "outputFormats": ["text", "json", "xml"],
+      "formattingOptions": {
+        "full": "All paragraph, bold, italics, and note tags",
+        "para": "Just paragraph and bold tags",
+        "plain": "Just text, no html or html entities",
+        "default": "Just bold tags"
+      },
+      "specialPassages": {
+        "votd": "Verse of the Day",
+        "random": "Random verse"
+      }
+    },
+    "copyright": {
+      "short": "NET",
+      "full": "Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved.",
+      "displayRequired": true,
+      "linkRequired": "https://netbible.org",
+      "linkText": "netbible.org",
+      "additionalInfo": "See https://netbible.com/copyright/ for full copyright details"
+    },
+    "features": {
+      "includeVerseNumbers": true,
+      "includeFootnotes": true,
+      "includeHeadings": true,
+      "includeCrossReferences": false,
+      "includePassageReferences": true,
+      "translatorNotes": true,
+      "translatorNotesCount": 60000,
+      "audioAvailable": false,
+      "searchAvailable": false
+    },
+    "restrictions": {
+      "license": "free-with-attribution",
+      "caching": {
+        "allowed": true,
+        "maxVerses": null,
+        "recommendation": "No specific caching limits"
+      },
+      "distribution": {
+        "maxVerses": null,
+        "translationAllowed": false,
+        "requiresAttribution": true
+      },
+      "modification": {
+        "textChanges": false,
+        "omissionsAllowed": true
+      }
+    },
+    "description": "The NET Bible is a completely new translation with 60,000+ translator's notes, completed by 25+ scholars working directly from the best available Hebrew, Aramaic, and Greek texts.",
+    "translationPhilosophy": {
+      "approach": "balanced",
+      "methodology": "optimal-equivalence",
+      "equivalence": "balanced-equivalence",
+      "summary": "A balanced translation that overcomes the tension between accuracy and readability, combining faithful rendering of original languages with clear, contemporary English.",
+      "characteristics": [
+        "Balances accuracy with readability",
+        "Faithful to the original biblical languages",
+        "Clear, easy-to-understand English text",
+        "Transparent and accountable translation process",
+        "Nearly 60,000 translators' notes document decisions",
+        "Notes explain difficult or nontraditional renderings",
+        "Ongoing revisions based on scholarly and user feedback",
+        "Multi-denominational scholarly approach"
+      ],
+      "strengths": [
+        "Unprecedented transparency through extensive notes",
+        "Balances scholarly integrity with readability",
+        "Explains translation decisions and alternatives",
+        "Accessible to both academic and general readers",
+        "Shows complex linguistic details without sacrificing clarity",
+        "Invites readers into the translation process"
+      ],
+      "team": "Multi-denominational team of 25+ leading biblical scholars",
+      "revisionHistory": {
+        "firstEdition": 2001,
+        "majorRevisions": [2003, 2005, 2019],
+        "ongoing": true
+      }
+    }
+  }
+]

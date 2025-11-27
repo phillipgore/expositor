@@ -66,8 +66,26 @@ export function getAppToolbarConfig() {
 					menuId: 'MenuActions',
 					underLabel: 'Actions',
 					classes: 'toolbar-dark',
+					underLabelClasses: 'light'
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
+			id: 'zoom',
+			items: [
+				{
+					type: 'menu',
+					menuId: 'MenuZoom',
+					underLabel: 'Zoom',
+					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledCheck: (state) => !state.canDelete && !state.canEdit
+					dynamicLabel: true, // Indicates label comes from state
+					disabledStateProp: 'canZoom'
 				}
 			]
 		},
@@ -200,25 +218,6 @@ export function getAppToolbarConfig() {
 					buttonClasses: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledStateProp: 'canSwitchMode'
-				}
-			]
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
-		},
-		{
-			type: 'section',
-			id: 'zoom',
-			items: [
-				{
-					type: 'menu',
-					menuId: 'MenuZoom',
-					underLabel: 'Zoom',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					dynamicLabel: true, // Indicates label comes from state
-					disabledStateProp: 'canZoom'
 				}
 			]
 		},

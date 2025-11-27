@@ -7,6 +7,7 @@
 	 * Can render as button (default), link, or ghost (no interactivity).
 	 */
 	import Icon from '$lib/componentElements/Icon.svelte';
+	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 
 	let {
 		study,
@@ -29,6 +30,12 @@
 	
 	// Calculate padding based on depth (studies are one level deeper than their group)
 	let paddingLeft = $derived(ungrouped ? '2.2rem' : `${(depth * 1.4) + 2.2}rem`);
+	
+	// Get translation abbreviation
+	let translationAbbr = $derived.by(() => {
+		const metadata = getTranslationMetadata(study.translation || 'esv');
+		return metadata?.abbreviation || study.translation?.toUpperCase() || 'ESV';
+	});
 </script>
 
 {#if ghost}
@@ -44,6 +51,7 @@
 							{formatPassageReference(passage)}{#if i < study.passages.length - 1},&nbsp;{/if}
 						</div>
 					{/each}
+					<span class="translation-badge" aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span>
 				</div>
 			{/if}
 		</div>
@@ -69,6 +77,7 @@
 							{formatPassageReference(passage)}{#if i < study.passages.length - 1},&nbsp;{/if}
 						</div>
 					{/each}
+					<span class="translation-badge" aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span>
 				</div>
 			{/if}
 		</div>
@@ -108,6 +117,7 @@
 							{formatPassageReference(passage)}{#if i < study.passages.length - 1},&nbsp;{/if}
 						</div>
 					{/each}
+					<span class="translation-badge" aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span>
 				</div>
 			{/if}
 		</div>
@@ -205,6 +215,18 @@
 
 	.study-reference {
 		display: inline-block;
+	}
+
+	.translation-badge {
+		display: inline-block;
+		margin-left: 0.3rem;
+		font-size: 1.1rem;
+		color: var(--gray-300);
+	}
+
+	.study-item.active .translation-badge,
+	.study-item.selected.active .translation-badge {
+		color: var(--white);
 	}
 
 	.study-item:focus {

@@ -94,7 +94,8 @@ export const toolbarState = {
  */
 export function updateToolbarForRoute(pathname) {
 	// Route-based rules
-	const isDocumentRoute = pathname.includes('/document') || pathname.includes('/study');
+	const isDocumentRoute = pathname.includes('/document') || (pathname.includes('/study/') && !pathname.includes('/study-group'));
+	const isStudyGroupRoute = pathname.includes('/study-group/');
 	const isSettingsRoute = pathname === '/settings';
 	const isNewRoute = pathname === '/new-study' || pathname === '/new-study-group';
 
@@ -121,6 +122,28 @@ export function updateToolbarForRoute(pathname) {
 				canUseColorItems: true
 			};
 		}
+
+	// On study-group pages, canSwitchMode is controlled by selection state only
+	if (isStudyGroupRoute) {
+		return {
+			...state,
+			canFormat: false,
+			canToggleNotes: false,
+			canToggleVerses: false,
+			canToggleWide: false,
+			canToggleOverview: false,
+			canSwitchMode: false, // Disabled by default, enabled only when studies are selected
+			canZoom: false,
+			canStructure: false,
+			canText: false,
+			canLiterary: false,
+			canColor: false,
+			canUseStructureItems: false,
+			canUseTextItems: false,
+			canUseLiteraryItems: false,
+			canUseColorItems: false
+		};
+	}
 
 	// On utility pages (settings, new), enable menu buttons but disable menu items
 	// Note: canEdit and canDelete remain controlled by selection state
@@ -263,7 +286,8 @@ export function setSelectedItem(selection) {
 		...state,
 		selectedItem: selection,
 		canEdit: selection !== null && selection.count > 0,
-		canDelete: selection !== null && selection.count > 0
+		canDelete: selection !== null && selection.count > 0,
+		canSwitchMode: selection !== null && selection.hasStudies
 	}));
 }
 
@@ -275,6 +299,7 @@ export function clearSelectedItem() {
 		...state,
 		selectedItem: null,
 		canEdit: false,
-		canDelete: false
+		canDelete: false,
+		canSwitchMode: false
 	}));
 }

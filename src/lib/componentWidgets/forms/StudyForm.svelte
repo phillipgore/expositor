@@ -22,7 +22,9 @@
 	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
 	import PassageSelector from '$lib/componentWidgets/PassageSelector.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
+	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
 	import messages from '$lib/data/messages.json';
+	import { getAllTranslationsMetadata } from '$lib/utils/translationConfig';
 
 	let {
 		mode = 'new',
@@ -39,6 +41,16 @@
 
 	const testamentData = bibleData[0].testamentData;
 	const ntBookData = testamentData[1].bookData;
+
+	// Get translation metadata for radio button options
+	const translationsMetadata = getAllTranslationsMetadata();
+	const translationOptions = translationsMetadata.map(t => ({
+		id: `translation-${t.id}`,
+		value: t.id,
+		text: t.abbreviation,
+		title: t.name,
+		isChecked: t.id === 'esv'
+	}));
 
 	// Initialize form state
 	let studyTitle = $state(initialData?.title || form?.title || '');
@@ -125,6 +137,15 @@
 		name="subtitle"
 		bind:value={studySubtitle}
 	/>
+
+	{#if mode === 'new'}
+		<Label text="Translation"></Label>
+		<RadioButtons
+			RadioButtonProperties={translationOptions}
+			name="translation"
+			isInline
+		/>
+	{/if}
 
 	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
 	{#if groupId}

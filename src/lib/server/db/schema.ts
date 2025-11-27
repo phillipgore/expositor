@@ -82,6 +82,7 @@ export const study = pgTable('study', {
 	id: text('id').primaryKey(),
 	title: text('title').notNull(),
 	subtitle: text('subtitle'),
+	translation: text('translation').notNull().default('esv'),
 	userId: text('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),

@@ -11,6 +11,7 @@
 	 * - Custom color classes (dark variant available)
 	 * - Proper form association via `for` attribute
 	 * - Snippet support for rich label content
+	 * - Optional tooltip support via title attribute
 	 * 
 	 * ## Usage Examples
 	 * 
@@ -37,14 +38,15 @@
 	 * @property {string} [text=''] - Label text content (ignored if children provided)
 	 * @property {boolean} [isInline=false] - Display inline instead of block
 	 * @property {boolean} [isLarge=false] - Large size variant (1.8rem font)
+	 * @property {string} [title] - Tooltip text (optional)
 	 * @property {import('svelte').Snippet} [children] - Snippet for custom label content
 	 */
 
 	/** @type {LabelProps} */
-	let { classes = '', forId, text = '', isInline = false, isLarge = false, children } = $props();
+	let { classes = '', forId, text = '', isInline = false, isLarge = false, title, children } = $props();
 </script>
 
-<label for={forId} class="{classes} {isInline ? 'inline' : ''} {isLarge ? 'large' : ''}">
+<label for={forId} class="{classes} {isInline ? 'inline' : ''} {isLarge ? 'large' : ''}" title={title || undefined}>
 	{#if children}
 		{@render children()}
 	{:else}
