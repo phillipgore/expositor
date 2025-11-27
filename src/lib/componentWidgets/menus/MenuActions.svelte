@@ -36,6 +36,8 @@
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import MoveToGroupModal from './MoveToGroupModal.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { wouldCreateCircularNesting } from '$lib/utils/groupHierarchy.js';
+	import { flattenGroupsForMenu } from '$lib/utils/groupFlattening.js';
 
 	/** @type {{ menuId: string, groups: Array, onMoveToGroup: Function, onEdit: Function, onDelete: Function }} Props */
 	let { menuId, groups = [], onMoveToGroup, onEdit, onDelete } = $props();
@@ -55,76 +57,7 @@
 		}) || false
 	);
 
-	/**
-	 * Check if moving selected groups to target would create circular nesting
-	 */
-	function wouldCreateCircularNesting(targetGroupId) {
-		if (!$toolbarState.selectedItem) return false;
-
-		const selectedGroups = $toolbarState.selectedItem.items.filter(i => i.type === 'group');
-		
-		// Can't move a group into itself
-		if (selectedGroups.some(g => g.id === targetGroupId)) {
-			return true;
-		}
-
-		// Check if target is a descendant of any selected group
-		for (const selectedGroup of selectedGroups) {
-			if (isDescendantOf(targetGroupId, selectedGroup.id)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Recursively check if groupId is a descendant of ancestorId
-	 */
-	function isDescendantOf(groupId, ancestorId) {
-		const group = findGroupById(groupId, groups);
-		if (!group) return false;
-		
-		if (group.parentGroupId === ancestorId) return true;
-		if (!group.parentGroupId) return false;
-		
-		return isDescendantOf(group.parentGroupId, ancestorId);
-	}
-
-	/**
-	 * Find a group by ID in the hierarchical structure
-	 */
-	function findGroupById(groupId, groupList) {
-		for (const group of groupList) {
-			if (group.id === groupId) return group;
-			if (group.subgroups && group.subgroups.length > 0) {
-				const found = findGroupById(groupId, group.subgroups);
-				if (found) return found;
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Flatten groups into hierarchical list with depth indicators
-	 */
-	function flattenGroupsForMenu(groupList, depth = 0) {
-		const result = [];
-		for (const group of groupList) {
-			result.push({
-				id: group.id,
-				name: group.name,
-				depth,
-				disabled: wouldCreateCircularNesting(group.id)
-			});
-			if (group.subgroups && group.subgroups.length > 0) {
-				result.push(...flattenGroupsForMenu(group.subgroups, depth + 1));
-			}
-		}
-		return result;
-	}
-
-	let flattenedGroups = $derived(flattenGroupsForMenu(groups));
+	// Note: flattenGroupsForMenu is no longer needed here as the modal handles flattening
 
 	/**
 	 * Handle edit click

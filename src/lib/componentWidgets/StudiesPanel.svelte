@@ -15,6 +15,11 @@
 	import StudyItem from "./studies/StudyItem.svelte";
 	import { useMultiSelect } from "$lib/composables/useMultiSelect.svelte.js";
 	import { useDragAndDrop } from "$lib/composables/useDragAndDrop.svelte.js";
+	import { useStudiesFilter } from "$lib/composables/useStudiesFilter.svelte.js";
+	import { useKeyboardNavigation } from "$lib/composables/useKeyboardNavigation.svelte.js";
+	import { usePanelResize } from "$lib/composables/usePanelResize.svelte.js";
+	import { formatPassageReference } from "$lib/utils/passageFormatting.js";
+	import { getFlattenedItemsList } from "$lib/utils/groupFlattening.js";
 	import { setToolbarState } from "$lib/stores/toolbar.js";
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -25,30 +30,41 @@
 	// Search state
 	let searchQuery = $state('');
 	let searchInputRef = $state(null);
-	
-	// Keyboard navigation state
-	let focusedItemIndex = $state(-1);
-	
-	// Panel width state (initialized from localStorage or user data)
-	const savedWidth = typeof window !== 'undefined' 
-		? localStorage.getItem('studiesPanelWidth')
-		: null;
-	let panelWidth = $state(savedWidth ? parseInt(savedWidth) : initialWidth);
-	
-	// Resize state
-	let isResizing = $state(false);
-	let startX = 0;
-	let startWidth = 0;
-	
-	// Derived filtered/sorted data
-	let sortedStudies = $derived(getSortedStudies());
-	let filteredGroups = $derived(getFilteredGroups());
-	let filteredUngroupedStudies = $derived(getFilteredUngroupedStudies());
-	let sortedGroupsAndStudies = $derived(getSortedGroupsAndStudies());
 
 	// Initialize composables
 	const multiSelect = useMultiSelect();
 	const dragDrop = useDragAndDrop(() => invalidate('app:studies'));
+	
+	// Initialize filter composable
+	const studiesFilter = useStudiesFilter(
+		() => studies,
+		() => groups,
+		() => ungroupedStudies,
+		() => searchQuery
+	);
+	
+	// Derived filtered/sorted data
+	let sortedStudies = $derived(studiesFilter.getSortedStudies());
+	let filteredGroups = $derived(studiesFilter.getFilteredGroups());
+	let filteredUngroupedStudies = $derived(studiesFilter.getFilteredUngroupedStudies());
+	let sortedGroupsAndStudies = $derived(studiesFilter.getSortedGroupsAndStudies());
+	
+	// Initialize keyboard navigation
+	const keyboardNav = useKeyboardNavigation(
+		() => sortedGroupsAndStudies,
+		toggleGroupCollapse
+	);
+	
+	// Initialize panel resize
+	const panelResize = usePanelResize(
+		initialWidth,
+		'studiesPanelWidth',
+		'/api/user/preferences',
+		() => isOpen
+	);
+	
+	let panelWidth = $derived(panelResize.getWidth());
+	let isResizing = $derived(panelResize.getIsResizing());
 	
 	// Track active study from current route
 	let activeStudyId = $derived.by(() => {
@@ -79,354 +95,6 @@
 		return null;
 	});
 
-	/**
-	 * Format a passage reference for display
-	 */
-	function formatPassageReference(passage) {
-		const sameChapter = passage.fromChapter === passage.toChapter;
-		const singleVerse = passage.fromVerse === passage.toVerse;
-		
-		if (sameChapter && singleVerse) {
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}`;
-		} else if (sameChapter) {
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toVerse}`;
-		} else {
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toChapter}:${passage.toVerse}`;
-		}
-	}
-
-	/**
-	 * Get sorted and filtered studies
-	 */
-	function getSortedStudies() {
-		if (!studies || studies.length === 0) return [];
-		
-		let filtered = studies;
-		if (searchQuery.trim() !== '') {
-			const query = searchQuery.toLowerCase();
-			filtered = studies.filter(study => {
-				if (study.title.toLowerCase().includes(query)) return true;
-				if (study.passages && study.passages.length > 0) {
-					return study.passages.some(passage => 
-						formatPassageReference(passage).toLowerCase().includes(query)
-					);
-				}
-				return false;
-			});
-		}
-		
-		const sorted = [...filtered];
-		sorted.sort((a, b) => a.title.localeCompare(b.title));
-		return sorted;
-	}
-
-	/**
-	 * Check if a study matches the search query
-	 */
-	function studyMatchesQuery(study, query) {
-		if (study.title.toLowerCase().includes(query)) return true;
-		if (study.passages && study.passages.length > 0) {
-			return study.passages.some(passage => 
-				formatPassageReference(passage).toLowerCase().includes(query)
-			);
-		}
-		return false;
-	}
-
-	/**
-	 * Recursively filter a group and its subgroups
-	 * Returns null if the group and all its children have no matches
-	 */
-	function filterGroupRecursive(group, query) {
-		// Check if group name matches
-		const groupNameMatches = group.name.toLowerCase().includes(query);
-		
-		// Filter studies
-		const filteredStudies = group.studies.filter(study => studyMatchesQuery(study, query));
-		
-		// Recursively filter subgroups
-		let filteredSubgroups = [];
-		if (group.subgroups && group.subgroups.length > 0) {
-			filteredSubgroups = group.subgroups
-				.map(subgroup => filterGroupRecursive(subgroup, query))
-				.filter(subgroup => subgroup !== null);
-		}
-		
-		// If group name matches, include ALL studies and subgroups (no filtering)
-		if (groupNameMatches) {
-			return {
-				...group,
-				studies: [...group.studies].sort((a, b) => a.title.localeCompare(b.title)),
-				subgroups: group.subgroups || [],
-				matchedByName: true
-			};
-		}
-		
-		// If nothing matched in this group or its children, return null
-		if (filteredStudies.length === 0 && filteredSubgroups.length === 0) {
-			return null;
-		}
-		
-		// Return group with filtered content
-		filteredStudies.sort((a, b) => a.title.localeCompare(b.title));
-		return {
-			...group,
-			studies: filteredStudies,
-			subgroups: filteredSubgroups,
-			matchedByName: false
-		};
-	}
-
-	/**
-	 * Get filtered groups with filtered and alphabetized studies
-	 */
-	function getFilteredGroups() {
-		if (!groups || groups.length === 0) return [];
-		
-		if (searchQuery.trim() === '') {
-			return groups.map(group => ({
-				...group,
-				studies: [...group.studies].sort((a, b) => a.title.localeCompare(b.title))
-			}));
-		}
-
-		const query = searchQuery.toLowerCase();
-		
-		// Filter groups recursively
-		const filteredGroups = groups
-			.map(group => filterGroupRecursive(group, query))
-			.filter(group => group !== null);
-		
-		return filteredGroups;
-	}
-
-	/**
-	 * Get filtered and alphabetized ungrouped studies
-	 */
-	function getFilteredUngroupedStudies() {
-		if (!ungroupedStudies || ungroupedStudies.length === 0) return [];
-		
-		let filtered = ungroupedStudies;
-		
-		if (searchQuery.trim() !== '') {
-			const query = searchQuery.toLowerCase();
-			filtered = ungroupedStudies.filter(study => {
-				if (study.title.toLowerCase().includes(query)) return true;
-				if (study.passages && study.passages.length > 0) {
-					return study.passages.some(passage => 
-						formatPassageReference(passage).toLowerCase().includes(query)
-					);
-				}
-				return false;
-			});
-		}
-		
-		return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
-	}
-
-	/**
-	 * Get combined and sorted groups and ungrouped studies
-	 */
-	function getSortedGroupsAndStudies() {
-		const items = [];
-		
-		filteredGroups.forEach(group => {
-			items.push({
-				type: 'group',
-				name: group.name,
-				data: group
-			});
-		});
-		
-		filteredUngroupedStudies.forEach(study => {
-			items.push({
-				type: 'study',
-				name: study.title,
-				data: study
-			});
-		});
-		
-		items.sort((a, b) => a.name.localeCompare(b.name));
-		return items;
-	}
-
-	/**
-	 * Recursively flatten a group and its subgroups
-	 */
-	function flattenGroupRecursive(group, items, index) {
-		// Add the group itself
-		items.push({
-			type: 'group',
-			id: group.id,
-			data: group,
-			index: index++,
-			depth: group.depth || 0
-		});
-		
-		if (!group.isCollapsed) {
-			// Add subgroups recursively
-			if (group.subgroups && group.subgroups.length > 0) {
-				for (const subgroup of group.subgroups) {
-					index = flattenGroupRecursive(subgroup, items, index);
-				}
-			}
-			
-			// Add studies
-			if (group.studies && group.studies.length > 0) {
-				for (const study of group.studies) {
-					items.push({
-						type: 'study',
-						id: study.id,
-						data: study,
-						index: index++,
-						depth: (group.depth || 0) + 1
-					});
-				}
-			}
-		}
-		
-		return index;
-	}
-
-	/**
-	 * Get flattened list of all items in display order
-	 */
-	function getFlattenedItemsList() {
-		const items = [];
-		let index = 0;
-		
-		sortedGroupsAndStudies.forEach(item => {
-			if (item.type === 'group') {
-				index = flattenGroupRecursive(item.data, items, index);
-			} else {
-				items.push({
-					type: 'study',
-					id: item.data.id,
-					data: item.data,
-					index: index++,
-					depth: 0
-				});
-			}
-		});
-		
-		return items;
-	}
-
-	/**
-	 * Handle keyboard navigation through the list
-	 */
-	function handleListKeyDown(event) {
-		const flattenedItems = getFlattenedItemsList();
-		const itemCount = flattenedItems.length;
-		
-		if (itemCount === 0) return;
-
-		// Initialize focus if not set
-		if (focusedItemIndex === -1 && itemCount > 0) {
-			focusedItemIndex = 0;
-		}
-
-		switch (event.key) {
-			case 'ArrowDown':
-				event.preventDefault();
-				focusedItemIndex = Math.min(focusedItemIndex + 1, itemCount - 1);
-				focusItem(focusedItemIndex, flattenedItems);
-				break;
-
-			case 'ArrowUp':
-				event.preventDefault();
-				focusedItemIndex = Math.max(focusedItemIndex - 1, 0);
-				focusItem(focusedItemIndex, flattenedItems);
-				break;
-
-			case 'ArrowLeft':
-				event.preventDefault();
-				handleArrowLeft(flattenedItems);
-				break;
-
-			case 'ArrowRight':
-				event.preventDefault();
-				handleArrowRight(flattenedItems);
-				break;
-
-			case 'Home':
-				event.preventDefault();
-				focusedItemIndex = 0;
-				focusItem(focusedItemIndex, flattenedItems);
-				break;
-
-			case 'End':
-				event.preventDefault();
-				focusedItemIndex = itemCount - 1;
-				focusItem(focusedItemIndex, flattenedItems);
-				break;
-
-			case 'PageDown':
-				event.preventDefault();
-				// Jump 10 items or to end
-				focusedItemIndex = Math.min(focusedItemIndex + 10, itemCount - 1);
-				focusItem(focusedItemIndex, flattenedItems);
-				break;
-
-			case 'PageUp':
-				event.preventDefault();
-				// Jump 10 items or to start
-				focusedItemIndex = Math.max(focusedItemIndex - 10, 0);
-				focusItem(focusedItemIndex, flattenedItems);
-				break;
-		}
-	}
-
-	/**
-	 * Handle Arrow Left - collapse expanded groups
-	 */
-	function handleArrowLeft(flattenedItems) {
-		const currentItem = flattenedItems[focusedItemIndex];
-		if (!currentItem || currentItem.type !== 'group') return;
-
-		const group = currentItem.data;
-		
-		// If group is expanded, collapse it
-		if (!group.isCollapsed) {
-			toggleGroupCollapse(group.id, group.isCollapsed);
-		}
-	}
-
-	/**
-	 * Handle Arrow Right - expand collapsed groups
-	 */
-	function handleArrowRight(flattenedItems) {
-		const currentItem = flattenedItems[focusedItemIndex];
-		if (!currentItem || currentItem.type !== 'group') return;
-
-		const group = currentItem.data;
-		
-		// If group is collapsed, expand it
-		if (group.isCollapsed) {
-			toggleGroupCollapse(group.id, group.isCollapsed);
-		}
-	}
-
-	/**
-	 * Focus a specific item by index
-	 */
-	function focusItem(index, flattenedItems) {
-		const item = flattenedItems[index];
-		if (!item) return;
-
-		// Find the DOM element and focus it
-		// For groups, target the button specifically since there are multiple elements with data-group-id
-		const selector = item.type === 'group' 
-			? `.group-select-button[data-group-id="${item.id}"]`
-			: `[data-study-id="${item.id}"]`;
-		
-		const element = document.querySelector(selector);
-		if (element) {
-			element.focus();
-			// Scroll into view if needed
-			element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-		}
-	}
 
 	/**
 	 * Toggle group collapsed state
@@ -457,7 +125,7 @@
 		const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey;
 		
 		// Always select the group
-		multiSelect.handleItemClick(event, 'group', group.id, group, getFlattenedItemsList());
+		multiSelect.handleItemClick(event, 'group', group.id, group, getFlattenedItemsList(sortedGroupsAndStudies));
 		
 		// Only navigate if no modifier keys are pressed
 		if (!hasModifier) {
@@ -475,7 +143,7 @@
 		const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey;
 		
 		// Always select the study
-		multiSelect.handleItemClick(event, 'study', study.id, study, getFlattenedItemsList());
+		multiSelect.handleItemClick(event, 'study', study.id, study, getFlattenedItemsList(sortedGroupsAndStudies));
 		
 		// Only navigate if no modifier keys are pressed
 		if (!hasModifier) {
@@ -572,65 +240,10 @@
 	});
 
 	/**
-	 * Handle resize start
-	 */
-	function handleResizeStart(event) {
-		if (!isOpen) return;
-		event.preventDefault();
-		isResizing = true;
-		startX = event.clientX;
-		startWidth = panelWidth;
-		document.body.style.cursor = 'ew-resize';
-		document.body.style.userSelect = 'none';
-	}
-
-	/**
-	 * Handle resize move
-	 */
-	function handleResizeMove(event) {
-		if (!isResizing) return;
-		const delta = event.clientX - startX;
-		const newWidth = startWidth + delta;
-		// Min: 300px, Max: 600px or 50% viewport
-		panelWidth = Math.max(300, Math.min(600, Math.min(newWidth, window.innerWidth * 0.5)));
-	}
-
-	/**
-	 * Handle resize end
-	 */
-	async function handleResizeEnd() {
-		if (!isResizing) return;
-		isResizing = false;
-		document.body.style.cursor = '';
-		document.body.style.userSelect = '';
-		
-		// Save to localStorage immediately
-		localStorage.setItem('studiesPanelWidth', panelWidth.toString());
-		
-		// Save to database (background)
-		try {
-			await fetch('/api/user/preferences', {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ studiesPanelWidth: panelWidth })
-			});
-		} catch (error) {
-			console.error('Failed to save panel width:', error);
-		}
-	}
-
-	/**
 	 * Effect for global resize listeners
 	 */
 	$effect(() => {
-		if (isResizing) {
-			window.addEventListener('mousemove', handleResizeMove);
-			window.addEventListener('mouseup', handleResizeEnd);
-			return () => {
-				window.removeEventListener('mousemove', handleResizeMove);
-				window.removeEventListener('mouseup', handleResizeEnd);
-			};
-		}
+		return panelResize.setupResizeListeners();
 	});
 
 	/**
@@ -639,7 +252,7 @@
 	$effect(() => {
 		if (activeGroupId) {
 			// Find the group in the flattened list
-			const flatList = getFlattenedItemsList();
+			const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
 			const groupItem = flatList.find(item => item.type === 'group' && item.id === activeGroupId);
 			
 			if (groupItem && !multiSelect.isItemSelected('group', activeGroupId)) {
@@ -655,7 +268,7 @@
 			}
 		} else if (activeStudyId) {
 			// Find the study in the flattened list
-			const flatList = getFlattenedItemsList();
+			const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
 			const studyItem = flatList.find(item => item.type === 'study' && item.id === activeStudyId);
 			
 			if (studyItem && !multiSelect.isItemSelected('study', activeStudyId)) {
@@ -690,6 +303,21 @@
 			return () => clearTimeout(timeoutId);
 		}
 	});
+
+	/**
+	 * Handle keyboard resize
+	 */
+	function handleResizeKeyDown(event) {
+		const step = 10; // pixels to resize per keypress
+		
+		if (event.key === 'ArrowLeft') {
+			event.preventDefault();
+			panelResize.adjustWidth(-step);
+		} else if (event.key === 'ArrowRight') {
+			event.preventDefault();
+			panelResize.adjustWidth(step);
+		}
+	}
 </script>
 
 <!-- Drag ghost -->
@@ -754,7 +382,7 @@
 					{/each}
 				</ul>
 			{:else}
-				<div class="studies-container" onkeydown={handleListKeyDown}>
+				<div class="studies-container" onkeydown={keyboardNav.handleListKeyDown}>
 					{#each sortedGroupsAndStudies as item, index (item.type === 'group' ? 'group-' + item.data.id : 'study-' + item.data.id)}
 						<div role="presentation" animate:flip={{ duration: 300 }}>
 							{#if item.type === 'group'}
@@ -781,9 +409,9 @@
 									isGroupActive={(groupId) => groupId === activeGroupId}
 									forceExpanded={searchQuery.trim() !== ''}
 									onfocus={() => {
-										const flatList = getFlattenedItemsList();
+										const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
 										const itemIndex = flatList.findIndex(i => i.type === 'group' && i.id === item.data.id);
-										if (itemIndex !== -1) focusedItemIndex = itemIndex;
+										if (itemIndex !== -1) keyboardNav.updateFocusedIndex(itemIndex);
 									}}
 								/>
 							{:else}
@@ -801,9 +429,9 @@
 										onMouseDown={handleStudyMouseDown}
 										onClick={handleStudyClick}
 										onfocus={() => {
-											const flatList = getFlattenedItemsList();
+											const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
 											const itemIndex = flatList.findIndex(i => i.type === 'study' && i.id === item.data.id);
-											if (itemIndex !== -1) focusedItemIndex = itemIndex;
+											if (itemIndex !== -1) keyboardNav.updateFocusedIndex(itemIndex);
 										}}
 									/>
 								</div>
@@ -815,7 +443,15 @@
 		</div>
 	</div>
 	{#if isOpen}
-		<div class="resize-handle" onmousedown={handleResizeStart}></div>
+		<div 
+			class="resize-handle"
+			tabindex="0"
+			role="separator"
+			aria-orientation="vertical"
+			aria-label="Resize studies panel. Use left and right arrow keys to adjust width."
+			onmousedown={panelResize.handleResizeStart}
+			onkeydown={handleResizeKeyDown}
+		></div>
 	{/if}
 </aside>
 
@@ -850,6 +486,11 @@
 		cursor: ew-resize;
 		z-index: 10;
 		background-color: transparent;
+	}
+
+	.resize-handle:focus-visible {
+		outline: 0.1rem solid var(--gray-700);
+		background-color: var(--gray-light);
 	}
 
 	.panel-header {

@@ -27,6 +27,8 @@
 	import Input from '$lib/componentElements/Input.svelte';
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import { wouldCreateCircularNesting } from '$lib/utils/groupHierarchy.js';
+	import { flattenGroupsForDisplay } from '$lib/utils/groupFlattening.js';
 
 	let { isOpen = false, groups = [], selectedItems = [], onMoveToGroup, onClose } = $props();
 
@@ -35,103 +37,7 @@
 	let groupListElement = $state(null);
 	let focusedGroupIndex = $state(0);
 
-	/**
-	 * Check if moving selected groups to target would create circular nesting
-	 */
-	function wouldCreateCircularNesting(targetGroupId) {
-		const selectedGroups = selectedItems.filter(i => i.type === 'group');
-		
-		// Can't move a group into itself
-		if (selectedGroups.some(g => g.id === targetGroupId)) {
-			return true;
-		}
-
-		// Check if target is a descendant of any selected group
-		for (const selectedGroup of selectedGroups) {
-			if (isDescendantOf(targetGroupId, selectedGroup.id)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Recursively check if groupId is a descendant of ancestorId
-	 */
-	function isDescendantOf(groupId, ancestorId) {
-		const group = findGroupById(groupId, groups);
-		if (!group) return false;
-		
-		if (group.parentGroupId === ancestorId) return true;
-		if (!group.parentGroupId) return false;
-		
-		return isDescendantOf(group.parentGroupId, ancestorId);
-	}
-
-	/**
-	 * Find a group by ID in the hierarchical structure
-	 */
-	function findGroupById(groupId, groupList) {
-		for (const group of groupList) {
-			if (group.id === groupId) return group;
-			if (group.subgroups && group.subgroups.length > 0) {
-				const found = findGroupById(groupId, group.subgroups);
-				if (found) return found;
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Check if a group or any of its ancestors match the search query
-	 */
-	function groupMatchesSearch(group, query) {
-		if (!query) return true;
-		
-		const lowerQuery = query.toLowerCase();
-		
-		// Check if this group matches
-		if (group.name.toLowerCase().includes(lowerQuery)) {
-			return true;
-		}
-		
-		// Check if any subgroups match
-		if (group.subgroups && group.subgroups.length > 0) {
-			return group.subgroups.some(sub => groupMatchesSearch(sub, query));
-		}
-		
-		return false;
-	}
-
-	/**
-	 * Flatten groups into hierarchical list with depth indicators
-	 */
-	function flattenGroupsForDisplay(groupList, depth = 0) {
-		const result = [];
-		const query = searchQuery.trim();
-		
-		for (const group of groupList) {
-			// Check if this group or any descendant matches the search
-			if (groupMatchesSearch(group, query)) {
-				result.push({
-					id: group.id,
-					name: group.name,
-					depth,
-					disabled: wouldCreateCircularNesting(group.id),
-					matches: !query || group.name.toLowerCase().includes(query.toLowerCase())
-				});
-				
-				if (group.subgroups && group.subgroups.length > 0) {
-					result.push(...flattenGroupsForDisplay(group.subgroups, depth + 1));
-				}
-			}
-		}
-		
-		return result;
-	}
-
-	let filteredGroups = $derived(flattenGroupsForDisplay(groups));
+	let filteredGroups = $derived(flattenGroupsForDisplay(groups, searchQuery, selectedItems, groups));
 	
 	let hasResults = $derived(
 		searchQuery.trim() === '' || filteredGroups.length > 0 || true // Always show "Ungrouped"

@@ -46,43 +46,6 @@
 	
 	// Compute effective expanded state (considers both actual collapse state and force expansion)
 	let isEffectivelyExpanded = $derived(!group.isCollapsed || forceExpanded);
-	
-	// Click timing for distinguishing single-click from double-click
-	let clickTimeout = $state(null);
-	const CLICK_DELAY = 250; // ms to wait before treating as single-click
-	
-	/**
-	 * Handle click with delay to distinguish from double-click
-	 */
-	function handleClick(event) {
-		// Clear any existing timeout
-		if (clickTimeout) {
-			clearTimeout(clickTimeout);
-			clickTimeout = null;
-		}
-		
-		// Set a timeout to handle as single-click
-		clickTimeout = setTimeout(() => {
-			onGroupHeaderClick?.(event, group);
-			clickTimeout = null;
-		}, CLICK_DELAY);
-	}
-	
-	/**
-	 * Handle double-click - only expand/collapse, don't select
-	 */
-	function handleDoubleClick(event) {
-		event.stopPropagation();
-		
-		// Cancel any pending single-click selection
-		if (clickTimeout) {
-			clearTimeout(clickTimeout);
-			clickTimeout = null;
-		}
-		
-		// Only toggle collapse state
-		onToggleCollapse?.(group.id, group.isCollapsed);
-	}
 </script>
 
 <div 
@@ -116,8 +79,11 @@
 				{tabindex}
 				data-group-id={group.id}
 				onfocus={(e) => onfocus?.(e)}
-				onclick={handleClick}
-				ondblclick={handleDoubleClick}
+				onclick={(e) => onGroupHeaderClick?.(e, group)}
+				ondblclick={(e) => {
+					e.stopPropagation();
+					onToggleCollapse?.(group.id, group.isCollapsed);
+				}}
 				onmousedown={(e) => onGroupMouseDown?.(e, group)}
 				aria-label="Select group {group.name}"
 			>
