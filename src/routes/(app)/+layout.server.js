@@ -18,12 +18,16 @@ export async function load({ request, depends }) {
 	try {
 		// Get user preferences
 		const userData = await db
-			.select({ studiesPanelWidth: user.studiesPanelWidth })
+			.select({ 
+				studiesPanelWidth: user.studiesPanelWidth,
+				studiesPanelOpen: user.studiesPanelOpen
+			})
 			.from(user)
 			.where(eq(user.id, session.user.id))
 			.limit(1);
 		
 		const studiesPanelWidth = userData[0]?.studiesPanelWidth || 300;
+		const studiesPanelOpen = userData[0]?.studiesPanelOpen ?? true;
 		
 		// Query all groups for the logged-in user
 		const groupsData = await db
@@ -88,7 +92,8 @@ export async function load({ request, depends }) {
 			groups: groupsWithStudies,
 			ungroupedStudies,
 			studies: studiesWithPassages, // Keep for backwards compatibility
-			studiesPanelWidth
+			studiesPanelWidth,
+			studiesPanelOpen
 		};
 	} catch (error) {
 		console.error('Error loading studies:', error);

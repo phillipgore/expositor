@@ -14,16 +14,36 @@ export async function PATCH({ request }) {
 	}
 
 	try {
-		const { studiesPanelWidth } = await request.json();
+		const body = await request.json();
+		const { studiesPanelWidth, studiesPanelOpen } = body;
 		
-		// Validate the width value
-		if (typeof studiesPanelWidth !== 'number' || studiesPanelWidth < 300 || studiesPanelWidth > 600) {
-			return json({ error: 'Invalid panel width' }, { status: 400 });
+		// Build update object with only provided fields
+		const updates = {};
+		
+		// Validate and add studiesPanelWidth if provided
+		if (studiesPanelWidth !== undefined) {
+			if (typeof studiesPanelWidth !== 'number' || studiesPanelWidth < 300 || studiesPanelWidth > 600) {
+				return json({ error: 'Invalid panel width' }, { status: 400 });
+			}
+			updates.studiesPanelWidth = studiesPanelWidth;
+		}
+		
+		// Validate and add studiesPanelOpen if provided
+		if (studiesPanelOpen !== undefined) {
+			if (typeof studiesPanelOpen !== 'boolean') {
+				return json({ error: 'Invalid panel open state' }, { status: 400 });
+			}
+			updates.studiesPanelOpen = studiesPanelOpen;
+		}
+		
+		// Only update if there are changes
+		if (Object.keys(updates).length === 0) {
+			return json({ error: 'No valid preferences provided' }, { status: 400 });
 		}
 
 		// Update user preferences
 		await db.update(user)
-			.set({ studiesPanelWidth })
+			.set(updates)
 			.where(eq(user.id, session.user.id));
 
 		return json({ success: true });

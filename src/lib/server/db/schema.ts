@@ -11,6 +11,7 @@ export const user = pgTable('user', {
 		.notNull(),
 	image: text('image'),
 	studiesPanelWidth: integer('studies_panel_width').default(300),
+	studiesPanelOpen: boolean('studies_panel_open').default(true),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

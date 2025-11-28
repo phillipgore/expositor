@@ -5,9 +5,16 @@
 	import { onMount } from 'svelte';
 	import ToolbarApp from '$lib/componentWidgets/ToolbarApp.svelte';
 	import StudiesPanel from '$lib/componentWidgets/StudiesPanel.svelte';
-	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setToolbarState } from '$lib/stores/toolbar.js';
 
 	let { data, children } = $props();
+
+	// Initialize toolbar state with persisted panel open state
+	$effect(() => {
+		if (data.studiesPanelOpen !== undefined) {
+			setToolbarState('studiesPanelOpen', data.studiesPanelOpen);
+		}
+	});
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {

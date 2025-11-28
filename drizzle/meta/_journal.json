@@ -50,6 +50,13 @@
       "when": 1760399500000,
       "tag": "0006_add_study_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1764354993322,
+      "tag": "0007_empty_satana",
+      "breakpoints": true
     }
   ]
 }

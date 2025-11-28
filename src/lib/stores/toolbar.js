@@ -272,11 +272,31 @@ export function getToolbarState() {
 /**
  * Toggle the studies panel open/closed
  */
-export function toggleStudiesPanel() {
+export async function toggleStudiesPanel() {
+	const currentState = get(toolbarStateStore);
+	const newState = !currentState.studiesPanelOpen;
+	
+	// Update local state immediately
 	toolbarStateStore.update(state => ({
 		...state,
-		studiesPanelOpen: !state.studiesPanelOpen
+		studiesPanelOpen: newState
 	}));
+	
+	// Persist to database
+	try {
+		await fetch('/api/user/preferences', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ studiesPanelOpen: newState })
+		});
+	} catch (error) {
+		console.error('Error persisting panel state:', error);
+		// Revert on error
+		toolbarStateStore.update(state => ({
+			...state,
+			studiesPanelOpen: currentState.studiesPanelOpen
+		}));
+	}
 }
 
 /**
