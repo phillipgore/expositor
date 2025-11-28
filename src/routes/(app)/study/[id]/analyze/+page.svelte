@@ -40,6 +40,127 @@
 			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toChapter}:${passage.toVerse}`;
 		}
 	}
+
+	// Ref to inner content wrapper for measuring dimensions
+	let contentInnerRef = $state(null);
+	
+	// Calculated fit scale based on viewport and content dimensions
+	let fitScale = $state(1);
+	
+	// Track previous zoom level to detect actual changes
+	let previousZoomLevel = $state($toolbarState.zoomLevel);
+
+	/**
+	 * Calculate optimal scale to fit entire study in viewport
+	 */
+	function calculateFitScale() {
+		if (!contentInnerRef) return 1;
+
+		// Get the outer container (.analyze-content)
+		const container = contentInnerRef.parentElement;
+		if (!container) return 1;
+
+		// Get viewport dimensions (available space in the outer container)
+		const viewportWidth = container.clientWidth;
+		const viewportHeight = container.clientHeight;
+
+		// Get content dimensions (actual content size without transform)
+		// We need to temporarily remove transform to get true dimensions
+		const currentTransform = contentInnerRef.style.transform;
+		contentInnerRef.style.transform = 'none';
+		
+		const contentWidth = contentInnerRef.scrollWidth;
+		const contentHeight = contentInnerRef.scrollHeight;
+		
+		// Restore transform
+		contentInnerRef.style.transform = currentTransform;
+
+		// If content is empty or viewport is too small, default to 100%
+		if (contentWidth === 0 || contentHeight === 0 || viewportWidth === 0 || viewportHeight === 0) {
+			return 1;
+		}
+
+		// Calculate scale factors for both dimensions
+		const widthScale = viewportWidth / contentWidth;
+		const heightScale = viewportHeight / contentHeight;
+
+		// Use the smaller scale to ensure everything fits
+		// Apply a 0.95 buffer to account for padding and prevent edge clipping
+		const optimalScale = Math.min(widthScale, heightScale) * 0.95;
+
+		// Don't zoom in beyond 100% for fit mode
+		return Math.min(optimalScale, 1);
+	}
+
+	/**
+	 * Recalculate fit scale when layout changes
+	 */
+	$effect(() => {
+		// Dependencies that affect layout
+		const wideLayout = $toolbarState.wideLayout;
+		const overviewMode = $toolbarState.overviewMode;
+		const studiesPanelOpen = $toolbarState.studiesPanelOpen;
+		const zoomLevel = $toolbarState.zoomLevel;
+
+		// Only recalculate if in fit mode
+		if (zoomLevel === 0 && contentInnerRef) {
+			// Use setTimeout to ensure DOM has updated
+			setTimeout(() => {
+				fitScale = calculateFitScale();
+			}, 0);
+		}
+	});
+
+	/**
+	 * Recalculate fit scale on window resize
+	 */
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+
+		const handleResize = () => {
+			if ($toolbarState.zoomLevel === 0) {
+				fitScale = calculateFitScale();
+			}
+		};
+
+		window.addEventListener('resize', handleResize);
+
+		return () => {
+			window.removeEventListener('resize', handleResize);
+		};
+	});
+
+	/**
+	 * Reset scroll position when zoom level actually changes
+	 */
+	$effect(() => {
+		const currentZoomLevel = $toolbarState.zoomLevel;
+		
+		// Only reset if zoom level actually changed
+		if (currentZoomLevel !== previousZoomLevel) {
+			if (contentInnerRef?.parentElement) {
+				contentInnerRef.parentElement.scrollTo(0, 0);
+			}
+			previousZoomLevel = currentZoomLevel;
+		}
+	});
+
+	/**
+	 * Calculate zoom transform based on zoom level
+	 * @returns {string} CSS transform value
+	 */
+	let zoomTransform = $derived.by(() => {
+		const level = $toolbarState.zoomLevel;
+		
+		// If zoom level is 0, use calculated fit scale
+		if (level === 0) {
+			return `scale(${fitScale})`;
+		}
+		
+		// Convert percentage to decimal (e.g., 150% = 1.5)
+		const scale = level / 100;
+		return `scale(${scale})`;
+	});
 </script>
 
 <div class="container">
@@ -54,43 +175,45 @@
 	
 	<!-- Analyze View Content -->
 	<div class="analyze-content" class:hide-verses={!$toolbarState.versesVisible} class:wide-layout={$toolbarState.wideLayout} class:overview-mode={$toolbarState.overviewMode}>
-		<div class="spacer">&nbsp;</div> 
-		{#if data.passagesWithText && data.passagesWithText.length > 0}
-			{#each data.passagesWithText as passageText}
-				<div class="passage">
-					<div class="passage-container">
-						{#if passageText.error}
-							<div class="error-message">
-								<p>Error loading {passageText.reference}: {passageText.error}</p>
-							</div>
-						{:else if passageText.text}
-							<Heading heading="h3" classes="h5 passage-refernce">
-								{passageText.reference} [{translationAbbr}]
-							</Heading>
-							<div class="passage-column blue">
-								<div class="passage-column-header">
-									<Heading heading="h4" classes="h3">Column Title</Heading>
+		<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
+			<div class="spacer">&nbsp;</div> 
+			{#if data.passagesWithText && data.passagesWithText.length > 0}
+				{#each data.passagesWithText as passageText}
+					<div class="passage">
+						<div class="passage-container">
+							{#if passageText.error}
+								<div class="error-message">
+									<p>Error loading {passageText.reference}: {passageText.error}</p>
 								</div>
-									<div class="passage-section">
-										<div class="passage-section-header">
-											<Heading heading="h4">Section Title</Heading>
-										</div>
-										<div class="passage-division">
-											<div class="passage-division-header">
-												<Heading heading="h4">Division Title</Heading>
-											</div>
-											<div class="passage-text">{@html passageText.text}</div>
-										</div>
+							{:else if passageText.text}
+								<Heading heading="h3" classes="h5 passage-refernce">
+									{passageText.reference} [{translationAbbr}]
+								</Heading>
+								<div class="passage-column blue">
+									<div class="passage-column-header">
+										<Heading heading="h4" classes="h3">Column Title</Heading>
 									</div>
-							</div>
-						{/if}
+										<div class="passage-section">
+											<div class="passage-section-header">
+												<Heading heading="h4">Section Title</Heading>
+											</div>
+											<div class="passage-division">
+												<div class="passage-division-header">
+													<Heading heading="h4">Division Title</Heading>
+												</div>
+												<div class="passage-text">{@html passageText.text}</div>
+											</div>
+										</div>
+								</div>
+							{/if}
+						</div>
 					</div>
-				</div>
-			{/each}
-		{:else}
-			<p class="placeholder-text">No passages available for this study.</p>
-		{/if}
-		<div class="spacer">&nbsp;</div>
+				{/each}
+			{:else}
+				<p class="placeholder-text">No passages available for this study.</p>
+			{/if}
+			<div class="spacer">&nbsp;</div>
+		</div>
 	</div>
 			
 	<!-- Copyright Notice -->
@@ -118,6 +241,7 @@
 		background: var(--white-alpha);
 		padding: 0.3rem 0.9rem 0.9rem;
 		border-radius: 0.3rem;
+		z-index: 100;
 	}
 
 	.study-header :global(h2) {
@@ -132,12 +256,18 @@
 	}
 
 	.analyze-content {
-		display: flex;
 		flex-grow: 1;
-		gap: 3.2rem;
-		justify-content: center;
 		overflow-x: auto;
+		overflow-y: auto;
+		touch-action: pan-x pan-y pinch-zoom;
+	}
+
+	.analyze-content-inner {
+		display: flex;
+		gap: 3.2rem;
 		padding: 6.6rem 0.0rem 1.8rem;
+		transition: transform 0.2s ease-out;
+		width: fit-content;
 	}
 
 	.spacer {
@@ -252,6 +382,7 @@
 		background: var(--white-alpha);
 		padding: 0.9rem;
 		border-radius: 0.3rem;
+		z-index: 100;
 	}
 
 	.copyright-notice p {

@@ -49,6 +49,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
+ * @property {number} zoomLevel - Current zoom level as percentage (25-400, or 0 for fit)
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
  */
 
@@ -78,6 +79,7 @@ const defaultState = {
 	versesVisible: false,
 	wideLayout: false,
 	overviewMode: false,
+	zoomLevel: 100,
 	selectedItem: null
 };
 
@@ -326,6 +328,17 @@ export function toggleOverview() {
 	toolbarStateStore.update(state => ({
 		...state,
 		overviewMode: !state.overviewMode
+	}));
+}
+
+/**
+ * Set zoom level
+ * @param {number} level - Zoom level as percentage (25-400) or 0 for fit
+ */
+export function setZoomLevel(level) {
+	toolbarStateStore.update(state => ({
+		...state,
+		zoomLevel: level
 	}));
 }
 
