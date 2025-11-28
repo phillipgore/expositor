@@ -59,7 +59,31 @@
 	
 	<!-- Document View Content -->
 	<div class="document-content">
-		<p class="placeholder-text">Document view content will be displayed here.</p>
+		{#if data.passagesWithText && data.passagesWithText.length > 0}
+			{#each data.passagesWithText as passageText}
+				{#if passageText.error}
+					<div class="error-message">
+						<p>Error loading {passageText.reference}: {passageText.error}</p>
+					</div>
+				{:else if passageText.text}
+					<div class="passage-section">
+						<h2 class="passage-reference">{passageText.reference}</h2>
+						<div class="passage-text">{passageText.text}</div>
+					</div>
+				{/if}
+			{/each}
+			
+			<!-- Copyright Notice -->
+			<div class="copyright-notice">
+				{#if data.study.translation === 'esv'}
+					<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.</p>
+				{:else if data.study.translation === 'net'}
+					<p>Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved.</p>
+				{/if}
+			</div>
+		{:else}
+			<p class="placeholder-text">No passages available for this study.</p>
+		{/if}
 	</div>
 </div>
 
@@ -109,5 +133,53 @@
 		color: var(--gray-400);
 		text-align: center;
 		padding: 3.6rem 0;
+	}
+
+	.passage-section {
+		margin-bottom: 3.6rem;
+	}
+
+	.passage-reference {
+		font-size: 1.6rem;
+		font-weight: 600;
+		color: var(--gray-300);
+		margin-bottom: 1.8rem;
+		text-align: left;
+	}
+
+	.passage-text {
+		font-size: 1.6rem;
+		line-height: 1.8;
+		color: var(--gray-100);
+		white-space: pre-wrap;
+		text-align: left;
+	}
+
+	.error-message {
+		padding: 1.8rem;
+		background-color: var(--red-900);
+		border: 1px solid var(--red-700);
+		border-radius: 0.4rem;
+		margin-bottom: 1.8rem;
+	}
+
+	.error-message p {
+		font-size: 1.4rem;
+		color: var(--red-300);
+		margin: 0;
+	}
+
+	.copyright-notice {
+		margin-top: 4.5rem;
+		padding-top: 2.7rem;
+		border-top: 1px solid var(--gray-700);
+	}
+
+	.copyright-notice p {
+		font-size: 1.2rem;
+		color: var(--gray-500);
+		line-height: 1.6;
+		text-align: center;
+		margin: 0;
 	}
 </style>

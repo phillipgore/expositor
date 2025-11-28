@@ -175,6 +175,8 @@ export function getAppToolbarConfig() {
 					underLabel: 'Verses',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'versesVisible',
+					toggleHandler: 'toggleVerses',
 					disabledStateProp: 'canToggleVerses'
 				},
 				{
@@ -183,6 +185,8 @@ export function getAppToolbarConfig() {
 					underLabel: 'Wide',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'wideLayout',
+					toggleHandler: 'toggleWide',
 					disabledStateProp: 'canToggleWide'
 				},
 				{
@@ -191,6 +195,8 @@ export function getAppToolbarConfig() {
 					underLabel: 'Overview',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'overviewMode',
+					toggleHandler: 'toggleOverview',
 					disabledStateProp: 'canToggleOverview'
 				}
 			]

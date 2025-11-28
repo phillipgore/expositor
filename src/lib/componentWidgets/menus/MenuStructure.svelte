@@ -56,8 +56,8 @@
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="outline-group"
-		label="New Group"
+		iconId="outline-division"
+		label="New Division"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseStructureItems}

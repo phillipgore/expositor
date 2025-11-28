@@ -296,6 +296,35 @@ export function getDefaultPassageValues() {
 }
 
 /**
+ * Gets the book abbreviation (titleShortAbbreviation) from a book name.
+ * 
+ * @param {string} bookName - Full book name (e.g., "Matthew", "Genesis")
+ * @returns {string|null} Book abbreviation (e.g., "MT", "GE") or null if not found
+ */
+export function getBookAbbreviation(bookName) {
+	try {
+		if (!bookName) {
+			console.warn('getBookAbbreviation called with empty bookName');
+			return null;
+		}
+
+		// Search in both OT and NT
+		const allBooks = [...otBookData, ...ntBookData];
+		const book = allBooks.find((b) => b.title === bookName);
+
+		if (!book || !book.titleShortAbbreviation) {
+			console.warn(`Book abbreviation not found for: ${bookName}`);
+			return null;
+		}
+
+		return book.titleShortAbbreviation;
+	} catch (error) {
+		console.error('Error in getBookAbbreviation:', error);
+		return null;
+	}
+}
+
+/**
  * Validates that a passage has valid testament, book, chapter, and verse values.
  * 
  * @param {Object} passage - Passage object to validate

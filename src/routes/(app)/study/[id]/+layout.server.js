@@ -3,8 +3,9 @@ import { db } from '$lib/server/db/index.js';
 import { study, passage } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq } from 'drizzle-orm';
+import { fetchPassagesText } from '$lib/server/bibleApi.js';
 
-/** @type {import('./$types').PageServerLoad} */
+/** @type {import('./$types').LayoutServerLoad} */
 export async function load({ params, request, depends }) {
 	depends('app:studies');
 	// Get the current user from session (guaranteed by layout)
@@ -37,9 +38,14 @@ export async function load({ params, request, depends }) {
 			.where(eq(passage.studyId, studyId))
 			.orderBy(passage.displayOrder);
 
+		// Fetch passage text from the appropriate API
+		const translation = studyData.translation || 'esv';
+		const passagesWithText = await fetchPassagesText(passagesData, translation);
+
 		return {
 			study: studyData,
 			passages: passagesData,
+			passagesWithText,
 			invalidateStudies: true
 		};
 	} catch (err) {

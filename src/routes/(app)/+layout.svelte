@@ -59,7 +59,7 @@
 		display: flex;
 		flex-direction: column;
 		flex-grow: 1;
-		padding: 1.8rem;
+		padding: 1.8rem 0.0rem;
 		overflow-y: auto;
 		transition: margin-left 0.3s ease-in-out;
 	}

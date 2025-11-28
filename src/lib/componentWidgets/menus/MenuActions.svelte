@@ -211,7 +211,7 @@
 
 	<IconButton
 		iconId="book"
-		label="New Study in Selected Group"
+		label="New Study Group in Selected"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewStudy(selectedGroup.id)}
@@ -222,7 +222,7 @@
 
 	<IconButton
 		iconId="folder"
-		label="New Group"
+		label="New Study Group"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewGroup(null)}
@@ -230,7 +230,7 @@
 
 	<IconButton
 		iconId="folder"
-		label="New Group in Selected Group"
+		label="New Study Group in Selected"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewGroup(selectedGroup.id)}

@@ -46,6 +46,9 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canUseLiteraryItems - Whether Literary menu items should be enabled
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
+ * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
+ * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
+ * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
  */
 
@@ -72,6 +75,9 @@ const defaultState = {
 	canUseLiteraryItems: false,
 	canUseColorItems: false,
 	studiesPanelOpen: true,
+	versesVisible: true,
+	wideLayout: false,
+	overviewMode: false,
 	selectedItem: null
 };
 
@@ -270,6 +276,36 @@ export function toggleStudiesPanel() {
 	toolbarStateStore.update(state => ({
 		...state,
 		studiesPanelOpen: !state.studiesPanelOpen
+	}));
+}
+
+/**
+ * Toggle verses visibility
+ */
+export function toggleVerses() {
+	toolbarStateStore.update(state => ({
+		...state,
+		versesVisible: !state.versesVisible
+	}));
+}
+
+/**
+ * Toggle wide layout
+ */
+export function toggleWide() {
+	toolbarStateStore.update(state => ({
+		...state,
+		wideLayout: !state.wideLayout
+	}));
+}
+
+/**
+ * Toggle overview mode
+ */
+export function toggleOverview() {
+	toolbarStateStore.update(state => ({
+		...state,
+		overviewMode: !state.overviewMode
 	}));
 }
 

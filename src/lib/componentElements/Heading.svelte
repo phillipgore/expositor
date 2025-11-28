@@ -92,15 +92,15 @@
 	}
 	h4,
 	.h4 {
-		font-size: 1.2rem;
+		font-size: 1.4rem;
 	}
 	h5,
 	.h5 {
-		font-size: 0.9rem;
+		font-size: 1.2rem;
 	}
 	h6,
 	.h6 {
-		font-size: 0.6rem;
+		font-size: 1.0rem;
 	}
 	.has-sub{
 		margin: 0.0rem;
