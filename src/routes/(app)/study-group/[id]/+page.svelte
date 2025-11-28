@@ -38,7 +38,7 @@
 	<Icon iconId="folder" isActive={false}  classes=""></Icon>
 	<Heading heading="h1" alignCenter hasSub={data.group.subtitle ? true : false}>{data.group.name}</Heading>
 	{#if data.group.subtitle}
-		<Heading heading="h2" classes="h3" isMuted>{data.group.subtitle}</Heading>
+		<Heading heading="h3" isMuted>{data.group.subtitle}</Heading>
 	{/if}
 	{#if data.group.description}
 		<InstructionText>

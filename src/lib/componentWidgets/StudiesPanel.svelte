@@ -147,7 +147,7 @@
 		
 		// Only navigate if no modifier keys are pressed
 		if (!hasModifier) {
-			goto(`/study/${study.id}`);
+			goto(`/study/${study.id}/analyze`);
 		}
 	}
 
@@ -382,7 +382,7 @@
 							<StudyItem
 								{study}
 								asLink={true}
-								href="/study/{study.id}"
+								href="/study/{study.id}/analyze"
 								isActive={study.id === activeStudyId}
 								{formatPassageReference}
 								onClick={() => setToolbarState('studiesPanelOpen', false)}

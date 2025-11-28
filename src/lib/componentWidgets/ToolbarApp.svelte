@@ -91,6 +91,33 @@
 	};
 
 	/**
+	 * Determine active button for mode switcher based on current route
+	 */
+	let activeModeButton = $derived.by(() => {
+		const pathname = $page.url.pathname;
+		if (pathname.includes('/study/') && !pathname.includes('/study-group')) {
+			if (pathname.endsWith('/analyze') || pathname.includes('/analyze/')) {
+				return 'analyze';
+			} else if (pathname.endsWith('/document') || pathname.includes('/document/')) {
+				return 'document';
+			}
+		}
+		return 'analyze'; // Default
+	});
+
+	/**
+	 * Handle mode button change (Analyze/Document)
+	 */
+	function handleModeChange(buttonId) {
+		// Get the current study ID from the URL
+		const pathname = $page.url.pathname;
+		if (pathname.includes('/study/') && !pathname.includes('/study-group')) {
+			const studyId = pathname.split('/study/')[1].split('/')[0];
+			goto(`/study/${studyId}/${buttonId}`);
+		}
+	}
+
+	/**
 	 * Handle edit button click
 	 */
 	function handleEditClick() {
@@ -318,9 +345,10 @@
 				{:else if button.type === 'grouped'}
 					<ButtonGrouped
 						buttons={button.buttons}
-						defaultActive={button.defaultActive}
+						defaultActive={activeModeButton}
 						buttonClasses={button.buttonClasses}
 						underLabelClasses={button.underLabelClasses}
+						onActiveChange={handleModeChange}
 						isDisabled={
 							button.disabledStateProp
 								? !$toolbarState[button.disabledStateProp]

@@ -108,8 +108,8 @@
 </script>
 
 {#if !isValidatingToken}
-	<Heading heading="h1" classes="h4" hasSub>Reset Password</Heading>
-	<Heading heading="h2" classes="h5" isMuted>{email}</Heading>
+	<Heading heading="h1" hasSub>Reset Password</Heading>
+	<Heading heading="h2" isMuted>{email}</Heading>
 {/if}
 
 <form on:submit={handleSubmit}>

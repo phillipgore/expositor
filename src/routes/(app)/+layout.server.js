@@ -37,7 +37,8 @@ export async function load({ request, depends }) {
 			.select({
 				id: study.id,
 				title: study.title,
-				groupId: study.groupId
+				groupId: study.groupId,
+				translation: study.translation
 			})
 			.from(study)
 			.where(eq(study.userId, session.user.id))

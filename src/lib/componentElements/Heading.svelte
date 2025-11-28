@@ -26,8 +26,8 @@
 	 * 
 	 * Heading with sub-heading:
 	 * ```svelte
-	 * <Heading heading="h1" classes="h4" hasSub>Main Title</Heading>
-	 * <Heading heading="h2" classes="h5" isMuted>Subtitle text</Heading>
+	 * <Heading heading="h1" hasSub>Main Title</Heading>
+	 * <Heading heading="h2" isMuted>Subtitle text</Heading>
 	 * ```
 	 * 
 	 * @typedef {Object} HeadingProps
@@ -80,27 +80,27 @@
 	}
 	h1,
 	.h1 {
-		font-size: 4rem;
+		font-size: 2.6rem;
 	}
 	h2,
 	.h2 {
-		font-size: 3.2rem;
+		font-size: 2rem;
 	}
 	h3,
 	.h3 {
-		font-size: 2.8rem;
+		font-size: 1.6rem;
 	}
 	h4,
 	.h4 {
-		font-size: 2.4rem;
+		font-size: 1.2rem;
 	}
 	h5,
 	.h5 {
-		font-size: 2rem;
+		font-size: 0.9rem;
 	}
 	h6,
 	.h6 {
-		font-size: 1.6rem;
+		font-size: 0.6rem;
 	}
 	.has-sub{
 		margin: 0.0rem;
@@ -113,3 +113,4 @@
 		font-weight: normal;
 	}
 </style>
+

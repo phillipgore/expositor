@@ -112,9 +112,9 @@
 		};
 	}}
 >
-	<Heading heading="h1" classes="h4" hasSub={groupName? true : false}>{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading>
+	<Heading heading="h1" hasSub={groupName? true : false}>{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading>
 	{#if groupName}
-		<Heading heading="h1" classes="h6" isMuted notBold>{`To be created in "${groupName}".`}</Heading>
+		<Heading heading="h2" isMuted notBold>{`To be created in "${groupName}".`}</Heading>
 	{/if}
 
 	{#if form?.error}
