@@ -40,7 +40,7 @@
 		{ id: '300', type: 'button', label: '300%', iconId: 'blank', isActive: false },
 		{ id: '400', type: 'button', label: '400%', iconId: 'blank', isActive: false },
 		{ id: 'dividerHorizontalOne', type: 'divider' },
-		{ id: 'fullWidth', type: 'button', label: 'Full Width', iconId: 'blank', isActive: false }
+		{ id: 'fit', type: 'button', label: 'Fit Study', iconId: 'blank', isActive: false }
 	]);
 
 	const handleSelect = (item) => {

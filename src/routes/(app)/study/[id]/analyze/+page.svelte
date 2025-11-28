@@ -64,20 +64,20 @@
 								<p>Error loading {passageText.reference}: {passageText.error}</p>
 							</div>
 						{:else if passageText.text}
-							<Heading heading="h3" classes="h4 passage-refernce">
+							<Heading heading="h3" classes="h5 passage-refernce">
 								{passageText.reference} [{translationAbbr}]
 							</Heading>
-							<div class="passage-column green">
+							<div class="passage-column blue">
 								<div class="passage-column-header">
-									<Heading heading="h4" classes="h3">Title</Heading>
+									<Heading heading="h4" classes="h3">Column Title</Heading>
 								</div>
 									<div class="passage-section">
 										<div class="passage-section-header">
-											<Heading heading="h4">Title</Heading>
+											<Heading heading="h4">Section Title</Heading>
 										</div>
 										<div class="passage-division">
 											<div class="passage-division-header">
-												<Heading heading="h4">Title</Heading>
+												<Heading heading="h4">Division Title</Heading>
 											</div>
 											<div class="passage-text">{@html passageText.text}</div>
 										</div>
@@ -107,12 +107,21 @@
 	.container {
 		display: flex;
 		flex-direction: column;
+		position: relative;
 		height: 100%;
 	}
 
 	.study-header {
-		width: 100%;
-		text-align: center;
+		position: absolute;
+		top: 0.9rem;
+		left: 2.3rem;
+		background: var(--white-alpha);
+		padding: 0.3rem 0.9rem 0.9rem;
+		border-radius: 0.3rem;
+	}
+
+	.study-header :global(h2) {
+		margin: 0.0rem;
 	}
 
 	.placeholder-text {
@@ -128,6 +137,7 @@
 		gap: 3.2rem;
 		justify-content: center;
 		overflow-x: auto;
+		padding: 6.6rem 0.0rem 1.8rem;
 	}
 
 	.spacer {
@@ -141,12 +151,9 @@
 		flex-shrink: 0;
 	}
 
-	.passage-container :global(.h4) {
-		margin-bottom: 0.9rem;
-	}
-
 	.passage-column {
 		width: 28.8rem;
+		margin-bottom: 1.8rem;
 	}
 
 	.wide-layout .passage-column {
@@ -161,8 +168,8 @@
 		padding: 0.6rem;
 	}
 
-	:global(.h4.passage-refernce) {
-		color: var(--gray-300)
+	.passage-container :global(.passage-refernce) {
+		margin-bottom: 0.9rem;
 	}
 
 	.passage-column-header {
@@ -237,12 +244,18 @@
 	}
 
 	.copyright-notice {
-		width: 100%;
-		padding-top: 1.8rem;
+		position: absolute;
+		text-align: center;
+		width: 33.3rem;
+		bottom: 0.9rem;
+		right: 0.9rem;
+		background: var(--white-alpha);
+		padding: 0.9rem;
+		border-radius: 0.3rem;
 	}
 
 	.copyright-notice p {
-		font-size: 1.2rem;
+		font-size: 1.0rem;
 		color: var(--gray-500);
 		line-height: 1.6;
 		text-align: center;

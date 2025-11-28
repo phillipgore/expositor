@@ -75,7 +75,7 @@ const defaultState = {
 	canUseLiteraryItems: false,
 	canUseColorItems: false,
 	studiesPanelOpen: true,
-	versesVisible: true,
+	versesVisible: false,
 	wideLayout: false,
 	overviewMode: false,
 	selectedItem: null
