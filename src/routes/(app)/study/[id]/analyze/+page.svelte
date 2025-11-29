@@ -48,8 +48,11 @@
 				
 				words.forEach(word => {
 					if (word.match(/\s+/)) {
-						// Preserve whitespace
-						fragment.appendChild(document.createTextNode(word));
+						// Wrap whitespace in span for consistent selection colors
+						const spaceSpan = document.createElement('span');
+						spaceSpan.className = 'selectable-space';
+						spaceSpan.textContent = word;
+						fragment.appendChild(spaceSpan);
 					} else if (word.trim()) {
 						// Wrap word in span
 						const span = document.createElement('span');
@@ -212,6 +215,18 @@
 			if (suppressElement) {
 				suppressElement.setAttribute('data-suppress-hover-caret', 'true');
 			}
+		}
+	});
+
+	/**
+	 * Clear word selections when Select button is toggled off
+	 */
+	$effect(() => {
+		// When textSelectionMode becomes false (button OFF), clear all word selections
+		if (!$toolbarState.textSelectionMode) {
+			selectedWord = null;
+			hoveredWord = null;
+			suppressHoverCaret = null;
 		}
 	});
 
@@ -411,7 +426,7 @@
 									{passageText.reference} [{translationAbbr}]
 								</Heading>
 								<div class="passage-column">
-									<div class="passage-division blue">
+									<div class="passage-division green">
 										<div class="passage-division-header">
 											<Heading heading="h4" classes="h3 division-heading">Division Heading</Heading>
 										</div>
@@ -602,6 +617,12 @@
 		padding: 0.2rem 0.1rem;
 		border-radius: 0.2rem;
 		transition: background-color 0.15s ease;
+	}
+
+	/* Whitespace selection styles - ensure whitespace is selectable in both modes */
+	:global(.selectable-space) {
+		-webkit-user-select: text !important;
+		user-select: text !important;
 	}
 
 	/* Hover state - subtle highlight (only when not selected) */
@@ -973,5 +994,128 @@
 
 	.passage-division.pink .passage-segment {
 		border-color: var(--pink-dark);
+	}
+
+	/* Browser text selection colors - match passage-division colors */
+	/* Safari/WebKit - explicitly target word and space spans */
+	.passage-division.blue .passage-text :global(.selectable-word)::-webkit-selection,
+	.passage-division.blue .passage-text :global(.selectable-space)::-webkit-selection,
+	.passage-division.blue .passage-text :global(.chapter-verse)::-webkit-selection,
+	.passage-division.blue .passage-text::-webkit-selection {
+		background-color: var(--blue-lighter);
+		color: var(--blue-darker);
+	}
+	/* Other browsers */
+	.passage-division.blue .passage-text :global(.selectable-word)::selection,
+	.passage-division.blue .passage-text :global(.selectable-space)::selection,
+	.passage-division.blue .passage-text :global(.chapter-verse)::selection,
+	.passage-division.blue .passage-text::selection {
+		background-color: var(--blue-lighter);
+		color: var(--blue-darker);
+	}
+
+	.passage-division.red .passage-text :global(.selectable-word)::-webkit-selection,
+	.passage-division.red .passage-text :global(.selectable-space)::-webkit-selection,
+	.passage-division.red .passage-text :global(.chapter-verse)::-webkit-selection,
+	.passage-division.red .passage-text::-webkit-selection {
+		background-color: var(--red-lighter);
+		color: var(--red-darker);
+	}
+	.passage-division.red .passage-text :global(.selectable-word)::selection,
+	.passage-division.red .passage-text :global(.selectable-space)::selection,
+	.passage-division.red .passage-text :global(.chapter-verse)::selection,
+	.passage-division.red .passage-text::selection {
+		background-color: var(--red-lighter);
+		color: var(--red-darker);
+	}
+
+	.passage-division.orange .passage-text :global(.selectable-word)::-webkit-selection,
+	.passage-division.orange .passage-text :global(.selectable-space)::-webkit-selection,
+	.passage-division.orange .passage-text :global(.chapter-verse)::-webkit-selection,
+	.passage-division.orange .passage-text::-webkit-selection {
+		background-color: var(--orange-lighter);
+		color: var(--orange-darker);
+	}
+	.passage-division.orange .passage-text :global(.selectable-word)::selection,
+	.passage-division.orange .passage-text :global(.selectable-space)::selection,
+	.passage-division.orange .passage-text :global(.chapter-verse)::selection,
+	.passage-division.orange .passage-text::selection {
+		background-color: var(--orange-lighter);
+		color: var(--orange-darker);
+	}
+
+	.passage-division.yellow .passage-text :global(.selectable-word)::-webkit-selection,
+	.passage-division.yellow .passage-text :global(.selectable-space)::-webkit-selection,
+	.passage-division.yellow .passage-text :global(.chapter-verse)::-webkit-selection,
+	.passage-division.yellow .passage-text::-webkit-selection {
+		background-color: var(--yellow-lighter);
+		color: var(--yellow-darker);
+	}
+	.passage-division.yellow .passage-text :global(.selectable-word)::selection,
+	.passage-division.yellow .passage-text :global(.selectable-space)::selection,
+	.passage-division.yellow .passage-text :global(.chapter-verse)::selection,
+	.passage-division.yellow .passage-text::selection {
+		background-color: var(--yellow-lighter);
+		color: var(--yellow-darker);
+	}
+
+	.passage-division.green .passage-text :global(.selectable-word)::-webkit-selection,
+	.passage-division.green .passage-text :global(.selectable-space)::-webkit-selection,
+	.passage-division.green .passage-text :global(.chapter-verse)::-webkit-selection,
+	.passage-division.green .passage-text::-webkit-selection {
+		background-color: var(--green-lighter);
+		color: var(--green-darker);
+	}
+	.passage-division.green .passage-text :global(.selectable-word)::selection,
+	.passage-division.green .passage-text :global(.selectable-space)::selection,
+	.passage-division.green .passage-text :global(.chapter-verse)::selection,
+	.passage-division.green .passage-text::selection {
+		background-color: var(--green-lighter);
+		color: var(--green-darker);
+	}
+
+	.passage-division.aqua .passage-text :global(.selectable-word)::-webkit-selection,
+	.passage-division.aqua .passage-text :global(.selectable-space)::-webkit-selection,
+	.passage-division.aqua .passage-text :global(.chapter-verse)::-webkit-selection,
+	.passage-division.aqua .passage-text::-webkit-selection {
+		background-color: var(--aqua-lighter);
+		color: var(--aqua-darker);
+	}
+	.passage-division.aqua .passage-text :global(.selectable-word)::selection,
+	.passage-division.aqua .passage-text :global(.selectable-space)::selection,
+	.passage-division.aqua .passage-text :global(.chapter-verse)::selection,
+	.passage-division.aqua .passage-text::selection {
+		background-color: var(--aqua-lighter);
+		color: var(--aqua-darker);
+	}
+
+	.passage-division.purple .passage-text :global(.selectable-word)::-webkit-selection,
+	.passage-division.purple .passage-text :global(.selectable-space)::-webkit-selection,
+	.passage-division.purple .passage-text :global(.chapter-verse)::-webkit-selection,
+	.passage-division.purple .passage-text::-webkit-selection {
+		background-color: var(--purple-lighter);
+		color: var(--purple-darker);
+	}
+	.passage-division.purple .passage-text :global(.selectable-word)::selection,
+	.passage-division.purple .passage-text :global(.selectable-space)::selection,
+	.passage-division.purple .passage-text :global(.chapter-verse)::selection,
+	.passage-division.purple .passage-text::selection {
+		background-color: var(--purple-lighter);
+		color: var(--purple-darker);
+	}
+
+	.passage-division.pink .passage-text :global(.selectable-word)::-webkit-selection,
+	.passage-division.pink .passage-text :global(.selectable-space)::-webkit-selection,
+	.passage-division.pink .passage-text :global(.chapter-verse)::-webkit-selection,
+	.passage-division.pink .passage-text::-webkit-selection {
+		background-color: var(--pink-lighter);
+		color: var(--pink-darker);
+	}
+	.passage-division.pink .passage-text :global(.selectable-word)::selection,
+	.passage-division.pink .passage-text :global(.selectable-space)::selection,
+	.passage-division.pink .passage-text :global(.chapter-verse)::selection,
+	.passage-division.pink .passage-text::selection {
+		background-color: var(--pink-lighter);
+		color: var(--pink-darker);
 	}
 </style>
