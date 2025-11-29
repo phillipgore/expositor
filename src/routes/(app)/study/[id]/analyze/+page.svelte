@@ -1,6 +1,7 @@
 <script>
 	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { toolbarState } from '$lib/stores/toolbar.js';
@@ -49,6 +50,27 @@
 	
 	// Track previous zoom level to detect actual changes
 	let previousZoomLevel = $state($toolbarState.zoomLevel);
+	
+	// Track natural (unscaled) dimensions of content
+	let naturalWidth = $state(0);
+	let naturalHeight = $state(0);
+
+	/**
+	 * Measure the natural dimensions of content without transform
+	 */
+	function measureNaturalDimensions() {
+		if (!contentInnerRef) return;
+
+		// Temporarily remove transform to get true dimensions
+		const currentTransform = contentInnerRef.style.transform;
+		contentInnerRef.style.transform = 'none';
+		
+		naturalWidth = contentInnerRef.scrollWidth;
+		naturalHeight = contentInnerRef.scrollHeight;
+		
+		// Restore transform
+		contentInnerRef.style.transform = currentTransform;
+	}
 
 	/**
 	 * Calculate optimal scale to fit entire study in viewport
@@ -85,8 +107,8 @@
 		const heightScale = viewportHeight / contentHeight;
 
 		// Use the smaller scale to ensure everything fits
-		// Apply a 0.95 buffer to account for padding and prevent edge clipping
-		const optimalScale = Math.min(widthScale, heightScale) * 0.95;
+		// Apply a 0.98 buffer to account for padding and prevent edge clipping
+		const optimalScale = Math.min(widthScale, heightScale) * 0.98;
 
 		// Don't zoom in beyond 100% for fit mode
 		return Math.min(optimalScale, 1);
@@ -141,8 +163,62 @@
 			if (contentInnerRef?.parentElement) {
 				contentInnerRef.parentElement.scrollTo(0, 0);
 			}
+			
 			previousZoomLevel = currentZoomLevel;
 		}
+	});
+
+	/**
+	 * Measure natural dimensions immediately when content first loads
+	 */
+	$effect(() => {
+		if (contentInnerRef && data.passagesWithText?.length > 0) {
+			// Use requestAnimationFrame to measure after initial render
+			// This is faster and more reliable than setTimeout
+			requestAnimationFrame(() => {
+				measureNaturalDimensions();
+				
+				// If dimensions are still 0, content might not be fully rendered yet
+				// Try one more time with a small delay
+				if (naturalWidth === 0 || naturalHeight === 0) {
+					requestAnimationFrame(() => {
+						measureNaturalDimensions();
+					});
+				}
+			});
+		}
+	});
+
+	/**
+	 * Determine if header should be visible based on zoom level
+	 * @returns {boolean} True if zoom >= 100%
+	 */
+	let showHeader = $derived.by(() => {
+		const level = $toolbarState.zoomLevel;
+		
+		// If in Fit Study mode (0), use calculated fitScale
+		if (level === 0) {
+			return fitScale >= 1;
+		}
+		
+		// Otherwise, show if zoom >= 100%
+		return level >= 100;
+	});
+
+	/**
+	 * Get current scale factor
+	 * @returns {number} Current scale
+	 */
+	let currentScale = $derived.by(() => {
+		const level = $toolbarState.zoomLevel;
+		
+		// If zoom level is 0, use calculated fit scale
+		if (level === 0) {
+			return fitScale;
+		}
+		
+		// Convert percentage to decimal (e.g., 150% = 1.5)
+		return level / 100;
 	});
 
 	/**
@@ -150,49 +226,67 @@
 	 * @returns {string} CSS transform value
 	 */
 	let zoomTransform = $derived.by(() => {
-		const level = $toolbarState.zoomLevel;
+		return `scale(${currentScale})`;
+	});
+
+	/**
+	 * Calculate wrapper dimensions for scroll area
+	 * @returns {string} CSS dimensions for wrapper
+	 */
+	let wrapperDimensions = $derived.by(() => {
+		if (!contentInnerRef) return '';
 		
-		// If zoom level is 0, use calculated fit scale
-		if (level === 0) {
-			return `scale(${fitScale})`;
-		}
+		// Get actual content dimensions
+		const currentTransform = contentInnerRef.style.transform;
+		contentInnerRef.style.transform = 'none';
+		const width = contentInnerRef.scrollWidth;
+		const height = contentInnerRef.scrollHeight;
+		contentInnerRef.style.transform = currentTransform;
 		
-		// Convert percentage to decimal (e.g., 150% = 1.5)
-		const scale = level / 100;
-		return `scale(${scale})`;
+		if (width === 0 || height === 0) return '';
+		
+		// Apply scale to dimensions
+		const scaledWidth = width * currentScale;
+		const scaledHeight = height * currentScale;
+		
+		return `width: ${scaledWidth}px; height: ${scaledHeight}px;`;
 	});
 </script>
 
 <div class="container">
-	<div class="study-header">
-		<div>
-			<Heading heading="h1" classes="h4" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
-			{#if data.study.subtitle}
-				<Heading heading="h2" classes="h5" isMuted>{data.study.subtitle}</Heading>
-			{/if}
+	{#if showHeader}
+		<div class="study-header">
+			<div>
+				<Heading heading="h1" classes="h4" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
+				{#if data.study.subtitle}
+					<Heading heading="h2" classes="h5" isMuted>{data.study.subtitle}</Heading>
+				{/if}
+			</div>
 		</div>
-	</div>
+	{/if}
 	
 	<!-- Analyze View Content -->
 	<div class="analyze-content" class:hide-verses={!$toolbarState.versesVisible} class:wide-layout={$toolbarState.wideLayout} class:overview-mode={$toolbarState.overviewMode}>
-		<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
-			<div class="spacer">&nbsp;</div> 
+		<div class="analyze-content-wrapper" style="{wrapperDimensions}">
+			<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
+				<div class="spacer">&nbsp;</div>
 			{#if data.passagesWithText && data.passagesWithText.length > 0}
 				{#each data.passagesWithText as passageText}
 					<div class="passage">
 						<div class="passage-container">
 							{#if passageText.error}
 								<div class="error-message">
-									<p>Error loading {passageText.reference}: {passageText.error}</p>
+									<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
 								</div>
 							{:else if passageText.text}
 								<Heading heading="h3" classes="h5 passage-refernce">
 									{passageText.reference} [{translationAbbr}]
 								</Heading>
-								<div class="passage-column blue">
-									<div class="passage-column-header">
-										<Heading heading="h4" classes="h3">Column Title</Heading>
-									</div>
+								<div class="passage-column">
+									<div class="passage-pinned blue">
+										<div class="passage-pinned-header">
+											<Heading heading="h4" classes="h3">Pinned Title</Heading>
+										</div>
 										<div class="passage-section">
 											<div class="passage-section-header">
 												<Heading heading="h4">Section Title</Heading>
@@ -204,6 +298,7 @@
 												<div class="passage-text">{@html passageText.text}</div>
 											</div>
 										</div>
+									</div>
 								</div>
 							{/if}
 						</div>
@@ -212,7 +307,8 @@
 			{:else}
 				<p class="placeholder-text">No passages available for this study.</p>
 			{/if}
-			<div class="spacer">&nbsp;</div>
+				<div class="spacer">&nbsp;</div>
+			</div>
 		</div>
 	</div>
 			
@@ -262,6 +358,11 @@
 		touch-action: pan-x pan-y pinch-zoom;
 	}
 
+	.analyze-content-wrapper {
+		/* Wrapper defines the scrollable area size based on scaled dimensions */
+		position: relative;
+	}
+
 	.analyze-content-inner {
 		display: flex;
 		gap: 3.2rem;
@@ -295,14 +396,14 @@
 	}
 
 	.overview-mode .passage-division-header {
-		padding: 0.6rem;
+		padding: 0.9rem;
 	}
 
 	.passage-container :global(.passage-refernce) {
 		margin-bottom: 0.9rem;
 	}
 
-	.passage-column-header {
+	.passage-pinned-header {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 		text-align: center;
@@ -314,23 +415,23 @@
 		border-bottom-left-radius: 0.3rem;
 	}
 
-	.passage-column-header,
+	.passage-pinned-header,
 	.passage-section-header {
 		border-top: 0.1rem solid;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 	}
 
-	.passage-column-header,
+	.passage-pinned-header,
 	.passage-section-header {
-		padding: 0.6rem;
+		padding: 0.9rem;
 	}
 
 	.passage-division-header {
-		padding: 0.6rem 0.6rem 0.0rem;
+		padding: 0.9rem;
 	}
 
-	.passage-column-header :global(.h3),
+	.passage-pinned-header :global(.h3),
 	.passage-section-header :global(h4),
 	.passage-division-header :global(h4)  {
 		margin-bottom: 0.0rem;
@@ -343,7 +444,7 @@
 		color: var(--gray-100);
 		white-space: pre-wrap;
 		text-align: left;
-		padding: 0.6rem;
+		padding: 0.0rem 0.9rem 0.9rem;
 	}
 
 	:global(.chapter-verse) {
@@ -393,179 +494,179 @@
 		margin: 0;
 	}
 
-	.passage-column.blue .passage-column-header {
+	.passage-pinned.blue .passage-pinned-header {
 		background-color: var(--blue-darker);
 		border-color: var(--blue-darker);
 	}
 
-	.passage-column.blue .passage-column-header :global(h4) {
+	.passage-pinned.blue .passage-pinned-header :global(h4) {
 		color: var(--blue-lighter);
 	}
 
-	.passage-column.blue .passage-section-header {
+	.passage-pinned.blue .passage-section-header {
 		background-color: var(--blue-lighter);
 		border-color: var(--blue-dark);
 	}
 
-	.passage-column.blue .passage-section-header :global(h4) {
+	.passage-pinned.blue .passage-section-header :global(h4) {
 		color: var(--blue-darker);
 	}
 
-	.passage-column.blue .passage-division {
+	.passage-pinned.blue .passage-division {
 		border-color: var(--blue-dark);
 	}
 
-	.passage-column.red .passage-column-header {
+	.passage-pinned.red .passage-pinned-header {
 		background-color: var(--red-darker);
 		border-color: var(--red-darker);
 	}
 
-	.passage-column.red .passage-column-header :global(h4) {
+	.passage-pinned.red .passage-pinned-header :global(h4) {
 		color: var(--red-lighter);
 	}
 
-	.passage-column.red .passage-section-header {
+	.passage-pinned.red .passage-section-header {
 		background-color: var(--red-lighter);
 		border-color: var(--red-dark);
 	}
 
-	.passage-column.red .passage-section-header :global(h4) {
+	.passage-pinned.red .passage-section-header :global(h4) {
 		color: var(--red-darker);
 	}
 
-	.passage-column.red .passage-division {
+	.passage-pinned.red .passage-division {
 		border-color: var(--red-dark);
 	}
 
-	.passage-column.orange .passage-column-header {
+	.passage-pinned.orange .passage-pinned-header {
 		background-color: var(--orange-darker);
 		border-color: var(--orange-darker);
 	}
 
-	.passage-column.orange .passage-column-header :global(h4) {
+	.passage-pinned.orange .passage-pinned-header :global(h4) {
 		color: var(--orange-lighter);
 	}
 
-	.passage-column.orange .passage-section-header {
+	.passage-pinned.orange .passage-section-header {
 		background-color: var(--orange-lighter);
 		border-color: var(--orange-dark);
 	}
 
-	.passage-column.orange .passage-section-header :global(h4) {
+	.passage-pinned.orange .passage-section-header :global(h4) {
 		color: var(--orange-darker);
 	}
 
-	.passage-column.orange .passage-division {
+	.passage-pinned.orange .passage-division {
 		border-color: var(--orange-dark);
 	}
 
-	.passage-column.yellow .passage-column-header {
+	.passage-pinned.yellow .passage-pinned-header {
 		background-color: var(--yellow-darker);
 		border-color: var(--yellow-darker);
 	}
 
-	.passage-column.yellow .passage-column-header :global(h4) {
+	.passage-pinned.yellow .passage-pinned-header :global(h4) {
 		color: var(--yellow-lighter);
 	}
 
-	.passage-column.yellow .passage-section-header {
+	.passage-pinned.yellow .passage-section-header {
 		background-color: var(--yellow-lighter);
 		border-color: var(--yellow-dark);
 	}
 
-	.passage-column.yellow .passage-section-header :global(h4) {
+	.passage-pinned.yellow .passage-section-header :global(h4) {
 		color: var(--yellow-darker);
 	}
 
-	.passage-column.yellow .passage-division {
+	.passage-pinned.yellow .passage-division {
 		border-color: var(--yellow-dark);
 	}
 
-	.passage-column.green .passage-column-header {
+	.passage-pinned.green .passage-pinned-header {
 		background-color: var(--green-darker);
 		border-color: var(--green-darker);
 	}
 
-	.passage-column.green .passage-column-header :global(h4) {
+	.passage-pinned.green .passage-pinned-header :global(h4) {
 		color: var(--green-lighter);
 	}
 
-	.passage-column.green .passage-section-header {
+	.passage-pinned.green .passage-section-header {
 		background-color: var(--green-lighter);
 		border-color: var(--green-dark);
 	}
 
-	.passage-column.green .passage-section-header :global(h4) {
+	.passage-pinned.green .passage-section-header :global(h4) {
 		color: var(--green-darker);
 	}
 
-	.passage-column.green .passage-division {
+	.passage-pinned.green .passage-division {
 		border-color: var(--green-dark);
 	}
 
-	.passage-column.aqua .passage-column-header {
+	.passage-pinned.aqua .passage-pinned-header {
 		background-color: var(--aqua-darker);
 		border-color: var(--aqua-darker);
 	}
 
-	.passage-column.aqua .passage-column-header :global(h4) {
+	.passage-pinned.aqua .passage-pinned-header :global(h4) {
 		color: var(--aqua-lighter);
 	}
 
-	.passage-column.aqua .passage-section-header {
+	.passage-pinned.aqua .passage-section-header {
 		background-color: var(--aqua-lighter);
 		border-color: var(--aqua-dark);
 	}
 
-	.passage-column.aqua .passage-section-header :global(h4) {
+	.passage-pinned.aqua .passage-section-header :global(h4) {
 		color: var(--aqua-darker);
 	}
 
-	.passage-column.aqua .passage-division {
+	.passage-pinned.aqua .passage-division {
 		border-color: var(--aqua-dark);
 	}
 
-	.passage-column.purple .passage-column-header {
+	.passage-pinned.purple .passage-pinned-header {
 		background-color: var(--purple-darker);
 		border-color: var(--purple-darker);
 	}
 
-	.passage-column.purple .passage-column-header :global(h4) {
+	.passage-pinned.purple .passage-pinned-header :global(h4) {
 		color: var(--purple-lighter);
 	}
 
-	.passage-column.purple .passage-section-header {
+	.passage-pinned.purple .passage-section-header {
 		background-color: var(--purple-lighter);
 		border-color: var(--purple-dark);
 	}
 
-	.passage-column.purple .passage-section-header :global(h4) {
+	.passage-pinned.purple .passage-section-header :global(h4) {
 		color: var(--purple-darker);
 	}
 
-	.passage-column.purple .passage-division {
+	.passage-pinned.purple .passage-division {
 		border-color: var(--purple-dark);
 	}
 
-	.passage-column.pink .passage-column-header {
+	.passage-pinned.pink .passage-pinned-header {
 		background-color: var(--pink-darker);
 		border-color: var(--pink-darker);
 	}
 
-	.passage-column.pink .passage-column-header :global(h4) {
+	.passage-pinned.pink .passage-pinned-header :global(h4) {
 		color: var(--pink-lighter);
 	}
 
-	.passage-column.pink .passage-section-header {
+	.passage-pinned.pink .passage-section-header {
 		background-color: var(--pink-lighter);
 		border-color: var(--pink-dark);
 	}
 
-	.passage-column.pink .passage-section-header :global(h4) {
+	.passage-pinned.pink .passage-section-header :global(h4) {
 		color: var(--pink-darker);
 	}
 
-	.passage-column.pink .passage-division {
+	.passage-pinned.pink .passage-division {
 		border-color: var(--pink-dark);
 	}
 </style>
