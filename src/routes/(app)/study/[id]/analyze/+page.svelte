@@ -1002,120 +1002,120 @@
 	.passage-division.blue .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.blue .passage-text :global(.chapter-verse)::-webkit-selection,
 	.passage-division.blue .passage-text::-webkit-selection {
-		background-color: var(--blue-lighter);
-		color: var(--blue-darker);
+		background-color: var(--blue-light);
+		color: var(--gray-100);
 	}
 	/* Other browsers */
 	.passage-division.blue .passage-text :global(.selectable-word)::selection,
 	.passage-division.blue .passage-text :global(.selectable-space)::selection,
 	.passage-division.blue .passage-text :global(.chapter-verse)::selection,
 	.passage-division.blue .passage-text::selection {
-		background-color: var(--blue-lighter);
-		color: var(--blue-darker);
+		background-color: var(--blue-light);
+		color: var(--gray-100);
 	}
 
 	.passage-division.red .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.red .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.red .passage-text :global(.chapter-verse)::-webkit-selection,
 	.passage-division.red .passage-text::-webkit-selection {
-		background-color: var(--red-lighter);
-		color: var(--red-darker);
+		background-color: var(--red-light);
+		color: var(--gray-100);
 	}
 	.passage-division.red .passage-text :global(.selectable-word)::selection,
 	.passage-division.red .passage-text :global(.selectable-space)::selection,
 	.passage-division.red .passage-text :global(.chapter-verse)::selection,
 	.passage-division.red .passage-text::selection {
-		background-color: var(--red-lighter);
-		color: var(--red-darker);
+		background-color: var(--red-light);
+		color: var(--gray-100);
 	}
 
 	.passage-division.orange .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.orange .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.orange .passage-text :global(.chapter-verse)::-webkit-selection,
 	.passage-division.orange .passage-text::-webkit-selection {
-		background-color: var(--orange-lighter);
-		color: var(--orange-darker);
+		background-color: var(--orange-light);
+		color: var(--gray-100);
 	}
 	.passage-division.orange .passage-text :global(.selectable-word)::selection,
 	.passage-division.orange .passage-text :global(.selectable-space)::selection,
 	.passage-division.orange .passage-text :global(.chapter-verse)::selection,
 	.passage-division.orange .passage-text::selection {
-		background-color: var(--orange-lighter);
-		color: var(--orange-darker);
+		background-color: var(--orange-light);
+		color: var(--gray-100);
 	}
 
 	.passage-division.yellow .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.yellow .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.yellow .passage-text :global(.chapter-verse)::-webkit-selection,
 	.passage-division.yellow .passage-text::-webkit-selection {
-		background-color: var(--yellow-lighter);
-		color: var(--yellow-darker);
+		background-color: var(--yellow-light);
+		color: var(--gray-100);
 	}
 	.passage-division.yellow .passage-text :global(.selectable-word)::selection,
 	.passage-division.yellow .passage-text :global(.selectable-space)::selection,
 	.passage-division.yellow .passage-text :global(.chapter-verse)::selection,
 	.passage-division.yellow .passage-text::selection {
-		background-color: var(--yellow-lighter);
-		color: var(--yellow-darker);
+		background-color: var(--yellow-light);
+		color: var(--gray-100);
 	}
 
 	.passage-division.green .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.green .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.green .passage-text :global(.chapter-verse)::-webkit-selection,
 	.passage-division.green .passage-text::-webkit-selection {
-		background-color: var(--green-lighter);
-		color: var(--green-darker);
+		background-color: var(--green-light);
+		color: var(--gray-100);
 	}
 	.passage-division.green .passage-text :global(.selectable-word)::selection,
 	.passage-division.green .passage-text :global(.selectable-space)::selection,
 	.passage-division.green .passage-text :global(.chapter-verse)::selection,
 	.passage-division.green .passage-text::selection {
-		background-color: var(--green-lighter);
-		color: var(--green-darker);
+		background-color: var(--green-light);
+		color: var(--gray-100);
 	}
 
 	.passage-division.aqua .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.aqua .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.aqua .passage-text :global(.chapter-verse)::-webkit-selection,
 	.passage-division.aqua .passage-text::-webkit-selection {
-		background-color: var(--aqua-lighter);
-		color: var(--aqua-darker);
+		background-color: var(--aqua-light);
+		color: var(--gray-100);
 	}
 	.passage-division.aqua .passage-text :global(.selectable-word)::selection,
 	.passage-division.aqua .passage-text :global(.selectable-space)::selection,
 	.passage-division.aqua .passage-text :global(.chapter-verse)::selection,
 	.passage-division.aqua .passage-text::selection {
-		background-color: var(--aqua-lighter);
-		color: var(--aqua-darker);
+		background-color: var(--aqua-light);
+		color: var(--gray-100);
 	}
 
 	.passage-division.purple .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.purple .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.purple .passage-text :global(.chapter-verse)::-webkit-selection,
 	.passage-division.purple .passage-text::-webkit-selection {
-		background-color: var(--purple-lighter);
-		color: var(--purple-darker);
+		background-color: var(--purple-light);
+		color: var(--gray-100);
 	}
 	.passage-division.purple .passage-text :global(.selectable-word)::selection,
 	.passage-division.purple .passage-text :global(.selectable-space)::selection,
 	.passage-division.purple .passage-text :global(.chapter-verse)::selection,
 	.passage-division.purple .passage-text::selection {
-		background-color: var(--purple-lighter);
-		color: var(--purple-darker);
+		background-color: var(--purple-light);
+		color: var(--gray-100);
 	}
 
 	.passage-division.pink .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.pink .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.pink .passage-text :global(.chapter-verse)::-webkit-selection,
 	.passage-division.pink .passage-text::-webkit-selection {
-		background-color: var(--pink-lighter);
-		color: var(--pink-darker);
+		background-color: var(--pink-light);
+		color: var(--gray-100);
 	}
 	.passage-division.pink .passage-text :global(.selectable-word)::selection,
 	.passage-division.pink .passage-text :global(.selectable-space)::selection,
 	.passage-division.pink .passage-text :global(.chapter-verse)::selection,
 	.passage-division.pink .passage-text::selection {
-		background-color: var(--pink-lighter);
-		color: var(--pink-darker);
+		background-color: var(--pink-light);
+		color: var(--gray-100);
 	}
 </style>
