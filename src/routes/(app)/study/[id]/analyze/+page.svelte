@@ -1001,7 +1001,8 @@
 	.passage-division.blue .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.blue .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.blue .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-division.blue .passage-text::-webkit-selection {
+	.passage-division.blue .passage-text::-webkit-selection,
+	.passage-division.blue :global(.segment-heading)::-webkit-selection {
 		background-color: var(--blue-light);
 		color: var(--gray-100);
 	}
@@ -1009,7 +1010,8 @@
 	.passage-division.blue .passage-text :global(.selectable-word)::selection,
 	.passage-division.blue .passage-text :global(.selectable-space)::selection,
 	.passage-division.blue .passage-text :global(.chapter-verse)::selection,
-	.passage-division.blue .passage-text::selection {
+	.passage-division.blue .passage-text::selection,
+	.passage-division.blue :global(.segment-heading)::selection {
 		background-color: var(--blue-light);
 		color: var(--gray-100);
 	}
@@ -1017,14 +1019,16 @@
 	.passage-division.red .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.red .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.red .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-division.red .passage-text::-webkit-selection {
+	.passage-division.red .passage-text::-webkit-selection,
+	.passage-division.red :global(.segment-heading)::-webkit-selection {
 		background-color: var(--red-light);
 		color: var(--gray-100);
 	}
 	.passage-division.red .passage-text :global(.selectable-word)::selection,
 	.passage-division.red .passage-text :global(.selectable-space)::selection,
 	.passage-division.red .passage-text :global(.chapter-verse)::selection,
-	.passage-division.red .passage-text::selection {
+	.passage-division.red .passage-text::selection,
+	.passage-division.red :global(.segment-heading)::selection {
 		background-color: var(--red-light);
 		color: var(--gray-100);
 	}
@@ -1032,14 +1036,16 @@
 	.passage-division.orange .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.orange .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.orange .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-division.orange .passage-text::-webkit-selection {
+	.passage-division.orange .passage-text::-webkit-selection,
+	.passage-division.orange :global(.segment-heading)::-webkit-selection {
 		background-color: var(--orange-light);
 		color: var(--gray-100);
 	}
 	.passage-division.orange .passage-text :global(.selectable-word)::selection,
 	.passage-division.orange .passage-text :global(.selectable-space)::selection,
 	.passage-division.orange .passage-text :global(.chapter-verse)::selection,
-	.passage-division.orange .passage-text::selection {
+	.passage-division.orange .passage-text::selection,
+	.passage-division.orange :global(.segment-heading)::selection {
 		background-color: var(--orange-light);
 		color: var(--gray-100);
 	}
@@ -1047,14 +1053,16 @@
 	.passage-division.yellow .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.yellow .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.yellow .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-division.yellow .passage-text::-webkit-selection {
+	.passage-division.yellow .passage-text::-webkit-selection,
+	.passage-division.yellow :global(.segment-heading)::-webkit-selection {
 		background-color: var(--yellow-light);
 		color: var(--gray-100);
 	}
 	.passage-division.yellow .passage-text :global(.selectable-word)::selection,
 	.passage-division.yellow .passage-text :global(.selectable-space)::selection,
 	.passage-division.yellow .passage-text :global(.chapter-verse)::selection,
-	.passage-division.yellow .passage-text::selection {
+	.passage-division.yellow .passage-text::selection,
+	.passage-division.yellow :global(.segment-heading)::selection {
 		background-color: var(--yellow-light);
 		color: var(--gray-100);
 	}
@@ -1062,14 +1070,16 @@
 	.passage-division.green .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.green .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.green .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-division.green .passage-text::-webkit-selection {
+	.passage-division.green .passage-text::-webkit-selection,
+	.passage-division.green :global(.segment-heading)::-webkit-selection {
 		background-color: var(--green-light);
 		color: var(--gray-100);
 	}
 	.passage-division.green .passage-text :global(.selectable-word)::selection,
 	.passage-division.green .passage-text :global(.selectable-space)::selection,
 	.passage-division.green .passage-text :global(.chapter-verse)::selection,
-	.passage-division.green .passage-text::selection {
+	.passage-division.green .passage-text::selection,
+	.passage-division.green :global(.segment-heading)::selection {
 		background-color: var(--green-light);
 		color: var(--gray-100);
 	}
@@ -1077,14 +1087,16 @@
 	.passage-division.aqua .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.aqua .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.aqua .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-division.aqua .passage-text::-webkit-selection {
+	.passage-division.aqua .passage-text::-webkit-selection,
+	.passage-division.aqua :global(.segment-heading)::-webkit-selection {
 		background-color: var(--aqua-light);
 		color: var(--gray-100);
 	}
 	.passage-division.aqua .passage-text :global(.selectable-word)::selection,
 	.passage-division.aqua .passage-text :global(.selectable-space)::selection,
 	.passage-division.aqua .passage-text :global(.chapter-verse)::selection,
-	.passage-division.aqua .passage-text::selection {
+	.passage-division.aqua .passage-text::selection,
+	.passage-division.aqua :global(.segment-heading)::selection {
 		background-color: var(--aqua-light);
 		color: var(--gray-100);
 	}
@@ -1092,14 +1104,16 @@
 	.passage-division.purple .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.purple .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.purple .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-division.purple .passage-text::-webkit-selection {
+	.passage-division.purple .passage-text::-webkit-selection,
+	.passage-division.purple :global(.segment-heading)::-webkit-selection {
 		background-color: var(--purple-light);
 		color: var(--gray-100);
 	}
 	.passage-division.purple .passage-text :global(.selectable-word)::selection,
 	.passage-division.purple .passage-text :global(.selectable-space)::selection,
 	.passage-division.purple .passage-text :global(.chapter-verse)::selection,
-	.passage-division.purple .passage-text::selection {
+	.passage-division.purple .passage-text::selection,
+	.passage-division.purple :global(.segment-heading)::selection {
 		background-color: var(--purple-light);
 		color: var(--gray-100);
 	}
@@ -1107,14 +1121,16 @@
 	.passage-division.pink .passage-text :global(.selectable-word)::-webkit-selection,
 	.passage-division.pink .passage-text :global(.selectable-space)::-webkit-selection,
 	.passage-division.pink .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-division.pink .passage-text::-webkit-selection {
+	.passage-division.pink .passage-text::-webkit-selection,
+	.passage-division.pink :global(.segment-heading)::-webkit-selection {
 		background-color: var(--pink-light);
 		color: var(--gray-100);
 	}
 	.passage-division.pink .passage-text :global(.selectable-word)::selection,
 	.passage-division.pink .passage-text :global(.selectable-space)::selection,
 	.passage-division.pink .passage-text :global(.chapter-verse)::selection,
-	.passage-division.pink .passage-text::selection {
+	.passage-division.pink .passage-text::selection,
+	.passage-division.pink :global(.segment-heading)::selection {
 		background-color: var(--pink-light);
 		color: var(--gray-100);
 	}
