@@ -105,6 +105,26 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'section',
+			id: 'select',
+			items: [
+				{
+					type: 'toggle',
+					iconId: 'select',
+					underLabel: 'Select',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					activeStateProp: 'textSelectionMode',
+					toggleHandler: 'toggleTextSelection',
+					disabledStateProp: 'canToggleSelect'
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
 			id: 'formatting',
 			items: [
 				{
@@ -144,14 +164,6 @@ export function getAppToolbarConfig() {
 			type: 'section',
 			id: 'toggles',
 			items: [
-				{
-					type: 'menu',
-					iconId: 'outline',
-					menuId: 'MenuView',
-					underLabel: 'View',
-					classes: 'toolbar-dark show-at-narrow',
-					underLabelClasses: 'light show-at-narrow'
-				},
 				{
 					type: 'toggle',
 					iconId: 'note',

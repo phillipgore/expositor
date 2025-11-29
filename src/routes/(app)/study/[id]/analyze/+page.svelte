@@ -4,9 +4,14 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
-	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, toggleTextSelection } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
+
+	// Word selection state
+	let hoveredWord = $state(null); // { passageIndex, wordIndex }
+	let selectedWord = $state(null); // { passageIndex, wordIndex, position }
+	let suppressHoverCaret = $state(null); // { passageIndex, wordIndex } - suppress hover caret after deselection
 
 	// Invalidate studies list when study is accessed
 	onMount(() => {
@@ -14,6 +19,202 @@
 			invalidate('app:studies');
 		}
 	});
+
+	/**
+	 * Parse HTML text and wrap each word in a span for selection
+	 * Preserves existing HTML structure (verse numbers, etc.)
+	 * @param {string} htmlText - The HTML text to parse
+	 * @param {number} passageIndex - Index of the passage
+	 * @returns {string} HTML with words wrapped
+	 */
+	function wrapWordsInHtml(htmlText, passageIndex) {
+		if (!htmlText) return '';
+		
+		// Create a temporary div to parse HTML
+		const tempDiv = document.createElement('div');
+		tempDiv.innerHTML = htmlText;
+		
+		let wordIndex = 0;
+		
+		// Recursive function to process text nodes
+		function processNode(node) {
+			if (node.nodeType === Node.TEXT_NODE) {
+				const text = node.textContent;
+				if (!text.trim()) return; // Skip empty text nodes
+				
+				// Split by spaces and wrap each word
+				const words = text.split(/(\s+)/);
+				const fragment = document.createDocumentFragment();
+				
+				words.forEach(word => {
+					if (word.match(/\s+/)) {
+						// Preserve whitespace
+						fragment.appendChild(document.createTextNode(word));
+					} else if (word.trim()) {
+						// Wrap word in span
+						const span = document.createElement('span');
+						span.className = 'selectable-word';
+						span.dataset.passageIndex = String(passageIndex);
+						span.dataset.wordIndex = String(wordIndex);
+						span.textContent = word;
+						fragment.appendChild(span);
+						wordIndex++;
+					}
+				});
+				
+				node.parentNode.replaceChild(fragment, node);
+			} else if (node.nodeType === Node.ELEMENT_NODE) {
+				// Process child nodes
+				Array.from(node.childNodes).forEach(child => processNode(child));
+			}
+		}
+		
+		processNode(tempDiv);
+		return tempDiv.innerHTML;
+	}
+
+	/**
+	 * Handle word hover
+	 * Disabled when in browser text selection mode (word selection OFF)
+	 */
+	function handleWordHover(event) {
+		// Don't process word hover when in browser text selection mode
+		if (!$toolbarState.textSelectionMode) return;
+		
+		const target = event.target;
+		if (target.classList.contains('selectable-word')) {
+			hoveredWord = {
+				passageIndex: parseInt(target.dataset.passageIndex),
+				wordIndex: parseInt(target.dataset.wordIndex)
+			};
+		}
+	}
+
+	/**
+	 * Handle word hover end - also clears hover caret suppression
+	 * Disabled when in browser text selection mode (word selection OFF)
+	 */
+	function handleWordHoverEnd() {
+		// Don't process word hover end when in browser text selection mode
+		if (!$toolbarState.textSelectionMode) return;
+		
+		hoveredWord = null;
+		suppressHoverCaret = null; // Clear suppression when mouse leaves
+	}
+
+	/**
+	 * Handle word click with three-state selection
+	 * - Click 1: Caret before word
+	 * - Click 2 (same word): Caret after word
+	 * - Click 3 (same word): Deselect
+	 * - Shift+Click: Jump directly to "after" position
+	 * 
+	 * Only active when word selection mode is ON
+	 */
+	function handleWordClick(event) {
+		// Don't process word selection when button is OFF (browser text selection enabled)
+		if (!$toolbarState.textSelectionMode) {
+			return;
+		}
+		
+		const target = event.target;
+		if (target.classList.contains('selectable-word')) {
+			const passageIndex = parseInt(target.dataset.passageIndex);
+			const wordIndex = parseInt(target.dataset.wordIndex);
+			const isShiftKey = event.shiftKey;
+			
+			// Check if clicking the same word
+			const isSameWord = selectedWord?.passageIndex === passageIndex && 
+			                   selectedWord?.wordIndex === wordIndex;
+			
+			if (isShiftKey) {
+				// Shift+Click: Jump directly to "after" position
+				selectedWord = { passageIndex, wordIndex, position: 'after' };
+				suppressHoverCaret = null; // Clear suppression
+			} else if (isSameWord) {
+				// Clicking same word: cycle through states
+				if (selectedWord.position === 'before') {
+					// Before -> After
+					selectedWord = { passageIndex, wordIndex, position: 'after' };
+					suppressHoverCaret = null; // Clear suppression
+				} else {
+					// After -> Deselect (suppress hover caret until mouse out)
+					selectedWord = null;
+					suppressHoverCaret = { passageIndex, wordIndex };
+				}
+			} else {
+				// Clicking different word: start with "before"
+				selectedWord = { passageIndex, wordIndex, position: 'before' };
+				suppressHoverCaret = null; // Clear suppression
+			}
+		} else {
+			// Clear selection when clicking outside of a word
+			selectedWord = null;
+			suppressHoverCaret = null;
+		}
+	}
+
+	/**
+	 * Handle global key down events
+	 * - ESC: Clear word selections and browser text selections
+	 */
+	function handleKeyDown(event) {
+		if (event.key === 'Escape') {
+			selectedWord = null;
+			hoveredWord = null;
+			// Clear browser's text selection
+			window.getSelection()?.removeAllRanges();
+		}
+	}
+
+	/**
+	 * Check if a word should show hover state
+	 */
+	function isWordHovered(passageIndex, wordIndex) {
+		return hoveredWord?.passageIndex === passageIndex && hoveredWord?.wordIndex === wordIndex;
+	}
+
+	/**
+	 * Check if a word is selected
+	 */
+	function isWordSelected(passageIndex, wordIndex) {
+		return selectedWord?.passageIndex === passageIndex && selectedWord?.wordIndex === wordIndex;
+	}
+
+	/**
+	 * Update DOM elements with data-selected, data-position, and data-suppress-hover-caret attributes when selection changes
+	 */
+	$effect(() => {
+		// Remove data-selected, data-position, and data-suppress-hover-caret from all words
+		const allWords = document.querySelectorAll('.selectable-word');
+		allWords.forEach(word => {
+			word.removeAttribute('data-selected');
+			word.removeAttribute('data-position');
+			word.removeAttribute('data-suppress-hover-caret');
+		});
+
+		// Add data-selected and data-position to the selected word
+		if (selectedWord) {
+			const selectedElement = document.querySelector(
+				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-index="${selectedWord.wordIndex}"]`
+			);
+			if (selectedElement) {
+				selectedElement.setAttribute('data-selected', 'true');
+				selectedElement.setAttribute('data-position', selectedWord.position);
+			}
+		}
+		
+		// Add data-suppress-hover-caret to the word where hover caret should be suppressed
+		if (suppressHoverCaret) {
+			const suppressElement = document.querySelector(
+				`.selectable-word[data-passage-index="${suppressHoverCaret.passageIndex}"][data-word-index="${suppressHoverCaret.wordIndex}"]`
+			);
+			if (suppressElement) {
+				suppressElement.setAttribute('data-suppress-hover-caret', 'true');
+			}
+		}
+	});
+
 
 	// Get translation abbreviation
 	let translationAbbr = $derived.by(() => {
@@ -171,7 +372,9 @@
 	});
 </script>
 
-<div class="container">
+<svelte:window on:keydown={handleKeyDown} />
+
+<div class="container" class:text-selection-enabled={!$toolbarState.textSelectionMode}>
 	{#if showHeader}
 		<div class="study-header">
 			<div>
@@ -184,12 +387,20 @@
 	{/if}
 	
 	<!-- Analyze View Content -->
-	<div class="analyze-content" class:hide-verses={!$toolbarState.versesVisible} class:wide-layout={$toolbarState.wideLayout} class:overview-mode={$toolbarState.overviewMode}>
+	<div 
+		class="analyze-content" 
+		class:hide-verses={!$toolbarState.versesVisible} 
+		class:wide-layout={$toolbarState.wideLayout} 
+		class:overview-mode={$toolbarState.overviewMode}
+		onmouseover={handleWordHover}
+		onmouseout={handleWordHoverEnd}
+		onclick={handleWordClick}
+	>
 		<div class="analyze-content-wrapper" style="{wrapperDimensions}">
 			<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
 				<div class="spacer">&nbsp;</div>
 				{#if data.passagesWithText && data.passagesWithText.length > 0}
-					{#each data.passagesWithText as passageText}
+					{#each data.passagesWithText as passageText, passageIndex}
 						<div class="passage">
 							{#if passageText.error}
 								<div class="error-message">
@@ -212,7 +423,7 @@
 												<div class="passage-segment-header">
 													<Heading heading="h4" classes="segment-heading">Segment Heading</Heading>
 												</div>
-												<div class="passage-text">{@html passageText.text}</div>
+												<div class="passage-text">{@html wrapWordsInHtml(passageText.text, passageIndex)}</div>
 											</div>
 										</div>
 									</div>
@@ -360,6 +571,185 @@
 		white-space: pre-wrap;
 		text-align: left;
 		padding: 0.0rem 0.9rem 0.9rem;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	/* Enable text selection when Cmd/Ctrl is held */
+	.text-selection-enabled .passage-text {
+		-webkit-user-select: text;
+		user-select: text;
+		cursor: text;
+	}
+
+	.text-selection-enabled .passage-text :global(.selectable-word) {
+		cursor: text;
+	}
+
+	/* Disable word selection hover effects when in text selection mode */
+	.text-selection-enabled .passage-text :global(.selectable-word:hover) {
+		background-color: transparent !important;
+	}
+
+	.text-selection-enabled .passage-text :global(.selectable-word:hover::before) {
+		content: none !important;
+	}
+
+	/* Word selection styles */
+	.passage-text :global(.selectable-word) {
+		position: relative;
+		cursor: pointer;
+		padding: 0.2rem 0.1rem;
+		border-radius: 0.2rem;
+		transition: background-color 0.15s ease;
+	}
+
+	/* Hover state - subtle highlight (only when not selected) */
+	.passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: rgba(255, 255, 255, 0.1);
+	}
+
+	/* Hover state - show caret above word (only when not selected and not suppressed) */
+	.passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+		position: absolute;
+		left: -0.8rem;
+		top: -1.1rem;
+		width: 1.0rem;
+		height: 1.0rem;
+		opacity: 0.8;
+	}
+
+	/* Selected state - persistent highlight */
+	.passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: rgba(255, 255, 255, 0.15);
+	}
+
+	/* Selected state - persistent caret (before position) */
+	.passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+		position: absolute;
+		left: -0.8rem;
+		top: -1.1rem;
+		width: 1.0rem;
+		height: 1.0rem;
+		opacity: 1;
+	}
+
+	/* Selected state - persistent caret (after position) */
+	.passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+		position: absolute;
+		right: -0.8rem;
+		top: -1.1rem;
+		width: 1.0rem;
+		height: 1.0rem;
+		opacity: 1;
+	}
+
+	/* Color variants for different passage divisions (only when not selected) */
+	.passage-division.blue .passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--blue-light);
+	}
+
+	.passage-division.blue .passage-text :global(.selectable-word:hover::before),
+	.passage-division.blue .passage-text :global(.selectable-word[data-selected="true"]::before) {
+		color: var(--blue-dark);
+	}
+
+	.passage-division.blue .passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--blue-light);
+	}
+
+	.passage-division.red .passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--red-light);
+	}
+
+	.passage-division.red .passage-text :global(.selectable-word:hover::before),
+	.passage-division.red .passage-text :global(.selectable-word[data-selected="true"]::before) {
+		color: var(--red-dark);
+	}
+
+	.passage-division.red .passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--red-light);
+	}
+
+	.passage-division.orange .passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--orange-light);
+	}
+
+	.passage-division.orange .passage-text :global(.selectable-word:hover::before),
+	.passage-division.orange .passage-text :global(.selectable-word[data-selected="true"]::before) {
+		color: var(--orange-dark);
+	}
+
+	.passage-division.orange .passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--orange-light);
+	}
+
+	.passage-division.yellow .passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--yellow-light);
+	}
+
+	.passage-division.yellow .passage-text :global(.selectable-word:hover::before),
+	.passage-division.yellow .passage-text :global(.selectable-word[data-selected="true"]::before) {
+		color: var(--yellow-dark);
+	}
+
+	.passage-division.yellow .passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--yellow-light);
+	}
+
+	.passage-division.green .passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--green-light);
+	}
+
+	.passage-division.green .passage-text :global(.selectable-word:hover::before),
+	.passage-division.green .passage-text :global(.selectable-word[data-selected="true"]::before) {
+		color: var(--green-dark);
+	}
+
+	.passage-division.green .passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--green-light);
+	}
+
+	.passage-division.aqua .passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--aqua-light);
+	}
+
+	.passage-division.aqua .passage-text :global(.selectable-word:hover::before),
+	.passage-division.aqua .passage-text :global(.selectable-word[data-selected="true"]::before) {
+		color: var(--aqua-dark);
+	}
+
+	.passage-division.aqua .passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--aqua-light);
+	}
+
+	.passage-division.purple .passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--purple-light);
+	}
+
+	.passage-division.purple .passage-text :global(.selectable-word:hover::before),
+	.passage-division.purple .passage-text :global(.selectable-word[data-selected="true"]::before) {
+		color: var(--purple-dark);
+	}
+
+	.passage-division.purple .passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--purple-light);
+	}
+
+	.passage-division.pink .passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--pink-light);
+	}
+
+	.passage-division.pink .passage-text :global(.selectable-word:hover::before),
+	.passage-division.pink .passage-text :global(.selectable-word[data-selected="true"]::before) {
+		color: var(--pink-dark);
+	}
+
+	.passage-division.pink .passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--pink-light);
 	}
 
 	:global(.chapter-verse) {
