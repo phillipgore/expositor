@@ -109,21 +109,12 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'menu',
-					iconId: 'pin',
+					iconId: 'outline-column',
 					menuId: 'MenuStructure',
 					underLabel: 'Outline',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledStateProp: 'canStructure'
-				},
-				{
-					type: 'menu',
-					iconId: 'text-join',
-					menuId: 'MenuText',
-					underLabel: 'Text',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					disabledStateProp: 'canText'
 				},
 				{
 					type: 'menu',

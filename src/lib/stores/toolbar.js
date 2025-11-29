@@ -272,11 +272,12 @@ export function getToolbarState() {
 }
 
 /**
- * Toggle the studies panel open/closed
+ * Set the studies panel to a specific open/closed state
+ * @param {boolean} newState - Whether the panel should be open
+ * @returns {Promise<void>}
  */
-export async function toggleStudiesPanel() {
+export async function setStudiesPanelOpen(newState) {
 	const currentState = get(toolbarStateStore);
-	const newState = !currentState.studiesPanelOpen;
 	
 	// Update local state immediately
 	toolbarStateStore.update(state => ({
@@ -299,6 +300,15 @@ export async function toggleStudiesPanel() {
 			studiesPanelOpen: currentState.studiesPanelOpen
 		}));
 	}
+}
+
+/**
+ * Toggle the studies panel open/closed
+ */
+export async function toggleStudiesPanel() {
+	const currentState = get(toolbarStateStore);
+	const newState = !currentState.studiesPanelOpen;
+	await setStudiesPanelOpen(newState);
 }
 
 /**

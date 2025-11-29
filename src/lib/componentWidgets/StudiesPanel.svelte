@@ -20,7 +20,7 @@
 	import { usePanelResize } from "$lib/composables/usePanelResize.svelte.js";
 	import { formatPassageReference } from "$lib/utils/passageFormatting.js";
 	import { getFlattenedItemsList } from "$lib/utils/groupFlattening.js";
-	import { setToolbarState } from "$lib/stores/toolbar.js";
+	import { setStudiesPanelOpen } from "$lib/stores/toolbar.js";
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { flip } from 'svelte/animate';
@@ -136,7 +136,7 @@
 	/**
 	 * Handle study click
 	 */
-	function handleStudyClick(event, study) {
+	async function handleStudyClick(event, study) {
 		event.preventDefault();
 		
 		// Check for modifier keys
@@ -147,7 +147,8 @@
 		
 		// Only navigate if no modifier keys are pressed
 		if (!hasModifier) {
-			setToolbarState('studiesPanelOpen', false);
+			// Wait for panel state to be persisted before navigating
+			await setStudiesPanelOpen(false);
 			goto(`/study/${study.id}/analyze`);
 		}
 	}
@@ -386,7 +387,7 @@
 								href="/study/{study.id}/analyze"
 								isActive={study.id === activeStudyId}
 								{formatPassageReference}
-								onClick={() => setToolbarState('studiesPanelOpen', false)}
+								onClick={() => setStudiesPanelOpen(false)}
 							/>
 						</li>
 					{/each}

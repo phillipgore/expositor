@@ -175,9 +175,9 @@
 	{#if showHeader}
 		<div class="study-header">
 			<div>
-				<Heading heading="h1" classes="h4" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
+				<Heading heading="h1" classes="h4 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
 				{#if data.study.subtitle}
-					<Heading heading="h2" classes="h5" isMuted>{data.study.subtitle}</Heading>
+					<Heading heading="h2" classes="h5 subheading" isMuted>{data.study.subtitle}</Heading>
 				{/if}
 			</div>
 		</div>
@@ -188,30 +188,29 @@
 		<div class="analyze-content-wrapper" style="{wrapperDimensions}">
 			<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
 				<div class="spacer">&nbsp;</div>
-			{#if data.passagesWithText && data.passagesWithText.length > 0}
-				{#each data.passagesWithText as passageText}
-					<div class="passage">
-						<div class="passage-container">
+				{#if data.passagesWithText && data.passagesWithText.length > 0}
+					{#each data.passagesWithText as passageText}
+						<div class="passage">
 							{#if passageText.error}
 								<div class="error-message">
 									<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
 								</div>
 							{:else if passageText.text}
-								<Heading heading="h3" classes="h5 passage-refernce">
+								<Heading heading="h3" classes="h5 passage-reference">
 									{passageText.reference} [{translationAbbr}]
 								</Heading>
 								<div class="passage-column">
-									<div class="passage-pinned blue">
-										<div class="passage-pinned-header">
-											<Heading heading="h4" classes="h3">Pinned Title</Heading>
+									<div class="passage-division blue">
+										<div class="passage-division-header">
+											<Heading heading="h4" classes="h3 division-heading">Division Heading</Heading>
 										</div>
 										<div class="passage-section">
 											<div class="passage-section-header">
-												<Heading heading="h4">Section Title</Heading>
+												<Heading heading="h4" classes="section-heading">Section Heading</Heading>
 											</div>
-											<div class="passage-division">
-												<div class="passage-division-header">
-													<Heading heading="h4">Division Title</Heading>
+											<div class="passage-segment">
+												<div class="passage-segment-header">
+													<Heading heading="h4" classes="segment-heading">Segment Heading</Heading>
 												</div>
 												<div class="passage-text">{@html passageText.text}</div>
 											</div>
@@ -220,11 +219,10 @@
 								</div>
 							{/if}
 						</div>
-					</div>
-				{/each}
-			{:else}
-				<p class="placeholder-text">No passages available for this study.</p>
-			{/if}
+					{/each}
+				{:else}
+					<p class="placeholder-text">No passages available for this study.</p>
+				{/if}
 				<div class="spacer">&nbsp;</div>
 			</div>
 		</div>
@@ -258,7 +256,7 @@
 		z-index: 100;
 	}
 
-	.study-header :global(h2) {
+	.study-header :global(.subheading) {
 		margin: 0.0rem;
 	}
 
@@ -293,11 +291,14 @@
 		width: 0.1rem;
 	}
 
-	.passage{
+	.passage {
 		display: flex;
 		flex-direction: column;
-		gap: 3.2rem;
 		flex-shrink: 0;
+	}
+
+	.passage :global(.passage-reference) {
+		margin-bottom: 0.9rem;
 	}
 
 	.passage-column {
@@ -313,45 +314,41 @@
 		display: none;
 	}
 
-	.overview-mode .passage-division-header {
+	.overview-mode .passage-segment-header {
 		padding: 0.9rem;
 	}
 
-	.passage-container :global(.passage-refernce) {
-		margin-bottom: 0.9rem;
-	}
-
-	.passage-pinned-header {
+	.passage-division-header {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 		text-align: center;
 	}
 
-	.passage-division {
+	.passage-segment {
 		border: 0.1rem solid;
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
 
-	.passage-pinned-header,
+	.passage-division-header,
 	.passage-section-header {
 		border-top: 0.1rem solid;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 	}
 
-	.passage-pinned-header,
+	.passage-division-header,
 	.passage-section-header {
 		padding: 0.9rem;
 	}
 
-	.passage-division-header {
+	.passage-segment-header {
 		padding: 0.9rem;
 	}
 
-	.passage-pinned-header :global(.h3),
-	.passage-section-header :global(h4),
-	.passage-division-header :global(h4)  {
+	.passage-division-header :global(.division-heading),
+	.passage-section-header :global(.section-heading),
+	.passage-segment-header :global(.segment-heading)  {
 		margin-bottom: 0.0rem;
 		font-style: italic;
 	}
@@ -412,179 +409,179 @@
 		margin: 0;
 	}
 
-	.passage-pinned.blue .passage-pinned-header {
+	.passage-division.blue .passage-division-header {
 		background-color: var(--blue-darker);
 		border-color: var(--blue-darker);
 	}
 
-	.passage-pinned.blue .passage-pinned-header :global(h4) {
+	.passage-division.blue .passage-division-header :global(.division-heading) {
 		color: var(--blue-lighter);
 	}
 
-	.passage-pinned.blue .passage-section-header {
+	.passage-division.blue .passage-section-header {
 		background-color: var(--blue-lighter);
 		border-color: var(--blue-dark);
 	}
 
-	.passage-pinned.blue .passage-section-header :global(h4) {
+	.passage-division.blue .passage-section-header :global(.section-heading) {
 		color: var(--blue-darker);
 	}
 
-	.passage-pinned.blue .passage-division {
+	.passage-division.blue .passage-segment {
 		border-color: var(--blue-dark);
 	}
 
-	.passage-pinned.red .passage-pinned-header {
+	.passage-division.red .passage-division-header {
 		background-color: var(--red-darker);
 		border-color: var(--red-darker);
 	}
 
-	.passage-pinned.red .passage-pinned-header :global(h4) {
+	.passage-division.red .passage-division-header :global(.division-heading) {
 		color: var(--red-lighter);
 	}
 
-	.passage-pinned.red .passage-section-header {
+	.passage-division.red .passage-section-header {
 		background-color: var(--red-lighter);
 		border-color: var(--red-dark);
 	}
 
-	.passage-pinned.red .passage-section-header :global(h4) {
+	.passage-division.red .passage-section-header :global(.section-heading) {
 		color: var(--red-darker);
 	}
 
-	.passage-pinned.red .passage-division {
+	.passage-division.red .passage-segment {
 		border-color: var(--red-dark);
 	}
 
-	.passage-pinned.orange .passage-pinned-header {
+	.passage-division.orange .passage-division-header {
 		background-color: var(--orange-darker);
 		border-color: var(--orange-darker);
 	}
 
-	.passage-pinned.orange .passage-pinned-header :global(h4) {
+	.passage-division.orange .passage-division-header :global(.division-heading) {
 		color: var(--orange-lighter);
 	}
 
-	.passage-pinned.orange .passage-section-header {
+	.passage-division.orange .passage-section-header {
 		background-color: var(--orange-lighter);
 		border-color: var(--orange-dark);
 	}
 
-	.passage-pinned.orange .passage-section-header :global(h4) {
+	.passage-division.orange .passage-section-header :global(.section-heading) {
 		color: var(--orange-darker);
 	}
 
-	.passage-pinned.orange .passage-division {
+	.passage-division.orange .passage-segment {
 		border-color: var(--orange-dark);
 	}
 
-	.passage-pinned.yellow .passage-pinned-header {
+	.passage-division.yellow .passage-division-header {
 		background-color: var(--yellow-darker);
 		border-color: var(--yellow-darker);
 	}
 
-	.passage-pinned.yellow .passage-pinned-header :global(h4) {
+	.passage-division.yellow .passage-division-header :global(.division-heading) {
 		color: var(--yellow-lighter);
 	}
 
-	.passage-pinned.yellow .passage-section-header {
+	.passage-division.yellow .passage-section-header {
 		background-color: var(--yellow-lighter);
 		border-color: var(--yellow-dark);
 	}
 
-	.passage-pinned.yellow .passage-section-header :global(h4) {
+	.passage-division.yellow .passage-section-header :global(.section-heading) {
 		color: var(--yellow-darker);
 	}
 
-	.passage-pinned.yellow .passage-division {
+	.passage-division.yellow .passage-segment {
 		border-color: var(--yellow-dark);
 	}
 
-	.passage-pinned.green .passage-pinned-header {
+	.passage-division.green .passage-division-header {
 		background-color: var(--green-darker);
 		border-color: var(--green-darker);
 	}
 
-	.passage-pinned.green .passage-pinned-header :global(h4) {
+	.passage-division.green .passage-division-header :global(.division-heading) {
 		color: var(--green-lighter);
 	}
 
-	.passage-pinned.green .passage-section-header {
+	.passage-division.green .passage-section-header {
 		background-color: var(--green-lighter);
 		border-color: var(--green-dark);
 	}
 
-	.passage-pinned.green .passage-section-header :global(h4) {
+	.passage-division.green .passage-section-header :global(.section-heading) {
 		color: var(--green-darker);
 	}
 
-	.passage-pinned.green .passage-division {
+	.passage-division.green .passage-segment {
 		border-color: var(--green-dark);
 	}
 
-	.passage-pinned.aqua .passage-pinned-header {
+	.passage-division.aqua .passage-division-header {
 		background-color: var(--aqua-darker);
 		border-color: var(--aqua-darker);
 	}
 
-	.passage-pinned.aqua .passage-pinned-header :global(h4) {
+	.passage-division.aqua .passage-division-header :global(.division-heading) {
 		color: var(--aqua-lighter);
 	}
 
-	.passage-pinned.aqua .passage-section-header {
+	.passage-division.aqua .passage-section-header {
 		background-color: var(--aqua-lighter);
 		border-color: var(--aqua-dark);
 	}
 
-	.passage-pinned.aqua .passage-section-header :global(h4) {
+	.passage-division.aqua .passage-section-header :global(.section-heading) {
 		color: var(--aqua-darker);
 	}
 
-	.passage-pinned.aqua .passage-division {
+	.passage-division.aqua .passage-segment {
 		border-color: var(--aqua-dark);
 	}
 
-	.passage-pinned.purple .passage-pinned-header {
+	.passage-division.purple .passage-division-header {
 		background-color: var(--purple-darker);
 		border-color: var(--purple-darker);
 	}
 
-	.passage-pinned.purple .passage-pinned-header :global(h4) {
+	.passage-division.purple .passage-division-header :global(.division-heading) {
 		color: var(--purple-lighter);
 	}
 
-	.passage-pinned.purple .passage-section-header {
+	.passage-division.purple .passage-section-header {
 		background-color: var(--purple-lighter);
 		border-color: var(--purple-dark);
 	}
 
-	.passage-pinned.purple .passage-section-header :global(h4) {
+	.passage-division.purple .passage-section-header :global(.section-heading) {
 		color: var(--purple-darker);
 	}
 
-	.passage-pinned.purple .passage-division {
+	.passage-division.purple .passage-segment {
 		border-color: var(--purple-dark);
 	}
 
-	.passage-pinned.pink .passage-pinned-header {
+	.passage-division.pink .passage-division-header {
 		background-color: var(--pink-darker);
 		border-color: var(--pink-darker);
 	}
 
-	.passage-pinned.pink .passage-pinned-header :global(h4) {
+	.passage-division.pink .passage-division-header :global(.division-heading) {
 		color: var(--pink-lighter);
 	}
 
-	.passage-pinned.pink .passage-section-header {
+	.passage-division.pink .passage-section-header {
 		background-color: var(--pink-lighter);
 		border-color: var(--pink-dark);
 	}
 
-	.passage-pinned.pink .passage-section-header :global(h4) {
+	.passage-division.pink .passage-section-header :global(.section-heading) {
 		color: var(--pink-darker);
 	}
 
-	.passage-pinned.pink .passage-division {
+	.passage-division.pink .passage-segment {
 		border-color: var(--pink-dark);
 	}
 </style>

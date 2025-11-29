@@ -46,6 +46,17 @@
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="outline-division"
+		label="New Division"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="outline-section"
@@ -56,8 +67,16 @@
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="outline-division"
-		label="New Division"
+		iconId="outline-segment"
+		label="New Segment"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="outline-unit"
+		label="New Unit"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseStructureItems}
@@ -67,18 +86,29 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="unpin"
-		label="Unpin"
+		iconId="outline-join"
+		label="Join..."
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
+
+	<DividerHorizontal />
+
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="pin"
-		label="Pin"
+		iconId="arrow-up"
+		label="Move Text Up"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.canUseTextItems}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="arrow-down"
+		label="Move Text Down"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseTextItems}
 	/>
 </Menu>
