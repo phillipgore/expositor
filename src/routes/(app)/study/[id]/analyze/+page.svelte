@@ -77,11 +77,27 @@
 		
 		// Only reset if zoom level actually changed
 		if (currentZoomLevel !== previousZoomLevel) {
-			if (contentInnerRef?.parentElement) {
-				contentInnerRef.parentElement.scrollTo(0, 0);
+			// Get the actual scroll container (.analyze-content)
+			const scrollContainer = contentInnerRef?.parentElement?.parentElement;
+			if (scrollContainer) {
+				scrollContainer.scrollTo(0, 0);
 			}
 			
 			previousZoomLevel = currentZoomLevel;
+		}
+	});
+
+	/**
+	 * Reset scroll position when study changes
+	 */
+	$effect(() => {
+		// Reset scroll to top when study ID changes
+		if (data.study?.id) {
+			// Get the actual scroll container (.analyze-content)
+			const scrollContainer = contentInnerRef?.parentElement?.parentElement;
+			if (scrollContainer) {
+				scrollContainer.scrollTo(0, 0);
+			}
 		}
 	});
 

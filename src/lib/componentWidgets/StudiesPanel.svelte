@@ -147,6 +147,7 @@
 		
 		// Only navigate if no modifier keys are pressed
 		if (!hasModifier) {
+			setToolbarState('studiesPanelOpen', false);
 			goto(`/study/${study.id}/analyze`);
 		}
 	}
