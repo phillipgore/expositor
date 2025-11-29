@@ -45,9 +45,6 @@
 	// Ref to inner content wrapper for measuring dimensions
 	let contentInnerRef = $state(null);
 	
-	// Calculated fit scale based on viewport and content dimensions
-	let fitScale = $state(1);
-	
 	// Track previous zoom level to detect actual changes
 	let previousZoomLevel = $state($toolbarState.zoomLevel);
 	
@@ -71,86 +68,6 @@
 		// Restore transform
 		contentInnerRef.style.transform = currentTransform;
 	}
-
-	/**
-	 * Calculate optimal scale to fit entire study in viewport
-	 */
-	function calculateFitScale() {
-		if (!contentInnerRef) return 1;
-
-		// Get the outer container (.analyze-content)
-		const container = contentInnerRef.parentElement;
-		if (!container) return 1;
-
-		// Get viewport dimensions (available space in the outer container)
-		const viewportWidth = container.clientWidth;
-		const viewportHeight = container.clientHeight;
-
-		// Get content dimensions (actual content size without transform)
-		// We need to temporarily remove transform to get true dimensions
-		const currentTransform = contentInnerRef.style.transform;
-		contentInnerRef.style.transform = 'none';
-		
-		const contentWidth = contentInnerRef.scrollWidth;
-		const contentHeight = contentInnerRef.scrollHeight;
-		
-		// Restore transform
-		contentInnerRef.style.transform = currentTransform;
-
-		// If content is empty or viewport is too small, default to 100%
-		if (contentWidth === 0 || contentHeight === 0 || viewportWidth === 0 || viewportHeight === 0) {
-			return 1;
-		}
-
-		// Calculate scale factors for both dimensions
-		const widthScale = viewportWidth / contentWidth;
-		const heightScale = viewportHeight / contentHeight;
-
-		// Use the smaller scale to ensure everything fits
-		// Apply a 0.98 buffer to account for padding and prevent edge clipping
-		const optimalScale = Math.min(widthScale, heightScale) * 0.98;
-
-		// Don't zoom in beyond 100% for fit mode
-		return Math.min(optimalScale, 1);
-	}
-
-	/**
-	 * Recalculate fit scale when layout changes
-	 */
-	$effect(() => {
-		// Dependencies that affect layout
-		const wideLayout = $toolbarState.wideLayout;
-		const overviewMode = $toolbarState.overviewMode;
-		const studiesPanelOpen = $toolbarState.studiesPanelOpen;
-		const zoomLevel = $toolbarState.zoomLevel;
-
-		// Only recalculate if in fit mode
-		if (zoomLevel === 0 && contentInnerRef) {
-			// Use setTimeout to ensure DOM has updated
-			setTimeout(() => {
-				fitScale = calculateFitScale();
-			}, 0);
-		}
-	});
-
-	/**
-	 * Recalculate fit scale on window resize
-	 */
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-
-		const handleResize = () => {
-			if ($toolbarState.zoomLevel === 0) {
-				fitScale = calculateFitScale();
-			}
-		};
-
-		window.addEventListener('resize', handleResize);
-
-		return () => {
-			window.removeEventListener('resize', handleResize);
-		};
-	});
 
 	/**
 	 * Reset scroll position when zoom level actually changes
@@ -194,15 +111,7 @@
 	 * @returns {boolean} True if zoom >= 100%
 	 */
 	let showHeader = $derived.by(() => {
-		const level = $toolbarState.zoomLevel;
-		
-		// If in Fit Study mode (0), use calculated fitScale
-		if (level === 0) {
-			return fitScale >= 1;
-		}
-		
-		// Otherwise, show if zoom >= 100%
-		return level >= 100;
+		return $toolbarState.zoomLevel >= 100;
 	});
 
 	/**
@@ -210,15 +119,8 @@
 	 * @returns {number} Current scale
 	 */
 	let currentScale = $derived.by(() => {
-		const level = $toolbarState.zoomLevel;
-		
-		// If zoom level is 0, use calculated fit scale
-		if (level === 0) {
-			return fitScale;
-		}
-		
 		// Convert percentage to decimal (e.g., 150% = 1.5)
-		return level / 100;
+		return $toolbarState.zoomLevel / 100;
 	});
 
 	/**
