@@ -26,7 +26,7 @@
 	 * Integrates with several dropdown menus:
 	 * - MenuZoom: Zoom level control
 	 * - MenuStructure: Outline structure options
-	 * - MenuText: Text formatting options
+	 * - MenuHeadings: Heading insertion options
 	 * - MenuLiterary: Literary device highlighting
 	 * - MenuColor: Color scheme selection
 	 * - MenuActions: Study/group creation and management
@@ -34,7 +34,7 @@
 	 * ## Layout Structure
 	 * Left section: Studies toggle
 	 * Actions and Zoom
-	 * Center: Formatting menus (Outline, Text, Literary, Color)
+	 * Center: Formatting menus (Outline, Headings, Literary, Color)
 	 * Center-right: View toggles (Notes, Verses, Wide, Overview)
 	 * Right section: Mode switcher (Analyze/Document), Settings
 	 * 
@@ -61,7 +61,7 @@
 	import Toolbar from '$lib/componentElements/Toolbar.svelte';
 	import MenuZoom from '$lib/componentWidgets/menus/MenuZoom.svelte';
 	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
-	import MenuText from '$lib/componentWidgets/menus/MenuText.svelte';
+	import MenuHeadings from '$lib/componentWidgets/menus/MenuHeadings.svelte';
 	import MenuLiterary from '$lib/componentWidgets/menus/MenuLiterary.svelte';
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
@@ -383,7 +383,7 @@
 
 <MenuZoom menuId="MenuZoom" onselect={handleZoomChange} />
 <MenuStructure menuId="MenuStructure" />
-<MenuText menuId="MenuText" />
+<MenuHeadings menuId="MenuHeadings" />
 <MenuLiterary menuId="MenuLiterary" />
 <MenuColor menuId="MenuColor" />
 <MenuSettings menuId="MenuSettings" alignment="end" />

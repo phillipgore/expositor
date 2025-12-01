@@ -413,7 +413,6 @@
 	>
 		<div class="analyze-content-wrapper" style="{wrapperDimensions}">
 			<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
-				<div class="spacer">&nbsp;</div>
 				{#if data.passagesWithText && data.passagesWithText.length > 0}
 					{#each data.passagesWithText as passageText, passageIndex}
 						<div class="passage">
@@ -426,7 +425,7 @@
 									{passageText.reference} [{translationAbbr}]
 								</Heading>
 								<div class="passage-column">
-									<div class="passage-division green">
+									<div class="passage-division blue">
 										<div class="passage-division-header">
 											<Heading heading="h4" classes="h3 division-heading">Division Heading</Heading>
 										</div>
@@ -449,7 +448,6 @@
 				{:else}
 					<p class="placeholder-text">No passages available for this study.</p>
 				{/if}
-				<div class="spacer">&nbsp;</div>
 			</div>
 		</div>
 	</div>
@@ -508,13 +506,9 @@
 	.analyze-content-inner {
 		display: flex;
 		gap: 3.2rem;
-		padding: 6.6rem 0.0rem 1.8rem;
+		padding: 6.6rem 3.2rem 1.8rem;
 		transition: transform 0.2s ease-out;
 		width: fit-content;
-	}
-
-	.spacer {
-		width: 0.1rem;
 	}
 
 	.passage {
@@ -638,7 +632,7 @@
 		top: -1.1rem;
 		width: 1.0rem;
 		height: 1.0rem;
-		opacity: 0.8;
+		opacity: 0.5;
 	}
 
 	/* Selected state - persistent highlight */
@@ -673,9 +667,16 @@
 		background-color: var(--blue-light);
 	}
 
-	.passage-division.blue .passage-text :global(.selectable-word:hover::before),
-	.passage-division.blue .passage-text :global(.selectable-word[data-selected="true"]::before) {
-		color: var(--blue-dark);
+	.passage-division.blue .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.blue .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.blue .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	.passage-division.blue .passage-text :global(.selectable-word[data-selected="true"]) {
@@ -686,9 +687,16 @@
 		background-color: var(--red-light);
 	}
 
-	.passage-division.red .passage-text :global(.selectable-word:hover::before),
-	.passage-division.red .passage-text :global(.selectable-word[data-selected="true"]::before) {
-		color: var(--red-dark);
+	.passage-division.red .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.red .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.red .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	.passage-division.red .passage-text :global(.selectable-word[data-selected="true"]) {
@@ -699,9 +707,16 @@
 		background-color: var(--orange-light);
 	}
 
-	.passage-division.orange .passage-text :global(.selectable-word:hover::before),
-	.passage-division.orange .passage-text :global(.selectable-word[data-selected="true"]::before) {
-		color: var(--orange-dark);
+	.passage-division.orange .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.orange .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.orange .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	.passage-division.orange .passage-text :global(.selectable-word[data-selected="true"]) {
@@ -712,9 +727,16 @@
 		background-color: var(--yellow-light);
 	}
 
-	.passage-division.yellow .passage-text :global(.selectable-word:hover::before),
-	.passage-division.yellow .passage-text :global(.selectable-word[data-selected="true"]::before) {
-		color: var(--yellow-dark);
+	.passage-division.yellow .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.yellow .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.yellow .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	.passage-division.yellow .passage-text :global(.selectable-word[data-selected="true"]) {
@@ -725,9 +747,16 @@
 		background-color: var(--green-light);
 	}
 
-	.passage-division.green .passage-text :global(.selectable-word:hover::before),
-	.passage-division.green .passage-text :global(.selectable-word[data-selected="true"]::before) {
-		color: var(--green-dark);
+	.passage-division.green .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.green .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.green .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	.passage-division.green .passage-text :global(.selectable-word[data-selected="true"]) {
@@ -738,9 +767,16 @@
 		background-color: var(--aqua-light);
 	}
 
-	.passage-division.aqua .passage-text :global(.selectable-word:hover::before),
-	.passage-division.aqua .passage-text :global(.selectable-word[data-selected="true"]::before) {
-		color: var(--aqua-dark);
+	.passage-division.aqua .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.aqua .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.aqua .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	.passage-division.aqua .passage-text :global(.selectable-word[data-selected="true"]) {
@@ -751,9 +787,16 @@
 		background-color: var(--purple-light);
 	}
 
-	.passage-division.purple .passage-text :global(.selectable-word:hover::before),
-	.passage-division.purple .passage-text :global(.selectable-word[data-selected="true"]::before) {
-		color: var(--purple-dark);
+	.passage-division.purple .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.purple .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.purple .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	.passage-division.purple .passage-text :global(.selectable-word[data-selected="true"]) {
@@ -764,9 +807,16 @@
 		background-color: var(--pink-light);
 	}
 
-	.passage-division.pink .passage-text :global(.selectable-word:hover::before),
-	.passage-division.pink .passage-text :global(.selectable-word[data-selected="true"]::before) {
-		color: var(--pink-dark);
+	.passage-division.pink .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.pink .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.passage-division.pink .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	.passage-division.pink .passage-text :global(.selectable-word[data-selected="true"]) {

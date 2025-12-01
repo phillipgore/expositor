@@ -39,11 +39,11 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
  * @property {boolean} canStructure - Whether Outline menu should be enabled
- * @property {boolean} canText - Whether Text menu should be enabled
+ * @property {boolean} canHeading - Whether Headings menu should be enabled
  * @property {boolean} canLiterary - Whether Literary menu should be enabled
  * @property {boolean} canColor - Whether Color menu should be enabled
  * @property {boolean} canUseStructureItems - Whether Structure menu items should be enabled
- * @property {boolean} canUseTextItems - Whether Text menu items should be enabled
+ * @property {boolean} canUseHeadingItems - Whether Heading menu items should be enabled
  * @property {boolean} canUseLiteraryItems - Whether Literary menu items should be enabled
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
@@ -71,11 +71,11 @@ const defaultState = {
 	canSwitchMode: false,
 	canZoom: false,
 	canStructure: false,
-	canText: false,
+	canHeading: false,
 	canLiterary: false,
 	canColor: false,
 	canUseStructureItems: false,
-	canUseTextItems: false,
+	canUseHeadingItems: false,
 	canUseLiteraryItems: false,
 	canUseColorItems: false,
 	studiesPanelOpen: true,
@@ -126,11 +126,11 @@ export function updateToolbarForRoute(pathname) {
 				canSwitchMode: true,
 				canZoom: true,
 				canStructure: true,
-				canText: true,
+				canHeading: true,
 				canLiterary: true,
 				canColor: true,
 				canUseStructureItems: true,
-				canUseTextItems: true,
+				canUseHeadingItems: true,
 				canUseLiteraryItems: true,
 				canUseColorItems: true
 			};
@@ -148,11 +148,11 @@ export function updateToolbarForRoute(pathname) {
 			canSwitchMode: false, // Disabled by default, enabled only when studies are selected
 			canZoom: false,
 			canStructure: false,
-			canText: false,
+			canHeading: false,
 			canLiterary: false,
 			canColor: false,
 			canUseStructureItems: false,
-			canUseTextItems: false,
+			canUseHeadingItems: false,
 			canUseLiteraryItems: false,
 			canUseColorItems: false
 		};
@@ -171,11 +171,11 @@ export function updateToolbarForRoute(pathname) {
 			canSwitchMode: false,
 			canZoom: false,
 			canStructure: true,
-			canText: true,
+			canHeading: true,
 			canLiterary: true,
 			canColor: true,
 			canUseStructureItems: false, // Menu button enabled, items disabled
-			canUseTextItems: false, // Menu button enabled, items disabled
+			canUseHeadingItems: false, // Menu button enabled, items disabled
 			canUseLiteraryItems: false, // Menu button enabled, items disabled
 			canUseColorItems: false // Menu button enabled, items disabled
 		};
@@ -202,11 +202,11 @@ export function onDocumentOpen() {
 		canSwitchMode: true,
 		canZoom: true,
 		canStructure: true,
-		canText: true,
+		canHeading: true,
 		canLiterary: true,
 		canColor: true,
 		canUseStructureItems: true,
-		canUseTextItems: true,
+		canUseHeadingItems: true,
 		canUseLiteraryItems: true,
 		canUseColorItems: true
 	}));
@@ -228,11 +228,11 @@ export function onDocumentClose() {
 		canSwitchMode: false,
 		canZoom: false,
 		canStructure: false,
-		canText: false,
+		canHeading: false,
 		canLiterary: false,
 		canColor: false,
 		canUseStructureItems: false,
-		canUseTextItems: false,
+		canUseHeadingItems: false,
 		canUseLiteraryItems: false,
 		canUseColorItems: false
 	}));

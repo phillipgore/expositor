@@ -138,6 +138,15 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'menu',
+					iconId: 'segment-subheading',
+					menuId: 'MenuHeadings',
+					underLabel: 'Headings',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledStateProp: 'canHeading'
+				},
+				{
+					type: 'menu',
 					iconId: 'literary-chiasim',
 					menuId: 'MenuLiterary',
 					underLabel: 'Literary',

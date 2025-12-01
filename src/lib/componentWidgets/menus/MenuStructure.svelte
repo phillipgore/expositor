@@ -40,54 +40,16 @@
 <Menu {menuId} ariaLabel="Document structure menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="outline-column"
-		label="New Column"
-		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
-	/>
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="outline-division"
-		label="New Division"
+		iconId="text-split"
+		label="Insert Segment"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="outline-section"
-		label="New Section"
-		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
-	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="outline-segment"
-		label="New Segment"
-		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
-	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="outline-unit"
-		label="New Unit"
-		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
-	/>
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="outline-join"
-		label="Join..."
+		iconId="text-join"
+		label="Remove Segment"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseStructureItems}
@@ -101,7 +63,7 @@
 		label="Move Text Up"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseTextItems}
+		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -109,6 +71,45 @@
 		label="Move Text Down"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseTextItems}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="outline-disconnect"
+		label="Disconnect Segment"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="outline-connect"
+		label="Connect Segment"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="outline-column"
+		label="Insert Column"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="outline-column"
+		label="Remove Column"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
 </Menu>
