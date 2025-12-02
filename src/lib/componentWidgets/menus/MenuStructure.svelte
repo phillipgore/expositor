@@ -40,19 +40,46 @@
 <Menu {menuId} ariaLabel="Document structure menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="text-split"
-		label="Insert Segment"
+		iconId="split"
+		label="Split Text"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="text-join"
-		label="Remove Segment"
+		iconId="join"
+		label="Join Text"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-one"
+		label="Insert Heading One"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseHeadingItems}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-two"
+		label="Insert Heading Two"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseHeadingItems}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-three"
+		label="Insert Heading Three"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseHeadingItems}
 	/>
 
 	<DividerHorizontal />
@@ -98,7 +125,7 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="outline-column"
+		iconId="column-insert"
 		label="Insert Column"
 		role="menuitem"
 		handleClick={closeMenu}
@@ -106,7 +133,7 @@
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="outline-column"
+		iconId="column-remove"
 		label="Remove Column"
 		role="menuitem"
 		handleClick={closeMenu}

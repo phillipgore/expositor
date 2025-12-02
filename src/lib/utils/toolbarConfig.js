@@ -47,8 +47,8 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'toggle',
-					iconId: 'book',
-					underLabel: 'Studies',
+					iconId: 'finder',
+					underLabel: 'Finder',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					activeStateProp: 'studiesPanelOpen',
@@ -62,9 +62,9 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'menu',
-					iconId: 'gear',
+					iconId: 'book',
 					menuId: 'MenuActions',
-					underLabel: 'Actions',
+					underLabel: 'Studies',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
 				}
@@ -129,21 +129,12 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'menu',
-					iconId: 'outline-column',
+					iconId: 'outline-section',
 					menuId: 'MenuStructure',
 					underLabel: 'Outline',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledStateProp: 'canStructure'
-				},
-				{
-					type: 'menu',
-					iconId: 'segment-subheading',
-					menuId: 'MenuHeadings',
-					underLabel: 'Headings',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					disabledStateProp: 'canHeading'
 				},
 				{
 					type: 'menu',

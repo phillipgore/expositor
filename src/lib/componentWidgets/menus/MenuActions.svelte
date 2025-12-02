@@ -210,8 +210,8 @@
 	/>
 
 	<IconButton
-		iconId="book"
-		label="New Study Group in Selected"
+		iconId="book-in"
+		label="New Study in Selected"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewStudy(selectedGroup.id)}
@@ -229,7 +229,7 @@
 	/>
 
 	<IconButton
-		iconId="folder"
+		iconId="folders"
 		label="New Study Group in Selected"
 		classes="menu-light justify-content-left"
 		role="menuitem"
@@ -241,7 +241,7 @@
 	
 	<IconButton
 		iconId="pencil"
-		label="Edit"
+		label="Edit Selected"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleEditClick}
@@ -272,7 +272,7 @@
 	
 	<IconButton
 		iconId="trashcan"
-		label="Delete"
+		label="Delete Selected"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleDeleteClick}

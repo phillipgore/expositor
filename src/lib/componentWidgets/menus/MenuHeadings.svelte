@@ -37,24 +37,24 @@
 <Menu {menuId} ariaLabel="Headings insertion menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-title"
-		label="Insert Segment Title"
+		iconId="heading-one"
+		label="Insert Heading One"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseHeadingItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-heading"
-		label="Insert Segment Heading"
+		iconId="heading-two"
+		label="Insert Heading Two"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseHeadingItems}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-subheading"
-		label="Insert Segment Subheading"
+		iconId="heading-three"
+		label="Insert Heading Three"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseHeadingItems}
