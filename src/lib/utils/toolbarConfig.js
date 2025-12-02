@@ -104,22 +104,6 @@ export function getAppToolbarConfig() {
 			variant: 'flex'
 		},
 		{
-			type: 'section',
-			id: 'select',
-			items: [
-				{
-					type: 'toggle',
-					iconId: 'select',
-					underLabel: 'Select',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					activeStateProp: 'textSelectionMode',
-					toggleHandler: 'toggleTextSelection',
-					disabledStateProp: 'canToggleSelect'
-				}
-			]
-		},
-		{
 			type: 'spacer',
 			variant: 'fixed',
 		},

@@ -4,7 +4,7 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
-	import { toolbarState, toggleTextSelection } from '$lib/stores/toolbar.js';
+	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -12,6 +12,10 @@
 	let hoveredWord = $state(null); // { passageIndex, wordIndex }
 	let selectedWord = $state(null); // { passageIndex, wordIndex, position }
 	let suppressHoverCaret = $state(null); // { passageIndex, wordIndex } - suppress hover caret after deselection
+	
+	// Drag detection state
+	let dragStartPos = $state(null); // { x, y } - mouse position on mousedown
+	let isDragging = $state(false); // Whether user is dragging (text selection mode)
 
 	// Invalidate studies list when study is accessed
 	onMount(() => {
@@ -77,12 +81,40 @@
 	}
 
 	/**
+	 * Handle mouse down - track position for drag detection
+	 */
+	function handleMouseDown(event) {
+		// Only track for left-click
+		if (event.button === 0) {
+			dragStartPos = { x: event.clientX, y: event.clientY };
+			isDragging = false;
+		}
+	}
+
+	/**
+	 * Handle mouse move - detect if user is dragging
+	 */
+	function handleMouseMove(event) {
+		if (dragStartPos) {
+			// Calculate distance moved from drag start position
+			const distance = Math.sqrt(
+				Math.pow(event.clientX - dragStartPos.x, 2) + 
+				Math.pow(event.clientY - dragStartPos.y, 2)
+			);
+			// If moved more than 3px, consider it a drag
+			if (distance > 3) {
+				isDragging = true;
+			}
+		}
+	}
+
+	/**
 	 * Handle word hover
-	 * Disabled when in browser text selection mode (word selection OFF)
+	 * Disabled when dragging
 	 */
 	function handleWordHover(event) {
-		// Don't process word hover when in browser text selection mode
-		if (!$toolbarState.textSelectionMode) return;
+		// Don't process word hover when dragging
+		if (isDragging) return;
 		
 		const target = event.target;
 		if (target.classList.contains('selectable-word')) {
@@ -95,11 +127,8 @@
 
 	/**
 	 * Handle word hover end - also clears hover caret suppression
-	 * Disabled when in browser text selection mode (word selection OFF)
 	 */
 	function handleWordHoverEnd() {
-		// Don't process word hover end when in browser text selection mode
-		if (!$toolbarState.textSelectionMode) return;
 		
 		hoveredWord = null;
 		suppressHoverCaret = null; // Clear suppression when mouse leaves
@@ -112,11 +141,14 @@
 	 * - Click 3 (same word): Deselect
 	 * - Shift+Click: Jump directly to "after" position
 	 * 
-	 * Only active when word selection mode is ON
+	 * Only active when not dragging
 	 */
 	function handleWordClick(event) {
-		// Don't process word selection when button is OFF (browser text selection enabled)
-		if (!$toolbarState.textSelectionMode) {
+		// Don't process word selection when dragging (text selection)
+		if (isDragging) {
+			// Reset drag state
+			dragStartPos = null;
+			isDragging = false;
 			return;
 		}
 		
@@ -155,6 +187,10 @@
 			selectedWord = null;
 			suppressHoverCaret = null;
 		}
+		
+		// Reset drag state
+		dragStartPos = null;
+		isDragging = false;
 	}
 
 	/**
@@ -204,17 +240,6 @@
 		}
 	});
 
-	/**
-	 * Clear word selections when Select button is toggled off
-	 */
-	$effect(() => {
-		// When textSelectionMode becomes false (button OFF), clear all word selections
-		if (!$toolbarState.textSelectionMode) {
-			selectedWord = null;
-			hoveredWord = null;
-			suppressHoverCaret = null;
-		}
-	});
 
 
 	// Get translation abbreviation
@@ -251,19 +276,45 @@
 	let previousZoomLevel = $state($toolbarState.zoomLevel);
 
 	/**
-	 * Reset scroll position when zoom level actually changes
+	 * Maintain center point when zoom level changes
 	 */
 	$effect(() => {
 		const currentZoomLevel = $toolbarState.zoomLevel;
 		
-		// Only reset if zoom level actually changed
-		if (currentZoomLevel !== previousZoomLevel) {
+		// Only adjust if zoom level actually changed and we have a previous zoom level
+		if (currentZoomLevel !== previousZoomLevel && previousZoomLevel !== null) {
 			// Get the actual scroll container (.analyze-content)
 			const scrollContainer = contentInnerRef?.parentElement?.parentElement;
 			if (scrollContainer) {
-				scrollContainer.scrollTo(0, 0);
+				// Get current viewport state
+				const viewportWidth = scrollContainer.clientWidth;
+				const viewportHeight = scrollContainer.clientHeight;
+				const scrollLeft = scrollContainer.scrollLeft;
+				const scrollTop = scrollContainer.scrollTop;
+				
+				// Calculate center point in content coordinates (at old scale)
+				const centerX = scrollLeft + viewportWidth / 2;
+				const centerY = scrollTop + viewportHeight / 2;
+				
+				// Calculate scale ratio
+				const oldScale = previousZoomLevel / 100;
+				const newScale = currentZoomLevel / 100;
+				const scaleRatio = newScale / oldScale;
+				
+				// Calculate where the center point is now (at new scale)
+				const newCenterX = centerX * scaleRatio;
+				const newCenterY = centerY * scaleRatio;
+				
+				// Set scroll to keep center point centered
+				const newScrollLeft = newCenterX - viewportWidth / 2;
+				const newScrollTop = newCenterY - viewportHeight / 2;
+				
+				scrollContainer.scrollTo(newScrollLeft, newScrollTop);
 			}
 			
+			previousZoomLevel = currentZoomLevel;
+		} else if (previousZoomLevel === null) {
+			// First time initialization - just update the previous zoom level
 			previousZoomLevel = currentZoomLevel;
 		}
 	});
@@ -333,7 +384,7 @@
 
 <svelte:window on:keydown={handleKeyDown} />
 
-<div class="container" class:text-selection-enabled={!$toolbarState.textSelectionMode}>
+<div class="container">
 	{#if showHeader}
 		<div class="study-header">
 			<div>
@@ -351,6 +402,8 @@
 		class:hide-verses={!$toolbarState.versesVisible} 
 		class:wide-layout={$toolbarState.wideLayout} 
 		class:overview-mode={$toolbarState.overviewMode}
+		onmousedown={handleMouseDown}
+		onmousemove={handleMouseMove}
 		onmouseover={handleWordHover}
 		onmouseout={handleWordHoverEnd}
 		onclick={handleWordClick}
@@ -579,8 +632,8 @@
 		white-space: pre-wrap;
 		text-align: left;
 		padding: 0.9rem;
-		-webkit-user-select: none;
-		user-select: none;
+		-webkit-user-select: text;
+		user-select: text;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;

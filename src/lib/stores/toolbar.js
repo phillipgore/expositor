@@ -35,7 +35,6 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canToggleVerses - Whether Verses toggle should be enabled (document has verses)
  * @property {boolean} canToggleWide - Whether Wide layout toggle should be enabled
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
- * @property {boolean} canToggleSelect - Whether Select (text selection) toggle should be enabled
  * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
  * @property {boolean} canStructure - Whether Outline menu should be enabled
@@ -50,7 +49,6 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
- * @property {boolean} textSelectionMode - Whether text selection mode is active
  * @property {number} zoomLevel - Current zoom level as percentage (25-400, or 0 for fit)
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
  */
@@ -67,7 +65,6 @@ const defaultState = {
 	canToggleVerses: false,
 	canToggleWide: false,
 	canToggleOverview: false,
-	canToggleSelect: false,
 	canSwitchMode: false,
 	canZoom: false,
 	canStructure: false,
@@ -82,7 +79,6 @@ const defaultState = {
 	versesVisible: false,
 	wideLayout: false,
 	overviewMode: false,
-	textSelectionMode: true,
 	zoomLevel: 100,
 	selectedItem: null
 };
@@ -122,7 +118,6 @@ export function updateToolbarForRoute(pathname) {
 				canToggleVerses: true,
 				canToggleWide: true,
 				canToggleOverview: true,
-				canToggleSelect: true,
 				canSwitchMode: true,
 				canZoom: true,
 				canStructure: true,
@@ -343,16 +338,6 @@ export function toggleOverview() {
 	toolbarStateStore.update(state => ({
 		...state,
 		overviewMode: !state.overviewMode
-	}));
-}
-
-/**
- * Toggle text selection mode
- */
-export function toggleTextSelection() {
-	toolbarStateStore.update(state => ({
-		...state,
-		textSelectionMode: !state.textSelectionMode
 	}));
 }
 
