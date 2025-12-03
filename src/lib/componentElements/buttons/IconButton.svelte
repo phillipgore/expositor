@@ -77,10 +77,11 @@
 	 * @property {string} [label] - Text label displayed next to icon
 	 * @property {string} [underLabel] - Text displayed below button (for toolbar buttons)
 	 * @property {string} [underLabelClasses] - CSS classes for under-label ('light' for white text)
-	 * @property {boolean} [isDisabled=false] - Whether button is disabled
-	 * @property {boolean} [isFullWidth=false] - Whether button stretches to full width
-	 * @property {boolean} [isRound=false] - Whether button is circular (icon-only mode)
-	 * @property {boolean} [isActive=false] - Active state for toggle/grouped buttons
+ * @property {boolean} [isDisabled=false] - Whether button is disabled
+ * @property {boolean} [isFullWidth=false] - Whether button stretches to full width
+ * @property {boolean} [isRound=false] - Whether button is circular (icon-only mode)
+ * @property {boolean} [isSquare=false] - Whether button is square (icon-only mode)
+ * @property {boolean} [isActive=false] - Active state for toggle/grouped buttons
 	 * @property {ButtonType} [type='button'] - HTML button type
 	 * @property {(target: HTMLButtonElement) => void} [groupedIsActive] - Callback for grouped button selection. Receives button element with id
 	 * @property {string} [shortcut] - Keyboard shortcut hint (e.g., "⌘S", "Ctrl+A"). Supports HTML
@@ -109,6 +110,7 @@
 		isDisabled,
 		isFullWidth,
 		isRound,
+		isSquare,
 		isActive,
 		type,
 		groupedIsActive,
@@ -183,6 +185,7 @@
 			{isDisabled}
 			{isFullWidth}
 			{isRound}
+			{isSquare}
 			{isActive}
 			{type}
 			{role}
@@ -221,6 +224,7 @@
 		{isDisabled}
 		{isFullWidth}
 		{isRound}
+		{isSquare}
 		{isActive}
 		{type}
 		{role}

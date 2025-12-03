@@ -75,6 +75,7 @@
 	 * @property {boolean} [isDisabled=false] - Whether button is disabled
 	 * @property {boolean} [isFullWidth=false] - Whether button stretches to full width
 	 * @property {boolean} [isRound=false] - Whether button is circular
+	 * @property {boolean} [isSquare=false] - Whether button is square
 	 * @property {boolean} [isActive=false] - Initial active state. Can be updated externally to control the toggle
 	 * @property {ButtonType} [type='button'] - HTML button type attribute
 	 */
@@ -91,6 +92,7 @@
 		isDisabled,
 		isFullWidth,
 		isRound,
+		isSquare,
 		isActive = false,
 		type
 	} = $props();
@@ -134,6 +136,7 @@
 				{isDisabled}
 				{isFullWidth}
 				{isRound}
+				{isSquare}
 				{type}
 				isActive={internalActive}
 				ariaPressed={internalActive ? 'true' : 'false'}
@@ -158,6 +161,7 @@
 		{isDisabled}
 		{isFullWidth}
 		{isRound}
+		{isSquare}
 		{type}
 		isActive={internalActive}
 		ariaPressed={internalActive ? 'true' : 'false'}

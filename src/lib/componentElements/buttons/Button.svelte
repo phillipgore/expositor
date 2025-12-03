@@ -67,10 +67,11 @@
 	 * @property {string} [url] - (Deprecated) URL to navigate to on click. Use href instead for semantic links
 	 * @property {(event?: MouseEvent) => void} [handleClick] - Click event handler. Receives MouseEvent for access to target, modifiers, etc.
 	 * @property {string} [label] - Button text label. Ignored if children snippet provided
-	 * @property {boolean} [isDisabled=false] - Whether button/link is disabled. Prevents all interaction
-	 * @property {boolean} [isFullWidth=false] - Whether button stretches to full container width
-	 * @property {boolean} [isRound=false] - Whether button is circular. Useful for icon-only buttons
-	 * @property {boolean} [isLarge=false] - Large size variant (4.4rem height, 2rem font). Matches Input.large dimensions
+ * @property {boolean} [isDisabled=false] - Whether button/link is disabled. Prevents all interaction
+ * @property {boolean} [isFullWidth=false] - Whether button stretches to full container width
+ * @property {boolean} [isRound=false] - Whether button is circular. Useful for icon-only buttons
+ * @property {boolean} [isSquare=false] - Whether button is square. Useful for icon-only buttons
+ * @property {boolean} [isLarge=false] - Large size variant (4.4rem height, 2rem font). Matches Input.large dimensions
 	 * @property {ButtonType} [type='button'] - HTML button type attribute. Use 'submit' for forms. Only used for buttons
 	 * @property {boolean} [isActive=false] - Active state. Applies 'active' class for visual feedback
 	 * @property {string} [ariaLabel] - Accessible label for screen readers. Required if no visible label
@@ -97,6 +98,7 @@
 		isDisabled,
 		isFullWidth,
 		isRound,
+		isSquare,
 		isLarge = false,
 		type = 'button',
 		isActive = false,
@@ -241,7 +243,7 @@
 		{id}
 		{style}
 		{role}
-		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isLarge ? 'large' : ''} {isFullWidth
+		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isSquare ? 'square' : ''} {isLarge ? 'large' : ''} {isFullWidth
 			? 'full-width'
 			: ''} {hasNoFocusClass ? 'no-focus' : ''}"
 		tabindex={isDisabled ? -1 : role === 'menuitem' ? -1 : 0}
@@ -275,7 +277,7 @@
 		{type}
 		{style}
 		{role}
-		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isLarge ? 'large' : ''} {isFullWidth
+		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isSquare ? 'square' : ''} {isLarge ? 'large' : ''} {isFullWidth
 			? 'full-width'
 			: ''} {hasNoFocusClass ? 'no-focus' : ''}"
 		onclick={(e) => buttonClick(e)}
@@ -355,6 +357,13 @@
 		height: 3rem;
 	}
 
+	button.square,
+	a.square {
+		min-width: 2.8rem;
+		width: 2.8rem;
+		padding: 0rem;
+	}
+
 	button.full-width,
 	a.full-width {
 		width: 100%;
@@ -417,6 +426,30 @@
 	button.red:disabled :global(.icon),
 	a.red[aria-disabled='true'] :global(.icon) {
 		opacity: 0.85;
+	}
+
+	/* ============================================
+	   CONTEXT VARIANTS - Passage Toolbar
+	   ============================================ */
+	button.passage-toolbar,
+	a.passage-toolbar {
+		background-color: var(--gray-400);
+	}
+
+	button.passage-toolbar :global(.icon path),
+	a.passage-toolbar :global(.icon path) {
+		fill: var(--white);
+	}
+
+	button.passage-toolbar.active:enabled,
+	a.passage-toolbar.active {
+		background-color: var(--gray-800);
+		color: var(--gray-200);
+	}
+
+	button.passage-toolbar.active:enabled :global(.icon path),
+	a.passage-toolbar.active :global(.icon path) {
+		fill: var(--gray-200);
 	}
 
 	/* ============================================

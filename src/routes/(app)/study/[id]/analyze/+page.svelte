@@ -3,6 +3,8 @@
 	import { onMount } from 'svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
+	import ToggleButton from '$lib/componentElements/buttons/ToggleButton.svelte';
+	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
@@ -475,7 +477,12 @@
 										<div class="passage-column">
 											<div class="passage-wrapper green">
 												<div class="passage-segment">
-													<div class="passage-segment-controls"></div>
+													<div class="passage-controls">
+														<ToggleButton iconId="outline-section" classes="passage-toolbar" isSquare></ToggleButton>
+														<ToggleButton iconId="literary-chiasim" classes="passage-toolbar" isSquare></ToggleButton>
+														<ToggleButton iconId="paintbrush" classes="passage-toolbar" isSquare></ToggleButton>
+														<DividerHorizontal />
+													</div>
 													<h4 class="heading-one">Heading One</h4>
 													<h5 class="heading-two">Heading Two</h5>
 													<h6 class="heading-three">Heading Three</h6>
@@ -548,8 +555,8 @@
 
 	.analyze-content-inner {
 		display: flex;
-		gap: 4.2rem;
-		padding: 6.6rem 4.2rem 1.8rem;
+		gap: 4.4rem;
+		padding: 6.6rem 4.4rem 1.8rem;
 		transition: transform 0.2s ease-out;
 		width: fit-content;
 	}
@@ -571,14 +578,14 @@
 
 	.passage-container {
 		display: flex;
-		gap: 4.2rem;
+		gap: 4.4rem;
 	}
 
 	.passage-column {
 		display: flex;
 		flex-direction: column;
 		width: 28.8rem;
-		margin-bottom: 4.2rem;
+		margin-bottom: 4.4rem;
 		border-radius: 0.3rem;
 	}
 
@@ -590,8 +597,12 @@
 		display: none;
 	}
 
+	.passage-wrapper {
+		position: relative;
+	}
+
 	.passage-wrapper:not(:first-of-type) {
-		margin-top: 4.2rem;
+		margin-top: 4.4rem;
 	}
 
 	.heading-one {
@@ -613,41 +624,36 @@
 		position: relative;
 	}
 
+	.passage-wrapper:global(.active),
 	.passage-segment:global(.active) {
 		z-index: 10;
 		box-shadow: 0rem 0rem 0.5rem var(--black);
 	}
 
-	.passage-segment-controls {
+	.passage-controls {
 		display: none;
 		content: " ";
-		width: 3.4rem;
+		width: 3.3rem;
 		position: absolute;
-		right: -3.4rem;
+		right: -3.3rem;
 		top: 0.6rem;
 		min-height: calc(100% - 1.2rem);
+		overflow: hidden;
+		/* background-color: var(--gray-800);
 		border-top-right-radius: 0.3rem;
 		border-bottom-right-radius: 0.3rem;
-		overflow: hidden;
-		background-color: var(--gray-lighter);
-		/* border-top: 0.1rem solid var(--gray-light);
-		border-right: 0.1rem solid var(--gray-light);
-		border-bottom: 0.1rem solid var(--gray-light); */
-
-		&:after {
-			content: '';
-			position: absolute;
-			top: -5.0rem;
-			right: 3.4rem;
-			bottom: -5.0rem;
-			left: -3.4rem;
-			background-color: pink;
-			box-shadow: 0.0rem 0rem 0.5rem var(--gray-dark);
-		}
+		border-top: 0.1rem solid var(--gray-700);
+		border-right: 0.1rem solid var(--gray-700);
+		border-bottom: 0.1rem solid var(--gray-700); */
 	}
 
-	.passage-segment:global(.active) .passage-segment-controls {
-		display: block;
+	.passage-wrapper:global(.active) .passage-controls,
+	.passage-segment:global(.active) .passage-controls {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		padding-left: 0.5rem;
+		gap: 0.3rem;
 	}
 
 	.heading-two {
@@ -960,6 +966,7 @@
 	/* ============================================================ */
 	/* Color variants */
 	/* ============================================================ */
+	.passage-wrapper.red:global(.active),
 	.passage-wrapper.red .passage-segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--red-dark);
 	}
@@ -1001,6 +1008,7 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
+	.passage-wrapper.orange:global(.active),
 	.passage-wrapper.orange .passage-segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--orange-dark);
 	}
@@ -1042,6 +1050,7 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
+	.passage-wrapper.yellow:global(.active),
 	.passage-wrapper.yellow .passage-segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--yellow-dark);
 	}
@@ -1083,6 +1092,7 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
+	.passage-wrapper.green:global(.active),
 	.passage-wrapper.green .passage-segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--green-dark);
 	}
@@ -1124,6 +1134,7 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
+	.passage-wrapper.aqua:global(.active),
 	.passage-wrapper.aqua .passage-segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--aqua-dark);
 	}
@@ -1165,6 +1176,7 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
+	.passage-wrapper.blue:global(.active),
 	.passage-wrapper.blue .passage-segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--blue-dark);
 	}
@@ -1206,6 +1218,7 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
+	.passage-wrapper.purple:global(.active),
 	.passage-wrapper.purple .passage-segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--purple-dark);
 	}
@@ -1247,6 +1260,7 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
+	.passage-wrapper.pink:global(.active),
 	.passage-wrapper.pink .passage-segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--pink-dark);
 	}
