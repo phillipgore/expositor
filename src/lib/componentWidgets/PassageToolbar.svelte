@@ -2,7 +2,7 @@
 	import ButtonGrouped from '$lib/componentElements/buttons/ButtonGrouped.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
-	import { crossfade } from 'svelte/transition';
+	import { crossfade, fade } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 
 	let { 
@@ -25,7 +25,7 @@
 </script>
 
 {#if isActive}
-	<div class="controls">
+	<div class="controls" transition:fade={{ duration: 150 }}>
 		<ButtonGrouped
 			buttons={[
 				{ id: 'outline', iconId: 'outline-section', label: '' },

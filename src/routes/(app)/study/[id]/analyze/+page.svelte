@@ -572,22 +572,24 @@
 										<div class="split green">
 											<div class="segment">
 												<div class="controls">
-													<ButtonGrouped
-														buttons={[
-															{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Outline Buttons' },
-															{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Buttons' },
-															{ id: 'color', iconId: 'paintbrush', label: '', title: 'View Color Buttons' }
-														]}
-														defaultActive='outline'
-														activeButton={toolbarMode}
-														onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
-														buttonClasses='passage-toolbar'
-														isSquare
-														isList
-													/>
-													<DividerHorizontal />
-													{#if toolbarMode === 'outline'}
-													<div class="button-container outline">
+													{#if activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === 0}
+														<div transition:fade={{ duration: 150 }} style="display: flex; flex-direction: column; align-items: flex-end;">
+															<ButtonGrouped
+																buttons={[
+																	{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Outline Buttons' },
+																	{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Buttons' },
+																	{ id: 'color', iconId: 'paintbrush', label: '', title: 'View Color Buttons' }
+																]}
+																defaultActive='outline'
+																activeButton={toolbarMode}
+																onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
+																buttonClasses='passage-toolbar'
+																isSquare
+																isList
+															/>
+															<DividerHorizontal />
+															{#if toolbarMode === 'outline'}
+															<div class="button-container outline">
 														<div class="button-group">
 															<IconButton iconId="split" classes="passage-toolbar" title="Split Text" isSquare></IconButton>
 															<IconButton iconId="join" classes="passage-toolbar" title="Join Text" isSquare></IconButton>
@@ -618,18 +620,20 @@
 														<IconButton iconId="literary-repeat" classes="passage-toolbar" title="Repitition" isSquare></IconButton>
 														<IconButton iconId="literary-intensify" classes="passage-toolbar" title="Intensification" isSquare></IconButton>
 													</div>
-													{/if}
-													{#if toolbarMode === 'color'}
-													<div class="button-container color">
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" title="Red" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" title="Orange" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-yellow" title="Yellow" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-green" title="Green" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-aqua" title="Aqua" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-blue" title="Blue" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" title="Purple" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" title="Pink" isSquare></IconButton>
-													</div>
+															{/if}
+															{#if toolbarMode === 'color'}
+															<div class="button-container color">
+																<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" title="Red" isSquare></IconButton>
+																<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" title="Orange" isSquare></IconButton>
+																<IconButton iconId="circle" classes="passage-toolbar icon-fill-yellow" title="Yellow" isSquare></IconButton>
+																<IconButton iconId="circle" classes="passage-toolbar icon-fill-green" title="Green" isSquare></IconButton>
+																<IconButton iconId="circle" classes="passage-toolbar icon-fill-aqua" title="Aqua" isSquare></IconButton>
+																<IconButton iconId="circle" classes="passage-toolbar icon-fill-blue" title="Blue" isSquare></IconButton>
+																<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" title="Purple" isSquare></IconButton>
+																<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" title="Pink" isSquare></IconButton>
+															</div>
+															{/if}
+														</div>
 													{/if}
 												</div>
 												<h4 class="heading-one">Heading One</h4>
@@ -788,20 +792,10 @@
 		top: 0.6rem;
 		min-height: calc(100% - 1.2rem);
 		overflow: hidden;
-		padding-left: 0.6rem;
-		opacity: 0;
-		visibility: hidden;
-		transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
 	}
 
 	.controls :global(.group-container) {
 		margin: 0.0rem;
-	}
-
-	.split:global(.active) .controls,
-	.segment:global(.active) .controls {
-		opacity: 1;
-		visibility: visible;
 	}
 
 	.button-container {
