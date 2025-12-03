@@ -433,23 +433,23 @@
 	   ============================================ */
 	button.passage-toolbar,
 	a.passage-toolbar {
-		background-color: var(--gray-400);
+		background-color: var(--gray-light);
 	}
 
 	button.passage-toolbar :global(.icon path),
 	a.passage-toolbar :global(.icon path) {
-		fill: var(--white);
+		fill: var(--gray-darker);
 	}
 
 	button.passage-toolbar.active:enabled,
 	a.passage-toolbar.active {
-		background-color: var(--gray-800);
-		color: var(--gray-200);
+		background-color: var(--gray-dark);
+		color: var(--white);
 	}
 
 	button.passage-toolbar.active:enabled :global(.icon path),
 	a.passage-toolbar.active :global(.icon path) {
-		fill: var(--gray-200);
+		fill: var(--white);
 	}
 
 	/* ============================================
@@ -499,49 +499,49 @@
 	}
 
 	/* Menu Icon Fill Colors - Enabled */
-	button.menu-light:enabled.icon-fill-red :global(.icon path) {
+	button:enabled.icon-fill-red :global(.icon path) {
 		fill: var(--red-light);
 		stroke: var(--red-dark);
 		stroke-width: 0.15rem;
 	}
 
-	button.menu-light:enabled.icon-fill-orange :global(.icon path) {
+	button:enabled.icon-fill-orange :global(.icon path) {
 		fill: var(--orange-light);
 		stroke: var(--orange-dark);
 		stroke-width: 0.15rem;
 	}
 
-	button.menu-light:enabled.icon-fill-yellow :global(.icon path) {
+	button:enabled.icon-fill-yellow :global(.icon path) {
 		fill: var(--yellow-light);
 		stroke: var(--yellow-dark);
 		stroke-width: 0.15rem;
 	}
 
-	button.menu-light:enabled.icon-fill-green :global(.icon path) {
+	button:enabled.icon-fill-green :global(.icon path) {
 		fill: var(--green-light);
 		stroke: var(--green-dark);
 		stroke-width: 0.15rem;
 	}
 
-	button.menu-light:enabled.icon-fill-aqua :global(.icon path) {
+	button:enabled.icon-fill-aqua :global(.icon path) {
 		fill: var(--aqua-light);
 		stroke: var(--aqua-dark);
 		stroke-width: 0.15rem;
 	}
 
-	button.menu-light:enabled.icon-fill-blue :global(.icon path) {
+	button:enabled.icon-fill-blue :global(.icon path) {
 		fill: var(--blue-light);
 		stroke: var(--blue-dark);
 		stroke-width: 0.15rem;
 	}
 
-	button.menu-light:enabled.icon-fill-purple :global(.icon path) {
+	button:enabled.icon-fill-purple :global(.icon path) {
 		fill: var(--purple-light);
 		stroke: var(--purple-dark);
 		stroke-width: 0.15rem;
 	}
 
-	button.menu-light:enabled.icon-fill-pink :global(.icon path) {
+	button:enabled.icon-fill-pink :global(.icon path) {
 		fill: var(--pink-light);
 		stroke: var(--pink-dark);
 		stroke-width: 0.15rem;

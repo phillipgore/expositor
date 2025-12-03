@@ -3,7 +3,8 @@
 	import { onMount } from 'svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
-	import ToggleButton from '$lib/componentElements/buttons/ToggleButton.svelte';
+	import ButtonGrouped from '$lib/componentElements/buttons/ButtonGrouped.svelte';
+	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { toolbarState } from '$lib/stores/toolbar.js';
@@ -160,7 +161,7 @@
 		}
 		
 		// Handle segment activation
-		const clickedSegment = event.target.closest('.passage-segment');
+		const clickedSegment = event.target.closest('.segment');
 		if (clickedSegment) {
 			// Find passage and segment indices
 			const passageElement = clickedSegment.closest('.passage');
@@ -168,7 +169,7 @@
 				const allPassages = Array.from(document.querySelectorAll('.passage'));
 				const passageIndex = allPassages.indexOf(passageElement);
 				
-				const allSegments = Array.from(passageElement.querySelectorAll('.passage-segment'));
+				const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
 				const segmentIndex = allSegments.indexOf(clickedSegment);
 				
 				if (passageIndex !== -1 && segmentIndex !== -1) {
@@ -250,7 +251,7 @@
 		// Add data-selected and data-position to the selected word
 		if (selectedWord) {
 			const selectedElement = document.querySelector(
-				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-index="${selectedWord.wordIndex}"]`
+				`.selectable-word[data-index="${selectedWord.passageIndex}"][data-word-index="${selectedWord.wordIndex}"]`
 			);
 			if (selectedElement) {
 				selectedElement.setAttribute('data-selected', 'true');
@@ -261,7 +262,7 @@
 		// Add data-suppress-hover-caret to the word where hover caret should be suppressed
 		if (suppressHoverCaret) {
 			const suppressElement = document.querySelector(
-				`.selectable-word[data-passage-index="${suppressHoverCaret.passageIndex}"][data-word-index="${suppressHoverCaret.wordIndex}"]`
+				`.selectable-word[data-index="${suppressHoverCaret.passageIndex}"][data-word-index="${suppressHoverCaret.wordIndex}"]`
 			);
 			if (suppressElement) {
 				suppressElement.setAttribute('data-suppress-hover-caret', 'true');
@@ -274,7 +275,7 @@
 	 */
 	$effect(() => {
 		// Remove active class from all segments
-		const allSegments = document.querySelectorAll('.passage-segment');
+		const allSegments = document.querySelectorAll('.segment');
 		allSegments.forEach(segment => {
 			segment.classList.remove('active');
 		});
@@ -284,7 +285,7 @@
 			const allPassages = Array.from(document.querySelectorAll('.passage'));
 			const passageElement = allPassages[activeSegment.passageIndex];
 			if (passageElement) {
-				const allSegments = Array.from(passageElement.querySelectorAll('.passage-segment'));
+				const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
 				const segmentElement = allSegments[activeSegment.segmentIndex];
 				if (segmentElement) {
 					segmentElement.classList.add('active');
@@ -471,23 +472,68 @@
 									<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
 								</div>
 							{:else if passageText.text}
-								<div class="passage">
-									<h3 class="passage-reference">{passageText.reference} [{translationAbbr}]</h3>
-									<div class="passage-container">
-										<div class="passage-column">
-											<div class="passage-wrapper green">
-												<div class="passage-segment">
-													<div class="passage-controls">
-														<ToggleButton iconId="outline-section" classes="passage-toolbar" isSquare></ToggleButton>
-														<ToggleButton iconId="literary-chiasim" classes="passage-toolbar" isSquare></ToggleButton>
-														<ToggleButton iconId="paintbrush" classes="passage-toolbar" isSquare></ToggleButton>
-														<DividerHorizontal />
+								<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
+								<div class="container">
+									<div class="column">
+										<div class="split green">
+											<div class="segment">
+												<div class="controls">
+													<ButtonGrouped
+														buttons={[
+															{ id: 'outline', iconId: 'outline-section' },
+															{ id: 'literary', iconId: 'literary-chiasim' },
+															{ id: 'color', iconId: 'paintbrush' }
+														]}
+														defaultActive='outline'
+														buttonClasses='passage-toolbar'
+														isSquare
+														isList
+													/>
+													<DividerHorizontal />
+													<div class="button-container outline">
+														<div class="button-group">
+															<IconButton iconId="split" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="join" classes="passage-toolbar" isSquare></IconButton>
+														</div>
+														<div class="button-group">
+															<IconButton iconId="heading-one" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="heading-two" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="heading-three" classes="passage-toolbar" isSquare></IconButton>
+														</div>
+														<div class="button-group">
+															<IconButton iconId="arrow-up" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="arrow-down" classes="passage-toolbar" isSquare></IconButton>
+														</div>
+														<div class="button-group">
+															<IconButton iconId="outline-disconnect" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="outline-connect" classes="passage-toolbar" isSquare></IconButton>
+														</div>
+														<div class="button-group">
+															<IconButton iconId="column-insert" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="column-remove" classes="passage-toolbar" isSquare></IconButton>
+														</div>
 													</div>
-													<h4 class="heading-one">Heading One</h4>
-													<h5 class="heading-two">Heading Two</h5>
-													<h6 class="heading-three">Heading Three</h6>
-													<div class="passage-text">{@html wrapWordsInHtml(passageText.text, passageIndex)}</div>
+													<div class="button-container literary">
+														<IconButton iconId="literary-chiasim" classes="passage-toolbar" isSquare></IconButton>
+														<IconButton iconId="literary-paralell" classes="passage-toolbar" isSquare></IconButton>
+														<IconButton iconId="literary-repeat" classes="passage-toolbar" isSquare></IconButton>
+														<IconButton iconId="literary-intensify" classes="passage-toolbar" isSquare></IconButton>
+													</div>
+													<div class="button-container color">
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-yellow" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-green" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-aqua" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-blue" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" isSquare></IconButton>
+													</div>
 												</div>
+												<h4 class="heading-one">Heading One</h4>
+												<h5 class="heading-two">Heading Two</h5>
+												<h6 class="heading-three">Heading Three</h6>
+												<div class="text">{@html wrapWordsInHtml(passageText.text, passageIndex)}</div>
 											</div>
 										</div>
 									</div>
@@ -571,17 +617,17 @@
 		flex-shrink: 0;
 	}
 
-	.passage-reference {
+	.reference {
 		font-size: 1.2rem;
 		margin-bottom: 0.9rem;
 	}
 
-	.passage-container {
+	.container {
 		display: flex;
 		gap: 4.4rem;
 	}
 
-	.passage-column {
+	.column {
 		display: flex;
 		flex-direction: column;
 		width: 28.8rem;
@@ -589,20 +635,73 @@
 		border-radius: 0.3rem;
 	}
 
-	.wide-layout .passage-column {
+	.wide-layout .column {
 		width: 50.4rem;
 	}
 
-	.overview-mode .passage-text {
+	.overview-mode .text {
 		display: none;
 	}
 
-	.passage-wrapper {
+	.split {
 		position: relative;
 	}
 
-	.passage-wrapper:not(:first-of-type) {
+	.split:not(:first-of-type) {
 		margin-top: 4.4rem;
+	}
+
+	.split .segment:first-child,
+	.split .segment:first-child .heading-one {
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
+	}
+
+	.segment {
+		position: relative;
+	}
+
+	.split:global(.active),
+	.segment:global(.active) {
+		z-index: 10;
+		box-shadow: 0rem 0rem 0.5rem var(--black);
+	}
+
+	.controls {
+		display: none;
+		content: " ";
+		width: 3.4rem;
+		position: absolute;
+		right: -3.4rem;
+		top: 0.6rem;
+		min-height: calc(100% - 1.2rem);
+		overflow: hidden;
+	}
+
+	.controls :global(.group-container) {
+		margin: 0.0rem;
+	}
+
+	.split:global(.active) .controls,
+	.segment:global(.active) .controls {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		padding-left: 0.6rem;
+	}
+
+	.button-container {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		padding-left: 0.5rem;
+		gap: 0.9rem;
+	}
+
+	.button-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
 	}
 
 	.heading-one {
@@ -612,48 +711,6 @@
 		margin: 0.0rem;
 		border: 0.1rem solid;
 		color: white;
-	}
-
-	.passage-wrapper .passage-segment:first-child,
-	.passage-wrapper .passage-segment:first-child .heading-one {
-		border-top-right-radius: 0.3rem;
-		border-top-left-radius: 0.3rem;
-	}
-
-	.passage-segment {
-		position: relative;
-	}
-
-	.passage-wrapper:global(.active),
-	.passage-segment:global(.active) {
-		z-index: 10;
-		box-shadow: 0rem 0rem 0.5rem var(--black);
-	}
-
-	.passage-controls {
-		display: none;
-		content: " ";
-		width: 3.3rem;
-		position: absolute;
-		right: -3.3rem;
-		top: 0.6rem;
-		min-height: calc(100% - 1.2rem);
-		overflow: hidden;
-		/* background-color: var(--gray-800);
-		border-top-right-radius: 0.3rem;
-		border-bottom-right-radius: 0.3rem;
-		border-top: 0.1rem solid var(--gray-700);
-		border-right: 0.1rem solid var(--gray-700);
-		border-bottom: 0.1rem solid var(--gray-700); */
-	}
-
-	.passage-wrapper:global(.active) .passage-controls,
-	.passage-segment:global(.active) .passage-controls {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		padding-left: 0.5rem;
-		gap: 0.3rem;
 	}
 
 	.heading-two {
@@ -678,7 +735,7 @@
 		border-left: 0.1rem solid;
 	}
 
-	.passage-text {
+	.text {
 		position: inherit;
 		z-index: inherit;
 		font-size: 1.4rem;
@@ -694,8 +751,8 @@
 		border-bottom: 0.1rem solid;
 	}
 
-	.passage-segment:last-child,
-	.passage-segment:last-child .passage-text {
+	.segment:last-child,
+	.segment:last-child .text {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
@@ -709,32 +766,32 @@
 		display: none;
 	}
 
-	.hide-verses .passage-text {
+	.hide-verses .text {
 		white-space: normal;
 	}
 
 	/* Enable text selection when Cmd/Ctrl is held */
-	.text-selection-enabled .passage-text {
+	.text-selection-enabled .text {
 		-webkit-user-select: text;
 		user-select: text;
 		cursor: text;
 	}
 
-	.text-selection-enabled .passage-text :global(.selectable-word) {
+	.text-selection-enabled .text :global(.selectable-word) {
 		cursor: text;
 	}
 
 	/* Disable word selection hover effects when in text selection mode */
-	.text-selection-enabled .passage-text :global(.selectable-word:hover) {
+	.text-selection-enabled .text :global(.selectable-word:hover) {
 		background-color: transparent !important;
 	}
 
-	.text-selection-enabled .passage-text :global(.selectable-word:hover::before) {
+	.text-selection-enabled .text :global(.selectable-word:hover::before) {
 		content: none !important;
 	}
 
 	/* Word selection styles */
-	.passage-text :global(.selectable-word) {
+	.text :global(.selectable-word) {
 		position: relative;
 		cursor: pointer;
 		padding: 0.2rem 0.1rem;
@@ -748,12 +805,12 @@
 	}
 
 	/* Hover state - subtle highlight (only when not selected) */
-	.passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: rgba(255, 255, 255, 0.1);
 	}
 
 	/* Hover state - show caret above word (only when not selected and not suppressed) */
-	.passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
 		left: -0.8rem;
@@ -764,12 +821,12 @@
 	}
 
 	/* Selected state - persistent highlight */
-	.passage-text :global(.selectable-word[data-selected="true"]) {
+	.text :global(.selectable-word[data-selected="true"]) {
 		background-color: rgba(255, 255, 255, 0.15);
 	}
 
 	/* Selected state - persistent caret (before position) */
-	.passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
 		left: -0.8rem;
@@ -780,7 +837,7 @@
 	}
 
 	/* Selected state - persistent caret (after position) */
-	.passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
 		right: -0.8rem;
@@ -824,141 +881,141 @@
 		margin: 0;
 	}
 
-	/* Browser text selection colors - match passage-wrapper colors */
+	/* Browser text selection colors - match split colors */
 	/* Safari/WebKit - explicitly target word and space spans */
-	.passage-wrapper.blue .passage-text :global(.selectable-word)::-webkit-selection,
-	.passage-wrapper.blue .passage-text :global(.selectable-space)::-webkit-selection,
-	.passage-wrapper.blue .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-wrapper.blue .passage-text::-webkit-selection,
-	.passage-wrapper.blue .heading-two::-webkit-selection {
+	.split.blue .text :global(.selectable-word)::-webkit-selection,
+	.split.blue .text :global(.selectable-space)::-webkit-selection,
+	.split.blue .text :global(.chapter-verse)::-webkit-selection,
+	.split.blue .text::-webkit-selection,
+	.split.blue .heading-two::-webkit-selection {
 		background-color: var(--blue-light);
 		color: var(--gray-100);
 	}
 	/* Other browsers */
-	.passage-wrapper.blue .passage-text :global(.selectable-word)::selection,
-	.passage-wrapper.blue .passage-text :global(.selectable-space)::selection,
-	.passage-wrapper.blue .passage-text :global(.chapter-verse)::selection,
-	.passage-wrapper.blue .passage-text::selection,
-	.passage-wrapper.blue .heading-two::selection {
+	.split.blue .text :global(.selectable-word)::selection,
+	.split.blue .text :global(.selectable-space)::selection,
+	.split.blue .text :global(.chapter-verse)::selection,
+	.split.blue .text::selection,
+	.split.blue .heading-two::selection {
 		background-color: var(--blue-light);
 		color: var(--gray-100);
 	}
 
-	.passage-wrapper.red .passage-text :global(.selectable-word)::-webkit-selection,
-	.passage-wrapper.red .passage-text :global(.selectable-space)::-webkit-selection,
-	.passage-wrapper.red .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-wrapper.red .passage-text::-webkit-selection,
-	.passage-wrapper.red .heading-two::-webkit-selection {
+	.split.red .text :global(.selectable-word)::-webkit-selection,
+	.split.red .text :global(.selectable-space)::-webkit-selection,
+	.split.red .text :global(.chapter-verse)::-webkit-selection,
+	.split.red .text::-webkit-selection,
+	.split.red .heading-two::-webkit-selection {
 		background-color: var(--red-light);
 		color: var(--gray-100);
 	}
-	.passage-wrapper.red .passage-text :global(.selectable-word)::selection,
-	.passage-wrapper.red .passage-text :global(.selectable-space)::selection,
-	.passage-wrapper.red .passage-text :global(.chapter-verse)::selection,
-	.passage-wrapper.red .passage-text::selection,
-	.passage-wrapper.red .heading-two::selection {
+	.split.red .text :global(.selectable-word)::selection,
+	.split.red .text :global(.selectable-space)::selection,
+	.split.red .text :global(.chapter-verse)::selection,
+	.split.red .text::selection,
+	.split.red .heading-two::selection {
 		background-color: var(--red-light);
 		color: var(--gray-100);
 	}
 
-	.passage-wrapper.orange .passage-text :global(.selectable-word)::-webkit-selection,
-	.passage-wrapper.orange .passage-text :global(.selectable-space)::-webkit-selection,
-	.passage-wrapper.orange .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-wrapper.orange .passage-text::-webkit-selection,
-	.passage-wrapper.orange .heading-two::-webkit-selection {
+	.split.orange .text :global(.selectable-word)::-webkit-selection,
+	.split.orange .text :global(.selectable-space)::-webkit-selection,
+	.split.orange .text :global(.chapter-verse)::-webkit-selection,
+	.split.orange .text::-webkit-selection,
+	.split.orange .heading-two::-webkit-selection {
 		background-color: var(--orange-light);
 		color: var(--gray-100);
 	}
-	.passage-wrapper.orange .passage-text :global(.selectable-word)::selection,
-	.passage-wrapper.orange .passage-text :global(.selectable-space)::selection,
-	.passage-wrapper.orange .passage-text :global(.chapter-verse)::selection,
-	.passage-wrapper.orange .passage-text::selection,
-	.passage-wrapper.orange .heading-two::selection {
+	.split.orange .text :global(.selectable-word)::selection,
+	.split.orange .text :global(.selectable-space)::selection,
+	.split.orange .text :global(.chapter-verse)::selection,
+	.split.orange .text::selection,
+	.split.orange .heading-two::selection {
 		background-color: var(--orange-light);
 		color: var(--gray-100);
 	}
 
-	.passage-wrapper.yellow .passage-text :global(.selectable-word)::-webkit-selection,
-	.passage-wrapper.yellow .passage-text :global(.selectable-space)::-webkit-selection,
-	.passage-wrapper.yellow .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-wrapper.yellow .passage-text::-webkit-selection,
-	.passage-wrapper.yellow .heading-two::-webkit-selection {
+	.split.yellow .text :global(.selectable-word)::-webkit-selection,
+	.split.yellow .text :global(.selectable-space)::-webkit-selection,
+	.split.yellow .text :global(.chapter-verse)::-webkit-selection,
+	.split.yellow .text::-webkit-selection,
+	.split.yellow .heading-two::-webkit-selection {
 		background-color: var(--yellow-light);
 		color: var(--gray-100);
 	}
-	.passage-wrapper.yellow .passage-text :global(.selectable-word)::selection,
-	.passage-wrapper.yellow .passage-text :global(.selectable-space)::selection,
-	.passage-wrapper.yellow .passage-text :global(.chapter-verse)::selection,
-	.passage-wrapper.yellow .passage-text::selection,
-	.passage-wrapper.yellow .heading-two::selection {
+	.split.yellow .text :global(.selectable-word)::selection,
+	.split.yellow .text :global(.selectable-space)::selection,
+	.split.yellow .text :global(.chapter-verse)::selection,
+	.split.yellow .text::selection,
+	.split.yellow .heading-two::selection {
 		background-color: var(--yellow-light);
 		color: var(--gray-100);
 	}
 
-	.passage-wrapper.green .passage-text :global(.selectable-word)::-webkit-selection,
-	.passage-wrapper.green .passage-text :global(.selectable-space)::-webkit-selection,
-	.passage-wrapper.green .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-wrapper.green .passage-text::-webkit-selection,
-	.passage-wrapper.green .heading-two::-webkit-selection {
+	.split.green .text :global(.selectable-word)::-webkit-selection,
+	.split.green .text :global(.selectable-space)::-webkit-selection,
+	.split.green .text :global(.chapter-verse)::-webkit-selection,
+	.split.green .text::-webkit-selection,
+	.split.green .heading-two::-webkit-selection {
 		background-color: var(--green-light);
 		color: var(--gray-100);
 	}
-	.passage-wrapper.green .passage-text :global(.selectable-word)::selection,
-	.passage-wrapper.green .passage-text :global(.selectable-space)::selection,
-	.passage-wrapper.green .passage-text :global(.chapter-verse)::selection,
-	.passage-wrapper.green .passage-text::selection,
-	.passage-wrapper.green .heading-two::selection {
+	.split.green .text :global(.selectable-word)::selection,
+	.split.green .text :global(.selectable-space)::selection,
+	.split.green .text :global(.chapter-verse)::selection,
+	.split.green .text::selection,
+	.split.green .heading-two::selection {
 		background-color: var(--green-light);
 		color: var(--gray-100);
 	}
 
-	.passage-wrapper.aqua .passage-text :global(.selectable-word)::-webkit-selection,
-	.passage-wrapper.aqua .passage-text :global(.selectable-space)::-webkit-selection,
-	.passage-wrapper.aqua .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-wrapper.aqua .passage-text::-webkit-selection,
-	.passage-wrapper.aqua .heading-two::-webkit-selection {
+	.split.aqua .text :global(.selectable-word)::-webkit-selection,
+	.split.aqua .text :global(.selectable-space)::-webkit-selection,
+	.split.aqua .text :global(.chapter-verse)::-webkit-selection,
+	.split.aqua .text::-webkit-selection,
+	.split.aqua .heading-two::-webkit-selection {
 		background-color: var(--aqua-light);
 		color: var(--gray-100);
 	}
-	.passage-wrapper.aqua .passage-text :global(.selectable-word)::selection,
-	.passage-wrapper.aqua .passage-text :global(.selectable-space)::selection,
-	.passage-wrapper.aqua .passage-text :global(.chapter-verse)::selection,
-	.passage-wrapper.aqua .passage-text::selection,
-	.passage-wrapper.aqua .heading-two::selection {
+	.split.aqua .text :global(.selectable-word)::selection,
+	.split.aqua .text :global(.selectable-space)::selection,
+	.split.aqua .text :global(.chapter-verse)::selection,
+	.split.aqua .text::selection,
+	.split.aqua .heading-two::selection {
 		background-color: var(--aqua-light);
 		color: var(--gray-100);
 	}
 
-	.passage-wrapper.purple .passage-text :global(.selectable-word)::-webkit-selection,
-	.passage-wrapper.purple .passage-text :global(.selectable-space)::-webkit-selection,
-	.passage-wrapper.purple .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-wrapper.purple .passage-text::-webkit-selection,
-	.passage-wrapper.purple .heading-two::-webkit-selection {
+	.split.purple .text :global(.selectable-word)::-webkit-selection,
+	.split.purple .text :global(.selectable-space)::-webkit-selection,
+	.split.purple .text :global(.chapter-verse)::-webkit-selection,
+	.split.purple .text::-webkit-selection,
+	.split.purple .heading-two::-webkit-selection {
 		background-color: var(--purple-light);
 		color: var(--gray-100);
 	}
-	.passage-wrapper.purple .passage-text :global(.selectable-word)::selection,
-	.passage-wrapper.purple .passage-text :global(.selectable-space)::selection,
-	.passage-wrapper.purple .passage-text :global(.chapter-verse)::selection,
-	.passage-wrapper.purple .passage-text::selection,
-	.passage-wrapper.purple .heading-two::selection {
+	.split.purple .text :global(.selectable-word)::selection,
+	.split.purple .text :global(.selectable-space)::selection,
+	.split.purple .text :global(.chapter-verse)::selection,
+	.split.purple .text::selection,
+	.split.purple .heading-two::selection {
 		background-color: var(--purple-light);
 		color: var(--gray-100);
 	}
 
-	.passage-wrapper.pink .passage-text :global(.selectable-word)::-webkit-selection,
-	.passage-wrapper.pink .passage-text :global(.selectable-space)::-webkit-selection,
-	.passage-wrapper.pink .passage-text :global(.chapter-verse)::-webkit-selection,
-	.passage-wrapper.pink .passage-text::-webkit-selection,
-	.passage-wrapper.pink .heading-two::-webkit-selection {
+	.split.pink .text :global(.selectable-word)::-webkit-selection,
+	.split.pink .text :global(.selectable-space)::-webkit-selection,
+	.split.pink .text :global(.chapter-verse)::-webkit-selection,
+	.split.pink .text::-webkit-selection,
+	.split.pink .heading-two::-webkit-selection {
 		background-color: var(--pink-light);
 		color: var(--gray-100);
 	}
-	.passage-wrapper.pink .passage-text :global(.selectable-word)::selection,
-	.passage-wrapper.pink .passage-text :global(.selectable-space)::selection,
-	.passage-wrapper.pink .passage-text :global(.chapter-verse)::selection,
-	.passage-wrapper.pink .passage-text::selection,
-	.passage-wrapper.pink .heading-two::selection {
+	.split.pink .text :global(.selectable-word)::selection,
+	.split.pink .text :global(.selectable-space)::selection,
+	.split.pink .text :global(.chapter-verse)::selection,
+	.split.pink .text::selection,
+	.split.pink .heading-two::selection {
 		background-color: var(--pink-light);
 		color: var(--gray-100);
 	}
@@ -966,339 +1023,339 @@
 	/* ============================================================ */
 	/* Color variants */
 	/* ============================================================ */
-	.passage-wrapper.red:global(.active),
-	.passage-wrapper.red .passage-segment:global(.active) {
+	.split.red:global(.active),
+	.split.red .segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--red-dark);
 	}
 
-	.passage-wrapper.red .heading-one {
+	.split.red .heading-one {
 		background-color: var(--red-darker);
 		border-color: var(--red-darker);
 	}
 
-	.passage-wrapper.red .heading-two {
+	.split.red .heading-two {
 		background-color: var(--red-lighter);
 		color: var(--red-darker);
 	}
 
-	.passage-wrapper.red .heading-two,
-	.passage-wrapper.red .heading-three,
-	.passage-wrapper.red .passage-text {
+	.split.red .heading-two,
+	.split.red .heading-three,
+	.split.red .text {
 		border-color: var(--red-dark);
 	}
 
 	/* Word selection color overrides */
-	.passage-wrapper.red .passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.split.red .text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: var(--red-light);
 	}
 
-	.passage-wrapper.red .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.red .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.red .passage-text :global(.selectable-word[data-selected="true"]) {
+	.split.red .text :global(.selectable-word[data-selected="true"]) {
 		background-color: var(--red-light);
 	}
 
-	.passage-wrapper.red .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.red .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.red .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.red .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.orange:global(.active),
-	.passage-wrapper.orange .passage-segment:global(.active) {
+	.split.orange:global(.active),
+	.split.orange .segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--orange-dark);
 	}
 	
-	.passage-wrapper.orange .heading-one {
+	.split.orange .heading-one {
 		background-color: var(--orange-darker);
 		border-color: var(--orange-darker);
 	}
 
-	.passage-wrapper.orange .heading-two {
+	.split.orange .heading-two {
 		background-color: var(--orange-lighter);
 		color: var(--orange-darker);
 	}
 
-	.passage-wrapper.orange .heading-two,
-	.passage-wrapper.orange .heading-three,
-	.passage-wrapper.orange .passage-text {
+	.split.orange .heading-two,
+	.split.orange .heading-three,
+	.split.orange .text {
 		border-color: var(--orange-dark);
 	}
 
 	/* Word selection color overrides */
-	.passage-wrapper.orange .passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.split.orange .text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: var(--orange-light);
 	}
 
-	.passage-wrapper.orange .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.orange .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.orange .passage-text :global(.selectable-word[data-selected="true"]) {
+	.split.orange .text :global(.selectable-word[data-selected="true"]) {
 		background-color: var(--orange-light);
 	}
 
-	.passage-wrapper.orange .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.orange .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.orange .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.orange .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.yellow:global(.active),
-	.passage-wrapper.yellow .passage-segment:global(.active) {
+	.split.yellow:global(.active),
+	.split.yellow .segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--yellow-dark);
 	}
 	
-	.passage-wrapper.yellow .heading-one {
+	.split.yellow .heading-one {
 		background-color: var(--yellow-darker);
 		border-color: var(--yellow-darker);
 	}
 
-	.passage-wrapper.yellow .heading-two {
+	.split.yellow .heading-two {
 		background-color: var(--yellow-lighter);
 		color: var(--yellow-darker);
 	}
 
-	.passage-wrapper.yellow .heading-two,
-	.passage-wrapper.yellow .heading-three,
-	.passage-wrapper.yellow .passage-text {
+	.split.yellow .heading-two,
+	.split.yellow .heading-three,
+	.split.yellow .text {
 		border-color: var(--yellow-dark);
 	}
 
 	/* Word selection color overrides */
-	.passage-wrapper.yellow .passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.split.yellow .text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: var(--yellow-light);
 	}
 
-	.passage-wrapper.yellow .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.yellow .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.yellow .passage-text :global(.selectable-word[data-selected="true"]) {
+	.split.yellow .text :global(.selectable-word[data-selected="true"]) {
 		background-color: var(--yellow-light);
 	}
 
-	.passage-wrapper.yellow .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.yellow .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.yellow .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.yellow .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.green:global(.active),
-	.passage-wrapper.green .passage-segment:global(.active) {
+	.split.green:global(.active),
+	.split.green .segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--green-dark);
 	}
 	
-	.passage-wrapper.green .heading-one {
+	.split.green .heading-one {
 		background-color: var(--green-darker);
 		border-color: var(--green-darker);
 	}
 
-	.passage-wrapper.green .heading-two {
+	.split.green .heading-two {
 		background-color: var(--green-lighter);
 		color: var(--green-darker);
 	}
 
-	.passage-wrapper.green .heading-two,
-	.passage-wrapper.green .heading-three,
-	.passage-wrapper.green .passage-text {
+	.split.green .heading-two,
+	.split.green .heading-three,
+	.split.green .text {
 		border-color: var(--green-dark);
 	}
 
 	/* Word selection color overrides */
-	.passage-wrapper.green .passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.split.green .text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: var(--green-light);
 	}
 
-	.passage-wrapper.green .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.green .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.green .passage-text :global(.selectable-word[data-selected="true"]) {
+	.split.green .text :global(.selectable-word[data-selected="true"]) {
 		background-color: var(--green-light);
 	}
 
-	.passage-wrapper.green .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.green .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.green .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.green .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.aqua:global(.active),
-	.passage-wrapper.aqua .passage-segment:global(.active) {
+	.split.aqua:global(.active),
+	.split.aqua .segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--aqua-dark);
 	}
 	
-	.passage-wrapper.aqua .heading-one {
+	.split.aqua .heading-one {
 		background-color: var(--aqua-darker);
 		border-color: var(--aqua-darker);
 	}
 
-	.passage-wrapper.aqua .heading-two {
+	.split.aqua .heading-two {
 		background-color: var(--aqua-lighter);
 		color: var(--aqua-darker);
 	}
 
-	.passage-wrapper.aqua .heading-two,
-	.passage-wrapper.aqua .heading-three,
-	.passage-wrapper.aqua .passage-text {
+	.split.aqua .heading-two,
+	.split.aqua .heading-three,
+	.split.aqua .text {
 		border-color: var(--aqua-dark);
 	}
 
 	/* Word selection color overrides */
-	.passage-wrapper.aqua .passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.split.aqua .text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: var(--aqua-light);
 	}
 
-	.passage-wrapper.aqua .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.aqua .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.aqua .passage-text :global(.selectable-word[data-selected="true"]) {
+	.split.aqua .text :global(.selectable-word[data-selected="true"]) {
 		background-color: var(--aqua-light);
 	}
 
-	.passage-wrapper.aqua .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.aqua .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.aqua .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.aqua .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.blue:global(.active),
-	.passage-wrapper.blue .passage-segment:global(.active) {
+	.split.blue:global(.active),
+	.split.blue .segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--blue-dark);
 	}
 	
-	.passage-wrapper.blue .heading-one {
+	.split.blue .heading-one {
 		background-color: var(--blue-darker);
 		border-color: var(--blue-darker);
 	}
 
-	.passage-wrapper.blue .heading-two {
+	.split.blue .heading-two {
 		background-color: var(--blue-lighter);
 		color: var(--blue-darker);
 	}
 
-	.passage-wrapper.blue .heading-two,
-	.passage-wrapper.blue .heading-three,
-	.passage-wrapper.blue .passage-text {
+	.split.blue .heading-two,
+	.split.blue .heading-three,
+	.split.blue .text {
 		border-color: var(--blue-dark);
 	}
 
 	/* Word selection color overrides */
-	.passage-wrapper.blue .passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.split.blue .text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: var(--blue-light);
 	}
 
-	.passage-wrapper.blue .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.blue .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.blue .passage-text :global(.selectable-word[data-selected="true"]) {
+	.split.blue .text :global(.selectable-word[data-selected="true"]) {
 		background-color: var(--blue-light);
 	}
 
-	.passage-wrapper.blue .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.blue .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.blue .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.blue .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.purple:global(.active),
-	.passage-wrapper.purple .passage-segment:global(.active) {
+	.split.purple:global(.active),
+	.split.purple .segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--purple-dark);
 	}
 	
-	.passage-wrapper.purple .heading-one {
+	.split.purple .heading-one {
 		background-color: var(--purple-darker);
 		border-color: var(--purple-darker);
 	}
 
-	.passage-wrapper.purple .heading-two {
+	.split.purple .heading-two {
 		background-color: var(--purple-lighter);
 		color: var(--purple-darker);
 	}
 
-	.passage-wrapper.purple .heading-two,
-	.passage-wrapper.purple .heading-three,
-	.passage-wrapper.purple .passage-text {
+	.split.purple .heading-two,
+	.split.purple .heading-three,
+	.split.purple .text {
 		border-color: var(--purple-dark);
 	}
 
 	/* Word selection color overrides */
-	.passage-wrapper.purple .passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.split.purple .text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: var(--purple-light);
 	}
 
-	.passage-wrapper.purple .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.purple .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.purple .passage-text :global(.selectable-word[data-selected="true"]) {
+	.split.purple .text :global(.selectable-word[data-selected="true"]) {
 		background-color: var(--purple-light);
 	}
 
-	.passage-wrapper.purple .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.purple .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.purple .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.purple .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.pink:global(.active),
-	.passage-wrapper.pink .passage-segment:global(.active) {
+	.split.pink:global(.active),
+	.split.pink .segment:global(.active) {
 		box-shadow: 0rem 0rem 0.5rem var(--pink-dark);
 	}
 	
-	.passage-wrapper.pink .heading-one {
+	.split.pink .heading-one {
 		background-color: var(--pink-darker);
 		border-color: var(--pink-darker);
 	}
 
-	.passage-wrapper.pink .heading-two {
+	.split.pink .heading-two {
 		background-color: var(--pink-lighter);
 		color: var(--pink-darker);
 	}
 
-	.passage-wrapper.pink .heading-two,
-	.passage-wrapper.pink .heading-three,
-	.passage-wrapper.pink .passage-text {
+	.split.pink .heading-two,
+	.split.pink .heading-three,
+	.split.pink .text {
 		border-color: var(--pink-dark);
 	}
 
 	/* Word selection color overrides */
-	.passage-wrapper.pink .passage-text :global(.selectable-word:hover:not([data-selected])) {
+	.split.pink .text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: var(--pink-light);
 	}
 
-	.passage-wrapper.pink .passage-text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.pink .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.pink .passage-text :global(.selectable-word[data-selected="true"]) {
+	.split.pink .text :global(.selectable-word[data-selected="true"]) {
 		background-color: var(--pink-light);
 	}
 
-	.passage-wrapper.pink .passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.pink .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.passage-wrapper.pink .passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.pink .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 </style>

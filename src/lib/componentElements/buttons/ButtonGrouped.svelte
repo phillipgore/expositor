@@ -96,6 +96,7 @@
 	 * @property {string} [underLabelClasses=''] - CSS classes for button under-labels (e.g., 'light' for white text)
 	 * @property {boolean} [isList=false] - Display buttons vertically instead of horizontally
 	 * @property {boolean} [isDisabled=false] - Whether all buttons in the group are disabled
+	 * @property {boolean} [isSquare=false] - Whether buttons are square
 	 * @property {import('svelte').Snippet} [children] - Optional children for backward compatibility with old API
 	 */
 
@@ -108,6 +109,7 @@
 		underLabelClasses = '',
 		isList = false,
 		isDisabled = false,
+		isSquare = false,
 		children
 	} = $props();
 
@@ -146,6 +148,7 @@
 					groupedIsActive={handleButtonClick}
 					isActive={activeButtonId === button.id}
 					isDisabled={isDisabled}
+					isSquare={isSquare}
 				/>
 			{/each}
 		{/if}
@@ -167,6 +170,25 @@
 				flex-direction: column;
 			}
 
+			&.list :global(button.grouped) {
+				margin-top: 0rem;
+				margin-bottom: 0rem;
+				border-radius: 0rem;
+				border: none;
+			}
+
+			&.list :global(button.grouped:first-child),
+			&.list :global(.button-container:first-child button.grouped) {
+				border-radius: 0.3rem 0.3rem 0rem 0rem;
+			}
+
+			&.list :global(button.grouped:last-child),
+			&.list :global(.button-container:last-child button.grouped) {
+				border-radius: 0rem 0rem 0.3rem 0.3rem;
+				margin-top: 0rem;
+				margin-bottom: 0rem;
+			}
+
 			&:not(.list) :global(button.grouped) {
 				margin-right: 0rem;
 				margin-left: 0rem;
@@ -174,14 +196,14 @@
 				border-left: none;
 			}
 
-			&:not(.list) :global(.no-button-container button.grouped:first-child),
+			&:not(.list) :global(button.grouped:first-child),
 			&:not(.list) :global(.button-container:first-child button.grouped) {
 				border-radius: 0.3rem 0rem 0rem 0.3rem;
 				border-left: none;
 				margin-right: 0rem;
 			}
 
-			&:not(.list) :global(.no-button-container:not(.list) button.grouped:last-child),
+			&:not(.list) :global(button.grouped:last-child),
 			&:not(.list) :global(.button-container:last-child button.grouped) {
 				border-radius: 0rem 0.3rem 0.3rem 0rem;
 				border-left: none;
