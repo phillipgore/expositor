@@ -5,7 +5,6 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import PassageToolbar from '$lib/componentWidgets/PassageToolbar.svelte';
-	import Split from '$lib/componentWidgets/Split.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
