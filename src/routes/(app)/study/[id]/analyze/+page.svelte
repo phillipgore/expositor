@@ -961,142 +961,21 @@
 		margin: 0;
 	}
 
-	/* Browser text selection colors - match split colors */
-	/* Safari/WebKit - explicitly target word and space spans */
-	.split.blue .text :global(.selectable-word)::-webkit-selection,
-	.split.blue .text :global(.selectable-space)::-webkit-selection,
-	.split.blue .text :global(.chapter-verse)::-webkit-selection,
-	.split.blue .text::-webkit-selection,
-	.split.blue .heading-two::-webkit-selection {
-		background-color: var(--blue-light);
+	/* Browser text selection - gray background to differentiate from custom word selection */
+	.text :global(.selectable-word)::-webkit-selection,
+	.text :global(.selectable-space)::-webkit-selection,
+	.text :global(.chapter-verse)::-webkit-selection,
+	.text::-webkit-selection,
+	.heading-two::-webkit-selection {
+		background-color: rgba(128, 128, 128, 0.3);
 		color: var(--gray-100);
 	}
-	/* Other browsers */
-	.split.blue .text :global(.selectable-word)::selection,
-	.split.blue .text :global(.selectable-space)::selection,
-	.split.blue .text :global(.chapter-verse)::selection,
-	.split.blue .text::selection,
-	.split.blue .heading-two::selection {
-		background-color: var(--blue-light);
-		color: var(--gray-100);
-	}
-
-	.split.red .text :global(.selectable-word)::-webkit-selection,
-	.split.red .text :global(.selectable-space)::-webkit-selection,
-	.split.red .text :global(.chapter-verse)::-webkit-selection,
-	.split.red .text::-webkit-selection,
-	.split.red .heading-two::-webkit-selection {
-		background-color: var(--red-light);
-		color: var(--gray-100);
-	}
-	.split.red .text :global(.selectable-word)::selection,
-	.split.red .text :global(.selectable-space)::selection,
-	.split.red .text :global(.chapter-verse)::selection,
-	.split.red .text::selection,
-	.split.red .heading-two::selection {
-		background-color: var(--red-light);
-		color: var(--gray-100);
-	}
-
-	.split.orange .text :global(.selectable-word)::-webkit-selection,
-	.split.orange .text :global(.selectable-space)::-webkit-selection,
-	.split.orange .text :global(.chapter-verse)::-webkit-selection,
-	.split.orange .text::-webkit-selection,
-	.split.orange .heading-two::-webkit-selection {
-		background-color: var(--orange-light);
-		color: var(--gray-100);
-	}
-	.split.orange .text :global(.selectable-word)::selection,
-	.split.orange .text :global(.selectable-space)::selection,
-	.split.orange .text :global(.chapter-verse)::selection,
-	.split.orange .text::selection,
-	.split.orange .heading-two::selection {
-		background-color: var(--orange-light);
-		color: var(--gray-100);
-	}
-
-	.split.yellow .text :global(.selectable-word)::-webkit-selection,
-	.split.yellow .text :global(.selectable-space)::-webkit-selection,
-	.split.yellow .text :global(.chapter-verse)::-webkit-selection,
-	.split.yellow .text::-webkit-selection,
-	.split.yellow .heading-two::-webkit-selection {
-		background-color: var(--yellow-light);
-		color: var(--gray-100);
-	}
-	.split.yellow .text :global(.selectable-word)::selection,
-	.split.yellow .text :global(.selectable-space)::selection,
-	.split.yellow .text :global(.chapter-verse)::selection,
-	.split.yellow .text::selection,
-	.split.yellow .heading-two::selection {
-		background-color: var(--yellow-light);
-		color: var(--gray-100);
-	}
-
-	.split.green .text :global(.selectable-word)::-webkit-selection,
-	.split.green .text :global(.selectable-space)::-webkit-selection,
-	.split.green .text :global(.chapter-verse)::-webkit-selection,
-	.split.green .text::-webkit-selection,
-	.split.green .heading-two::-webkit-selection {
-		background-color: var(--green-light);
-		color: var(--gray-100);
-	}
-	.split.green .text :global(.selectable-word)::selection,
-	.split.green .text :global(.selectable-space)::selection,
-	.split.green .text :global(.chapter-verse)::selection,
-	.split.green .text::selection,
-	.split.green .heading-two::selection {
-		background-color: var(--green-light);
-		color: var(--gray-100);
-	}
-
-	.split.aqua .text :global(.selectable-word)::-webkit-selection,
-	.split.aqua .text :global(.selectable-space)::-webkit-selection,
-	.split.aqua .text :global(.chapter-verse)::-webkit-selection,
-	.split.aqua .text::-webkit-selection,
-	.split.aqua .heading-two::-webkit-selection {
-		background-color: var(--aqua-light);
-		color: var(--gray-100);
-	}
-	.split.aqua .text :global(.selectable-word)::selection,
-	.split.aqua .text :global(.selectable-space)::selection,
-	.split.aqua .text :global(.chapter-verse)::selection,
-	.split.aqua .text::selection,
-	.split.aqua .heading-two::selection {
-		background-color: var(--aqua-light);
-		color: var(--gray-100);
-	}
-
-	.split.purple .text :global(.selectable-word)::-webkit-selection,
-	.split.purple .text :global(.selectable-space)::-webkit-selection,
-	.split.purple .text :global(.chapter-verse)::-webkit-selection,
-	.split.purple .text::-webkit-selection,
-	.split.purple .heading-two::-webkit-selection {
-		background-color: var(--purple-light);
-		color: var(--gray-100);
-	}
-	.split.purple .text :global(.selectable-word)::selection,
-	.split.purple .text :global(.selectable-space)::selection,
-	.split.purple .text :global(.chapter-verse)::selection,
-	.split.purple .text::selection,
-	.split.purple .heading-two::selection {
-		background-color: var(--purple-light);
-		color: var(--gray-100);
-	}
-
-	.split.pink .text :global(.selectable-word)::-webkit-selection,
-	.split.pink .text :global(.selectable-space)::-webkit-selection,
-	.split.pink .text :global(.chapter-verse)::-webkit-selection,
-	.split.pink .text::-webkit-selection,
-	.split.pink .heading-two::-webkit-selection {
-		background-color: var(--pink-light);
-		color: var(--gray-100);
-	}
-	.split.pink .text :global(.selectable-word)::selection,
-	.split.pink .text :global(.selectable-space)::selection,
-	.split.pink .text :global(.chapter-verse)::selection,
-	.split.pink .text::selection,
-	.split.pink .heading-two::selection {
-		background-color: var(--pink-light);
+	.text :global(.selectable-word)::selection,
+	.text :global(.selectable-space)::selection,
+	.text :global(.chapter-verse)::selection,
+	.text::selection,
+	.heading-two::selection {
+		background-color: rgba(128, 128, 128, 0.3);
 		color: var(--gray-100);
 	}
 
