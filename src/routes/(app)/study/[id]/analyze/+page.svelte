@@ -58,17 +58,14 @@
 				const text = node.textContent;
 				if (!text.trim()) return; // Skip empty text nodes
 				
-				// Split by spaces and wrap each word
+				// Split by spaces and wrap only words (not whitespace)
 				const words = text.split(/(\s+)/);
 				const fragment = document.createDocumentFragment();
 				
 				words.forEach(word => {
 					if (word.match(/\s+/)) {
-						// Wrap whitespace in span for consistent selection colors
-						const spaceSpan = document.createElement('span');
-						spaceSpan.className = 'selectable-space';
-						spaceSpan.textContent = word;
-						fragment.appendChild(spaceSpan);
+						// Keep whitespace as plain text (no wrapping)
+						fragment.appendChild(document.createTextNode(word));
 					} else if (word.trim()) {
 						// Wrap word in span
 						const span = document.createElement('span');
@@ -878,12 +875,6 @@
 		border-radius: 0.2rem;
 	}
 
-	/* Whitespace selection styles - ensure whitespace is selectable in both modes */
-	:global(.selectable-space) {
-		-webkit-user-select: text !important;
-		user-select: text !important;
-	}
-
 	/* Hover state - subtle highlight (only when not selected) */
 	.text :global(.selectable-word:hover:not([data-selected])) {
 		background-color: rgba(255, 255, 255, 0.1);
@@ -959,24 +950,6 @@
 		line-height: 1.6;
 		text-align: center;
 		margin: 0;
-	}
-
-	/* Browser text selection - gray background to differentiate from custom word selection */
-	.text :global(.selectable-word)::-webkit-selection,
-	.text :global(.selectable-space)::-webkit-selection,
-	.text :global(.chapter-verse)::-webkit-selection,
-	.text::-webkit-selection,
-	.heading-two::-webkit-selection {
-		background-color: rgba(128, 128, 128, 0.3);
-		color: var(--gray-100);
-	}
-	.text :global(.selectable-word)::selection,
-	.text :global(.selectable-space)::selection,
-	.text :global(.chapter-verse)::selection,
-	.text::selection,
-	.heading-two::selection {
-		background-color: rgba(128, 128, 128, 0.3);
-		color: var(--gray-100);
 	}
 
 	/* ============================================================ */
