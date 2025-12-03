@@ -7,6 +7,13 @@
 		toolbarMode = $bindable('outline'),
 		isActive = false 
 	} = $props();
+
+	// Reset toolbar mode to 'outline' when component becomes inactive
+	$effect(() => {
+		if (!isActive) {
+			toolbarMode = 'outline';
+		}
+	});
 </script>
 
 {#if isActive}

@@ -30,6 +30,13 @@
 	// Toolbar mode state
 	let toolbarMode = $state('outline'); // 'outline', 'literary', or 'color'
 
+	// Reset toolbar mode to 'outline' when no segment is active
+	$effect(() => {
+		if (!activeSegment) {
+			toolbarMode = 'outline';
+		}
+	});
+
 	// Invalidate studies list when study is accessed
 	onMount(() => {
 		if (data.invalidateStudies) {
@@ -559,11 +566,12 @@
 												<div class="controls">
 													<ButtonGrouped
 														buttons={[
-															{ id: 'outline', iconId: 'outline-section', label: '' },
-															{ id: 'literary', iconId: 'literary-chiasim', label: '' },
-															{ id: 'color', iconId: 'paintbrush', label: '' }
+															{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Outline Buttons' },
+															{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Buttons' },
+															{ id: 'color', iconId: 'paintbrush', label: '', title: 'View Color Buttons' }
 														]}
 														defaultActive='outline'
+														activeButton={toolbarMode}
 														onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
 														buttonClasses='passage-toolbar'
 														isSquare
@@ -573,46 +581,46 @@
 													{#if toolbarMode === 'outline'}
 													<div class="button-container outline">
 														<div class="button-group">
-															<IconButton iconId="split" classes="passage-toolbar" isSquare></IconButton>
-															<IconButton iconId="join" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="split" classes="passage-toolbar" title="Split Text" isSquare></IconButton>
+															<IconButton iconId="join" classes="passage-toolbar" title="Join Text" isSquare></IconButton>
 														</div>
 														<div class="button-group">
-															<IconButton iconId="heading-one" classes="passage-toolbar" isSquare></IconButton>
-															<IconButton iconId="heading-two" classes="passage-toolbar" isSquare></IconButton>
-															<IconButton iconId="heading-three" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="heading-one" classes="passage-toolbar" title="Insert Heding One" isSquare></IconButton>
+															<IconButton iconId="heading-two" classes="passage-toolbar" title="Insert Heding Two" isSquare></IconButton>
+															<IconButton iconId="heading-three" classes="passage-toolbar" title="Insert Heding Three" isSquare></IconButton>
 														</div>
 														<div class="button-group">
-															<IconButton iconId="arrow-up" classes="passage-toolbar" isSquare></IconButton>
-															<IconButton iconId="arrow-down" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="arrow-up" classes="passage-toolbar" title="Move Text Up" isSquare></IconButton>
+															<IconButton iconId="arrow-down" classes="passage-toolbar" title="Move Text Down" isSquare></IconButton>
 														</div>
 														<div class="button-group">
-															<IconButton iconId="outline-disconnect" classes="passage-toolbar" isSquare></IconButton>
-															<IconButton iconId="outline-connect" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="outline-disconnect" classes="passage-toolbar" title="Disconnect Segment" isSquare></IconButton>
+															<IconButton iconId="outline-connect" classes="passage-toolbar" title="Connect Segment" isSquare></IconButton>
 														</div>
 														<div class="button-group">
-															<IconButton iconId="column-insert" classes="passage-toolbar" isSquare></IconButton>
-															<IconButton iconId="column-remove" classes="passage-toolbar" isSquare></IconButton>
+															<IconButton iconId="column-insert" classes="passage-toolbar" title="Insert Column" isSquare></IconButton>
+															<IconButton iconId="column-remove" classes="passage-toolbar" title="Insert Column" isSquare></IconButton>
 														</div>
 													</div>
 													{/if}
 													{#if toolbarMode === 'literary'}
 													<div class="button-container literary">
-														<IconButton iconId="literary-chiasim" classes="passage-toolbar" isSquare></IconButton>
-														<IconButton iconId="literary-paralell" classes="passage-toolbar" isSquare></IconButton>
-														<IconButton iconId="literary-repeat" classes="passage-toolbar" isSquare></IconButton>
-														<IconButton iconId="literary-intensify" classes="passage-toolbar" isSquare></IconButton>
+														<IconButton iconId="literary-chiasim" classes="passage-toolbar" title="Chiasim" isSquare></IconButton>
+														<IconButton iconId="literary-paralell" classes="passage-toolbar" title="Paralell" isSquare></IconButton>
+														<IconButton iconId="literary-repeat" classes="passage-toolbar" title="Repitition" isSquare></IconButton>
+														<IconButton iconId="literary-intensify" classes="passage-toolbar" title="Intensification" isSquare></IconButton>
 													</div>
 													{/if}
 													{#if toolbarMode === 'color'}
 													<div class="button-container color">
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-yellow" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-green" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-aqua" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-blue" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" isSquare></IconButton>
-														<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" title="Red" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" title="Orange" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-yellow" title="Yellow" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-green" title="Green" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-aqua" title="Aqua" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-blue" title="Blue" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" title="Purple" isSquare></IconButton>
+														<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" title="Pink" isSquare></IconButton>
 													</div>
 													{/if}
 												</div>

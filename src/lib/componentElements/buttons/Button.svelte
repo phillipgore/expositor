@@ -81,6 +81,7 @@
 	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API). Only used for buttons
 	 * @property {string} [style] - Inline CSS styles for the element
 	 * @property {string} [role] - ARIA role attribute (e.g., 'menuitem' for menu items)
+	 * @property {string} [title] - Tooltip text displayed on hover
 	 * @property {HTMLButtonElement | HTMLAnchorElement} [buttonElement] - Bindable reference to the button/link element
 	 * @property {import('svelte').Snippet} [children] - Snippet for custom content. Takes precedence over label
 	 */
@@ -109,6 +110,7 @@
 		popovertarget,
 		style,
 		role,
+		title,
 		children,
 		buttonElement = $bindable()
 	} = $props();
@@ -243,6 +245,7 @@
 		{id}
 		{style}
 		{role}
+		{title}
 		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isSquare ? 'square' : ''} {isLarge ? 'large' : ''} {isFullWidth
 			? 'full-width'
 			: ''} {hasNoFocusClass ? 'no-focus' : ''}"
@@ -277,6 +280,7 @@
 		{type}
 		{style}
 		{role}
+		{title}
 		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isSquare ? 'square' : ''} {isLarge ? 'large' : ''} {isFullWidth
 			? 'full-width'
 			: ''} {hasNoFocusClass ? 'no-focus' : ''}"

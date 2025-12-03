@@ -85,12 +85,14 @@
 	 * @property {string} id - Button identifier (used for selection tracking)
 	 * @property {string} iconId - Icon identifier from icons.json
 	 * @property {string} label - Button label text (displayed as under-label)
+	 * @property {string} [title] - Tooltip text displayed on hover
 	 */
 
 	/**
 	 * @typedef {Object} ButtonGroupedProps
 	 * @property {GroupedButton[]} buttons - Array of button configurations. Each button must have unique id
 	 * @property {string} [defaultActive] - ID of button that should be active initially. Defaults to first button
+	 * @property {string} [activeButton] - External control of active button. When provided, syncs internal state
 	 * @property {(buttonId: string) => void} [onActiveChange] - Callback when active button changes. Receives new active button's id
 	 * @property {string} [buttonClasses=''] - CSS classes to apply to each button (e.g., 'toolbar-dark', 'menu-light')
 	 * @property {string} [underLabelClasses=''] - CSS classes for button under-labels (e.g., 'light' for white text)
@@ -104,6 +106,7 @@
 	let {
 		buttons,
 		defaultActive,
+		activeButton,
 		onActiveChange,
 		buttonClasses = '',
 		underLabelClasses = '',
@@ -115,6 +118,13 @@
 
 	// Manage active state internally
 	let activeButtonId = $state(defaultActive || (buttons && buttons[0]?.id));
+
+	// Sync internal state with external activeButton prop when it changes
+	$effect(() => {
+		if (activeButton !== undefined) {
+			activeButtonId = activeButton;
+		}
+	});
 
 	/**
 	 * Handle button click
@@ -149,6 +159,7 @@
 					isActive={activeButtonId === button.id}
 					isDisabled={isDisabled}
 					isSquare={isSquare}
+					title={button.title}
 				/>
 			{/each}
 		{/if}

@@ -20,7 +20,8 @@
 		isDisabled = false,
 		isFullWidth = false,
 		isRound = false,
-		type = typeDefault
+		type = typeDefault,
+		title = undefined
 	} = $props();
 
 	// Generate unique anchor name for CSS anchor positioning
@@ -48,6 +49,7 @@
 			ariaHaspopup="true"
 			popovertarget={menuId}
 			style="anchor-name: {anchorName}"
+			{title}
 		>
 			{#if iconId}
 				<Icon {iconId} classes={iconClasses} />

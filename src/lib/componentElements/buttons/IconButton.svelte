@@ -92,6 +92,7 @@
 	 * @property {string} [popovertargetaction] - Popover action: 'toggle' | 'show' | 'hide'
 	 * @property {string} [role] - ARIA role attribute (e.g., 'menuitem' for menu items)
 	 * @property {string} [ariaLabel] - Accessible label for screen readers. Auto-derived from label or underLabel if not provided
+	 * @property {string} [title] - Tooltip text displayed on hover
 	 */
 
 	/** @type {IconButtonProps} */
@@ -121,7 +122,8 @@
 		popovertarget,
 		popovertargetaction,
 		role,
-		ariaLabel
+		ariaLabel,
+		title
 	} = $props();
 
 	// Derive icon classes based on whether label is present
@@ -191,6 +193,7 @@
 			{role}
 			{popovertarget}
 			ariaLabel={derivedAriaLabel}
+			{title}
 		>
 				{#if labelIsLeft && label}
 					<span class="label-left">{label}</span>
@@ -230,6 +233,7 @@
 		{role}
 		{popovertarget}
 		ariaLabel={derivedAriaLabel}
+		{title}
 	>
 		{#if labelIsLeft && label}
 			<span class="label-left">{label}</span>

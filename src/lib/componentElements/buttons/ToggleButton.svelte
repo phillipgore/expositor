@@ -78,6 +78,7 @@
 	 * @property {boolean} [isSquare=false] - Whether button is square
 	 * @property {boolean} [isActive=false] - Initial active state. Can be updated externally to control the toggle
 	 * @property {ButtonType} [type='button'] - HTML button type attribute
+	 * @property {string} [title] - Tooltip text displayed on hover
 	 */
 
 	/** @type {ToggleButtonProps} */
@@ -94,7 +95,8 @@
 		isRound,
 		isSquare,
 		isActive = false,
-		type
+		type,
+		title
 	} = $props();
 
 	// Track internal toggle state
@@ -140,6 +142,7 @@
 				{type}
 				isActive={internalActive}
 				ariaPressed={internalActive ? 'true' : 'false'}
+				{title}
 			>
 				{#if iconId}
 					<Icon {iconId} isActive={internalActive} classes={iconClasses} />
@@ -165,6 +168,7 @@
 		{type}
 		isActive={internalActive}
 		ariaPressed={internalActive ? 'true' : 'false'}
+		{title}
 	>
 		{#if iconId}
 			<Icon {iconId} isActive={internalActive} classes={iconClasses} />
