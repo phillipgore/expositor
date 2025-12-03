@@ -2,11 +2,19 @@
 	import ButtonGrouped from '$lib/componentElements/buttons/ButtonGrouped.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
+	import { crossfade } from 'svelte/transition';
+	import { quintOut } from 'svelte/easing';
 
 	let { 
 		toolbarMode = $bindable('outline'),
 		isActive = false 
 	} = $props();
+
+	// Create crossfade transitions
+	const [send, receive] = crossfade({
+		duration: 250,
+		easing: quintOut
+	});
 
 	// Reset toolbar mode to 'outline' when component becomes inactive
 	$effect(() => {
@@ -31,51 +39,51 @@
 			isList
 		/>
 		<DividerHorizontal />
-		{#if toolbarMode === 'outline'}
-		<div class="button-container outline">
-			<div class="button-group">
-				<IconButton iconId="split" classes="passage-toolbar" isSquare></IconButton>
-				<IconButton iconId="join" classes="passage-toolbar" isSquare></IconButton>
+		{#key toolbarMode}
+			{#if toolbarMode === 'outline'}
+			<div class="button-container outline" in:receive={{ key: 'toolbar' }} out:send={{ key: 'toolbar' }}>
+				<div class="button-group">
+					<IconButton iconId="split" classes="passage-toolbar" isSquare></IconButton>
+					<IconButton iconId="join" classes="passage-toolbar" isSquare></IconButton>
+				</div>
+				<div class="button-group">
+					<IconButton iconId="heading-one" classes="passage-toolbar" isSquare></IconButton>
+					<IconButton iconId="heading-two" classes="passage-toolbar" isSquare></IconButton>
+					<IconButton iconId="heading-three" classes="passage-toolbar" isSquare></IconButton>
+				</div>
+				<div class="button-group">
+					<IconButton iconId="arrow-up" classes="passage-toolbar" isSquare></IconButton>
+					<IconButton iconId="arrow-down" classes="passage-toolbar" isSquare></IconButton>
+				</div>
+				<div class="button-group">
+					<IconButton iconId="outline-disconnect" classes="passage-toolbar" isSquare></IconButton>
+					<IconButton iconId="outline-connect" classes="passage-toolbar" isSquare></IconButton>
+				</div>
+				<div class="button-group">
+					<IconButton iconId="column-insert" classes="passage-toolbar" isSquare></IconButton>
+					<IconButton iconId="column-remove" classes="passage-toolbar" isSquare></IconButton>
+				</div>
 			</div>
-			<div class="button-group">
-				<IconButton iconId="heading-one" classes="passage-toolbar" isSquare></IconButton>
-				<IconButton iconId="heading-two" classes="passage-toolbar" isSquare></IconButton>
-				<IconButton iconId="heading-three" classes="passage-toolbar" isSquare></IconButton>
+			{:else if toolbarMode === 'literary'}
+			<div class="button-container literary" in:receive={{ key: 'toolbar' }} out:send={{ key: 'toolbar' }}>
+				<IconButton iconId="literary-chiasim" classes="passage-toolbar" isSquare></IconButton>
+				<IconButton iconId="literary-paralell" classes="passage-toolbar" isSquare></IconButton>
+				<IconButton iconId="literary-repeat" classes="passage-toolbar" isSquare></IconButton>
+				<IconButton iconId="literary-intensify" classes="passage-toolbar" isSquare></IconButton>
 			</div>
-			<div class="button-group">
-				<IconButton iconId="arrow-up" classes="passage-toolbar" isSquare></IconButton>
-				<IconButton iconId="arrow-down" classes="passage-toolbar" isSquare></IconButton>
+			{:else if toolbarMode === 'color'}
+			<div class="button-container color" in:receive={{ key: 'toolbar' }} out:send={{ key: 'toolbar' }}>
+				<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" isSquare></IconButton>
+				<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" isSquare></IconButton>
+				<IconButton iconId="circle" classes="passage-toolbar icon-fill-yellow" isSquare></IconButton>
+				<IconButton iconId="circle" classes="passage-toolbar icon-fill-green" isSquare></IconButton>
+				<IconButton iconId="circle" classes="passage-toolbar icon-fill-aqua" isSquare></IconButton>
+				<IconButton iconId="circle" classes="passage-toolbar icon-fill-blue" isSquare></IconButton>
+				<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" isSquare></IconButton>
+				<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" isSquare></IconButton>
 			</div>
-			<div class="button-group">
-				<IconButton iconId="outline-disconnect" classes="passage-toolbar" isSquare></IconButton>
-				<IconButton iconId="outline-connect" classes="passage-toolbar" isSquare></IconButton>
-			</div>
-			<div class="button-group">
-				<IconButton iconId="column-insert" classes="passage-toolbar" isSquare></IconButton>
-				<IconButton iconId="column-remove" classes="passage-toolbar" isSquare></IconButton>
-			</div>
-		</div>
-		{/if}
-		{#if toolbarMode === 'literary'}
-		<div class="button-container literary">
-			<IconButton iconId="literary-chiasim" classes="passage-toolbar" isSquare></IconButton>
-			<IconButton iconId="literary-paralell" classes="passage-toolbar" isSquare></IconButton>
-			<IconButton iconId="literary-repeat" classes="passage-toolbar" isSquare></IconButton>
-			<IconButton iconId="literary-intensify" classes="passage-toolbar" isSquare></IconButton>
-		</div>
-		{/if}
-		{#if toolbarMode === 'color'}
-		<div class="button-container color">
-			<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" isSquare></IconButton>
-			<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" isSquare></IconButton>
-			<IconButton iconId="circle" classes="passage-toolbar icon-fill-yellow" isSquare></IconButton>
-			<IconButton iconId="circle" classes="passage-toolbar icon-fill-green" isSquare></IconButton>
-			<IconButton iconId="circle" classes="passage-toolbar icon-fill-aqua" isSquare></IconButton>
-			<IconButton iconId="circle" classes="passage-toolbar icon-fill-blue" isSquare></IconButton>
-			<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" isSquare></IconButton>
-			<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" isSquare></IconButton>
-		</div>
-		{/if}
+			{/if}
+		{/key}
 	</div>
 {/if}
 
