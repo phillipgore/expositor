@@ -25,7 +25,7 @@
 </script>
 
 {#if isActive}
-	<div class="controls" transition:fade={{ duration: 150 }}>
+	<div class="controls" transition:fade={{ duration: 150, easing: quintOut }}>
 		<ButtonGrouped
 			buttons={[
 				{ id: 'outline', iconId: 'outline-section', label: '' },
@@ -38,7 +38,7 @@
 			isSquare
 			isList
 		/>
-		<DividerHorizontal />
+		<DividerHorizontal width="2.8rem" spacingTop="1.2rem" spacingBottom="1.2rem"/>
 		{#key toolbarMode}
 			{#if toolbarMode === 'outline'}
 			<div class="button-container outline" in:receive={{ key: 'toolbar' }} out:send={{ key: 'toolbar' }}>
@@ -92,7 +92,6 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
-		padding-left: 0.6rem;
 		content: " ";
 		width: 3.4rem;
 		position: absolute;
@@ -111,7 +110,7 @@
 		flex-direction: column;
 		align-items: flex-end;
 		padding-left: 0.5rem;
-		gap: 0.9rem;
+		gap: 0.6rem;
 	}
 
 	.button-group {

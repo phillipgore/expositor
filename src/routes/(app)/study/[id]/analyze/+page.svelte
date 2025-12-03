@@ -4,9 +4,8 @@
 	import { fade } from 'svelte/transition';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
-	import ButtonGrouped from '$lib/componentElements/buttons/ButtonGrouped.svelte';
-	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
-	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
+	import PassageToolbar from '$lib/componentWidgets/PassageToolbar.svelte';
+	import Split from '$lib/componentWidgets/Split.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
@@ -215,49 +214,50 @@
 			return; // Let browser handle double/triple-click text selection
 		}
 		
+		// Capture event data before async timeout
+		const clickedSegment = event.target.closest('.segment');
+		const target = event.target;
+		
+		// Handle segment/split activation IMMEDIATELY (no delay)
+		// This makes the toolbar appear instantly without waiting for debounce
+		if (clickedSegment) {
+			// Find passage and segment indices
+			const passageElement = clickedSegment.closest('.passage');
+			if (passageElement) {
+				const allPassages = Array.from(document.querySelectorAll('.passage'));
+				const passageIndex = allPassages.indexOf(passageElement);
+				
+				const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+				const segmentIndex = allSegments.indexOf(clickedSegment);
+				
+				if (passageIndex !== -1 && segmentIndex !== -1) {
+					// In 'color' mode, activate the split instead of the segment
+					if (toolbarMode === 'color') {
+						// Find the split (parent of segment)
+						const splitElement = clickedSegment.closest('.split');
+						if (splitElement) {
+							// Store segment index but mark as split activation
+							activeSegment = { passageIndex, segmentIndex, activateSplit: true };
+						}
+					} else {
+						// In 'outline' and 'literary' modes, activate the segment
+						activeSegment = { passageIndex, segmentIndex, activateSplit: false };
+					}
+				}
+			}
+		} else {
+			// Clicked outside any segment - clear active state
+			activeSegment = null;
+		}
+		
 		// Clear any existing timeout to prevent duplicate processing
 		if (clickTimeout) {
 			clearTimeout(clickTimeout);
 			clickTimeout = null;
 		}
 		
-		// Delay single-click processing to allow double/triple-clicks to work
-		// Capture event data before async timeout
-		const clickedSegment = event.target.closest('.segment');
-		const target = event.target;
-		
+		// Delay word selection processing to allow double/triple-clicks to work
 		clickTimeout = setTimeout(() => {
-			// Handle segment/split activation based on toolbar mode
-			if (clickedSegment) {
-				// Find passage and segment indices
-				const passageElement = clickedSegment.closest('.passage');
-				if (passageElement) {
-					const allPassages = Array.from(document.querySelectorAll('.passage'));
-					const passageIndex = allPassages.indexOf(passageElement);
-					
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentIndex = allSegments.indexOf(clickedSegment);
-					
-					if (passageIndex !== -1 && segmentIndex !== -1) {
-						// In 'color' mode, activate the split instead of the segment
-						if (toolbarMode === 'color') {
-							// Find the split (parent of segment)
-							const splitElement = clickedSegment.closest('.split');
-							if (splitElement) {
-								// Store segment index but mark as split activation
-								activeSegment = { passageIndex, segmentIndex, activateSplit: true };
-							}
-						} else {
-							// In 'outline' and 'literary' modes, activate the segment
-							activeSegment = { passageIndex, segmentIndex, activateSplit: false };
-						}
-					}
-				}
-			} else {
-				// Clicked outside any segment - clear active state
-				activeSegment = null;
-			}
-			
 			// Handle word selection
 			if (target.classList.contains('selectable-word')) {
 				const passageIndex = parseInt(target.dataset.passageIndex);
@@ -571,71 +571,10 @@
 									<div class="column">
 										<div class="split green">
 											<div class="segment">
-												<div class="controls">
-													{#if activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === 0}
-														<div transition:fade={{ duration: 150 }} style="display: flex; flex-direction: column; align-items: flex-end;">
-															<ButtonGrouped
-																buttons={[
-																	{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Outline Buttons' },
-																	{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Buttons' },
-																	{ id: 'color', iconId: 'paintbrush', label: '', title: 'View Color Buttons' }
-																]}
-																defaultActive='outline'
-																activeButton={toolbarMode}
-																onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
-																buttonClasses='passage-toolbar'
-																isSquare
-																isList
-															/>
-															<DividerHorizontal />
-															{#if toolbarMode === 'outline'}
-															<div class="button-container outline">
-														<div class="button-group">
-															<IconButton iconId="split" classes="passage-toolbar" title="Split Text" isSquare></IconButton>
-															<IconButton iconId="join" classes="passage-toolbar" title="Join Text" isSquare></IconButton>
-														</div>
-														<div class="button-group">
-															<IconButton iconId="heading-one" classes="passage-toolbar" title="Insert Heding One" isSquare></IconButton>
-															<IconButton iconId="heading-two" classes="passage-toolbar" title="Insert Heding Two" isSquare></IconButton>
-															<IconButton iconId="heading-three" classes="passage-toolbar" title="Insert Heding Three" isSquare></IconButton>
-														</div>
-														<div class="button-group">
-															<IconButton iconId="arrow-up" classes="passage-toolbar" title="Move Text Up" isSquare></IconButton>
-															<IconButton iconId="arrow-down" classes="passage-toolbar" title="Move Text Down" isSquare></IconButton>
-														</div>
-														<div class="button-group">
-															<IconButton iconId="outline-disconnect" classes="passage-toolbar" title="Disconnect Segment" isSquare></IconButton>
-															<IconButton iconId="outline-connect" classes="passage-toolbar" title="Connect Segment" isSquare></IconButton>
-														</div>
-														<div class="button-group">
-															<IconButton iconId="column-insert" classes="passage-toolbar" title="Insert Column" isSquare></IconButton>
-															<IconButton iconId="column-remove" classes="passage-toolbar" title="Insert Column" isSquare></IconButton>
-														</div>
-													</div>
-													{/if}
-													{#if toolbarMode === 'literary'}
-													<div class="button-container literary">
-														<IconButton iconId="literary-chiasim" classes="passage-toolbar" title="Chiasim" isSquare></IconButton>
-														<IconButton iconId="literary-paralell" classes="passage-toolbar" title="Paralell" isSquare></IconButton>
-														<IconButton iconId="literary-repeat" classes="passage-toolbar" title="Repitition" isSquare></IconButton>
-														<IconButton iconId="literary-intensify" classes="passage-toolbar" title="Intensification" isSquare></IconButton>
-													</div>
-															{/if}
-															{#if toolbarMode === 'color'}
-															<div class="button-container color">
-																<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" title="Red" isSquare></IconButton>
-																<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" title="Orange" isSquare></IconButton>
-																<IconButton iconId="circle" classes="passage-toolbar icon-fill-yellow" title="Yellow" isSquare></IconButton>
-																<IconButton iconId="circle" classes="passage-toolbar icon-fill-green" title="Green" isSquare></IconButton>
-																<IconButton iconId="circle" classes="passage-toolbar icon-fill-aqua" title="Aqua" isSquare></IconButton>
-																<IconButton iconId="circle" classes="passage-toolbar icon-fill-blue" title="Blue" isSquare></IconButton>
-																<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" title="Purple" isSquare></IconButton>
-																<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" title="Pink" isSquare></IconButton>
-															</div>
-															{/if}
-														</div>
-													{/if}
-												</div>
+												<PassageToolbar 
+													bind:toolbarMode={toolbarMode}
+													isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === 0}
+												/>
 												<h4 class="heading-one">Heading One</h4>
 												<h5 class="heading-two">Heading Two</h5>
 												<h6 class="heading-three">Heading Three</h6>
@@ -745,7 +684,7 @@
 		width: 50.4rem;
 	}
 
-	.overview-mode .text {
+	.overview-mode :global(.text) {
 		display: none;
 	}
 
@@ -757,7 +696,7 @@
 		--split-light: var(--green-light);
 		--split-lighter: var(--green-lighter);
 		--split-color: var(--green-dark);
-		transition: box-shadow 0.2s ease-in-out;
+		transition: box-shadow 50ms ease-in-out;
 	}
 
 	.split:not(:first-of-type) {
@@ -772,44 +711,13 @@
 
 	.segment {
 		position: relative;
-		transition: box-shadow 0.2s ease-in-out;
+		transition: box-shadow 50ms ease-in-out;
 	}
 
 	.split:global(.active),
 	.segment:global(.active) {
 		z-index: 10;
 		box-shadow: 0rem 0rem 0.5rem var(--split-dark);
-	}
-
-	.controls {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		content: " ";
-		width: 3.4rem;
-		position: absolute;
-		right: -3.4rem;
-		top: 0.6rem;
-		min-height: calc(100% - 1.2rem);
-		overflow: hidden;
-	}
-
-	.controls :global(.group-container) {
-		margin: 0.0rem;
-	}
-
-	.button-container {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		padding-left: 0.5rem;
-		gap: 0.9rem;
-	}
-
-	.button-group {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
 	}
 
 	.heading-one {
@@ -883,6 +791,27 @@
 
 	.hide-verses .text {
 		white-space: normal;
+	}
+
+	/* Color-specific word selection styles for green split */
+	.split.green .text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--green-light);
+	}
+
+	.split.green .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.split.green .text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--green-light);
+	}
+
+	.split.green .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	}
+
+	.split.green .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Enable text selection when Cmd/Ctrl is held */
@@ -990,300 +919,4 @@
 		margin: 0;
 	}
 
-	/* ============================================================ */
-	/* Color variants - Override CSS custom properties */
-	/* ============================================================ */
-	.split.red {
-		--split-darker: var(--red-darker);
-		--split-dark: var(--red-dark);
-		--split-light: var(--red-light);
-		--split-lighter: var(--red-lighter);
-	}
-
-	/* Word selection color overrides */
-	.split.red .text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--red-light);
-	}
-
-	.split.red .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.red .text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--red-light);
-	}
-
-	.split.red .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.red .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.orange {
-		--split-darker: var(--orange-darker);
-		--split-dark: var(--orange-dark);
-		--split-light: var(--orange-light);
-		--split-lighter: var(--orange-lighter);
-	}
-
-	/* Word selection color overrides */
-	.split.orange .text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--orange-light);
-	}
-
-	.split.orange .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.orange .text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--orange-light);
-	}
-
-	.split.orange .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.orange .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.yellow {
-		--split-darker: var(--yellow-darker);
-		--split-dark: var(--yellow-dark);
-		--split-light: var(--yellow-light);
-		--split-lighter: var(--yellow-lighter);
-	}
-
-	/* Word selection color overrides */
-	.split.yellow .text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--yellow-light);
-	}
-
-	.split.yellow .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.yellow .text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--yellow-light);
-	}
-
-	.split.yellow .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.yellow .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b39700' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.green:global(.active),
-	.split.green .segment:global(.active) {
-		box-shadow: 0rem 0rem 0.5rem var(--green-dark);
-	}
-	
-	.split.green .heading-one {
-		background-color: var(--green-darker);
-		border-color: var(--green-darker);
-	}
-
-	.split.green .heading-two {
-		background-color: var(--green-lighter);
-		color: var(--green-darker);
-	}
-
-	.split.green .heading-two,
-	.split.green .heading-three,
-	.split.green .text {
-		border-color: var(--green-dark);
-	}
-
-	/* Word selection color overrides */
-	.split.green .text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--green-light);
-	}
-
-	.split.green .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.green .text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--green-light);
-	}
-
-	.split.green .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.green .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.aqua:global(.active),
-	.split.aqua .segment:global(.active) {
-		box-shadow: 0rem 0rem 0.5rem var(--aqua-dark);
-	}
-	
-	.split.aqua .heading-one {
-		background-color: var(--aqua-darker);
-		border-color: var(--aqua-darker);
-	}
-
-	.split.aqua .heading-two {
-		background-color: var(--aqua-lighter);
-		color: var(--aqua-darker);
-	}
-
-	.split.aqua .heading-two,
-	.split.aqua .heading-three,
-	.split.aqua .text {
-		border-color: var(--aqua-dark);
-	}
-
-	/* Word selection color overrides */
-	.split.aqua .text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--aqua-light);
-	}
-
-	.split.aqua .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.aqua .text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--aqua-light);
-	}
-
-	.split.aqua .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.aqua .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230e8191' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.blue:global(.active),
-	.split.blue .segment:global(.active) {
-		box-shadow: 0rem 0rem 0.5rem var(--blue-dark);
-	}
-	
-	.split.blue .heading-one {
-		background-color: var(--blue-darker);
-		border-color: var(--blue-darker);
-	}
-
-	.split.blue .heading-two {
-		background-color: var(--blue-lighter);
-		color: var(--blue-darker);
-	}
-
-	.split.blue .heading-two,
-	.split.blue .heading-three,
-	.split.blue .text {
-		border-color: var(--blue-dark);
-	}
-
-	/* Word selection color overrides */
-	.split.blue .text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--blue-light);
-	}
-
-	.split.blue .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.blue .text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--blue-light);
-	}
-
-	.split.blue .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.blue .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059b3' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.purple:global(.active),
-	.split.purple .segment:global(.active) {
-		box-shadow: 0rem 0rem 0.5rem var(--purple-dark);
-	}
-	
-	.split.purple .heading-one {
-		background-color: var(--purple-darker);
-		border-color: var(--purple-darker);
-	}
-
-	.split.purple .heading-two {
-		background-color: var(--purple-lighter);
-		color: var(--purple-darker);
-	}
-
-	.split.purple .heading-two,
-	.split.purple .heading-three,
-	.split.purple .text {
-		border-color: var(--purple-dark);
-	}
-
-	/* Word selection color overrides */
-	.split.purple .text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--purple-light);
-	}
-
-	.split.purple .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.purple .text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--purple-light);
-	}
-
-	.split.purple .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.purple .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2362389e' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.pink:global(.active),
-	.split.pink .segment:global(.active) {
-		box-shadow: 0rem 0rem 0.5rem var(--pink-dark);
-	}
-	
-	.split.pink .heading-one {
-		background-color: var(--pink-darker);
-		border-color: var(--pink-darker);
-	}
-
-	.split.pink .heading-two {
-		background-color: var(--pink-lighter);
-		color: var(--pink-darker);
-	}
-
-	.split.pink .heading-two,
-	.split.pink .heading-three,
-	.split.pink .text {
-		border-color: var(--pink-dark);
-	}
-
-	/* Word selection color overrides */
-	.split.pink .text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--pink-light);
-	}
-
-	.split.pink .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.pink .text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--pink-light);
-	}
-
-	.split.pink .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.split.pink .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ba276b' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
 </style>
