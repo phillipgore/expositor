@@ -1,5 +1,6 @@
 <script>
 	import { v4 as uuidv4 } from 'uuid';
+	import { tooltip } from '$lib/composables/useTooltip.svelte.js';
 
 	/**
 	 * # Button Component
@@ -246,6 +247,7 @@
 		{style}
 		{role}
 		{title}
+		use:tooltip
 		class="{classes} {isActive ? 'active' : ''} {isRound ? 'round' : ''} {isSquare ? 'square' : ''} {isLarge ? 'large' : ''} {isFullWidth
 			? 'full-width'
 			: ''} {hasNoFocusClass ? 'no-focus' : ''}"
@@ -275,6 +277,7 @@
 {:else}
 	<button
 		bind:this={buttonElement}
+		use:tooltip
 		tabindex={role === 'menuitem' ? -1 : 0}
 		{id}
 		{type}
