@@ -19,6 +19,7 @@
 	// Drag detection state
 	let dragStartPos = $state(null); // { x, y } - mouse position on mousedown
 	let isDragging = $state(false); // Whether user is dragging (text selection mode)
+	let dragJustCompleted = $state(false); // Flag to prevent click processing after drag
 
 	// Click debouncing for separating single clicks from double/triple clicks
 	let clickTimeout = $state(null); // Timeout ID for delayed single-click processing
@@ -113,8 +114,22 @@
 			// If moved more than 3px, consider it a drag
 			if (distance > 3) {
 				isDragging = true;
+				dragJustCompleted = true; // Mark that a drag occurred
+				// Clear custom selections immediately when drag is detected
+				selectedWord = null;
+				suppressHoverCaret = null;
+				activeSegment = null;
 			}
 		}
+	}
+
+	/**
+	 * Handle mouse up - reset drag state
+	 */
+	function handleMouseUp() {
+		// Reset drag state
+		dragStartPos = null;
+		isDragging = false;
 	}
 
 	/**
@@ -155,6 +170,12 @@
 	 * Only active when not dragging
 	 */
 	function handleWordClick(event) {
+		// Check if a drag just completed - if so, ignore this click
+		if (dragJustCompleted) {
+			dragJustCompleted = false; // Reset flag
+			return;
+		}
+		
 		// Don't process word selection when dragging (text selection)
 		if (isDragging) {
 			// Reset drag state
@@ -515,6 +536,7 @@
 		class:overview-mode={$toolbarState.overviewMode}
 		onmousedown={handleMouseDown}
 		onmousemove={handleMouseMove}
+		onmouseup={handleMouseUp}
 		onmouseover={handleWordHover}
 		onmouseout={handleWordHoverEnd}
 		onclick={handleWordClick}
