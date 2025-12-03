@@ -20,6 +20,9 @@
 	let dragStartPos = $state(null); // { x, y } - mouse position on mousedown
 	let isDragging = $state(false); // Whether user is dragging (text selection mode)
 
+	// Click debouncing for separating single clicks from double/triple clicks
+	let clickTimeout = $state(null); // Timeout ID for delayed single-click processing
+
 	// Active segment state
 	let activeSegment = $state(null); // { passageIndex, segmentIndex }
 
@@ -166,73 +169,97 @@
 		// Allow native browser double/triple-click behavior
 		// detail: 1 = single click, 2 = double-click, 3 = triple-click
 		if (event.detail >= 2) {
+			// Clear any pending single-click timeout
+			if (clickTimeout) {
+				clearTimeout(clickTimeout);
+				clickTimeout = null;
+			}
+			// Clear any custom word selections
+			selectedWord = null;
+			suppressHoverCaret = null;
+			// Clear active segment/split
+			activeSegment = null;
 			return; // Let browser handle double/triple-click text selection
 		}
 		
-		// Handle segment/split activation based on toolbar mode
-		const clickedSegment = event.target.closest('.segment');
-		if (clickedSegment) {
-			// Find passage and segment indices
-			const passageElement = clickedSegment.closest('.passage');
-			if (passageElement) {
-				const allPassages = Array.from(document.querySelectorAll('.passage'));
-				const passageIndex = allPassages.indexOf(passageElement);
-				
-				const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-				const segmentIndex = allSegments.indexOf(clickedSegment);
-				
-				if (passageIndex !== -1 && segmentIndex !== -1) {
-					// In 'color' mode, activate the split instead of the segment
-					if (toolbarMode === 'color') {
-						// Find the split (parent of segment)
-						const splitElement = clickedSegment.closest('.split');
-						if (splitElement) {
-							// Store segment index but mark as split activation
-							activeSegment = { passageIndex, segmentIndex, activateSplit: true };
-						}
-					} else {
-						// In 'outline' and 'literary' modes, activate the segment
-						activeSegment = { passageIndex, segmentIndex, activateSplit: false };
-					}
-				}
-			}
-		} else {
-			// Clicked outside any segment - clear active state
-			activeSegment = null;
+		// Clear any existing timeout to prevent duplicate processing
+		if (clickTimeout) {
+			clearTimeout(clickTimeout);
+			clickTimeout = null;
 		}
 		
-		// Handle word selection
+		// Delay single-click processing to allow double/triple-clicks to work
+		// Capture event data before async timeout
+		const clickedSegment = event.target.closest('.segment');
 		const target = event.target;
-		if (target.classList.contains('selectable-word')) {
-			const passageIndex = parseInt(target.dataset.passageIndex);
-			const wordIndex = parseInt(target.dataset.wordIndex);
-			
-			// Check if clicking the same word
-			const isSameWord = selectedWord?.passageIndex === passageIndex && 
-			                   selectedWord?.wordIndex === wordIndex;
-			
-			if (isSameWord) {
-				// Clicking same word: cycle through states
-				if (selectedWord.position === 'before') {
-					// Before -> After
-					selectedWord = { passageIndex, wordIndex, position: 'after' };
-					suppressHoverCaret = null; // Clear suppression
-				} else {
-					// After -> Deselect (suppress hover caret until mouse out)
-					selectedWord = null;
-					suppressHoverCaret = { passageIndex, wordIndex };
-					activeSegment = null; // Also deactivate segment
+		
+		clickTimeout = setTimeout(() => {
+			// Handle segment/split activation based on toolbar mode
+			if (clickedSegment) {
+				// Find passage and segment indices
+				const passageElement = clickedSegment.closest('.passage');
+				if (passageElement) {
+					const allPassages = Array.from(document.querySelectorAll('.passage'));
+					const passageIndex = allPassages.indexOf(passageElement);
+					
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentIndex = allSegments.indexOf(clickedSegment);
+					
+					if (passageIndex !== -1 && segmentIndex !== -1) {
+						// In 'color' mode, activate the split instead of the segment
+						if (toolbarMode === 'color') {
+							// Find the split (parent of segment)
+							const splitElement = clickedSegment.closest('.split');
+							if (splitElement) {
+								// Store segment index but mark as split activation
+								activeSegment = { passageIndex, segmentIndex, activateSplit: true };
+							}
+						} else {
+							// In 'outline' and 'literary' modes, activate the segment
+							activeSegment = { passageIndex, segmentIndex, activateSplit: false };
+						}
+					}
 				}
 			} else {
-				// Clicking different word: start with "before"
-				selectedWord = { passageIndex, wordIndex, position: 'before' };
-				suppressHoverCaret = null; // Clear suppression
+				// Clicked outside any segment - clear active state
+				activeSegment = null;
 			}
-		} else {
-			// Clear selection when clicking outside of a word
-			selectedWord = null;
-			suppressHoverCaret = null;
-		}
+			
+			// Handle word selection
+			if (target.classList.contains('selectable-word')) {
+				const passageIndex = parseInt(target.dataset.passageIndex);
+				const wordIndex = parseInt(target.dataset.wordIndex);
+				
+				// Check if clicking the same word
+				const isSameWord = selectedWord?.passageIndex === passageIndex && 
+				                   selectedWord?.wordIndex === wordIndex;
+				
+				if (isSameWord) {
+					// Clicking same word: cycle through states
+					if (selectedWord.position === 'before') {
+						// Before -> After
+						selectedWord = { passageIndex, wordIndex, position: 'after' };
+						suppressHoverCaret = null; // Clear suppression
+					} else {
+						// After -> Deselect (suppress hover caret until mouse out)
+						selectedWord = null;
+						suppressHoverCaret = { passageIndex, wordIndex };
+						activeSegment = null; // Also deactivate segment
+					}
+				} else {
+					// Clicking different word: start with "before"
+					selectedWord = { passageIndex, wordIndex, position: 'before' };
+					suppressHoverCaret = null; // Clear suppression
+				}
+			} else {
+				// Clear selection when clicking outside of a word
+				selectedWord = null;
+				suppressHoverCaret = null;
+			}
+			
+			// Clear timeout reference
+			clickTimeout = null;
+		}, 200); // 200ms delay - enough to detect double/triple clicks
 		
 		// Reset drag state
 		dragStartPos = null;
