@@ -55,7 +55,7 @@
 	.app-container {
 		display: flex;
 		flex-direction: row;
-		height: calc(100vh - 5.2rem); /* Full height minus toolbar */
+		height: calc(100vh - 5.4rem); /* Full height minus toolbar */
 		overflow: hidden;
 	}
 

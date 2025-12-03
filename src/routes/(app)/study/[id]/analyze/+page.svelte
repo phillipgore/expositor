@@ -1,6 +1,7 @@
 <script>
 	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import ButtonGrouped from '$lib/componentElements/buttons/ButtonGrouped.svelte';
@@ -33,6 +34,13 @@
 	// Reset toolbar mode to 'outline' when no segment is active
 	$effect(() => {
 		if (!activeSegment) {
+			toolbarMode = 'outline';
+		}
+	});
+
+	// Switch toolbar mode to 'outline' when a word is selected
+	$effect(() => {
+		if (selectedWord) {
 			toolbarMode = 'outline';
 		}
 	});
@@ -745,6 +753,7 @@
 		--split-light: var(--green-light);
 		--split-lighter: var(--green-lighter);
 		--split-color: var(--green-dark);
+		transition: box-shadow 0.2s ease-in-out;
 	}
 
 	.split:not(:first-of-type) {
@@ -759,6 +768,7 @@
 
 	.segment {
 		position: relative;
+		transition: box-shadow 0.2s ease-in-out;
 	}
 
 	.split:global(.active),
@@ -768,7 +778,9 @@
 	}
 
 	.controls {
-		display: none;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
 		content: " ";
 		width: 3.4rem;
 		position: absolute;
@@ -776,6 +788,10 @@
 		top: 0.6rem;
 		min-height: calc(100% - 1.2rem);
 		overflow: hidden;
+		padding-left: 0.6rem;
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
 	}
 
 	.controls :global(.group-container) {
@@ -784,10 +800,8 @@
 
 	.split:global(.active) .controls,
 	.segment:global(.active) .controls {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		padding-left: 0.6rem;
+		opacity: 1;
+		visibility: visible;
 	}
 
 	.button-container {
