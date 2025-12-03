@@ -200,17 +200,12 @@
 		if (target.classList.contains('selectable-word')) {
 			const passageIndex = parseInt(target.dataset.passageIndex);
 			const wordIndex = parseInt(target.dataset.wordIndex);
-			const isShiftKey = event.shiftKey;
 			
 			// Check if clicking the same word
 			const isSameWord = selectedWord?.passageIndex === passageIndex && 
 			                   selectedWord?.wordIndex === wordIndex;
 			
-			if (isShiftKey) {
-				// Shift+Click: Jump directly to "after" position
-				selectedWord = { passageIndex, wordIndex, position: 'after' };
-				suppressHoverCaret = null; // Clear suppression
-			} else if (isSameWord) {
+			if (isSameWord) {
 				// Clicking same word: cycle through states
 				if (selectedWord.position === 'before') {
 					// Before -> After
@@ -265,7 +260,7 @@
 		// Add data-selected and data-position to the selected word
 		if (selectedWord) {
 			const selectedElement = document.querySelector(
-				`.selectable-word[data-index="${selectedWord.passageIndex}"][data-word-index="${selectedWord.wordIndex}"]`
+				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-index="${selectedWord.wordIndex}"]`
 			);
 			if (selectedElement) {
 				selectedElement.setAttribute('data-selected', 'true');
@@ -276,7 +271,7 @@
 		// Add data-suppress-hover-caret to the word where hover caret should be suppressed
 		if (suppressHoverCaret) {
 			const suppressElement = document.querySelector(
-				`.selectable-word[data-index="${suppressHoverCaret.passageIndex}"][data-word-index="${suppressHoverCaret.wordIndex}"]`
+				`.selectable-word[data-passage-index="${suppressHoverCaret.passageIndex}"][data-word-index="${suppressHoverCaret.wordIndex}"]`
 			);
 			if (suppressElement) {
 				suppressElement.setAttribute('data-suppress-hover-caret', 'true');
@@ -683,6 +678,12 @@
 
 	.split {
 		position: relative;
+		/* CSS Custom Properties for color theming */
+		--split-darker: var(--green-darker);
+		--split-dark: var(--green-dark);
+		--split-light: var(--green-light);
+		--split-lighter: var(--green-lighter);
+		--split-color: var(--green-dark);
 	}
 
 	.split:not(:first-of-type) {
@@ -702,7 +703,7 @@
 	.split:global(.active),
 	.segment:global(.active) {
 		z-index: 10;
-		box-shadow: 0rem 0rem 0.5rem var(--black);
+		box-shadow: 0rem 0rem 0.5rem var(--split-dark);
 	}
 
 	.controls {
@@ -749,6 +750,8 @@
 		margin: 0.0rem;
 		border: 0.1rem solid;
 		color: white;
+		background-color: var(--split-darker);
+		border-color: var(--split-darker);
 	}
 
 	.heading-two {
@@ -760,6 +763,9 @@
 		border-bottom: 0.1rem solid;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
+		background-color: var(--split-lighter);
+		color: var(--split-darker);
+		border-color: var(--split-dark);
 	}
 
 	.heading-three {
@@ -771,6 +777,7 @@
 		padding: 0.9rem 0.9rem 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
+		border-color: var(--split-dark);
 	}
 
 	.text {
@@ -787,6 +794,7 @@
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
+		border-color: var(--split-dark);
 	}
 
 	.segment:last-child,
@@ -1059,27 +1067,13 @@
 	}
 
 	/* ============================================================ */
-	/* Color variants */
+	/* Color variants - Override CSS custom properties */
 	/* ============================================================ */
-	.split.red:global(.active),
-	.split.red .segment:global(.active) {
-		box-shadow: 0rem 0rem 0.5rem var(--red-dark);
-	}
-
-	.split.red .heading-one {
-		background-color: var(--red-darker);
-		border-color: var(--red-darker);
-	}
-
-	.split.red .heading-two {
-		background-color: var(--red-lighter);
-		color: var(--red-darker);
-	}
-
-	.split.red .heading-two,
-	.split.red .heading-three,
-	.split.red .text {
-		border-color: var(--red-dark);
+	.split.red {
+		--split-darker: var(--red-darker);
+		--split-dark: var(--red-dark);
+		--split-light: var(--red-light);
+		--split-lighter: var(--red-lighter);
 	}
 
 	/* Word selection color overrides */
@@ -1103,25 +1097,11 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ad291f' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.orange:global(.active),
-	.split.orange .segment:global(.active) {
-		box-shadow: 0rem 0rem 0.5rem var(--orange-dark);
-	}
-	
-	.split.orange .heading-one {
-		background-color: var(--orange-darker);
-		border-color: var(--orange-darker);
-	}
-
-	.split.orange .heading-two {
-		background-color: var(--orange-lighter);
-		color: var(--orange-darker);
-	}
-
-	.split.orange .heading-two,
-	.split.orange .heading-three,
-	.split.orange .text {
-		border-color: var(--orange-dark);
+	.split.orange {
+		--split-darker: var(--orange-darker);
+		--split-dark: var(--orange-dark);
+		--split-light: var(--orange-light);
+		--split-lighter: var(--orange-lighter);
 	}
 
 	/* Word selection color overrides */
@@ -1145,25 +1125,11 @@
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b35900' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.yellow:global(.active),
-	.split.yellow .segment:global(.active) {
-		box-shadow: 0rem 0rem 0.5rem var(--yellow-dark);
-	}
-	
-	.split.yellow .heading-one {
-		background-color: var(--yellow-darker);
-		border-color: var(--yellow-darker);
-	}
-
-	.split.yellow .heading-two {
-		background-color: var(--yellow-lighter);
-		color: var(--yellow-darker);
-	}
-
-	.split.yellow .heading-two,
-	.split.yellow .heading-three,
-	.split.yellow .text {
-		border-color: var(--yellow-dark);
+	.split.yellow {
+		--split-darker: var(--yellow-darker);
+		--split-dark: var(--yellow-dark);
+		--split-light: var(--yellow-light);
+		--split-lighter: var(--yellow-lighter);
 	}
 
 	/* Word selection color overrides */
