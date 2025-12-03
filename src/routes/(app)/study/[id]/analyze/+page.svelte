@@ -215,6 +215,7 @@
 					// After -> Deselect (suppress hover caret until mouse out)
 					selectedWord = null;
 					suppressHoverCaret = { passageIndex, wordIndex };
+					activeSegment = null; // Also deactivate segment
 				}
 			} else {
 				// Clicking different word: start with "before"
