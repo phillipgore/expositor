@@ -23,6 +23,9 @@
 	// Active segment state
 	let activeSegment = $state(null); // { passageIndex, segmentIndex }
 
+	// Toolbar mode state
+	let toolbarMode = $state('outline'); // 'outline', 'literary', or 'color'
+
 	// Invalidate studies list when study is accessed
 	onMount(() => {
 		if (data.invalidateStudies) {
@@ -160,7 +163,7 @@
 			return;
 		}
 		
-		// Handle segment activation
+		// Handle segment/split activation based on toolbar mode
 		const clickedSegment = event.target.closest('.segment');
 		if (clickedSegment) {
 			// Find passage and segment indices
@@ -173,7 +176,18 @@
 				const segmentIndex = allSegments.indexOf(clickedSegment);
 				
 				if (passageIndex !== -1 && segmentIndex !== -1) {
-					activeSegment = { passageIndex, segmentIndex };
+					// In 'color' mode, activate the split instead of the segment
+					if (toolbarMode === 'color') {
+						// Find the split (parent of segment)
+						const splitElement = clickedSegment.closest('.split');
+						if (splitElement) {
+							// Store segment index but mark as split activation
+							activeSegment = { passageIndex, segmentIndex, activateSplit: true };
+						}
+					} else {
+						// In 'outline' and 'literary' modes, activate the segment
+						activeSegment = { passageIndex, segmentIndex, activateSplit: false };
+					}
 				}
 			}
 		} else {
@@ -274,21 +288,38 @@
 	 * Update DOM elements with active class when active segment changes
 	 */
 	$effect(() => {
-		// Remove active class from all segments
+		// Remove active class from all segments and splits
 		const allSegments = document.querySelectorAll('.segment');
 		allSegments.forEach(segment => {
 			segment.classList.remove('active');
 		});
+		const allSplits = document.querySelectorAll('.split');
+		allSplits.forEach(split => {
+			split.classList.remove('active');
+		});
 
-		// Add active class to the selected segment
+		// Add active class to the selected segment or split
 		if (activeSegment) {
 			const allPassages = Array.from(document.querySelectorAll('.passage'));
 			const passageElement = allPassages[activeSegment.passageIndex];
 			if (passageElement) {
-				const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-				const segmentElement = allSegments[activeSegment.segmentIndex];
-				if (segmentElement) {
-					segmentElement.classList.add('active');
+				if (activeSegment.activateSplit) {
+					// Activate the split (color mode)
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentElement = allSegments[activeSegment.segmentIndex];
+					if (segmentElement) {
+						const splitElement = segmentElement.closest('.split');
+						if (splitElement) {
+							splitElement.classList.add('active');
+						}
+					}
+				} else {
+					// Activate the segment (outline and literary modes)
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentElement = allSegments[activeSegment.segmentIndex];
+					if (segmentElement) {
+						segmentElement.classList.add('active');
+					}
 				}
 			}
 		}
@@ -480,16 +511,18 @@
 												<div class="controls">
 													<ButtonGrouped
 														buttons={[
-															{ id: 'outline', iconId: 'outline-section' },
-															{ id: 'literary', iconId: 'literary-chiasim' },
-															{ id: 'color', iconId: 'paintbrush' }
+															{ id: 'outline', iconId: 'outline-section', label: '' },
+															{ id: 'literary', iconId: 'literary-chiasim', label: '' },
+															{ id: 'color', iconId: 'paintbrush', label: '' }
 														]}
 														defaultActive='outline'
+														onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
 														buttonClasses='passage-toolbar'
 														isSquare
 														isList
 													/>
 													<DividerHorizontal />
+													{#if toolbarMode === 'outline'}
 													<div class="button-container outline">
 														<div class="button-group">
 															<IconButton iconId="split" classes="passage-toolbar" isSquare></IconButton>
@@ -513,12 +546,16 @@
 															<IconButton iconId="column-remove" classes="passage-toolbar" isSquare></IconButton>
 														</div>
 													</div>
+													{/if}
+													{#if toolbarMode === 'literary'}
 													<div class="button-container literary">
 														<IconButton iconId="literary-chiasim" classes="passage-toolbar" isSquare></IconButton>
 														<IconButton iconId="literary-paralell" classes="passage-toolbar" isSquare></IconButton>
 														<IconButton iconId="literary-repeat" classes="passage-toolbar" isSquare></IconButton>
 														<IconButton iconId="literary-intensify" classes="passage-toolbar" isSquare></IconButton>
 													</div>
+													{/if}
+													{#if toolbarMode === 'color'}
 													<div class="button-container color">
 														<IconButton iconId="circle" classes="passage-toolbar icon-fill-red" isSquare></IconButton>
 														<IconButton iconId="circle" classes="passage-toolbar icon-fill-orange" isSquare></IconButton>
@@ -529,6 +566,7 @@
 														<IconButton iconId="circle" classes="passage-toolbar icon-fill-purple" isSquare></IconButton>
 														<IconButton iconId="circle" classes="passage-toolbar icon-fill-pink" isSquare></IconButton>
 													</div>
+													{/if}
 												</div>
 												<h4 class="heading-one">Heading One</h4>
 												<h5 class="heading-two">Heading Two</h5>
