@@ -163,6 +163,12 @@
 			return;
 		}
 		
+		// Allow native browser double/triple-click behavior
+		// detail: 1 = single click, 2 = double-click, 3 = triple-click
+		if (event.detail >= 2) {
+			return; // Let browser handle double/triple-click text selection
+		}
+		
 		// Handle segment/split activation based on toolbar mode
 		const clickedSegment = event.target.closest('.segment');
 		if (clickedSegment) {
