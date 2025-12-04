@@ -731,6 +731,63 @@
 		margin-top: 4.4rem;
 	}
 
+	/* Color variant overrides */
+	.split.red {
+		--split-darker: var(--red-darker);
+		--split-dark: var(--red-dark);
+		--split-light: var(--red-light);
+		--split-lighter: var(--red-lighter);
+	}
+
+	.split.orange {
+		--split-darker: var(--orange-darker);
+		--split-dark: var(--orange-dark);
+		--split-light: var(--orange-light);
+		--split-lighter: var(--orange-lighter);
+	}
+
+	.split.yellow {
+		--split-darker: var(--yellow-darker);
+		--split-dark: var(--yellow-dark);
+		--split-light: var(--yellow-light);
+		--split-lighter: var(--yellow-lighter);
+	}
+
+	.split.green {
+		--split-darker: var(--green-darker);
+		--split-dark: var(--green-dark);
+		--split-light: var(--green-light);
+		--split-lighter: var(--green-lighter);
+	}
+
+	.split.aqua {
+		--split-darker: var(--aqua-darker);
+		--split-dark: var(--aqua-dark);
+		--split-light: var(--aqua-light);
+		--split-lighter: var(--aqua-lighter);
+	}
+
+	.split.blue {
+		--split-darker: var(--blue-darker);
+		--split-dark: var(--blue-dark);
+		--split-light: var(--blue-light);
+		--split-lighter: var(--blue-lighter);
+	}
+
+	.split.purple {
+		--split-darker: var(--purple-darker);
+		--split-dark: var(--purple-dark);
+		--split-light: var(--purple-light);
+		--split-lighter: var(--purple-lighter);
+	}
+
+	.split.pink {
+		--split-darker: var(--pink-darker);
+		--split-dark: var(--pink-dark);
+		--split-light: var(--pink-light);
+		--split-lighter: var(--pink-lighter);
+	}
+
 	.split .segment:first-child,
 	.split .segment:first-child .heading-one {
 		border-top-right-radius: 0.3rem;
@@ -754,7 +811,7 @@
 		padding: 0.9rem;
 		margin: 0.0rem;
 		border: 0.1rem solid;
-		color: white;
+		color: var(--split-lighter);
 		background-color: var(--split-darker);
 		border-color: var(--split-darker);
 	}

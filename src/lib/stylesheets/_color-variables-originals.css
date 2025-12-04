@@ -1,0 +1,85 @@
+:root {
+	--black: hsl(0, 0%, 0%);
+	--black-alpha: hsla(0, 0%, 0%, 0.3);
+
+	--gray-200: hsl(30, 2%, 17%);
+	--gray-300: hsl(30, 1%, 33%);
+	--gray-400: hsl(30, 1%, 44%);
+	--gray-500: hsl(30, 1%, 53%);
+	--gray-600: hsl(30, 1%, 57%);
+	--gray-700: hsl(30, 1%, 71%);
+	--gray-800: hsl(30, 8%, 95%);
+	--gray-900: hsl(0, 0%, 92%);
+	--gray-950: hsl(0, 0%, 95%);
+	--gray-700-alpha: hsla(30, 1%, 71%, 0.65);
+	--gray-900-alpha: hsla(0, 0%, 92%, 0.69);
+
+	--white: hsl(0, 0%, 100%);
+	--white-alpha: hsla(0, 0%, 100%, 0.93);
+
+
+	/* Gray */
+	--gray-darker: hsl(240, 1%, 15%);
+	--gray-dark: hsl(240, 1%, 27%);
+	--gray: hsl(240, 2%, 57%);
+	--gray-light: hsl(240, 10%, 86%);
+	--gray-lighter: hsl(240, 10%, 96%);
+
+	/* Red */
+	--red-darker: #4D0809;
+	--red-dark: #CC8F90;
+	--red: hsl(3, 100%, 59%);
+	--red-light: hsl(3, 100%, 80%);
+	--red-lighter: #FFD9D9;
+
+	/* Orange */
+	--orange-darker: #4D2A08;
+	--orange-dark: #CCAD8F;
+	--orange: hsl(25, 100%, 50%);
+	--orange-light: hsl(25, 100%, 80%);
+	--orange-lighter: #FFECD9;
+
+	/* Yellow */
+	--yellow-darker: #4D4D08;
+	--yellow-dark: #CCCC8F;
+	--yellow: hsl(45, 100%, 50%);
+	--yellow-light: hsl(45, 100%, 80%);
+	--yellow-lighter: #FFFFD9;
+
+	/* Green */
+	--green-darker: #084D08;
+	--green-dark: #8FCC8F;
+	--green: hsl(145, 65%, 45%);
+	--green-light: hsl(145, 65%, 75%);
+	--green-lighter: #D9FFD9;
+
+	/* Aqua */
+	--aqua-darker: #084D4D;
+	--aqua-dark: #8FC4CC;
+	--aqua: hsl(185, 85%, 45%);
+	--aqua-light: hsl(185, 85%, 75%);
+	--aqua-lighter: #D9F7FF;
+
+	/* Blue */
+	--blue-darker: #082A4D;
+	--blue-dark: #8FADCC;
+	--blue: hsl(219, 100%, 50%);
+	--blue-light: hsl(219, 100%, 80%);
+	--blue-lighter: #D9ECFF;
+
+	--blue-alpha: hsl(219, 100%, 50%, 0.4);
+
+	/* Purple */
+	--purple-darker: #2A084D;
+	--purple-dark: #AD8FCC;
+	--purple: hsl(270, 65%, 55%);
+	--purple-light: hsl(270, 65%, 80%);
+	--purple-lighter: #ECD9FF;
+
+	/* Pink */
+	--pink-darker: #4D084D;
+	--pink-dark: #CC8FCC;
+	--pink: hsl(330, 75%, 60%);
+	--pink-light: hsl(330, 75%, 85%);
+	--pink-lighter: #FFD9FF;
+}
