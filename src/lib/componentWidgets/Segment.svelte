@@ -1,5 +1,5 @@
 <script>
-	import PassageToolbar from './PassageToolbar.svelte';
+	import ToolbarPassage from './ToolbarPassage.svelte';
 
 	let { 
 		heading1 = null,
@@ -14,7 +14,7 @@
 </script>
 
 <div class="segment" class:active={isActive}>
-	<PassageToolbar bind:toolbarMode {isActive} />
+	<ToolbarPassage bind:toolbarMode {isActive} />
 	
 	{#if heading1}
 		<h4 class="heading-one">{heading1}</h4>

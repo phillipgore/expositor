@@ -4,7 +4,7 @@
 	import { fade } from 'svelte/transition';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
-	import PassageToolbar from '$lib/componentWidgets/PassageToolbar.svelte';
+	import ToolbarPassage from '$lib/componentWidgets/ToolbarPassage.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSplit } from '$lib/stores/toolbar.js';
 
@@ -585,7 +585,7 @@
 									<div class="column">
 										<div class="split green">
 											<div class="segment">
-												<PassageToolbar 
+												<ToolbarPassage 
 													bind:toolbarMode={toolbarMode}
 													isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === 0}
 												/>
@@ -769,6 +769,11 @@
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-color: var(--split-dark);
+	}
+
+	.overview-mode .heading-three {
+		padding: 0.9rem;
+		border-bottom: 0.1rem solid var(--split-dark);
 	}
 
 	.text {
