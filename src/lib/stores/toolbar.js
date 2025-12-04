@@ -51,6 +51,9 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
  * @property {number} zoomLevel - Current zoom level as percentage (25-400, or 0 for fit)
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
+ * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
+ * @property {boolean} hasActiveSegment - Whether a segment is currently active
+ * @property {boolean} hasActiveSplit - Whether a split is currently active (for color mode)
  */
 
 /**
@@ -80,7 +83,10 @@ const defaultState = {
 	wideLayout: false,
 	overviewMode: false,
 	zoomLevel: 100,
-	selectedItem: null
+	selectedItem: null,
+	hasWordSelection: false,
+	hasActiveSegment: false,
+	hasActiveSplit: false
 };
 
 /**
@@ -380,5 +386,38 @@ export function clearSelectedItem() {
 		canEdit: false,
 		canDelete: false,
 		canSwitchMode: false
+	}));
+}
+
+/**
+ * Set word selection state
+ * @param {boolean} hasSelection - Whether a word is currently selected
+ */
+export function setWordSelection(hasSelection) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasWordSelection: hasSelection
+	}));
+}
+
+/**
+ * Set active segment state
+ * @param {boolean} hasSegment - Whether a segment is currently active
+ */
+export function setActiveSegment(hasSegment) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasActiveSegment: hasSegment
+	}));
+}
+
+/**
+ * Set active split state
+ * @param {boolean} hasSplit - Whether a split is currently active
+ */
+export function setActiveSplit(hasSplit) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasActiveSplit: hasSplit
 	}));
 }

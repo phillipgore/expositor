@@ -6,7 +6,7 @@
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import PassageToolbar from '$lib/componentWidgets/PassageToolbar.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
-	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSplit } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -41,6 +41,21 @@
 		if (selectedWord) {
 			toolbarMode = 'outline';
 		}
+	});
+
+	// Sync word selection state to toolbar store
+	$effect(() => {
+		setWordSelection(selectedWord !== null);
+	});
+
+	// Sync active segment state to toolbar store
+	$effect(() => {
+		setActiveSegment(activeSegment !== null);
+	});
+
+	// Sync active split state to toolbar store (for color mode)
+	$effect(() => {
+		setActiveSplit(activeSegment?.activateSplit === true);
 	});
 
 	// Invalidate studies list when study is accessed

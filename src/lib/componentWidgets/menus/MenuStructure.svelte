@@ -44,7 +44,7 @@
 		label="Split Text"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.hasWordSelection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -52,7 +52,7 @@
 		label="Join Text"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
 
 	<DividerHorizontal />
@@ -63,7 +63,7 @@
 		label="Insert Heading One"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseHeadingItems}
+		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -71,7 +71,7 @@
 		label="Insert Heading Two"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseHeadingItems}
+		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -79,7 +79,7 @@
 		label="Insert Heading Three"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseHeadingItems}
+		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
 
 	<DividerHorizontal />
@@ -90,7 +90,7 @@
 		label="Move Text Up"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.hasWordSelection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -98,7 +98,7 @@
 		label="Move Text Down"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.hasWordSelection}
 	/>
 
 	<DividerHorizontal />
@@ -109,7 +109,7 @@
 		label="Disconnect Segment"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
 
 	<IconButton
@@ -118,7 +118,7 @@
 		label="Connect Segment"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
 
 	<DividerHorizontal />
@@ -129,7 +129,7 @@
 		label="Insert Column"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.hasWordSelection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -137,6 +137,6 @@
 		label="Remove Column"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
 </Menu>

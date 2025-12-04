@@ -302,3 +302,156 @@ export function getAuthToolbarConfig() {
 		}
 	];
 }
+
+/**
+ * Configuration for the passage toolbar (outline buttons).
+ * Used in PassageToolbar component that appears when segments are active.
+ * 
+ * @returns {Object} Object with button groups organized by toolbar mode
+ */
+export function getPassageToolbarConfig() {
+	return {
+		outline: [
+			{
+				id: 'text-operations',
+				buttons: [
+					{
+						iconId: 'split',
+						title: 'Split Text',
+						disabledCheck: (state) => !state.hasWordSelection
+					},
+					{
+						iconId: 'join',
+						title: 'Join Text',
+						disabledCheck: (state) => !state.hasActiveSegment
+					}
+				]
+			},
+			{
+				id: 'headings',
+				buttons: [
+					{
+						iconId: 'heading-one',
+						title: 'Insert Heading One',
+						disabledCheck: (state) => !state.hasActiveSegment
+					},
+					{
+						iconId: 'heading-two',
+						title: 'Insert Heading Two',
+						disabledCheck: (state) => !state.hasActiveSegment
+					},
+					{
+						iconId: 'heading-three',
+						title: 'Insert Heading Three',
+						disabledCheck: (state) => !state.hasActiveSegment
+					}
+				]
+			},
+			{
+				id: 'movement',
+				buttons: [
+					{
+						iconId: 'arrow-up',
+						title: 'Move Text Up',
+						disabledCheck: (state) => !state.hasWordSelection
+					},
+					{
+						iconId: 'arrow-down',
+						title: 'Move Text Down',
+						disabledCheck: (state) => !state.hasWordSelection
+					}
+				]
+			},
+			{
+				id: 'connections',
+				buttons: [
+					{
+						iconId: 'outline-disconnect',
+						title: 'Disconnect Segment',
+						disabledCheck: (state) => !state.hasActiveSegment
+					},
+					{
+						iconId: 'outline-connect',
+						title: 'Connect Segment',
+						disabledCheck: (state) => !state.hasActiveSegment
+					}
+				]
+			},
+			{
+				id: 'columns',
+				buttons: [
+					{
+						iconId: 'column-insert',
+						title: 'Insert Column',
+						disabledCheck: (state) => !state.hasWordSelection
+					},
+					{
+						iconId: 'column-remove',
+						title: 'Remove Column',
+						disabledCheck: (state) => !state.hasActiveSegment
+					}
+				]
+			}
+		],
+		literary: [
+			{
+				iconId: 'literary-chiasim',
+				title: 'Chiasim'
+			},
+			{
+				iconId: 'literary-paralell',
+				title: 'Paralell'
+			},
+			{
+				iconId: 'literary-repeat',
+				title: 'Repitition'
+			},
+			{
+				iconId: 'literary-intensify',
+				title: 'Intensification'
+			}
+		],
+		color: [
+			{
+				iconId: 'circle',
+				title: 'Red',
+				classes: 'icon-fill-red'
+			},
+			{
+				iconId: 'circle',
+				title: 'Orange',
+				classes: 'icon-fill-orange'
+			},
+			{
+				iconId: 'circle',
+				title: 'Yellow',
+				classes: 'icon-fill-yellow'
+			},
+			{
+				iconId: 'circle',
+				title: 'Green',
+				classes: 'icon-fill-green'
+			},
+			{
+				iconId: 'circle',
+				title: 'Aqua',
+				classes: 'icon-fill-aqua'
+			},
+			{
+				iconId: 'circle',
+				title: 'Blue',
+				classes: 'icon-fill-blue'
+			},
+			{
+				iconId: 'circle',
+				title: 'Purple',
+				classes: 'icon-fill-purple'
+			},
+			{
+				iconId: 'circle',
+				title: 'Pink',
+				classes: 'icon-fill-pink'
+			}
+		]
+	};
+}
