@@ -118,7 +118,7 @@ export function getAppToolbarConfig() {
 					underLabel: 'Outline',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledStateProp: 'canStructure'
+					disabledCheck: (state) => !state.canStructure || state.overviewMode
 				},
 				{
 					type: 'menu',
@@ -127,7 +127,7 @@ export function getAppToolbarConfig() {
 					underLabel: 'Literary',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledStateProp: 'canLiterary'
+					disabledCheck: (state) => !state.canLiterary || state.overviewMode
 				},
 				{
 					type: 'menu',
@@ -136,7 +136,7 @@ export function getAppToolbarConfig() {
 					underLabel: 'Color',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledStateProp: 'canColor'
+					disabledCheck: (state) => !state.canColor || state.overviewMode
 				}
 			]
 		},

@@ -58,6 +58,15 @@
 		setActiveSplit(activeSegment?.activateSplit === true);
 	});
 
+	// Clear active segments and word selection when overview mode is enabled
+	$effect(() => {
+		if ($toolbarState.overviewMode) {
+			activeSegment = null;
+			selectedWord = null;
+			suppressHoverCaret = null;
+		}
+	});
+
 	// Invalidate studies list when study is accessed
 	onMount(() => {
 		if (data.invalidateStudies) {
@@ -209,6 +218,11 @@
 			// Reset drag state
 			dragStartPos = null;
 			isDragging = false;
+			return;
+		}
+
+		// Don't allow segment/split activation in overview mode
+		if ($toolbarState.overviewMode) {
 			return;
 		}
 		
