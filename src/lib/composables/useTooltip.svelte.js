@@ -38,8 +38,8 @@ import * as tooltipStore from '$lib/stores/tooltipStore.svelte.js';
  * @typedef {Object} TooltipOptions
  * @property {string} [content] - Tooltip content (overrides title attribute)
  * @property {string} [placement='auto'] - Preferred placement: top, bottom, left, right, auto
- * @property {number} [delay=500] - Delay in ms before showing tooltip
- * @property {number} [offset=8] - Distance from target element in pixels
+ * @property {number} [delay=1000] - Delay in ms before showing tooltip
+ * @property {number} [offset=0] - Distance from target element in pixels
  * @property {boolean} [allowHtml=false] - Allow HTML in tooltip content
  * 
  * @param {HTMLElement} node - Element to attach tooltip to
@@ -69,9 +69,11 @@ export function tooltip(node, options = {}) {
 		return { destroy: () => {} };
 	}
 
-	const placement = options.placement || 'auto';
-	const delay = options.delay ?? 500;
-	const offset = options.offset ?? 8;
+	// Auto-detect placement for passage toolbar buttons
+	const hasPassageToolbarClass = node.classList.contains('passage-toolbar');
+	const placement = options.placement || (hasPassageToolbarClass ? 'right' : 'auto');
+	const delay = options.delay ?? 1000;
+	const offset = options.offset ?? 0;
 	const allowHtml = options.allowHtml || false;
 
 	let showTimeoutId;

@@ -12,7 +12,7 @@ const tooltipState = writable({
 	content: '',
 	targetElement: null,
 	placement: 'auto',
-	offset: 8,
+	offset: 0,
 	allowHtml: false
 });
 
@@ -22,10 +22,10 @@ const tooltipState = writable({
  * @param {string} options.content - Tooltip content text
  * @param {HTMLElement} options.targetElement - Element to anchor tooltip to
  * @param {string} [options.placement='auto'] - Preferred placement (top, bottom, left, right, auto)
- * @param {number} [options.offset=8] - Distance from target element in pixels
+ * @param {number} [options.offset=0] - Distance from target element in pixels
  * @param {boolean} [options.allowHtml=false] - Allow HTML in content
  */
-export function show({ content, targetElement, placement = 'auto', offset = 8, allowHtml = false }) {
+export function show({ content, targetElement, placement = 'auto', offset = 0, allowHtml = false }) {
 	tooltipState.set({
 		isVisible: true,
 		content,
