@@ -55,6 +55,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {boolean} hasActiveSplit - Whether a split is currently active (for color mode)
+ * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
  */
 
 /**
@@ -88,7 +89,8 @@ const defaultState = {
 	selectedItem: null,
 	hasWordSelection: false,
 	hasActiveSegment: false,
-	hasActiveSplit: false
+	hasActiveSplit: false,
+	canInsertColumn: false
 };
 
 /**
@@ -426,5 +428,16 @@ export function setActiveSplit(hasSplit) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveSplit: hasSplit
+	}));
+}
+
+/**
+ * Set Insert Column availability state
+ * @param {boolean} canInsert - Whether Insert Column should be enabled
+ */
+export function setCanInsertColumn(canInsert) {
+	toolbarStateStore.update(state => ({
+		...state,
+		canInsertColumn: canInsert
 	}));
 }

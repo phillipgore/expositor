@@ -6,9 +6,33 @@
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import ToolbarPassage from '$lib/componentWidgets/ToolbarPassage.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSplit } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSplit, setCanInsertColumn } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
+
+	/**
+	 * Compare two word IDs to determine their order (client-side version)
+	 * Word ID format: BOOK-CHAPTER-VERSE-WORD (e.g., "JN-001-001-005")
+	 * @param {string} wordId1 - First word ID
+	 * @param {string} wordId2 - Second word ID
+	 * @returns {number} Negative if wordId1 < wordId2, 0 if equal, positive if wordId1 > wordId2
+	 */
+	function compareWordIds(wordId1, wordId2) {
+		if (!wordId1 || !wordId2) return 0;
+		
+		const parts1 = wordId1.split('-');
+		const parts2 = wordId2.split('-');
+		
+		// Compare chapter, verse, and word number (indices 1, 2, 3)
+		for (let i = 1; i < 4; i++) {
+			const num1 = parseInt(parts1[i], 10);
+			const num2 = parseInt(parts2[i], 10);
+			const diff = num1 - num2;
+			if (diff !== 0) return diff;
+		}
+		
+		return 0;
+	}
 
 	// Word selection state
 	let hoveredWord = $state(null); // { passageIndex, wordIndex }
@@ -67,6 +91,68 @@
 		}
 	});
 
+	// Validate Insert Column availability based on word selection
+	$effect(() => {
+		if (!selectedWord || !data.passagesWithText || data.passagesWithText.length === 0) {
+			setCanInsertColumn(false);
+			return;
+		}
+
+		const passageText = data.passagesWithText[selectedWord.passageIndex];
+		if (!passageText || !passageText.structure || !passageText.structure.columns) {
+			setCanInsertColumn(false);
+			return;
+		}
+
+		// Get the insertion word ID based on position
+		const wordElement = document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-index="${selectedWord.wordIndex}"]`
+		);
+		
+		if (!wordElement) {
+			setCanInsertColumn(false);
+			return;
+		}
+
+		// Get actual word ID from the original passage text
+		const tempDiv = document.createElement('div');
+		tempDiv.innerHTML = passageText.text;
+		const allWords = Array.from(tempDiv.querySelectorAll('.word[data-word-id]'));
+		
+		// Map wordIndex to actual word ID
+		let insertionWordId = null;
+		if (selectedWord.position === 'before') {
+			// Before: use current word's ID
+			if (allWords[selectedWord.wordIndex]) {
+				insertionWordId = allWords[selectedWord.wordIndex].getAttribute('data-word-id');
+			}
+		} else {
+			// After: use next word's ID
+			if (allWords[selectedWord.wordIndex + 1]) {
+				insertionWordId = allWords[selectedWord.wordIndex + 1].getAttribute('data-word-id');
+			}
+		}
+
+		if (!insertionWordId) {
+			// No valid insertion point (e.g., after last word)
+			setCanInsertColumn(false);
+			return;
+		}
+
+		// Check if insertion point is at the beginning of a column
+		const columns = passageText.structure.columns;
+		for (const column of columns) {
+			if (column.startingWordId === insertionWordId) {
+				// Cannot insert at column start
+				setCanInsertColumn(false);
+				return;
+			}
+		}
+
+		// Valid insertion point
+		setCanInsertColumn(true);
+	});
+
 	// Invalidate studies list when study is accessed
 	onMount(() => {
 		if (data.invalidateStudies) {
@@ -75,15 +161,88 @@
 	});
 
 	/**
+	 * Handle Insert Column button click
+	 */
+	async function handleInsertColumn() {
+		console.log('handleInsertColumn called');
+		
+		if (!selectedWord || !data.passagesWithText) {
+			console.log('No selected word or passages');
+			return;
+		}
+
+		const passageText = data.passagesWithText[selectedWord.passageIndex];
+		if (!passageText || !passageText.structure) {
+			console.log('No passage text or structure');
+			return;
+		}
+
+		// Get the insertion word ID
+		const tempDiv = document.createElement('div');
+		tempDiv.innerHTML = passageText.text;
+		const allWords = Array.from(tempDiv.querySelectorAll('.word[data-word-id]'));
+		
+		let insertionWordId = null;
+		if (selectedWord.position === 'before') {
+			if (allWords[selectedWord.wordIndex]) {
+				insertionWordId = allWords[selectedWord.wordIndex].getAttribute('data-word-id');
+			}
+		} else {
+			if (allWords[selectedWord.wordIndex + 1]) {
+				insertionWordId = allWords[selectedWord.wordIndex + 1].getAttribute('data-word-id');
+			}
+		}
+
+		if (!insertionWordId) {
+			console.log('No insertion word ID found');
+			return;
+		}
+
+		console.log('Inserting column at:', insertionWordId, 'for passage:', passageText.structure.passageId);
+
+		try {
+			const response = await fetch('/api/passages/columns/insert', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					passageId: passageText.structure.passageId,
+					insertionWordId: insertionWordId
+				})
+			});
+
+			console.log('Response status:', response.status);
+
+			if (response.ok) {
+				console.log('Column inserted successfully');
+				// Clear selection
+				selectedWord = null;
+				activeSegment = null;
+				suppressHoverCaret = null;
+				
+				// Refresh data using the dependency key from the layout
+				await invalidate('app:studies');
+			} else {
+				const error = await response.json();
+				console.error('Insert column error response:', error);
+				alert(`Error: ${error.error || 'Failed to insert column'}`);
+			}
+		} catch (error) {
+			console.error('Insert column network error:', error);
+			alert(`Error: ${error.message || 'Failed to insert column'}`);
+		}
+	}
+
+	/**
 	 * Extract text segment from full passage HTML based on word boundaries
 	 * @param {string} fullHtml - The full passage HTML text
 	 * @param {string} startWordId - Starting word ID (e.g., 'ac-01-01-001')
 	 * @param {string|null} endWordId - Ending word ID (null = extract to end)
 	 * @param {number} passageIndex - Index of the passage
-	 * @returns {string} Extracted and wrapped HTML
+	 * @param {number} startWordIndex - Starting word index for this segment
+	 * @returns {{ html: string, nextWordIndex: number }} Extracted HTML and next word index
 	 */
-	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex) {
-		if (!fullHtml) return '';
+	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex, startWordIndex) {
+		if (!fullHtml) return { html: '', nextWordIndex: startWordIndex };
 		
 		const tempDiv = document.createElement('div');
 		tempDiv.innerHTML = fullHtml;
@@ -91,7 +250,7 @@
 		const allWords = tempDiv.querySelectorAll('.word[data-word-id]');
 		let capturing = false;
 		const capturedNodes = [];
-		let wordIndex = 0;
+		let wordIndex = startWordIndex;
 		
 		for (let i = 0; i < allWords.length; i++) {
 			const word = allWords[i];
@@ -137,7 +296,7 @@
 		const container = document.createElement('div');
 		container.appendChild(fragment);
 		
-		return container.innerHTML;
+		return { html: container.innerHTML, nextWordIndex: wordIndex };
 	}
 
 	/**
@@ -663,6 +822,8 @@
 								<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
 								<div class="container">
 									{#if passageText.structure.columns && passageText.structure.columns.length > 0}
+										{@const passageWordIndexTracker = { current: 0 }}
+										{@const passageSegmentIndexTracker = { current: 0 }}
 										{#each passageText.structure.columns as column, columnIndex}
 											<div class="column">
 												{#if column.splits && column.splits.length > 0}
@@ -670,12 +831,29 @@
 														<div class="split {split.color}">
 															{#if split.segments && split.segments.length > 0}
 																{#each split.segments as segment, segmentIndex}
-																	{@const globalSegmentIndex = columnIndex * 100 + splitIndex * 10 + segmentIndex}
+																	{@const domSegmentIndex = passageSegmentIndexTracker.current}
+																	{@const _segIncrement = (passageSegmentIndexTracker.current++, null)}
 																	{@const nextSegment = split.segments[segmentIndex + 1]}
+																	{@const nextSplit = column.splits[splitIndex + 1]}
+																	{@const nextColumn = passageText.structure.columns[columnIndex + 1]}
+																	{@const endWordId = nextSegment?.startingWordId || 
+																	                    nextSplit?.segments[0]?.startingWordId || 
+																	                    nextColumn?.splits[0]?.segments[0]?.startingWordId || 
+																	                    null}
+																	{@const startWordIndex = passageWordIndexTracker.current}
+																	{@const segmentResult = extractSegmentText(
+																		passageText.text,
+																		segment.startingWordId,
+																		endWordId,
+																		passageIndex,
+																		startWordIndex
+																	)}
+																	{@const _wordUpdate = (passageWordIndexTracker.current = segmentResult.nextWordIndex, null)}
 																	<div class="segment">
 																		<ToolbarPassage 
 																			bind:toolbarMode={toolbarMode}
-																			isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === globalSegmentIndex}
+																			isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
+																			onInsertColumn={handleInsertColumn}
 																		/>
 																		
 																		{#if segment.headingOne}
@@ -689,12 +867,7 @@
 																		{/if}
 																		
 																		<div class="text" class:no-headings={!segment.headingOne && !segment.headingTwo && !segment.headingThree}>
-																			{@html extractSegmentText(
-																				passageText.text,
-																				segment.startingWordId,
-																				nextSegment?.startingWordId || null,
-																				passageIndex
-																			)}
+																			{@html segmentResult.html}
 																		</div>
 																	</div>
 																{/each}
@@ -729,7 +902,6 @@
 <style>
 	.container {
 		display: flex;
-		flex-direction: column;
 		position: relative;
 		height: 100%;
 	}

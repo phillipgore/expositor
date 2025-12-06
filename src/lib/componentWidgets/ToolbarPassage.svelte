@@ -9,11 +9,20 @@
 
 	let { 
 		toolbarMode = $bindable('outline'),
-		isActive = false 
+		isActive = false,
+		onInsertColumn = () => {}
 	} = $props();
 
 	// Get toolbar configuration
 	const toolbarConfig = getPassageToolbarConfig();
+
+	// Button click handlers
+	function handleButtonClick(button) {
+		if (button.iconId === 'column-insert') {
+			onInsertColumn();
+		}
+		// Add other button handlers as needed
+	}
 
 	// Create crossfade transitions
 	const [send, receive] = crossfade({
@@ -56,6 +65,7 @@
 									title={button.title}
 									isSquare
 									isDisabled={button.disabledCheck ? button.disabledCheck($toolbarState) : false}
+									handleClick={() => handleButtonClick(button)}
 								/>
 							{/each}
 						</div>

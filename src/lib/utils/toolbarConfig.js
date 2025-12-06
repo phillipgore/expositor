@@ -401,7 +401,7 @@ export function getPassageToolbarConfig() {
 					{
 						iconId: 'column-insert',
 						title: 'Insert Column',
-						disabledCheck: (state) => !state.hasWordSelection
+						disabledCheck: (state) => !state.canInsertColumn
 					},
 					{
 						iconId: 'column-remove',

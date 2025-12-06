@@ -129,7 +129,7 @@
 		label="Insert Column"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection}
+		isDisabled={!$toolbarState.canInsertColumn}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
