@@ -41,7 +41,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="split"
-		label="Split Text"
+		label="Insert Segment"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasWordSelection}
@@ -49,7 +49,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="join"
-		label="Join Text"
+		label="Join Segment"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasActiveSegment}
@@ -134,7 +134,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="column-remove"
-		label="Remove Column"
+		label="Join Column"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasActiveSegment}

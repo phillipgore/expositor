@@ -52,21 +52,25 @@ export async function expandGroupAncestors(groupId, userId) {
  * @param {string} bookId - The book ID
  * @param {number} chapter - The starting chapter
  * @param {number} verse - The starting verse
- * @returns {string} The first word ID (e.g., 'gen-01-01-001')
+ * @returns {string} The first word ID (e.g., 'GEN-001-001-001')
  */
 function getFirstWordId(testamentId, bookId, chapter, verse) {
 	// Find the book to get its abbreviation
 	const testament = bibleData[0].testamentData.find(t => t._id === testamentId);
-	if (!testament) return `${bookId}-${String(chapter).padStart(2, '0')}-${String(verse).padStart(2, '0')}-001`;
+	if (!testament) {
+		const bookAbbrUpper = bookId.toUpperCase();
+		return `${bookAbbrUpper}-${String(chapter).padStart(3, '0')}-${String(verse).padStart(3, '0')}-001`;
+	}
 	
 	const book = testament.bookData.find(b => b._id === bookId);
-	const bookAbbr = book?.titleShortAbbreviation?.toLowerCase() || bookId;
+	const bookAbbr = book?.titleShortAbbreviation || bookId;
 	
-	// Format: bookAbbr-chapter-verse-word (e.g., 'gen-01-01-001')
-	const chapterPadded = String(chapter).padStart(2, '0');
-	const versePadded = String(verse).padStart(2, '0');
+	// Format: BOOKABBR-CHAPTER-VERSE-WORD (e.g., 'GEN-001-001-001')
+	const bookAbbrUpper = bookAbbr.toUpperCase();
+	const chapterPadded = String(chapter).padStart(3, '0');
+	const versePadded = String(verse).padStart(3, '0');
 	
-	return `${bookAbbr}-${chapterPadded}-${versePadded}-001`;
+	return `${bookAbbrUpper}-${chapterPadded}-${versePadded}-001`;
 }
 
 /**

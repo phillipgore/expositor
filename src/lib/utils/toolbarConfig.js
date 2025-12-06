@@ -158,6 +158,24 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'toggle',
+					iconId: 'commentary',
+					underLabel: 'Comment',
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow',
+					disabledStateProp: 'canToggleComment'
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
+			id: 'toggles',
+			items: [
+				{
+					type: 'toggle',
 					iconId: 'reference',
 					underLabel: 'Verses',
 					classes: 'toolbar-dark hide-at-narrow',
@@ -317,12 +335,12 @@ export function getPassageToolbarConfig() {
 				buttons: [
 					{
 						iconId: 'split',
-						title: 'Split Text',
+						title: 'Insert Segment',
 						disabledCheck: (state) => !state.hasWordSelection
 					},
 					{
 						iconId: 'join',
-						title: 'Join Text',
+						title: 'Join Segment',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
 				]
@@ -387,7 +405,7 @@ export function getPassageToolbarConfig() {
 					},
 					{
 						iconId: 'column-remove',
-						title: 'Remove Column',
+						title: 'Join Column',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
 				]

@@ -75,6 +75,72 @@
 	});
 
 	/**
+	 * Extract text segment from full passage HTML based on word boundaries
+	 * @param {string} fullHtml - The full passage HTML text
+	 * @param {string} startWordId - Starting word ID (e.g., 'ac-01-01-001')
+	 * @param {string|null} endWordId - Ending word ID (null = extract to end)
+	 * @param {number} passageIndex - Index of the passage
+	 * @returns {string} Extracted and wrapped HTML
+	 */
+	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex) {
+		if (!fullHtml) return '';
+		
+		const tempDiv = document.createElement('div');
+		tempDiv.innerHTML = fullHtml;
+		
+		const allWords = tempDiv.querySelectorAll('.word[data-word-id]');
+		let capturing = false;
+		const capturedNodes = [];
+		let wordIndex = 0;
+		
+		for (let i = 0; i < allWords.length; i++) {
+			const word = allWords[i];
+			
+			// Start capturing when we reach the start word
+			if (word.dataset.wordId === startWordId) {
+				capturing = true;
+			}
+			
+			if (capturing) {
+				// Clone the word and add selection attributes
+				const wordClone = word.cloneNode(true);
+				wordClone.classList.add('selectable-word');
+				wordClone.dataset.passageIndex = String(passageIndex);
+				wordClone.dataset.wordIndex = String(wordIndex);
+				wordIndex++;
+				
+				capturedNodes.push(wordClone);
+				
+				// Capture any text/elements between this word and the next
+				let next = word.nextSibling;
+				const nextWord = allWords[i + 1];
+				
+				while (next && next !== nextWord) {
+					if (next.nodeType === Node.TEXT_NODE || 
+					    (next.nodeType === Node.ELEMENT_NODE && next.classList?.contains('chapter-verse'))) {
+						capturedNodes.push(next.cloneNode(true));
+					}
+					next = next.nextSibling;
+				}
+			}
+			
+			// Stop capturing when we reach the end word
+			if (endWordId && word.dataset.wordId === endWordId) {
+				break;
+			}
+		}
+		
+		// Build HTML from captured nodes
+		const fragment = document.createDocumentFragment();
+		capturedNodes.forEach(node => fragment.appendChild(node));
+		
+		const container = document.createElement('div');
+		container.appendChild(fragment);
+		
+		return container.innerHTML;
+	}
+
+	/**
 	 * Parse HTML text and wrap each word in a span for selection
 	 * Preserves existing HTML structure (verse numbers, etc.)
 	 * @param {string} htmlText - The HTML text to parse
@@ -593,23 +659,52 @@
 								<div class="error-message">
 									<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
 								</div>
-							{:else if passageText.text}
+							{:else if passageText.text && passageText.structure}
 								<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
 								<div class="container">
-									<div class="column">
-										<div class="split blue">
-											<div class="segment">
-												<ToolbarPassage 
-													bind:toolbarMode={toolbarMode}
-													isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === 0}
-												/>
-												<h4 class="heading-one">Heading One</h4>
-												<h5 class="heading-two">Heading Two</h5>
-												<h6 class="heading-three">Heading Three</h6>
-												<div class="text">{@html wrapWordsInHtml(passageText.text, passageIndex)}</div>
+									{#if passageText.structure.columns && passageText.structure.columns.length > 0}
+										{#each passageText.structure.columns as column, columnIndex}
+											<div class="column">
+												{#if column.splits && column.splits.length > 0}
+													{#each column.splits as split, splitIndex}
+														<div class="split {split.color}">
+															{#if split.segments && split.segments.length > 0}
+																{#each split.segments as segment, segmentIndex}
+																	{@const globalSegmentIndex = columnIndex * 100 + splitIndex * 10 + segmentIndex}
+																	{@const nextSegment = split.segments[segmentIndex + 1]}
+																	<div class="segment">
+																		<ToolbarPassage 
+																			bind:toolbarMode={toolbarMode}
+																			isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === globalSegmentIndex}
+																		/>
+																		
+																		{#if segment.headingOne}
+																			<h4 class="heading-one">{segment.headingOne}</h4>
+																		{/if}
+																		{#if segment.headingTwo}
+																			<h5 class="heading-two">{segment.headingTwo}</h5>
+																		{/if}
+																		{#if segment.headingThree}
+																			<h6 class="heading-three">{segment.headingThree}</h6>
+																		{/if}
+																		
+																		<div class="text" class:no-headings={!segment.headingOne && !segment.headingTwo && !segment.headingThree}>
+																			{@html extractSegmentText(
+																				passageText.text,
+																				segment.startingWordId,
+																				nextSegment?.startingWordId || null,
+																				passageIndex
+																			)}
+																		</div>
+																	</div>
+																{/each}
+															{/if}
+														</div>
+													{/each}
+												{/if}
 											</div>
-										</div>
-									</div>
+										{/each}
+									{/if}
 								</div>
 							{/if}
 						</div>
@@ -642,9 +737,9 @@
 	.study-header {
 		position: absolute;
 		top: 0.9rem;
-		left: 2.3rem;
+		left: 3.5rem;
 		background: var(--white-alpha);
-		padding: 0.3rem 0.9rem 0.9rem;
+		padding: 0.0rem 0.9rem;
 		border-radius: 0.3rem;
 		z-index: 100;
 	}
@@ -675,7 +770,7 @@
 	.analyze-content-inner {
 		display: flex;
 		gap: 4.4rem;
-		padding: 6.6rem 4.4rem 1.8rem;
+		padding: 6.5rem 4.4rem 1.8rem;
 		transition: transform 0.2s ease-out;
 		width: fit-content;
 	}
@@ -692,6 +787,7 @@
 
 	.reference {
 		font-size: 1.2rem;
+		margin-top: 0.0rem;
 		margin-bottom: 0.9rem;
 	}
 
@@ -867,6 +963,13 @@
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
 		border-color: var(--split-dark);
+	}
+
+	.segment:first-child .text.no-headings {
+		border-top: 0.1rem solid;
+		border-color: var(--split-dark);
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
 	}
 
 	.segment:last-child,
@@ -1148,7 +1251,6 @@
 		bottom: 0.9rem;
 		right: 0.9rem;
 		background: var(--white-alpha);
-		padding: 0.9rem;
 		border-radius: 0.3rem;
 		z-index: 100;
 	}

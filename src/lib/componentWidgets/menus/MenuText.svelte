@@ -40,7 +40,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="text-split"
-		label="Split Text"
+		label="Insert Segment"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseTextItems}
@@ -48,7 +48,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="text-join"
-		label="Join Text"
+		label="Join Segment"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseTextItems}

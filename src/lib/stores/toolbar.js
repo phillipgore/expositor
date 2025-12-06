@@ -32,6 +32,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canEdit - Whether Edit button should be enabled (has selected item)
  * @property {boolean} canFormat - Whether formatting buttons should be enabled (has content/selection)
  * @property {boolean} canToggleNotes - Whether Notes toggle should be enabled (document supports notes)
+ * @property {boolean} canToggleComment - Whether Comment toggle should be enabled (document supports comment)
  * @property {boolean} canToggleVerses - Whether Verses toggle should be enabled (document has verses)
  * @property {boolean} canToggleWide - Whether Wide layout toggle should be enabled
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
@@ -65,6 +66,7 @@ const defaultState = {
 	canEdit: false,
 	canFormat: false,
 	canToggleNotes: false,
+	canToggleComment: false,
 	canToggleVerses: false,
 	canToggleWide: false,
 	canToggleOverview: false,
@@ -121,6 +123,7 @@ export function updateToolbarForRoute(pathname) {
 				...state,
 				canFormat: true,
 				canToggleNotes: true,
+				canToggleComment: true,
 				canToggleVerses: true,
 				canToggleWide: true,
 				canToggleOverview: true,
@@ -143,6 +146,7 @@ export function updateToolbarForRoute(pathname) {
 			...state,
 			canFormat: false,
 			canToggleNotes: false,
+			canToggleComment: false,
 			canToggleVerses: false,
 			canToggleWide: false,
 			canToggleOverview: false,
@@ -166,6 +170,7 @@ export function updateToolbarForRoute(pathname) {
 			...state,
 			canFormat: false,
 			canToggleNotes: false,
+			canToggleComment: false,
 			canToggleVerses: false,
 			canToggleWide: false,
 			canToggleOverview: false,
@@ -197,6 +202,7 @@ export function onDocumentOpen() {
 		...state,
 		canFormat: true,
 		canToggleNotes: true,
+		canToggleComment: true,
 		canToggleVerses: true,
 		canToggleWide: true,
 		canToggleOverview: true,
@@ -223,6 +229,7 @@ export function onDocumentClose() {
 		...state,
 		canFormat: false,
 		canToggleNotes: false,
+		canToggleComment: false,
 		canToggleVerses: false,
 		canToggleWide: false,
 		canToggleOverview: false,
