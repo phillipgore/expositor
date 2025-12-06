@@ -508,49 +508,49 @@
 	/* Menu Icon Fill Colors - Enabled */
 	button:enabled.icon-fill-red :global(.icon path) {
 		fill: var(--red-light);
-		stroke: var(--red-dark);
+		stroke: var(--red-darker);
 		stroke-width: 0.15rem;
 	}
 
 	button:enabled.icon-fill-orange :global(.icon path) {
 		fill: var(--orange-light);
-		stroke: var(--orange-dark);
+		stroke: var(--orange-darker);
 		stroke-width: 0.15rem;
 	}
 
 	button:enabled.icon-fill-yellow :global(.icon path) {
 		fill: var(--yellow-light);
-		stroke: var(--yellow-dark);
+		stroke: var(--yellow-darker);
 		stroke-width: 0.15rem;
 	}
 
 	button:enabled.icon-fill-green :global(.icon path) {
 		fill: var(--green-light);
-		stroke: var(--green-dark);
+		stroke: var(--green-darker);
 		stroke-width: 0.15rem;
 	}
 
 	button:enabled.icon-fill-aqua :global(.icon path) {
 		fill: var(--aqua-light);
-		stroke: var(--aqua-dark);
+		stroke: var(--aqua-darker);
 		stroke-width: 0.15rem;
 	}
 
 	button:enabled.icon-fill-blue :global(.icon path) {
 		fill: var(--blue-light);
-		stroke: var(--blue-dark);
+		stroke: var(--blue-darker);
 		stroke-width: 0.15rem;
 	}
 
 	button:enabled.icon-fill-purple :global(.icon path) {
 		fill: var(--purple-light);
-		stroke: var(--purple-dark);
+		stroke: var(--purple-darker);
 		stroke-width: 0.15rem;
 	}
 
 	button:enabled.icon-fill-pink :global(.icon path) {
 		fill: var(--pink-light);
-		stroke: var(--pink-dark);
+		stroke: var(--pink-darker);
 		stroke-width: 0.15rem;
 	}
 
