@@ -5,6 +5,7 @@ import { study, passage } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
+import { createDefaultPassageStructure } from '$lib/server/db/utils.js';
 
 /**
  * Get book name from book ID
@@ -196,6 +197,19 @@ export const actions = {
 			}));
 
 			await db.insert(passage).values(passageValues);
+
+			// Create default column, split, and segment for each passage
+			// Note: Since we delete all passages above, cascade delete removes their structures
+			// So we need to recreate the default structure for all passages
+			for (const passageValue of passageValues) {
+				await createDefaultPassageStructure(
+					passageValue.id,
+					passageValue.testament,
+					passageValue.bookId,
+					passageValue.fromChapter,
+					passageValue.fromVerse
+				);
+			}
 
 			// Redirect to the study view page
 			throw redirect(303, `/study/${studyId}`);

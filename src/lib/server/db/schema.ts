@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
@@ -113,3 +114,59 @@ export const passage = pgTable('passage', {
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()
 });
+
+export const passageColumn = pgTable('passage_column', {
+	id: text('id').primaryKey(),
+	passageId: text('passage_id')
+		.notNull()
+		.references(() => passage.id, { onDelete: 'cascade' }),
+	startingWordId: text('starting_word_id').notNull(),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+}, (table) => ({
+	passageIdIdx: index('passage_column_passage_id_idx').on(table.passageId),
+	startingWordIdx: index('passage_column_starting_word_idx').on(table.startingWordId)
+}));
+
+export const passageSplit = pgTable('passage_split', {
+	id: text('id').primaryKey(),
+	passageColumnId: text('passage_column_id')
+		.notNull()
+		.references(() => passageColumn.id, { onDelete: 'cascade' }),
+	startingWordId: text('starting_word_id').notNull(),
+	color: text('color').notNull().default('blue'),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+}, (table) => ({
+	columnIdIdx: index('passage_split_column_id_idx').on(table.passageColumnId),
+	startingWordIdx: index('passage_split_starting_word_idx').on(table.startingWordId),
+	colorCheck: sql`CHECK (color IN ('red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'))`
+}));
+
+export const passageSegment = pgTable('passage_segment', {
+	id: text('id').primaryKey(),
+	passageSplitId: text('passage_split_id')
+		.notNull()
+		.references(() => passageSplit.id, { onDelete: 'cascade' }),
+	startingWordId: text('starting_word_id').notNull(),
+	headingOne: text('heading_one'),
+	headingTwo: text('heading_two'),
+	headingThree: text('heading_three'),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+}, (table) => ({
+	splitIdIdx: index('passage_segment_split_id_idx').on(table.passageSplitId),
+	startingWordIdx: index('passage_segment_starting_word_idx').on(table.startingWordId)
+}));

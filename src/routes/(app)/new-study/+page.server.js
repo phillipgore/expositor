@@ -5,7 +5,7 @@ import { study, passage, studyGroup } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, and } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
-import { expandGroupAncestors } from '$lib/server/db/utils.js';
+import { expandGroupAncestors, createDefaultPassageStructure } from '$lib/server/db/utils.js';
 
 /**
  * @typedef {Object} PassageData
@@ -185,6 +185,17 @@ export const actions = {
 			}));
 
 			await db.insert(passage).values(passageValues);
+
+			// Create default column, split, and segment for each passage
+			for (const passageValue of passageValues) {
+				await createDefaultPassageStructure(
+					passageValue.id,
+					passageValue.testament,
+					passageValue.bookId,
+					passageValue.fromChapter,
+					passageValue.fromVerse
+				);
+			}
 
 			// If study was created in a group, expand that group and all ancestors
 			if (groupId && typeof groupId === 'string' && groupId.trim() !== '') {
