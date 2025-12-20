@@ -153,6 +153,17 @@
 		if (data.invalidateStudies) {
 			invalidate('app:studies');
 		}
+		
+		// Listen for insert segment event from MenuStructure
+		const handleInsertSegmentEvent = () => {
+			handleInsertSegment();
+		};
+		
+		window.addEventListener('insert-segment', handleInsertSegmentEvent);
+		
+		return () => {
+			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
+		};
 	});
 
 	/**
@@ -172,6 +183,36 @@
 			return;
 		}
 
+		// Get the word element to find its parent elements
+		const wordElement = document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+		);
+		
+		if (!wordElement) {
+			console.log('Word element not found');
+			return;
+		}
+		
+		// Find parent structural elements
+		const segmentElement = wordElement.closest('.segment');
+		const splitElement = wordElement.closest('.split');
+		const columnElement = wordElement.closest('.column');
+		
+		if (!segmentElement || !splitElement || !columnElement) {
+			console.log('Parent structural elements not found');
+			return;
+		}
+		
+		// Extract IDs from data attributes
+		const columnId = columnElement.dataset.columnId;
+		const splitId = splitElement.dataset.splitId;
+		const segmentId = segmentElement.dataset.segmentId;
+		
+		if (!columnId || !splitId || !segmentId) {
+			console.log('Missing structural IDs');
+			return;
+		}
+
 		// Get the insertion word ID based on position
 		let insertionWordId = null;
 		if (selectedWord.position === 'before') {
@@ -179,20 +220,13 @@
 			insertionWordId = selectedWord.wordId;
 		} else {
 			// After: need to find next word's ID
-			const wordElement = document.querySelector(
-				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
-			);
-			
-			if (wordElement) {
-				// Find next word sibling in the DOM
-				let nextElement = wordElement.nextElementSibling;
-				while (nextElement) {
-					if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
-						insertionWordId = nextElement.dataset?.wordId || null;
-						break;
-					}
-					nextElement = nextElement.nextElementSibling;
+			let nextElement = wordElement.nextElementSibling;
+			while (nextElement) {
+				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
+					insertionWordId = nextElement.dataset?.wordId || null;
+					break;
 				}
+				nextElement = nextElement.nextElementSibling;
 			}
 		}
 
@@ -201,7 +235,7 @@
 			return;
 		}
 
-		console.log('Inserting column at:', insertionWordId, 'for passage:', passageText.structure.passageId);
+		console.log('Inserting column at:', insertionWordId, 'in column:', columnId, 'split:', splitId, 'segment:', segmentId);
 
 		try {
 			const response = await fetch('/api/passages/columns/insert', {
@@ -209,6 +243,9 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					passageId: passageText.structure.passageId,
+					columnId: columnId,
+					splitId: splitId,
+					segmentId: segmentId,
 					insertionWordId: insertionWordId
 				})
 			});
@@ -232,6 +269,104 @@
 		} catch (error) {
 			console.error('Insert column network error:', error);
 			alert(`Error: ${error.message || 'Failed to insert column'}`);
+		}
+	}
+
+	/**
+	 * Handle Insert Segment button click
+	 */
+	async function handleInsertSegment() {
+		console.log('handleInsertSegment called');
+		
+		if (!selectedWord || !data.passagesWithText) {
+			console.log('No selected word or passages');
+			return;
+		}
+
+		const passageText = data.passagesWithText[selectedWord.passageIndex];
+		if (!passageText || !('structure' in passageText) || !passageText.structure) {
+			console.log('No passage text or structure');
+			return;
+		}
+
+		// Get the word element to find its parent split
+		const wordElement = document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+		);
+		
+		if (!wordElement) {
+			console.log('Word element not found');
+			return;
+		}
+		
+		// Find the parent split element
+		const splitElement = wordElement.closest('.split');
+		if (!splitElement) {
+			console.log('No parent split found');
+			return;
+		}
+		
+		// Extract split ID from the data attribute
+		const splitId = splitElement.dataset.splitId;
+		if (!splitId) {
+			console.log('No split ID found on element');
+			return;
+		}
+
+		// Get the insertion word ID based on position
+		let insertionWordId = null;
+		if (selectedWord.position === 'before') {
+			// Before: use current word's ID directly
+			insertionWordId = selectedWord.wordId;
+		} else {
+			// After: need to find next word's ID
+			let nextElement = wordElement.nextElementSibling;
+			while (nextElement) {
+				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
+					insertionWordId = nextElement.dataset?.wordId || null;
+					break;
+				}
+				nextElement = nextElement.nextElementSibling;
+			}
+		}
+
+		if (!insertionWordId) {
+			console.log('No insertion word ID found');
+			return;
+		}
+
+		console.log('Inserting segment at:', insertionWordId, 'in split:', splitId, 'for passage:', passageText.structure.passageId);
+
+		try {
+			const response = await fetch('/api/passages/segments/insert', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					passageId: passageText.structure.passageId,
+					splitId: splitId,
+					insertionWordId: insertionWordId
+				})
+			});
+
+			console.log('Response status:', response.status);
+
+			if (response.ok) {
+				console.log('Segment inserted successfully');
+				// Clear selection
+				selectedWord = null;
+				activeSegment = null;
+				suppressHoverCaret = null;
+				
+				// Refresh data using the dependency key from the layout
+				await invalidate('app:studies');
+			} else {
+				const error = await response.json();
+				console.error('Insert segment error response:', error);
+				alert(`Error: ${error.error || 'Failed to insert segment'}`);
+			}
+		} catch (error) {
+			console.error('Insert segment network error:', error);
+			alert(`Error: ${error.message || 'Failed to insert segment'}`);
 		}
 	}
 
@@ -772,10 +907,10 @@
 									{#if passageText.structure.columns && passageText.structure.columns.length > 0}
 										{@const passageSegmentIndexTracker = { current: 0 }}
 										{#each passageText.structure.columns as column, columnIndex}
-											<div class="column">
+											<div class="column" data-column-id="{column.id}">
 												{#if column.splits && column.splits.length > 0}
 													{#each column.splits as split, splitIndex}
-														<div class="split {split.color}">
+														<div class="split {split.color}" data-split-id="{split.id}">
 															{#if split.segments && split.segments.length > 0}
 																{#each split.segments as segment, segmentIndex}
 																	{@const domSegmentIndex = passageSegmentIndexTracker.current}
@@ -793,11 +928,12 @@
 																		endWordId,
 																		passageIndex
 																	)}
-																	<div class="segment">
+																	<div class="segment" data-segment-id="{segment.id}">
 																		<ToolbarPassage 
 																			bind:toolbarMode={toolbarMode}
 																			isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
 																			onInsertColumn={handleInsertColumn}
+																			onInsertSegment={handleInsertSegment}
 																		/>
 																		
 																		{#if segment.headingOne}

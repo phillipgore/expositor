@@ -43,7 +43,11 @@
 		iconId="split"
 		label="Insert Segment"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert segment event via custom event
+			window.dispatchEvent(new CustomEvent('insert-segment'));
+		}}
 		isDisabled={!$toolbarState.hasWordSelection}
 	/>
 	<IconButton

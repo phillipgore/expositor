@@ -10,7 +10,8 @@
 	let { 
 		toolbarMode = $bindable('outline'),
 		isActive = false,
-		onInsertColumn = () => {}
+		onInsertColumn = () => {},
+		onInsertSegment = () => {}
 	} = $props();
 
 	// Get toolbar configuration
@@ -20,6 +21,8 @@
 	function handleButtonClick(button) {
 		if (button.iconId === 'column-insert') {
 			onInsertColumn();
+		} else if (button.iconId === 'split') {
+			onInsertSegment();
 		}
 		// Add other button handlers as needed
 	}

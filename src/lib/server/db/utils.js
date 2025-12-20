@@ -285,14 +285,17 @@ function validateInsertionPoint(structure, insertionWordId) {
  * @param {Object} dbInstance - Database instance
  * @param {string} userId - User ID for authorization
  * @param {string} passageId - Passage ID
+ * @param {string} columnId - Source column ID
+ * @param {string} splitId - Source split ID
+ * @param {string} segmentId - Source segment ID
  * @param {string} insertionWordId - Word ID where column should be inserted
  * @returns {Promise<void>}
  */
-export async function insertColumn(dbInstance, userId, passageId, insertionWordId) {
+export async function insertColumn(dbInstance, userId, passageId, columnId, splitId, segmentId, insertionWordId) {
 	// Import study table for the join
 	const { study: studyTable } = await import('$lib/server/db/schema.js');
 	
-	// 1. Verify ownership using a join
+	// 1. Verify ownership
 	const passageData = await dbInstance
 		.select({
 			passageId: passage.id,
@@ -307,16 +310,38 @@ export async function insertColumn(dbInstance, userId, passageId, insertionWordI
 		throw new Error('Unauthorized');
 	}
 	
-	// 2. Load full structure
-	const structure = await loadPassageStructure(dbInstance, passageId);
+	// 2. Verify the column, split, and segment exist and get their data
+	const splitData = await dbInstance
+		.select({
+			splitId: passageSplit.id,
+			startingWordId: passageSplit.startingWordId,
+			color: passageSplit.color
+		})
+		.from(passageSplit)
+		.innerJoin(passageColumn, eq(passageSplit.passageColumnId, passageColumn.id))
+		.where(and(
+			eq(passageSplit.id, splitId),
+			eq(passageColumn.id, columnId),
+			eq(passageColumn.passageId, passageId)
+		))
+		.limit(1);
 	
-	// 3. Validate insertion point
-	const validation = validateInsertionPoint(structure, insertionWordId);
-	if (!validation.valid) {
-		throw new Error(validation.error);
+	if (splitData.length === 0) {
+		throw new Error('Split not found or does not belong to this passage');
 	}
 	
-	const { sourceColumn, sourceSplit, sourceSegment } = validation;
+	const sourceSplit = splitData[0];
+	
+	// 3. Check if insertion is at column start (not allowed)
+	const columnData = await dbInstance
+		.select({ startingWordId: passageColumn.startingWordId })
+		.from(passageColumn)
+		.where(eq(passageColumn.id, columnId))
+		.limit(1);
+	
+	if (columnData.length > 0 && columnData[0].startingWordId === insertionWordId) {
+		throw new Error('Cannot insert column at the beginning of an existing column');
+	}
 	
 	// 4. Perform insertion in transaction
 	await dbInstance.transaction(async (tx) => {
@@ -345,8 +370,15 @@ export async function insertColumn(dbInstance, userId, passageId, insertionWordI
 				updatedAt: now
 			}).returning();
 			
+			// Get the source segment starting word
+			const segmentData = await tx
+				.select({ startingWordId: passageSegment.startingWordId })
+				.from(passageSegment)
+				.where(eq(passageSegment.id, segmentId))
+				.limit(1);
+			
 			// Determine if we're inserting mid-segment
-			const isMidSegment = sourceSegment.startingWordId !== insertionWordId;
+			const isMidSegment = segmentData.length > 0 && segmentData[0].startingWordId !== insertionWordId;
 			
 			if (isMidSegment) {
 				// Create new segment with no headings
@@ -362,33 +394,125 @@ export async function insertColumn(dbInstance, userId, passageId, insertionWordI
 				});
 			}
 			
-			// Transfer segments that start at or after insertion point
-			const segmentsToTransfer = sourceSplit.segments.filter(
+			// Transfer segments that start at or after insertion point from the source split
+			const segmentsToTransfer = await tx
+				.select()
+				.from(passageSegment)
+				.where(eq(passageSegment.passageSplitId, splitId))
+				.orderBy(asc(passageSegment.startingWordId));
+			
+			const segmentsToMove = segmentsToTransfer.filter(
 				seg => compareWordIds(seg.startingWordId, insertionWordId) >= 0
 			);
 			
-			if (segmentsToTransfer.length > 0) {
+			if (segmentsToMove.length > 0) {
 				await tx.update(passageSegment)
 					.set({ 
 						passageSplitId: newSplit.id,
 						updatedAt: now
 					})
-					.where(inArray(passageSegment.id, segmentsToTransfer.map(s => s.id)));
+					.where(inArray(passageSegment.id, segmentsToMove.map(s => s.id)));
 			}
 		}
 		
-		// Transfer splits that start at or after insertion point
-		const splitsToTransfer = sourceColumn.splits.filter(
+		// Transfer splits that start at or after insertion point from the source column
+		const splitsToTransfer = await tx
+			.select()
+			.from(passageSplit)
+			.where(eq(passageSplit.passageColumnId, columnId))
+			.orderBy(asc(passageSplit.startingWordId));
+		
+		const splitsToMove = splitsToTransfer.filter(
 			split => compareWordIds(split.startingWordId, insertionWordId) >= 0
 		);
 		
-		if (splitsToTransfer.length > 0) {
+		if (splitsToMove.length > 0) {
 			await tx.update(passageSplit)
 				.set({ 
 					passageColumnId: newColumn.id,
 					updatedAt: now
 				})
-				.where(inArray(passageSplit.id, splitsToTransfer.map(s => s.id)));
+				.where(inArray(passageSplit.id, splitsToMove.map(s => s.id)));
 		}
+	});
+}
+
+/**
+ * Insert a new segment at the specified word ID within a specific split
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string} passageId - Passage ID
+ * @param {string} splitId - Split ID where segment should be inserted
+ * @param {string} insertionWordId - Word ID where segment should be inserted
+ * @returns {Promise<void>}
+ */
+export async function insertSegment(dbInstance, userId, passageId, splitId, insertionWordId) {
+	// Import study table for the join
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+	
+	// 1. Verify ownership using a join
+	const passageData = await dbInstance
+		.select({
+			passageId: passage.id,
+			userId: studyTable.userId
+		})
+		.from(passage)
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(eq(passage.id, passageId))
+		.limit(1);
+	
+	if (passageData.length === 0 || passageData[0].userId !== userId) {
+		throw new Error('Unauthorized');
+	}
+	
+	// 2. Verify the split exists and belongs to this passage
+	const splitData = await dbInstance
+		.select({
+			splitId: passageSplit.id,
+			startingWordId: passageSplit.startingWordId
+		})
+		.from(passageSplit)
+		.innerJoin(passageColumn, eq(passageSplit.passageColumnId, passageColumn.id))
+		.where(and(
+			eq(passageSplit.id, splitId),
+			eq(passageColumn.passageId, passageId)
+		))
+		.limit(1);
+	
+	if (splitData.length === 0) {
+		throw new Error('Split not found or does not belong to this passage');
+	}
+	
+	const split = splitData[0];
+	
+	// 3. Check if insertion is at split start (not allowed)
+	if (split.startingWordId === insertionWordId) {
+		throw new Error('Cannot insert segment at the beginning of a split');
+	}
+	
+	// 4. Check if insertion is at an existing segment start (not allowed)
+	const segments = await dbInstance
+		.select()
+		.from(passageSegment)
+		.where(eq(passageSegment.passageSplitId, splitId))
+		.orderBy(asc(passageSegment.startingWordId));
+	
+	for (const segment of segments) {
+		if (segment.startingWordId === insertionWordId) {
+			throw new Error('Cannot insert segment at the beginning of an existing segment');
+		}
+	}
+	
+	// 5. Create new segment
+	const now = new Date();
+	await dbInstance.insert(passageSegment).values({
+		id: uuidv4(),
+		passageSplitId: splitId,
+		startingWordId: insertionWordId,
+		headingOne: null,
+		headingTwo: null,
+		headingThree: null,
+		createdAt: now,
+		updatedAt: now
 	});
 }

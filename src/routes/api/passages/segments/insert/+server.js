@@ -1,10 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { insertColumn } from '$lib/server/db/utils.js';
+import { insertSegment } from '$lib/server/db/utils.js';
 import { auth } from '$lib/server/auth.js';
 
 /**
- * Insert a new column at the specified word ID
+ * Insert a new segment at the specified word ID
  * @type {import('./$types').RequestHandler}
  */
 export const POST = async ({ request }) => {
@@ -16,26 +16,26 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { passageId, columnId, splitId, segmentId, insertionWordId } = await request.json();
+		const { passageId, splitId, insertionWordId } = await request.json();
 
 		// Validate inputs
-		if (!passageId || !columnId || !splitId || !segmentId || !insertionWordId) {
-			return json({ error: 'Missing required fields: passageId, columnId, splitId, segmentId, and insertionWordId' }, { status: 400 });
+		if (!passageId || !splitId || !insertionWordId) {
+			return json({ error: 'Missing required fields: passageId, splitId, and insertionWordId' }, { status: 400 });
 		}
 
-		// Perform the column insertion
-		await insertColumn(db, session.user.id, passageId, columnId, splitId, segmentId, insertionWordId);
+		// Perform the segment insertion
+		await insertSegment(db, session.user.id, passageId, splitId, insertionWordId);
 
 		return json({ success: true }, { status: 200 });
 	} catch (error) {
-		console.error('Insert column error:', error);
+		console.error('Insert segment error:', error);
 		
 		// Return specific error messages for known validation errors
 		if (error.message === 'Unauthorized') {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 		
-		if (error.message.includes('Cannot insert column')) {
+		if (error.message.includes('Cannot insert segment')) {
 			return json({ error: error.message }, { status: 400 });
 		}
 		
