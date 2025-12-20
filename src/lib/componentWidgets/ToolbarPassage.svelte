@@ -30,6 +30,22 @@
 		easing: quintOut
 	});
 
+	// Calculate inverse scale to keep toolbar at fixed size when page zooms
+	let inverseScale = $derived.by(() => {
+		const zoomLevel = $toolbarState.zoomLevel || 100;
+		return 100 / zoomLevel;
+	});
+
+	// Calculate scaled position offsets to maintain correct positioning at different zoom levels
+	// Use inverse scale: when zoomed in (larger), toolbar should be closer; when zoomed out (smaller), farther
+	let scaledRight = $derived.by(() => {
+		return -3.4 * inverseScale;
+	});
+
+	let scaledTop = $derived.by(() => {
+		return -1.4 * inverseScale;
+	});
+
 	// Reset toolbar mode to 'outline' when component becomes inactive
 	$effect(() => {
 		if (!isActive) {
@@ -39,7 +55,7 @@
 </script>
 
 {#if isActive}
-	<div class="controls" transition:fade={{ duration: 150, easing: quintOut }}>
+	<div class="controls" style="transform: scale({inverseScale}); transform-origin: top right; right: {scaledRight}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
 		<IconButton
 			iconId="circle"
 			classes="passage-toolbar"
