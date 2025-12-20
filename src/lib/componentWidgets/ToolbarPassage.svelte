@@ -40,19 +40,30 @@
 
 {#if isActive}
 	<div class="controls" transition:fade={{ duration: 150, easing: quintOut }}>
-		<ButtonGrouped
-			buttons={[
-				{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Outline Tools' },
-				{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Tools' },
-				{ id: 'color', iconId: 'paintbrush', label: '', title: 'View Color Tools' }
-			]}
-			defaultActive='outline'
-			onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
-			buttonClasses='passage-toolbar'
+		<IconButton
+			iconId="circle"
+			classes="passage-toolbar"
+			title="Section Select"
 			isSquare
-			isList
+			isActive={toolbarMode === 'color'}
+			handleClick={() => {
+				toolbarMode = toolbarMode === 'color' ? 'outline' : 'color';
+			}}
 		/>
-		<DividerHorizontal width="2.8rem" spacingTop="1.2rem" spacingBottom="1.2rem"/>
+		{#if toolbarMode !== 'color'}
+			<ButtonGrouped
+				buttons={[
+					{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Outline Tools' },
+					{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Tools' }
+				]}
+				activeButton={toolbarMode !== 'color' ? toolbarMode : null}
+				onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
+				buttonClasses='passage-toolbar'
+				isSquare
+				isList
+			/>
+		{/if}
+		<DividerHorizontal width="2.8rem"/>
 		{#key toolbarMode}
 			{#if toolbarMode === 'outline'}
 				<div class="button-container outline" in:receive={{ key: 'toolbar' }} out:send={{ key: 'toolbar' }}>
@@ -73,25 +84,29 @@
 				</div>
 			{:else if toolbarMode === 'literary'}
 				<div class="button-container literary" in:receive={{ key: 'toolbar' }} out:send={{ key: 'toolbar' }}>
-					{#each toolbarConfig.literary as button}
-						<IconButton 
-							iconId={button.iconId}
-							classes="passage-toolbar"
-							title={button.title}
-							isSquare
-						/>
-					{/each}
+					<div class="button-group">
+						{#each toolbarConfig.literary as button}
+							<IconButton 
+								iconId={button.iconId}
+								classes="passage-toolbar"
+								title={button.title}
+								isSquare
+							/>
+						{/each}
+					</div>
 				</div>
 			{:else if toolbarMode === 'color'}
 				<div class="button-container color" in:receive={{ key: 'toolbar' }} out:send={{ key: 'toolbar' }}>
-					{#each toolbarConfig.color as button}
-						<IconButton 
-							iconId={button.iconId}
-							classes="passage-toolbar {button.classes || ''}"
-							title={button.title}
-							isSquare
-						/>
-					{/each}
+					<div class="button-group">
+						{#each toolbarConfig.color as button}
+							<IconButton 
+								iconId={button.iconId}
+								classes="passage-toolbar {button.classes || ''}"
+								title={button.title}
+								isSquare
+							/>
+						{/each}
+					</div>
 				</div>
 			{/if}
 		{/key}
@@ -107,9 +122,10 @@
 		width: 3.4rem;
 		position: absolute;
 		right: -3.4rem;
-		top: 0.6rem;
+		top: -1.4rem;
 		min-height: calc(100% - 1.2rem);
 		overflow: hidden;
+		gap: 0.6rem;
 	}
 
 	.controls :global(.group-container) {
@@ -121,7 +137,7 @@
 		flex-direction: column;
 		align-items: flex-end;
 		padding-left: 0.5rem;
-		gap: 0.6rem;
+		gap: 0.9rem;
 	}
 
 	.button-group {
