@@ -112,8 +112,12 @@
 		iconId="outline-disconnect"
 		label="Disconnect Segment"
 		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment}
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert split event via custom event
+			window.dispatchEvent(new CustomEvent('insert-split'));
+		}}
+		isDisabled={!$toolbarState.hasWordSelection}
 	/>
 
 	<IconButton
@@ -132,7 +136,11 @@
 		iconId="column-insert"
 		label="Insert Column"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert column event via custom event
+			window.dispatchEvent(new CustomEvent('insert-column'));
+		}}
 		isDisabled={!$toolbarState.canInsertColumn}
 	/>
 	<IconButton

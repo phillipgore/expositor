@@ -11,6 +11,7 @@
 		toolbarMode = $bindable('outline'),
 		isActive = false,
 		onInsertColumn = () => {},
+		onInsertSplit = () => {},
 		onInsertSegment = () => {}
 	} = $props();
 
@@ -21,6 +22,8 @@
 	function handleButtonClick(button) {
 		if (button.iconId === 'column-insert') {
 			onInsertColumn();
+		} else if (button.iconId === 'outline-disconnect') {
+			onInsertSplit();
 		} else if (button.iconId === 'split') {
 			onInsertSegment();
 		}

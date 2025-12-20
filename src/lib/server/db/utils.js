@@ -438,6 +438,123 @@ export async function insertColumn(dbInstance, userId, passageId, columnId, spli
 }
 
 /**
+ * Insert a new split at the specified word ID
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string} passageId - Passage ID
+ * @param {string} columnId - Column ID where split should be inserted
+ * @param {string} splitId - Source split ID
+ * @param {string} segmentId - Source segment ID
+ * @param {string} insertionWordId - Word ID where split should be inserted
+ * @returns {Promise<void>}
+ */
+export async function insertSplit(dbInstance, userId, passageId, columnId, splitId, segmentId, insertionWordId) {
+	// Import study table for the join
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+	
+	// 1. Verify ownership
+	const passageData = await dbInstance
+		.select({
+			passageId: passage.id,
+			userId: studyTable.userId
+		})
+		.from(passage)
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(eq(passage.id, passageId))
+		.limit(1);
+	
+	if (passageData.length === 0 || passageData[0].userId !== userId) {
+		throw new Error('Unauthorized');
+	}
+	
+	// 2. Verify the split exists and get its color
+	const splitData = await dbInstance
+		.select({
+			splitId: passageSplit.id,
+			startingWordId: passageSplit.startingWordId,
+			color: passageSplit.color
+		})
+		.from(passageSplit)
+		.innerJoin(passageColumn, eq(passageSplit.passageColumnId, passageColumn.id))
+		.where(and(
+			eq(passageSplit.id, splitId),
+			eq(passageColumn.id, columnId),
+			eq(passageColumn.passageId, passageId)
+		))
+		.limit(1);
+	
+	if (splitData.length === 0) {
+		throw new Error('Split not found or does not belong to this passage');
+	}
+	
+	const sourceSplit = splitData[0];
+	
+	// 3. Check if insertion is at split start (not allowed)
+	if (sourceSplit.startingWordId === insertionWordId) {
+		throw new Error('Cannot insert split at the beginning of an existing split');
+	}
+	
+	// 4. Perform insertion in transaction
+	await dbInstance.transaction(async (tx) => {
+		const now = new Date();
+		
+		// Create new split with inherited color
+		const [newSplit] = await tx.insert(passageSplit).values({
+			id: uuidv4(),
+			passageColumnId: columnId,
+			startingWordId: insertionWordId,
+			color: sourceSplit.color,
+			createdAt: now,
+			updatedAt: now
+		}).returning();
+		
+		// Get the source segment starting word
+		const segmentData = await tx
+			.select({ startingWordId: passageSegment.startingWordId })
+			.from(passageSegment)
+			.where(eq(passageSegment.id, segmentId))
+			.limit(1);
+		
+		// Determine if we're inserting mid-segment
+		const isMidSegment = segmentData.length > 0 && segmentData[0].startingWordId !== insertionWordId;
+		
+		if (isMidSegment) {
+			// Create new segment with no headings in the new split
+			await tx.insert(passageSegment).values({
+				id: uuidv4(),
+				passageSplitId: newSplit.id,
+				startingWordId: insertionWordId,
+				headingOne: null,
+				headingTwo: null,
+				headingThree: null,
+				createdAt: now,
+				updatedAt: now
+			});
+		}
+		
+		// Transfer segments that start at or after insertion point from the source split
+		const segmentsToTransfer = await tx
+			.select()
+			.from(passageSegment)
+			.where(eq(passageSegment.passageSplitId, splitId))
+			.orderBy(asc(passageSegment.startingWordId));
+		
+		const segmentsToMove = segmentsToTransfer.filter(
+			seg => compareWordIds(seg.startingWordId, insertionWordId) >= 0
+		);
+		
+		if (segmentsToMove.length > 0) {
+			await tx.update(passageSegment)
+				.set({ 
+					passageSplitId: newSplit.id,
+					updatedAt: now
+				})
+				.where(inArray(passageSegment.id, segmentsToMove.map(s => s.id)));
+		}
+	});
+}
+
+/**
  * Insert a new segment at the specified word ID within a specific split
  * @param {Object} dbInstance - Database instance
  * @param {string} userId - User ID for authorization

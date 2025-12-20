@@ -154,14 +154,28 @@
 			invalidate('app:studies');
 		}
 		
+		// Listen for insert column event from MenuStructure
+		const handleInsertColumnEvent = () => {
+			handleInsertColumn();
+		};
+		
+		// Listen for insert split event from MenuStructure
+		const handleInsertSplitEvent = () => {
+			handleInsertSplit();
+		};
+		
 		// Listen for insert segment event from MenuStructure
 		const handleInsertSegmentEvent = () => {
 			handleInsertSegment();
 		};
 		
+		window.addEventListener('insert-column', handleInsertColumnEvent);
+		window.addEventListener('insert-split', handleInsertSplitEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
 		
 		return () => {
+			window.removeEventListener('insert-column', handleInsertColumnEvent);
+			window.removeEventListener('insert-split', handleInsertSplitEvent);
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
 		};
 	});
@@ -269,6 +283,112 @@
 		} catch (error) {
 			console.error('Insert column network error:', error);
 			alert(`Error: ${error.message || 'Failed to insert column'}`);
+		}
+	}
+
+	/**
+	 * Handle Insert Split button click
+	 */
+	async function handleInsertSplit() {
+		console.log('handleInsertSplit called');
+		
+		if (!selectedWord || !data.passagesWithText) {
+			console.log('No selected word or passages');
+			return;
+		}
+
+		const passageText = data.passagesWithText[selectedWord.passageIndex];
+		if (!passageText || !('structure' in passageText) || !passageText.structure) {
+			console.log('No passage text or structure');
+			return;
+		}
+
+		// Get the word element to find its parent elements
+		const wordElement = document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+		);
+		
+		if (!wordElement) {
+			console.log('Word element not found');
+			return;
+		}
+		
+		// Find parent structural elements
+		const segmentElement = wordElement.closest('.segment');
+		const splitElement = wordElement.closest('.split');
+		const columnElement = wordElement.closest('.column');
+		
+		if (!segmentElement || !splitElement || !columnElement) {
+			console.log('Parent structural elements not found');
+			return;
+		}
+		
+		// Extract IDs from data attributes
+		const columnId = columnElement.dataset.columnId;
+		const splitId = splitElement.dataset.splitId;
+		const segmentId = segmentElement.dataset.segmentId;
+		
+		if (!columnId || !splitId || !segmentId) {
+			console.log('Missing structural IDs');
+			return;
+		}
+
+		// Get the insertion word ID based on position
+		let insertionWordId = null;
+		if (selectedWord.position === 'before') {
+			// Before: use current word's ID directly
+			insertionWordId = selectedWord.wordId;
+		} else {
+			// After: need to find next word's ID
+			let nextElement = wordElement.nextElementSibling;
+			while (nextElement) {
+				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
+					insertionWordId = nextElement.dataset?.wordId || null;
+					break;
+				}
+				nextElement = nextElement.nextElementSibling;
+			}
+		}
+
+		if (!insertionWordId) {
+			console.log('No insertion word ID found');
+			return;
+		}
+
+		console.log('Inserting split at:', insertionWordId, 'in column:', columnId, 'split:', splitId, 'segment:', segmentId);
+
+		try {
+			const response = await fetch('/api/passages/splits/insert', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					passageId: passageText.structure.passageId,
+					columnId: columnId,
+					splitId: splitId,
+					segmentId: segmentId,
+					insertionWordId: insertionWordId
+				})
+			});
+
+			console.log('Response status:', response.status);
+
+			if (response.ok) {
+				console.log('Split inserted successfully');
+				// Clear selection
+				selectedWord = null;
+				activeSegment = null;
+				suppressHoverCaret = null;
+				
+				// Refresh data using the dependency key from the layout
+				await invalidate('app:studies');
+			} else {
+				const error = await response.json();
+				console.error('Insert split error response:', error);
+				alert(`Error: ${error.error || 'Failed to insert split'}`);
+			}
+		} catch (error) {
+			console.error('Insert split network error:', error);
+			alert(`Error: ${error.message || 'Failed to insert split'}`);
 		}
 	}
 
@@ -933,6 +1053,7 @@
 																			bind:toolbarMode={toolbarMode}
 																			isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
 																			onInsertColumn={handleInsertColumn}
+																			onInsertSplit={handleInsertSplit}
 																			onInsertSegment={handleInsertSegment}
 																		/>
 																		
