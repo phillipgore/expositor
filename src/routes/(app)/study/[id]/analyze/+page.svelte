@@ -35,9 +35,9 @@
 	}
 
 	// Word selection state
-	let hoveredWord = $state(null); // { passageIndex, wordIndex }
-	let selectedWord = $state(null); // { passageIndex, wordIndex, position }
-	let suppressHoverCaret = $state(null); // { passageIndex, wordIndex } - suppress hover caret after deselection
+	let hoveredWord = $state(null); // { passageIndex, wordId }
+	let selectedWord = $state(null); // { passageIndex, wordId, position }
+	let suppressHoverCaret = $state(null); // { passageIndex, wordId } - suppress hover caret after deselection
 	
 	// Drag detection state
 	let dragStartPos = $state(null); // { x, y } - mouse position on mousedown
@@ -105,31 +105,26 @@
 		}
 
 		// Get the insertion word ID based on position
-		const wordElement = document.querySelector(
-			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-index="${selectedWord.wordIndex}"]`
-		);
-		
-		if (!wordElement) {
-			setCanInsertColumn(false);
-			return;
-		}
-
-		// Get actual word ID from the original passage text
-		const tempDiv = document.createElement('div');
-		tempDiv.innerHTML = passageText.text;
-		const allWords = Array.from(tempDiv.querySelectorAll('.word[data-word-id]'));
-		
-		// Map wordIndex to actual word ID
 		let insertionWordId = null;
 		if (selectedWord.position === 'before') {
-			// Before: use current word's ID
-			if (allWords[selectedWord.wordIndex]) {
-				insertionWordId = allWords[selectedWord.wordIndex].getAttribute('data-word-id');
-			}
+			// Before: use current word's ID directly
+			insertionWordId = selectedWord.wordId;
 		} else {
-			// After: use next word's ID
-			if (allWords[selectedWord.wordIndex + 1]) {
-				insertionWordId = allWords[selectedWord.wordIndex + 1].getAttribute('data-word-id');
+			// After: need to find next word's ID
+			const wordElement = document.querySelector(
+				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+			);
+			
+			if (wordElement) {
+				// Find next word sibling in the DOM
+				let nextElement = wordElement.nextElementSibling;
+				while (nextElement) {
+					if (nextElement.classList.contains('selectable-word')) {
+						insertionWordId = nextElement.dataset.wordId;
+						break;
+					}
+					nextElement = nextElement.nextElementSibling;
+				}
 			}
 		}
 
@@ -172,24 +167,32 @@
 		}
 
 		const passageText = data.passagesWithText[selectedWord.passageIndex];
-		if (!passageText || !passageText.structure) {
+		if (!passageText || !('structure' in passageText) || !passageText.structure) {
 			console.log('No passage text or structure');
 			return;
 		}
 
-		// Get the insertion word ID
-		const tempDiv = document.createElement('div');
-		tempDiv.innerHTML = passageText.text;
-		const allWords = Array.from(tempDiv.querySelectorAll('.word[data-word-id]'));
-		
+		// Get the insertion word ID based on position
 		let insertionWordId = null;
 		if (selectedWord.position === 'before') {
-			if (allWords[selectedWord.wordIndex]) {
-				insertionWordId = allWords[selectedWord.wordIndex].getAttribute('data-word-id');
-			}
+			// Before: use current word's ID directly
+			insertionWordId = selectedWord.wordId;
 		} else {
-			if (allWords[selectedWord.wordIndex + 1]) {
-				insertionWordId = allWords[selectedWord.wordIndex + 1].getAttribute('data-word-id');
+			// After: need to find next word's ID
+			const wordElement = document.querySelector(
+				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+			);
+			
+			if (wordElement) {
+				// Find next word sibling in the DOM
+				let nextElement = wordElement.nextElementSibling;
+				while (nextElement) {
+					if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
+						insertionWordId = nextElement.dataset?.wordId || null;
+						break;
+					}
+					nextElement = nextElement.nextElementSibling;
+				}
 			}
 		}
 
@@ -238,11 +241,10 @@
 	 * @param {string} startWordId - Starting word ID (e.g., 'ac-01-01-001')
 	 * @param {string|null} endWordId - Ending word ID (null = extract to end)
 	 * @param {number} passageIndex - Index of the passage
-	 * @param {number} startWordIndex - Starting word index for this segment
-	 * @returns {{ html: string, nextWordIndex: number }} Extracted HTML and next word index
+	 * @returns {string} Extracted HTML
 	 */
-	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex, startWordIndex) {
-		if (!fullHtml) return { html: '', nextWordIndex: startWordIndex };
+	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex) {
+		if (!fullHtml) return '';
 		
 		const tempDiv = document.createElement('div');
 		tempDiv.innerHTML = fullHtml;
@@ -250,7 +252,6 @@
 		const allWords = tempDiv.querySelectorAll('.word[data-word-id]');
 		let capturing = false;
 		const capturedNodes = [];
-		let wordIndex = startWordIndex;
 		
 		for (let i = 0; i < allWords.length; i++) {
 			const word = allWords[i];
@@ -260,13 +261,18 @@
 				capturing = true;
 			}
 			
+			// Stop capturing when we reach the end word (BEFORE capturing it)
+			if (endWordId && word.dataset.wordId === endWordId) {
+				break;
+			}
+			
 			if (capturing) {
 				// Clone the word and add selection attributes
+				// data-word-id is preserved from the original API response (immutable)
 				const wordClone = word.cloneNode(true);
 				wordClone.classList.add('selectable-word');
 				wordClone.dataset.passageIndex = String(passageIndex);
-				wordClone.dataset.wordIndex = String(wordIndex);
-				wordIndex++;
+				// Do NOT recount words - data-word-id from API is preserved
 				
 				capturedNodes.push(wordClone);
 				
@@ -282,11 +288,6 @@
 					next = next.nextSibling;
 				}
 			}
-			
-			// Stop capturing when we reach the end word
-			if (endWordId && word.dataset.wordId === endWordId) {
-				break;
-			}
 		}
 		
 		// Build HTML from captured nodes
@@ -296,60 +297,7 @@
 		const container = document.createElement('div');
 		container.appendChild(fragment);
 		
-		return { html: container.innerHTML, nextWordIndex: wordIndex };
-	}
-
-	/**
-	 * Parse HTML text and wrap each word in a span for selection
-	 * Preserves existing HTML structure (verse numbers, etc.)
-	 * @param {string} htmlText - The HTML text to parse
-	 * @param {number} passageIndex - Index of the passage
-	 * @returns {string} HTML with words wrapped
-	 */
-	function wrapWordsInHtml(htmlText, passageIndex) {
-		if (!htmlText) return '';
-		
-		// Create a temporary div to parse HTML
-		const tempDiv = document.createElement('div');
-		tempDiv.innerHTML = htmlText;
-		
-		let wordIndex = 0;
-		
-		// Recursive function to process text nodes
-		function processNode(node) {
-			if (node.nodeType === Node.TEXT_NODE) {
-				const text = node.textContent;
-				if (!text.trim()) return; // Skip empty text nodes
-				
-				// Split by spaces and wrap only words (not whitespace)
-				const words = text.split(/(\s+)/);
-				const fragment = document.createDocumentFragment();
-				
-				words.forEach(word => {
-					if (word.match(/\s+/)) {
-						// Keep whitespace as plain text (no wrapping)
-						fragment.appendChild(document.createTextNode(word));
-					} else if (word.trim()) {
-						// Wrap word in span
-						const span = document.createElement('span');
-						span.className = 'selectable-word';
-						span.dataset.passageIndex = String(passageIndex);
-						span.dataset.wordIndex = String(wordIndex);
-						span.textContent = word;
-						fragment.appendChild(span);
-						wordIndex++;
-					}
-				});
-				
-				node.parentNode.replaceChild(fragment, node);
-			} else if (node.nodeType === Node.ELEMENT_NODE) {
-				// Process child nodes
-				Array.from(node.childNodes).forEach(child => processNode(child));
-			}
-		}
-		
-		processNode(tempDiv);
-		return tempDiv.innerHTML;
+		return container.innerHTML;
 	}
 
 	/**
@@ -406,7 +354,7 @@
 		if (target.classList.contains('selectable-word')) {
 			hoveredWord = {
 				passageIndex: parseInt(target.dataset.passageIndex),
-				wordIndex: parseInt(target.dataset.wordIndex)
+				wordId: target.dataset.wordId
 			};
 		}
 	}
@@ -514,27 +462,27 @@
 			// Handle word selection
 			if (target.classList.contains('selectable-word')) {
 				const passageIndex = parseInt(target.dataset.passageIndex);
-				const wordIndex = parseInt(target.dataset.wordIndex);
+				const wordId = target.dataset.wordId;
 				
 				// Check if clicking the same word
 				const isSameWord = selectedWord?.passageIndex === passageIndex && 
-				                   selectedWord?.wordIndex === wordIndex;
+				                   selectedWord?.wordId === wordId;
 				
 				if (isSameWord) {
 					// Clicking same word: cycle through states
 					if (selectedWord.position === 'before') {
 						// Before -> After
-						selectedWord = { passageIndex, wordIndex, position: 'after' };
+						selectedWord = { passageIndex, wordId, position: 'after' };
 						suppressHoverCaret = null; // Clear suppression
 					} else {
 						// After -> Deselect (suppress hover caret until mouse out)
 						selectedWord = null;
-						suppressHoverCaret = { passageIndex, wordIndex };
+						suppressHoverCaret = { passageIndex, wordId };
 						activeSegment = null; // Also deactivate segment
 					}
 				} else {
 					// Clicking different word: start with "before"
-					selectedWord = { passageIndex, wordIndex, position: 'before' };
+					selectedWord = { passageIndex, wordId, position: 'before' };
 					suppressHoverCaret = null; // Clear suppression
 				}
 			} else {
@@ -580,7 +528,7 @@
 		// Add data-selected and data-position to the selected word
 		if (selectedWord) {
 			const selectedElement = document.querySelector(
-				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-index="${selectedWord.wordIndex}"]`
+				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
 			);
 			if (selectedElement) {
 				selectedElement.setAttribute('data-selected', 'true');
@@ -591,7 +539,7 @@
 		// Add data-suppress-hover-caret to the word where hover caret should be suppressed
 		if (suppressHoverCaret) {
 			const suppressElement = document.querySelector(
-				`.selectable-word[data-passage-index="${suppressHoverCaret.passageIndex}"][data-word-index="${suppressHoverCaret.wordIndex}"]`
+				`.selectable-word[data-passage-index="${suppressHoverCaret.passageIndex}"][data-word-id="${suppressHoverCaret.wordId}"]`
 			);
 			if (suppressElement) {
 				suppressElement.setAttribute('data-suppress-hover-caret', 'true');
@@ -822,7 +770,6 @@
 								<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
 								<div class="container">
 									{#if passageText.structure.columns && passageText.structure.columns.length > 0}
-										{@const passageWordIndexTracker = { current: 0 }}
 										{@const passageSegmentIndexTracker = { current: 0 }}
 										{#each passageText.structure.columns as column, columnIndex}
 											<div class="column">
@@ -840,15 +787,12 @@
 																	                    nextSplit?.segments[0]?.startingWordId || 
 																	                    nextColumn?.splits[0]?.segments[0]?.startingWordId || 
 																	                    null}
-																	{@const startWordIndex = passageWordIndexTracker.current}
-																	{@const segmentResult = extractSegmentText(
+																	{@const segmentHtml = extractSegmentText(
 																		passageText.text,
 																		segment.startingWordId,
 																		endWordId,
-																		passageIndex,
-																		startWordIndex
+																		passageIndex
 																	)}
-																	{@const _wordUpdate = (passageWordIndexTracker.current = segmentResult.nextWordIndex, null)}
 																	<div class="segment">
 																		<ToolbarPassage 
 																			bind:toolbarMode={toolbarMode}
@@ -867,7 +811,7 @@
 																		{/if}
 																		
 																		<div class="text" class:no-headings={!segment.headingOne && !segment.headingTwo && !segment.headingThree}>
-																			{@html segmentResult.html}
+																			{@html segmentHtml}
 																		</div>
 																	</div>
 																{/each}
