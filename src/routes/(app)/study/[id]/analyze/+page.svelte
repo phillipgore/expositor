@@ -688,14 +688,27 @@
 			// Clear any custom word selections
 			selectedWord = null;
 			suppressHoverCaret = null;
-			// Clear active segment/split
-			activeSegment = null;
+			// Allow text selection in input fields without deactivating segment
+			const isInInput = event.target.closest('input, textarea');
+			if (!isInInput) {
+				// Only clear active segment if NOT clicking in an input
+				activeSegment = null;
+			}
 			return; // Let browser handle double/triple-click text selection
 		}
 		
 		// Capture event data before async timeout
 		const clickedSegment = event.target.closest('.segment');
 		const target = event.target;
+		
+		// Don't process word selection or segment activation if clicking in an input field
+		const isInInput = target.closest('input, textarea');
+		if (isInInput) {
+			// Reset drag state but don't process further
+			dragStartPos = null;
+			isDragging = false;
+			return;
+		}
 		
 		// Handle segment/split activation IMMEDIATELY (no delay)
 		// This makes the toolbar appear instantly without waiting for debounce
