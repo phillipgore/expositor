@@ -4,7 +4,7 @@
 	import { fade } from 'svelte/transition';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
-	import ToolbarPassage from '$lib/componentWidgets/ToolbarPassage.svelte';
+	import Segment from '$lib/componentWidgets/Segment.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSplit, setCanInsertColumn } from '$lib/stores/toolbar.js';
 
@@ -169,14 +169,37 @@
 			handleInsertSegment();
 		};
 		
+		// Listen for insert heading one event from MenuStructure
+		const handleInsertHeadingOneFromMenuEvent = () => {
+			// Find the active segment and dispatch event with its ID
+			if (activeSegment) {
+				const allPassages = Array.from(document.querySelectorAll('.passage'));
+				const passageElement = allPassages[activeSegment.passageIndex];
+				if (passageElement) {
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentElement = allSegments[activeSegment.segmentIndex];
+					if (segmentElement) {
+						const segmentId = segmentElement.dataset.segmentId;
+						if (segmentId) {
+							window.dispatchEvent(new CustomEvent('insert-heading-one', {
+								detail: { segmentId }
+							}));
+						}
+					}
+				}
+			}
+		};
+		
 		window.addEventListener('insert-column', handleInsertColumnEvent);
 		window.addEventListener('insert-split', handleInsertSplitEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
+		window.addEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
 		
 		return () => {
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
 			window.removeEventListener('insert-split', handleInsertSplitEvent);
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
+			window.removeEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
 		};
 	});
 
@@ -1048,29 +1071,19 @@
 																		endWordId,
 																		passageIndex
 																	)}
-																	<div class="segment" data-segment-id="{segment.id}">
-																		<ToolbarPassage 
-																			bind:toolbarMode={toolbarMode}
-																			isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
-																			onInsertColumn={handleInsertColumn}
-																			onInsertSplit={handleInsertSplit}
-																			onInsertSegment={handleInsertSegment}
-																		/>
-																		
-																		{#if segment.headingOne}
-																			<h4 class="heading-one">{segment.headingOne}</h4>
-																		{/if}
-																		{#if segment.headingTwo}
-																			<h5 class="heading-two">{segment.headingTwo}</h5>
-																		{/if}
-																		{#if segment.headingThree}
-																			<h6 class="heading-three">{segment.headingThree}</h6>
-																		{/if}
-																		
-																		<div class="text" class:no-headings={!segment.headingOne && !segment.headingTwo && !segment.headingThree}>
-																			{@html segmentHtml}
-																		</div>
-																	</div>
+																	<Segment 
+																		heading1={segment.headingOne}
+																		heading2={segment.headingTwo}
+																		heading3={segment.headingThree}
+																		text={segmentHtml}
+																		{passageIndex}
+																		isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
+																		bind:toolbarMode={toolbarMode}
+																		segmentId={segment.id}
+																		onInsertColumn={handleInsertColumn}
+																		onInsertSplit={handleInsertSplit}
+																		onInsertSegment={handleInsertSegment}
+																	/>
 																{/each}
 															{/if}
 														</div>
@@ -1255,12 +1268,6 @@
 		--split-dark: var(--pink-dark);
 		--split-light: var(--pink-light);
 		--split-lighter: var(--pink-lighter);
-	}
-
-	.split .segment:first-child,
-	.split .segment:first-child .heading-one {
-		border-top-right-radius: 0.3rem;
-		border-top-left-radius: 0.3rem;
 	}
 
 	.segment {

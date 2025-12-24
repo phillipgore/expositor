@@ -12,7 +12,8 @@
 		isActive = false,
 		onInsertColumn = () => {},
 		onInsertSplit = () => {},
-		onInsertSegment = () => {}
+		onInsertSegment = () => {},
+		segmentId = ''
 	} = $props();
 
 	// Get toolbar configuration
@@ -26,6 +27,11 @@
 			onInsertSplit();
 		} else if (button.iconId === 'split') {
 			onInsertSegment();
+		} else if (button.iconId === 'heading-one') {
+			// Dispatch custom event for heading one insertion
+			window.dispatchEvent(new CustomEvent('insert-heading-one', {
+				detail: { segmentId }
+			}));
 		}
 		// Add other button handlers as needed
 	}

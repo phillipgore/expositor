@@ -350,17 +350,17 @@ export function getPassageToolbarConfig() {
 				buttons: [
 					{
 						iconId: 'heading-one',
-						title: 'Insert Heading One',
+						title: 'Heading One',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
 					{
 						iconId: 'heading-two',
-						title: 'Insert Heading Two',
+						title: 'Heading Two',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
 					{
 						iconId: 'heading-three',
-						title: 'Insert Heading Three',
+						title: 'Heading Three',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
 				]

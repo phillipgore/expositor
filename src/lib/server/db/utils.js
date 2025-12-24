@@ -633,3 +633,56 @@ export async function insertSegment(dbInstance, userId, passageId, splitId, inse
 		updatedAt: now
 	});
 }
+
+/**
+ * Update a segment's heading
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string} segmentId - Segment ID to update
+ * @param {string} headingType - Type of heading: 'one', 'two', or 'three'
+ * @param {string|null} headingText - Heading text or null to remove
+ * @returns {Promise<void>}
+ */
+export async function updateSegmentHeading(dbInstance, userId, segmentId, headingType, headingText) {
+	// Import study table for the join
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+	
+	// 1. Verify segment exists and get passage for ownership check
+	const segmentData = await dbInstance
+		.select({
+			segmentId: passageSegment.id,
+			userId: studyTable.userId
+		})
+		.from(passageSegment)
+		.innerJoin(passageSplit, eq(passageSegment.passageSplitId, passageSplit.id))
+		.innerJoin(passageColumn, eq(passageSplit.passageColumnId, passageColumn.id))
+		.innerJoin(passage, eq(passageColumn.passageId, passage.id))
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(eq(passageSegment.id, segmentId))
+		.limit(1);
+	
+	if (segmentData.length === 0) {
+		throw new Error('Segment not found');
+	}
+	
+	if (segmentData[0].userId !== userId) {
+		throw new Error('User not authorized to update this segment');
+	}
+	
+	// 2. Determine which heading field to update
+	const headingField = headingType === 'one' ? 'headingOne' :
+	                     headingType === 'two' ? 'headingTwo' :
+	                     'headingThree';
+	
+	// 3. Update the heading
+	const now = new Date();
+	const updateData = {
+		[headingField]: headingText || null,
+		updatedAt: now
+	};
+	
+	await dbInstance
+		.update(passageSegment)
+		.set(updateData)
+		.where(eq(passageSegment.id, segmentId));
+}

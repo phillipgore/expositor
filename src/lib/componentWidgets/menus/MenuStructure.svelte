@@ -64,15 +64,19 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one"
-		label="Insert Heading One"
+		label="Heading One"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert heading one event via custom event
+			window.dispatchEvent(new CustomEvent('insert-heading-one-from-menu'));
+		}}
 		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-two"
-		label="Insert Heading Two"
+		label="Heading Two"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasActiveSegment}
@@ -80,7 +84,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-three"
-		label="Insert Heading Three"
+		label="Heading Three"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasActiveSegment}
