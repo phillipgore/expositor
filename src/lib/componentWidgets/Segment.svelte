@@ -445,6 +445,24 @@
 		}
 	});
 
+	/**
+	 * Cancel any active heading edits when segment becomes inactive
+	 */
+	$effect(() => {
+		if (!isActive) {
+			// Cancel any active heading edits
+			if (headingOneInputMode) {
+				handleCancelHeadingOne();
+			}
+			if (headingTwoInputMode) {
+				handleCancelHeadingTwo();
+			}
+			if (headingThreeInputMode) {
+				handleCancelHeadingThree();
+			}
+		}
+	});
+
 	// Listen for custom events
 	onMount(() => {
 		window.addEventListener('insert-heading-one', handleInsertHeadingOne);
@@ -867,8 +885,8 @@
 		border-top-left-radius: 0.3rem;
 	}
 
-	.heading-two.no-headings,
-	.heading-two-input.no-headings :global(input),
+	.segment:first-child .heading-two.no-headings,
+	.segment:first-child .heading-two-input.no-headings :global(input),
 	.segment:first-child .heading-three.no-headings,
 	.segment:first-child .heading-three-input.no-headings :global(input),
 	:global(.split) .segment:first-child .text.no-headings {
