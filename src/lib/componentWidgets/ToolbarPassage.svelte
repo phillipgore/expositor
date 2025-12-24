@@ -32,6 +32,16 @@
 			window.dispatchEvent(new CustomEvent('insert-heading-one', {
 				detail: { segmentId }
 			}));
+		} else if (button.iconId === 'heading-two') {
+			// Dispatch custom event for heading two insertion
+			window.dispatchEvent(new CustomEvent('insert-heading-two', {
+				detail: { segmentId }
+			}));
+		} else if (button.iconId === 'heading-three') {
+			// Dispatch custom event for heading three insertion
+			window.dispatchEvent(new CustomEvent('insert-heading-three', {
+				detail: { segmentId }
+			}));
 		}
 		// Add other button handlers as needed
 	}
