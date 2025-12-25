@@ -190,16 +190,39 @@
 			}
 		};
 		
+		// Listen for insert note event from MenuStructure
+		const handleInsertNoteFromMenuEvent = () => {
+			// Find the active segment and dispatch event with its ID
+			if (activeSegment) {
+				const allPassages = Array.from(document.querySelectorAll('.passage'));
+				const passageElement = allPassages[activeSegment.passageIndex];
+				if (passageElement) {
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentElement = allSegments[activeSegment.segmentIndex];
+					if (segmentElement) {
+						const segmentId = segmentElement.dataset.segmentId;
+						if (segmentId) {
+							window.dispatchEvent(new CustomEvent('insert-note', {
+								detail: { segmentId }
+							}));
+						}
+					}
+				}
+			}
+		};
+		
 		window.addEventListener('insert-column', handleInsertColumnEvent);
 		window.addEventListener('insert-split', handleInsertSplitEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
 		window.addEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
+		window.addEventListener('insert-note-from-menu', handleInsertNoteFromMenuEvent);
 		
 		return () => {
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
 			window.removeEventListener('insert-split', handleInsertSplitEvent);
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
 			window.removeEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
+			window.removeEventListener('insert-note-from-menu', handleInsertNoteFromMenuEvent);
 		};
 	});
 
@@ -1088,6 +1111,7 @@
 																		heading1={segment.headingOne}
 																		heading2={segment.headingTwo}
 																		heading3={segment.headingThree}
+																		note={segment.note}
 																		text={segmentHtml}
 																		{passageIndex}
 																		isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}

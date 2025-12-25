@@ -35,6 +35,7 @@
 	 * @property {string} id - Input identifier (required)
 	 * @property {string} name - Input name for forms (required)
 	 * @property {string} [type='text'] - HTML input type (text, email, password, number, tel, url, etc.)
+	 * @property {string} [classes=''] - Additional CSS classes for styling variants
 	 * @property {boolean} [isDisabled=false] - Disable input
 	 * @property {boolean} [isLarge=false] - Large size variant (4.4rem height, 2rem font)
 	 * @property {boolean} [required=false] - Mark input as required with HTML5 validation
@@ -44,7 +45,7 @@
 	 */
 
 	/** @type {InputProps} */
-	let { id, name, type = 'text', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable(''), ...restProps } = $props();
+	let { id, name, type = 'text', classes = '', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable(''), ...restProps } = $props();
 </script>
 
 <input
@@ -53,7 +54,7 @@
 	{type}
 	bind:value
 	placeholder={placeholder}
-	class="{isLarge ? 'large' : ''}"
+	class="{classes} {isLarge ? 'large' : ''}"
 	disabled={isDisabled}
 	required={required}
 	aria-required={required}
@@ -97,5 +98,94 @@
 
 	input:disabled {
 		background-color: var(--gray-900);
+	}
+
+	/* ============================================
+	   CONTEXT VARIANTS - Heading Inputs
+	   ============================================ */
+	
+	/* Heading One Input */
+	input.heading-one-input {
+		font-size: 1.6rem;
+		font-weight: 700;
+		text-align: center;
+		padding: 0.9rem;
+		margin: 0.0rem;
+		border: 0.1rem solid;
+		border-radius: 0rem;
+		color: var(--white);
+		background-color: var(--split-darker);
+		border-color: var(--split-darker);
+		caret-color: var(--white);
+		height: auto;
+		line-height: 1.5;
+	}
+
+	input.heading-one-input:focus {
+		outline: none;
+		box-shadow: none;
+	}
+
+	input.heading-one-input::placeholder {
+		color: var(--split-darker);
+		opacity: 0.3;
+	}
+
+	/* Heading Two Input */
+	input.heading-two-input {
+		font-size: 1.4rem;
+		font-weight: 700;
+		padding: 0.9rem;
+		margin: 0.0rem;
+		border-bottom: 0.1rem solid;
+		border-right: 0.1rem solid;
+		border-left: 0.1rem solid;
+		border-top: 0rem;
+		border-radius: 0rem;
+		background-color: var(--split-lighter);
+		color: var(--split-darker);
+		border-color: var(--split-dark);
+		caret-color: var(--split-darker);
+		height: auto;
+		line-height: 1.5;
+	}
+
+	input.heading-two-input:focus {
+		outline: none;
+		box-shadow: none;
+	}
+
+	input.heading-two-input::placeholder {
+		color: var(--split-darker);
+		opacity: 0.3;
+	}
+
+	/* Heading Three Input */
+	input.heading-three-input {
+		font-size: 1.2rem;
+		font-weight: 700;
+		padding: 0.9rem 0.9rem 0.0rem;
+		margin: 0.0rem;
+		border-right: 0.1rem solid;
+		border-left: 0.1rem solid;
+		border-top: 0rem;
+		border-bottom: 0rem;
+		border-radius: 0rem;
+		background-color: transparent;
+		color: var(--gray-100);
+		border-color: var(--split-dark);
+		caret-color: var(--gray-100);
+		height: auto;
+		line-height: 1.5;
+	}
+
+	input.heading-three-input:focus {
+		outline: none;
+		box-shadow: none;
+	}
+
+	input.heading-three-input::placeholder {
+		color: var(--gray-100);
+		opacity: 0.3;
 	}
 </style>

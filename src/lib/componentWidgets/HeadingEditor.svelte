@@ -202,18 +202,13 @@
 
 <div class="{config.class}-container">
 	{#if isInputMode}
-		<div 
-			class={config.inputClass}
-			in:slide="{{ duration: shouldSlideIn ? 300 : 0 }}"
-			out:slide="{{ duration: shouldSlideOut ? 300 : 0 }}"
-		>
-			<Input
-				id={inputId}
-				name="{headingType}-heading-input"
-				bind:value={inputValue}
-				onkeydown={handleInputKeyDown}
-			/>
-		</div>
+		<Input
+			id={inputId}
+			name="{headingType}-heading-input"
+			classes={config.inputClass}
+			bind:value={inputValue}
+			onkeydown={handleInputKeyDown}
+		/>
 	{:else if displayValue}
 		<svelte:element this={config.tag} class={config.class}>
 			{displayValue}
@@ -259,6 +254,10 @@
 		position: relative;
 	}
 
+	.heading-three-container {
+		margin-bottom: -0.6rem;
+	}
+
 	/* Heading One Display */
 	.heading-one {
 		font-size: 1.6rem;
@@ -269,44 +268,14 @@
 		color: var(--white);
 		background-color: var(--split-darker);
 		border-color: var(--split-darker);
+		line-height: 1.5;
 	}
 
-	/* Heading One Input */
-	.heading-one-input {
-		position: relative;
-		font-size: 1.6rem;
-		font-weight: 700;
-		text-align: center;
-		padding: 0rem;
-		margin: 0.0rem;
-	}
-
-	.heading-one-input :global(input) {
-		font-size: 1.6rem;
-		font-weight: 700;
-		text-align: center;
-		padding: 0.9rem;
-		margin: 0.0rem;
-		border: 0.1rem solid;
-		border-radius: 0rem;
-		color: var(--white);
-		background-color: var(--split-darker);
-		border-color: var(--split-darker);
-		caret-color: var(--white);
-		width: 100%;
-		height: auto;
-		box-sizing: border-box;
-		display: block;
-	}
-
-	.heading-one-input :global(input:focus) {
-		outline: none;
-		box-shadow: none;
-	}
-
-	.heading-one-input :global(input::placeholder) {
-		color: var(--split-darker);
-		opacity: 0.3;
+	/* Heading One rounded top corners for first segment in split */
+	:global(.split .segment:first-child) .heading-one,
+	:global(.split .segment:first-child) .heading-one-input {
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
 	}
 
 	/* Heading Two Display */
@@ -322,45 +291,7 @@
 		background-color: var(--split-lighter);
 		color: var(--split-darker);
 		border-color: var(--split-dark);
-	}
-
-	/* Heading Two Input */
-	.heading-two-input {
-		position: relative;
-		font-size: 1.4rem;
-		font-weight: 700;
-		padding: 0rem;
-		margin: 0.0rem;
-	}
-
-	.heading-two-input :global(input) {
-		font-size: 1.4rem;
-		font-weight: 700;
-		padding: 0.9rem;
-		margin: 0.0rem;
-		border-bottom: 0.1rem solid;
-		border-right: 0.1rem solid;
-		border-left: 0.1rem solid;
-		border-top: 0rem;
-		border-radius: 0rem;
-		background-color: var(--split-lighter);
-		color: var(--split-darker);
-		border-color: var(--split-dark);
-		caret-color: var(--split-darker);
-		width: 100%;
-		height: auto;
-		box-sizing: border-box;
-		display: block;
-	}
-
-	.heading-two-input :global(input:focus) {
-		outline: none;
-		box-shadow: none;
-	}
-
-	.heading-two-input :global(input::placeholder) {
-		color: var(--split-darker);
-		opacity: 0.3;
+		line-height: 1.5;
 	}
 
 	/* Heading Three Display */
@@ -369,50 +300,29 @@
 		z-index: inherit;
 		font-size: 1.2rem;
 		font-weight: 700;
-		margin: 0.0rem 0.0rem -0.6rem;
-		padding: 0.9rem 0.9rem 0.0rem;
-		border-right: 0.1rem solid;
-		border-left: 0.1rem solid;
-		border-color: var(--split-dark);
-	}
-
-	/* Heading Three Input */
-	.heading-three-input {
-		position: relative;
-		font-size: 1.4rem;
-		font-weight: 700;
-		padding: 0rem;
 		margin: 0.0rem;
-	}
-
-	.heading-three-input :global(input) {
-		font-size: 1.2rem;
-		font-weight: 700;
 		padding: 0.9rem 0.9rem 0.0rem;
-		margin: 0.0rem 0.0rem -0.6rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
-		border-top: 0rem;
-		border-bottom: 0rem;
-		border-radius: 0rem;
-		background-color: transparent;
-		color: var(--gray-100);
 		border-color: var(--split-dark);
-		caret-color: var(--gray-100);
-		width: 100%;
-		height: auto;
-		box-sizing: border-box;
-		display: block;
+		line-height: 1.5;
 	}
 
-	.heading-three-input :global(input:focus) {
-		outline: none;
-		box-shadow: none;
+	/* No-headings styles (when heading appears at top of segment without prior headings) */
+	:global(.segment:first-child .no-headings) .heading-two,
+	:global(.segment:first-child .no-headings) .heading-two-input :global(input) {
+		border-top: 0.1rem solid !important;
+		border-color: var(--split-dark) !important;
+		border-top-right-radius: 0.3rem !important;
+		border-top-left-radius: 0.3rem !important;
 	}
 
-	.heading-three-input :global(input::placeholder) {
-		color: var(--gray-100);
-		opacity: 0.3;
+	:global(.segment:first-child .no-headings) .heading-three,
+	:global(.segment:first-child .no-headings) .heading-three-input :global(input) {
+		border-top: 0.1rem solid !important;
+		border-color: var(--split-dark) !important;
+		border-top-right-radius: 0.3rem !important;
+		border-top-left-radius: 0.3rem !important;
 	}
 
 	/* Toolbar */

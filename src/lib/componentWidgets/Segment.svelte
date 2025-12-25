@@ -2,11 +2,13 @@
 	import { onMount } from 'svelte';
 	import ToolbarPassage from './ToolbarPassage.svelte';
 	import HeadingEditor from './HeadingEditor.svelte';
+	import NoteEditor from './NoteEditor.svelte';
 
 	let { 
 		heading1 = null,
 		heading2 = null,
 		heading3 = null,
+		note = null,
 		text = '',
 		passageIndex = 0,
 		wrapWordsInHtml = null,
@@ -18,14 +20,19 @@
 		onInsertSegment = () => {}
 	} = $props();
 
-	// Track input mode for each heading type
+	// Track input mode for each heading type and note
 	let headingOneInputMode = $state(false);
 	let headingTwoInputMode = $state(false);
 	let headingThreeInputMode = $state(false);
+	let noteInputMode = $state(false);
 
-	// Computed: Check if any heading input is active
+	// Computed: Check if any heading or note input is active
 	let anyHeadingInputActive = $derived(
 		headingOneInputMode || headingTwoInputMode || headingThreeInputMode
+	);
+	
+	let anyInputActive = $derived(
+		anyHeadingInputActive || noteInputMode
 	);
 
 	// Computed: Check if any heading exists or is in input mode
@@ -71,23 +78,34 @@
 		}
 	}
 
+	/**
+	 * Handle insert-note custom event
+	 */
+	function handleInsertNote(event) {
+		if (event.detail?.segmentId === segmentId) {
+			noteInputMode = true;
+		}
+	}
+
 	// Listen for custom events
 	onMount(() => {
 		window.addEventListener('insert-heading-one', handleInsertHeadingOne);
 		window.addEventListener('insert-heading-two', handleInsertHeadingTwo);
 		window.addEventListener('insert-heading-three', handleInsertHeadingThree);
+		window.addEventListener('insert-note', handleInsertNote);
 		
 		return () => {
 			window.removeEventListener('insert-heading-one', handleInsertHeadingOne);
 			window.removeEventListener('insert-heading-two', handleInsertHeadingTwo);
 			window.removeEventListener('insert-heading-three', handleInsertHeadingThree);
+			window.removeEventListener('insert-note', handleInsertNote);
 		};
 	});
 </script>
 
 <div class="segment" class:active={isActive} data-segment-id="{segmentId}">
-	<!-- Hide ToolbarPassage when any heading input is active -->
-	{#if !anyHeadingInputActive}
+	<!-- Hide ToolbarPassage when any input is active -->
+	{#if !anyInputActive}
 		<ToolbarPassage 
 			bind:toolbarMode 
 			{isActive} 
@@ -136,6 +154,14 @@
 			{@html text}
 		{/if}
 	</div>
+	
+	<!-- Note Editor -->
+	<NoteEditor
+		noteValue={note}
+		{segmentId}
+		bind:isInputMode={noteInputMode}
+		{isActive}
+	/>
 </div>
 
 <style>

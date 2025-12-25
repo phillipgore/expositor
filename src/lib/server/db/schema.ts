@@ -160,6 +160,7 @@ export const passageSegment = pgTable('passage_segment', {
 	headingOne: text('heading_one'),
 	headingTwo: text('heading_two'),
 	headingThree: text('heading_three'),
+	note: text('note'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

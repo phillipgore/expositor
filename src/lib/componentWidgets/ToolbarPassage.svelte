@@ -42,6 +42,11 @@
 			window.dispatchEvent(new CustomEvent('insert-heading-three', {
 				detail: { segmentId }
 			}));
+		} else if (button.iconId === 'note') {
+			// Dispatch custom event for note insertion
+			window.dispatchEvent(new CustomEvent('insert-note', {
+				detail: { segmentId }
+			}));
 		}
 		// Add other button handlers as needed
 	}

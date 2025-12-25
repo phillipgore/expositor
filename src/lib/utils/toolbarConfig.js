@@ -362,6 +362,11 @@ export function getPassageToolbarConfig() {
 						iconId: 'heading-three',
 						title: 'Heading Three',
 						disabledCheck: (state) => !state.hasActiveSegment
+					},
+					{
+						iconId: 'note',
+						title: 'Quick Note',
+						disabledCheck: (state) => !state.hasActiveSegment
 					}
 				]
 			},

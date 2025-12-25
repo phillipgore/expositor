@@ -89,6 +89,18 @@
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasActiveSegment}
 	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note"
+		label="Quick Note"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert note event via custom event
+			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
+		}}
+		isDisabled={!$toolbarState.hasActiveSegment}
+	/>
 
 	<DividerHorizontal />
 

@@ -686,3 +686,50 @@ export async function updateSegmentHeading(dbInstance, userId, segmentId, headin
 		.set(updateData)
 		.where(eq(passageSegment.id, segmentId));
 }
+
+/**
+ * Update a segment's note
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string} segmentId - Segment ID to update
+ * @param {string|null} noteText - Note text or null to remove
+ * @returns {Promise<void>}
+ */
+export async function updateSegmentNote(dbInstance, userId, segmentId, noteText) {
+	// Import study table for the join
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+	
+	// 1. Verify segment exists and get passage for ownership check
+	const segmentData = await dbInstance
+		.select({
+			segmentId: passageSegment.id,
+			userId: studyTable.userId
+		})
+		.from(passageSegment)
+		.innerJoin(passageSplit, eq(passageSegment.passageSplitId, passageSplit.id))
+		.innerJoin(passageColumn, eq(passageSplit.passageColumnId, passageColumn.id))
+		.innerJoin(passage, eq(passageColumn.passageId, passage.id))
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(eq(passageSegment.id, segmentId))
+		.limit(1);
+	
+	if (segmentData.length === 0) {
+		throw new Error('Segment not found');
+	}
+	
+	if (segmentData[0].userId !== userId) {
+		throw new Error('User not authorized to update this segment');
+	}
+	
+	// 2. Update the note
+	const now = new Date();
+	const updateData = {
+		note: noteText || null,
+		updatedAt: now
+	};
+	
+	await dbInstance
+		.update(passageSegment)
+		.set(updateData)
+		.where(eq(passageSegment.id, segmentId));
+}
