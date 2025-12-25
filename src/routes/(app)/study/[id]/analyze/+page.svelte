@@ -538,6 +538,7 @@
 
 	/**
 	 * Extract text segment from full passage HTML based on word boundaries
+	 * Properly handles nested verse structure with chapter-verse notations
 	 * @param {string} fullHtml - The full passage HTML text
 	 * @param {string} startWordId - Starting word ID (e.g., 'ac-01-01-001')
 	 * @param {string|null} endWordId - Ending word ID (null = extract to end)
@@ -550,55 +551,74 @@
 		const tempDiv = document.createElement('div');
 		tempDiv.innerHTML = fullHtml;
 		
+		// Get all words in the passage
 		const allWords = tempDiv.querySelectorAll('.word[data-word-id]');
 		let capturing = false;
-		const capturedNodes = [];
+		const capturedHTML = [];
+		let currentVerseId = null;
+		let verseBuffer = []; // Buffer to collect elements within a verse
+		let hasChapterVerse = false; // Track if we've captured the chapter-verse for this verse
 		
 		for (let i = 0; i < allWords.length; i++) {
 			const word = allWords[i];
+			const wordId = word.dataset.wordId;
 			
 			// Start capturing when we reach the start word
-			if (word.dataset.wordId === startWordId) {
+			if (wordId === startWordId) {
 				capturing = true;
 			}
 			
 			// Stop capturing when we reach the end word (BEFORE capturing it)
-			if (endWordId && word.dataset.wordId === endWordId) {
+			if (endWordId && wordId === endWordId) {
+				// Flush any remaining verse buffer
+				if (verseBuffer.length > 0) {
+					capturedHTML.push(verseBuffer.join(' '));
+					verseBuffer = [];
+				}
 				break;
 			}
 			
 			if (capturing) {
+				// Find the parent verse span (if any)
+				const verseSpan = word.closest('.verse');
+				const verseId = verseSpan?.dataset?.verseId || null;
+				
+				// Check if we're starting a new verse
+				if (verseId !== currentVerseId) {
+					// Flush previous verse buffer
+					if (verseBuffer.length > 0) {
+						capturedHTML.push(verseBuffer.join(' '));
+						verseBuffer = [];
+					}
+					
+					currentVerseId = verseId;
+					hasChapterVerse = false;
+					
+					// If this word is in a verse, capture the chapter-verse notation
+					if (verseSpan) {
+						const chapterVerseSpan = verseSpan.querySelector('.chapter-verse');
+						if (chapterVerseSpan) {
+							verseBuffer.push(chapterVerseSpan.outerHTML);
+							hasChapterVerse = true;
+						}
+					}
+				}
+				
 				// Clone the word and add selection attributes
-				// data-word-id is preserved from the original API response (immutable)
 				const wordClone = word.cloneNode(true);
 				wordClone.classList.add('selectable-word');
 				wordClone.dataset.passageIndex = String(passageIndex);
-				// Do NOT recount words - data-word-id from API is preserved
 				
-				capturedNodes.push(wordClone);
-				
-				// Capture any text/elements between this word and the next
-				let next = word.nextSibling;
-				const nextWord = allWords[i + 1];
-				
-				while (next && next !== nextWord) {
-					if (next.nodeType === Node.TEXT_NODE || 
-					    (next.nodeType === Node.ELEMENT_NODE && next.classList?.contains('chapter-verse'))) {
-						capturedNodes.push(next.cloneNode(true));
-					}
-					next = next.nextSibling;
-				}
+				verseBuffer.push(wordClone.outerHTML);
 			}
 		}
 		
-		// Build HTML from captured nodes
-		const fragment = document.createDocumentFragment();
-		capturedNodes.forEach(node => fragment.appendChild(node));
+		// Flush any remaining verse buffer
+		if (verseBuffer.length > 0) {
+			capturedHTML.push(verseBuffer.join(' '));
+		}
 		
-		const container = document.createElement('div');
-		container.appendChild(fragment);
-		
-		return container.innerHTML;
+		return capturedHTML.join(' ');
 	}
 
 	/**
@@ -1422,195 +1442,195 @@
 	}
 
 	/* Color-specific word selection styles for green split */
-	.split.green .text :global(.selectable-word:hover:not([data-selected])) {
+	.split.green :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--green-light);
 	}
 
-	.split.green .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.green :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.green .text :global(.selectable-word[data-selected="true"]) {
+	.split.green :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--green-light);
 	}
 
-	.split.green .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.green :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.green .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.green :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Color-specific word selection styles for red split */
-	.split.red .text :global(.selectable-word:hover:not([data-selected])) {
+	.split.red :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--red-light);
 	}
 
-	.split.red .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.red :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.red .text :global(.selectable-word[data-selected="true"]) {
+	.split.red :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--red-light);
 	}
 
-	.split.red .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.red :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.red .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.red :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Color-specific word selection styles for orange split */
-	.split.orange .text :global(.selectable-word:hover:not([data-selected])) {
+	.split.orange :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--orange-light);
 	}
 
-	.split.orange .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.orange :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.orange .text :global(.selectable-word[data-selected="true"]) {
+	.split.orange :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--orange-light);
 	}
 
-	.split.orange .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.orange :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.orange .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.orange :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Color-specific word selection styles for yellow split */
-	.split.yellow .text :global(.selectable-word:hover:not([data-selected])) {
+	.split.yellow :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--yellow-light);
 	}
 
-	.split.yellow .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.yellow :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.yellow .text :global(.selectable-word[data-selected="true"]) {
+	.split.yellow :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--yellow-light);
 	}
 
-	.split.yellow .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.yellow :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.yellow .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.yellow :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Color-specific word selection styles for aqua split */
-	.split.aqua .text :global(.selectable-word:hover:not([data-selected])) {
+	.split.aqua :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--aqua-light);
 	}
 
-	.split.aqua .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.aqua :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.aqua .text :global(.selectable-word[data-selected="true"]) {
+	.split.aqua :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--aqua-light);
 	}
 
-	.split.aqua .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.aqua :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.aqua .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.aqua :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Color-specific word selection styles for blue split */
-	.split.blue .text :global(.selectable-word:hover:not([data-selected])) {
+	.split.blue :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--blue-light);
 	}
 
-	.split.blue .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.blue :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.blue .text :global(.selectable-word[data-selected="true"]) {
+	.split.blue :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--blue-light);
 	}
 
-	.split.blue .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.blue :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.blue .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.blue :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Color-specific word selection styles for purple split */
-	.split.purple .text :global(.selectable-word:hover:not([data-selected])) {
+	.split.purple :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--purple-light);
 	}
 
-	.split.purple .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.purple :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.purple .text :global(.selectable-word[data-selected="true"]) {
+	.split.purple :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--purple-light);
 	}
 
-	.split.purple .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.purple :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.purple .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.purple :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Color-specific word selection styles for pink split */
-	.split.pink .text :global(.selectable-word:hover:not([data-selected])) {
+	.split.pink :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--pink-light);
 	}
 
-	.split.pink .text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.split.pink :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.pink .text :global(.selectable-word[data-selected="true"]) {
+	.split.pink :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--pink-light);
 	}
 
-	.split.pink .text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	.split.pink :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.pink .text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	.split.pink :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
 	/* Enable text selection when Cmd/Ctrl is held */
-	.text-selection-enabled .text {
+	:global(.text-selection-enabled .text) {
 		-webkit-user-select: text;
 		user-select: text;
 		cursor: text;
 	}
 
-	.text-selection-enabled .text :global(.selectable-word) {
+	:global(.text-selection-enabled .text .selectable-word) {
 		cursor: text;
 	}
 
 	/* Disable word selection hover effects when in text selection mode */
-	.text-selection-enabled .text :global(.selectable-word:hover) {
+	:global(.text-selection-enabled .text .selectable-word:hover) {
 		background-color: transparent !important;
 	}
 
-	.text-selection-enabled .text :global(.selectable-word:hover::before) {
+	:global(.text-selection-enabled .text .selectable-word:hover::before) {
 		content: none !important;
 	}
 
 	/* Word selection styles */
-	.text :global(.selectable-word) {
+	:global(.text .selectable-word) {
 		position: relative;
 		cursor: pointer;
 		padding: 0.2rem 0.1rem;
@@ -1618,12 +1638,12 @@
 	}
 
 	/* Hover state - subtle highlight (only when not selected) */
-	.text :global(.selectable-word:hover:not([data-selected])) {
+	:global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: rgba(255, 255, 255, 0.1);
 	}
 
 	/* Hover state - show caret above word (only when not selected and not suppressed) */
-	.text :global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	:global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
 		left: -0.8rem;
@@ -1634,12 +1654,12 @@
 	}
 
 	/* Selected state - persistent highlight */
-	.text :global(.selectable-word[data-selected="true"]) {
+	:global(.text .selectable-word[data-selected="true"]) {
 		background-color: rgba(255, 255, 255, 0.15);
 	}
 
 	/* Selected state - persistent caret (before position) */
-	.text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+	:global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
 		left: -0.8rem;
@@ -1650,7 +1670,7 @@
 	}
 
 	/* Selected state - persistent caret (after position) */
-	.text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+	:global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
 		right: -0.8rem;
