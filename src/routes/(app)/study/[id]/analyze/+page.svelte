@@ -537,15 +537,59 @@
 	}
 
 	/**
+	 * Generate a letter suffix for verse subdivisions
+	 * @param {number} index - Occurrence index (0 = 'a', 1 = 'b', etc.)
+	 * @returns {string} Letter suffix ('a', 'b', ..., 'z', 'aa', 'bb', etc.)
+	 */
+	function generateVerseSuffix(index) {
+		if (index < 26) {
+			return String.fromCharCode(97 + index); // a-z
+		}
+		// After 'z', use 'aa', 'bb', 'cc', etc.
+		const letter = String.fromCharCode(97 + (index % 26));
+		const repeatCount = Math.floor(index / 26) + 1;
+		return letter.repeat(repeatCount);
+	}
+
+	/**
+	 * Build a map of verses to their segment counts (pre-scan)
+	 * Counts how many segments contain words from each verse
+	 * @param {Array} allSegments - All segments for a passage
+	 * @returns {Object} Map of verseId -> count
+	 */
+	function buildVerseSplitMap(allSegments) {
+		const verseSplitMap = {};
+		
+		// Scan all segments and count how many segments each verse appears in
+		for (const segment of allSegments) {
+			const wordId = segment.startingWordId;
+			if (!wordId) continue;
+			
+			// Extract verse ID from word ID (format: BOOK-CHAPTER-VERSE-WORD)
+			const parts = wordId.split('-');
+			if (parts.length >= 4) {
+				const verseId = parts.slice(0, 3).join('-'); // BOOK-CHAPTER-VERSE
+				
+				// Count how many segments start with words from this verse
+				verseSplitMap[verseId] = (verseSplitMap[verseId] || 0) + 1;
+			}
+		}
+		
+		return verseSplitMap;
+	}
+
+	/**
 	 * Extract text segment from full passage HTML based on word boundaries
 	 * Properly handles nested verse structure with chapter-verse notations
 	 * @param {string} fullHtml - The full passage HTML text
 	 * @param {string} startWordId - Starting word ID (e.g., 'ac-01-01-001')
 	 * @param {string|null} endWordId - Ending word ID (null = extract to end)
 	 * @param {number} passageIndex - Index of the passage
+	 * @param {Object} verseSplitMap - Map of verseId -> occurrence count
+	 * @param {Object} verseOccurrences - Tracker for current verse occurrences
 	 * @returns {string} Extracted HTML
 	 */
-	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex) {
+	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex, verseSplitMap, verseOccurrences) {
 		if (!fullHtml) return '';
 		
 		const tempDiv = document.createElement('div');
@@ -557,7 +601,6 @@
 		const capturedHTML = [];
 		let currentVerseId = null;
 		let verseBuffer = []; // Buffer to collect elements within a verse
-		let hasChapterVerse = false; // Track if we've captured the chapter-verse for this verse
 		
 		for (let i = 0; i < allWords.length; i++) {
 			const word = allWords[i];
@@ -592,14 +635,37 @@
 					}
 					
 					currentVerseId = verseId;
-					hasChapterVerse = false;
 					
 					// If this word is in a verse, capture the chapter-verse notation
-					if (verseSpan) {
+					if (verseSpan && verseId) {
 						const chapterVerseSpan = verseSpan.querySelector('.chapter-verse');
 						if (chapterVerseSpan) {
-							verseBuffer.push(chapterVerseSpan.outerHTML);
-							hasChapterVerse = true;
+							// Extract chapter and verse numbers
+							const chapterVerseText = chapterVerseSpan.textContent || '';
+							
+							// Determine if we need a suffix
+							const isSplit = verseSplitMap && verseSplitMap[verseId] > 1;
+							
+							if (isSplit) {
+								// Initialize counter for this verse if we haven't seen it yet
+								if (verseOccurrences[verseId] === undefined) {
+									verseOccurrences[verseId] = 0;
+								}
+								
+								// Get current counter value (this is which occurrence we're on)
+								const currentIndex = verseOccurrences[verseId];
+								
+								// Generate suffix using current index
+								const suffix = generateVerseSuffix(currentIndex);
+								
+								// Increment counter for next occurrence
+								verseOccurrences[verseId] = currentIndex + 1;
+								
+								verseBuffer.push(`<span class="chapter-verse">${chapterVerseText}${suffix}</span>`);
+							} else {
+								// Verse not split - use original without suffix
+								verseBuffer.push(chapterVerseSpan.outerHTML);
+							}
 						}
 					}
 				}
@@ -1112,7 +1178,13 @@
 								<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
 								<div class="container">
 									{#if passageText.structure.columns && passageText.structure.columns.length > 0}
+										{@const allSegments = passageText.structure.columns.flatMap(col => col.splits.flatMap(split => split.segments))}
+										{@const segmentCount = allSegments.length}
+										{@const structureKey = `${passageText.structure.passageId}-${segmentCount}`}
+										{#key structureKey}
 										{@const passageSegmentIndexTracker = { current: 0 }}
+										{@const verseSplitMap = buildVerseSplitMap(allSegments)}
+										{@const verseOccurrences = Object.keys(verseSplitMap).filter(verseId => verseSplitMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
 										{#each passageText.structure.columns as column, columnIndex}
 											<div class="column" data-column-id="{column.id}">
 												{#if column.splits && column.splits.length > 0}
@@ -1133,7 +1205,9 @@
 																		passageText.text,
 																		segment.startingWordId,
 																		endWordId,
-																		passageIndex
+																		passageIndex,
+																		verseSplitMap,
+																		verseOccurrences
 																	)}
 																	<Segment 
 																		heading1={segment.headingOne}
@@ -1156,6 +1230,7 @@
 												{/if}
 											</div>
 										{/each}
+										{/key}
 									{/if}
 								</div>
 							{/if}
