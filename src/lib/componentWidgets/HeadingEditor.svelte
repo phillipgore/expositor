@@ -254,10 +254,6 @@
 		position: relative;
 	}
 
-	.heading-three-container {
-		margin-bottom: -0.6rem;
-	}
-
 	/* Heading One Display */
 	.heading-one {
 		font-size: 1.6rem;
