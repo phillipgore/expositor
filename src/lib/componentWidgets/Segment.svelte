@@ -42,16 +42,6 @@
 		headingOneInputMode || headingTwoInputMode || headingThreeInputMode
 	);
 
-	// Computed: Check if heading two should have top border (no heading one)
-	let headingTwoNeedsTopBorder = $derived(
-		!headingOneInputMode && !heading1
-	);
-
-	// Computed: Check if heading three should have top border (no heading one or two)
-	let headingThreeNeedsTopBorder = $derived(
-		!headingOneInputMode && !headingTwoInputMode && !heading1 && !heading2
-	);
-
 	/**
 	 * Handle insert-heading-one custom event
 	 */
@@ -104,7 +94,13 @@
 	});
 </script>
 
-<div class="segment" class:active={isActive} class:has-note={(note || noteInputMode) && $toolbarState.notesVisible} data-segment-id="{segmentId}">
+<div class="segment" 
+     class:active={isActive} 
+     class:has-heading-one={heading1 || headingOneInputMode}
+     class:has-heading-two={heading2 || headingTwoInputMode}
+     class:has-heading-three={heading3 || headingThreeInputMode}
+     class:has-note={(note || noteInputMode) && $toolbarState.notesVisible} 
+     data-segment-id="{segmentId}">
 	<!-- Hide ToolbarPassage when any input is active -->
 	{#if !anyInputActive}
 		<ToolbarPassage 
@@ -127,26 +123,22 @@
 	/>
 	
 	<!-- Heading Two -->
-	<div class:no-headings={headingTwoNeedsTopBorder}>
-		<HeadingEditor
-			headingType="two"
-			headingValue={heading2}
-			{segmentId}
-			bind:isInputMode={headingTwoInputMode}
-			{isActive}
-		/>
-	</div>
+	<HeadingEditor
+		headingType="two"
+		headingValue={heading2}
+		{segmentId}
+		bind:isInputMode={headingTwoInputMode}
+		{isActive}
+	/>
 	
 	<!-- Heading Three -->
-	<div class:no-headings={headingThreeNeedsTopBorder}>
-		<HeadingEditor
-			headingType="three"
-			headingValue={heading3}
-			{segmentId}
-			bind:isInputMode={headingThreeInputMode}
-			{isActive}
-		/>
-	</div>
+	<HeadingEditor
+		headingType="three"
+		headingValue={heading3}
+		{segmentId}
+		bind:isInputMode={headingThreeInputMode}
+		{isActive}
+	/>
 	
 	<div class="text" class:no-headings={!hasAnyHeadings}>
 		{#if wrapWordsInHtml}
@@ -206,16 +198,31 @@
 	}
 
 	/* First/last child styling rules for integration with parent split */
-	:global(.split) .segment:first-child :global(.heading-one),
-	:global(.split) .segment:first-child :global(.heading-one-input input) {
+	:global(.split) .segment:first-child:global(.has-heading-one) :global(.heading-one),
+	:global(.split) .segment:first-child:global(.has-heading-one) :global(.heading-one-input input) {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
-	.segment:first-child .no-headings :global(.heading-two),
-	.segment:first-child .no-headings :global(.heading-two-input input),
-	.segment:first-child .no-headings :global(.heading-three),
-	.segment:first-child .no-headings :global(.heading-three-input input),
+	/* Heading Two gets top border when it's the first heading */
+	:global(.split) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(.heading-two),
+	:global(.split) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(.heading-two-input input) {
+		border-top: 0.1rem solid;
+		border-color: var(--split-dark);
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
+	}
+
+	/* Heading Three gets top border when it's the first heading */
+	:global(.split) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three),
+	:global(.split) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three-input input) {
+		border-top: 0.1rem solid;
+		border-color: var(--split-dark);
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
+	}
+
+	/* Text gets top border when there are no headings */
 	:global(.split) .segment:first-child .text.no-headings {
 		border-top: 0.1rem solid;
 		border-color: var(--split-dark);
