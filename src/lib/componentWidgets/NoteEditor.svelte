@@ -27,21 +27,11 @@
 	let displayValue = $derived(optimisticValue !== undefined ? optimisticValue : noteValue);
 
 	const inputId = $derived(`note-input-${segmentId}`);
-	const MAX_CHARACTERS = 140;
-
-	// Character count
-	let characterCount = $derived(inputValue.length);
-	let isOverLimit = $derived(characterCount > MAX_CHARACTERS);
 
 	/**
 	 * Handle save note with optimistic UI
 	 */
 	async function handleSave() {
-		// Don't save if over limit
-		if (isOverLimit) {
-			alert(`Note exceeds ${MAX_CHARACTERS} character limit (${characterCount} characters)`);
-			return;
-		}
 
 		// Set optimistic value FIRST for smooth crossfade
 		optimisticValue = inputValue.trim() || null;
@@ -181,14 +171,10 @@
 				bind:value={inputValue}
 				rows={1}
 				autoGrow={true}
-				maxlength={MAX_CHARACTERS}
 			/>
-			<div class="character-count" class:over-limit={isOverLimit}>
-				{characterCount}/{MAX_CHARACTERS}
-			</div>
 		</div>
 	{:else if displayValue}
-		<div class="note-display">
+		<div class="note">
 			{displayValue}
 		</div>
 	{/if}
@@ -213,7 +199,7 @@
 			{#if noteValue}
 				<div class="toolbar-divider"></div>
 				<IconButton
-					iconId="delete"
+					iconId="trashcan"
 					classes="passage-toolbar"
 					title="Delete Note"
 					isSquare
@@ -231,19 +217,22 @@
 	}
 
 	/* Note Display */
-	.note-display {
+	.note {
 		position: inherit;
 		z-index: inherit;
 		font-size: 1.2rem;
+		font-style: italic;
+		font-weight: 700;
 		line-height: 1.5;
-		padding: 0.9rem;
+		padding: 0.6rem 0.9rem;
 		margin: 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
+		border-top: 0rem;
 		border-color: var(--split-dark);
-		background-color: var(--gray-850);
-		color: var(--gray-300);
+		background-color: var(--gray-light);
+		color: var(--gray-dark);
 		white-space: pre-wrap;
 		word-wrap: break-word;
 	}
@@ -258,43 +247,30 @@
 
 	.note-input :global(textarea) {
 		font-size: 1.2rem;
+		font-style: italic;
+		font-weight: 700;
 		line-height: 1.5;
-		padding: 0.9rem;
+		padding: 0.6rem 0.9rem;
 		margin: 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
 		border-top: 0rem;
 		border-radius: 0rem;
-		background-color: var(--gray-850);
-		color: var(--gray-300);
+		background-color: var(--gray-light);
+		color: var(--gray-dark);
 		border-color: var(--split-dark);
-		caret-color: var(--gray-300);
+		caret-color: var(--gray-darker);
 		width: 100%;
 		box-sizing: border-box;
 		display: block;
-		resize: vertical;
-		min-height: 3.5rem;
+		resize: none;
+		min-height: 3.1rem;
 	}
 
 	.note-input :global(textarea:focus) {
 		outline: none;
 		box-shadow: none;
-	}
-
-	/* Character Count */
-	.character-count {
-		position: absolute;
-		bottom: 0.5rem;
-		right: 1.0rem;
-		font-size: 1.0rem;
-		color: var(--gray-500);
-		pointer-events: none;
-	}
-
-	.character-count.over-limit {
-		color: var(--red);
-		font-weight: 700;
 	}
 
 	/* Toolbar */

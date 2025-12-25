@@ -624,12 +624,19 @@
 			);
 			// If moved more than 3px, consider it a drag
 			if (distance > 3) {
+				// Check if drag is happening inside an input/textarea
+				const isInInput = event.target.closest('input, textarea');
+				
 				isDragging = true;
 				dragJustCompleted = true; // Mark that a drag occurred
 				// Clear custom selections immediately when drag is detected
 				selectedWord = null;
 				suppressHoverCaret = null;
-				activeSegment = null;
+				
+				// Only clear active segment if NOT dragging in an input
+				if (!isInInput) {
+					activeSegment = null;
+				}
 			}
 		}
 	}
@@ -1061,6 +1068,7 @@
 	<!-- Analyze View Content -->
 	<div 
 		class="analyze-content" 
+		class:hide-notes={!$toolbarState.notesVisible}
 		class:hide-verses={!$toolbarState.versesVisible} 
 		class:wide-layout={$toolbarState.wideLayout} 
 		class:overview-mode={$toolbarState.overviewMode}
@@ -1406,6 +1414,11 @@
 
 	.hide-verses .text {
 		white-space: normal;
+	}
+
+	.hide-notes :global(.note),
+	.hide-notes :global(.note-input) {
+		display: none;
 	}
 
 	/* Color-specific word selection styles for green split */

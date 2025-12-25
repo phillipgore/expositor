@@ -69,7 +69,7 @@
 	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
-	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleVerses, toggleWide, toggleOverview, setZoomLevel } from '$lib/stores/toolbar.js';
+	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleNotes, toggleVerses, toggleWide, toggleOverview, setZoomLevel } from '$lib/stores/toolbar.js';
 	import { invalidate } from '$app/navigation';
 
 	// Props to receive data from layout
@@ -104,6 +104,7 @@
 	// Handlers map for toggle buttons and other callbacks
 	const handlers = {
 		toggleStudiesPanel,
+		toggleNotes,
 		toggleVerses,
 		toggleWide,
 		toggleOverview

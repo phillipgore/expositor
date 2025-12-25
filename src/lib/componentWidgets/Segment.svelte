@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import { toolbarState } from '$lib/stores/toolbar.js';
 	import ToolbarPassage from './ToolbarPassage.svelte';
 	import HeadingEditor from './HeadingEditor.svelte';
 	import NoteEditor from './NoteEditor.svelte';
@@ -103,7 +104,7 @@
 	});
 </script>
 
-<div class="segment" class:active={isActive} data-segment-id="{segmentId}">
+<div class="segment" class:active={isActive} class:has-note={(note || noteInputMode) && $toolbarState.notesVisible} data-segment-id="{segmentId}">
 	<!-- Hide ToolbarPassage when any input is active -->
 	{#if !anyInputActive}
 		<ToolbarPassage 
@@ -197,6 +198,13 @@
 		border-bottom-left-radius: 0.3rem;
 	}
 
+	/* Remove bottom border and radius from text when segment has a note */
+	.segment.has-note .text {
+		border-bottom: 0;
+		border-bottom-right-radius: 0;
+		border-bottom-left-radius: 0;
+	}
+
 	/* First/last child styling rules for integration with parent split */
 	:global(.split) .segment:first-child :global(.heading-one),
 	:global(.split) .segment:first-child :global(.heading-one-input input) {
@@ -219,5 +227,18 @@
 	:global(.split) .segment:last-child .text {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
+	}
+
+	/* Add bottom border radius to notes in last segment of split */
+	:global(.split) .segment:last-child:global(.has-note) :global(.note),
+	:global(.split) .segment:last-child:global(.has-note) :global(.note-input textarea) {
+		border-bottom-right-radius: 0.3rem;
+		border-bottom-left-radius: 0.3rem;
+	}
+
+	:global(.split) .segment:last-child:global(.has-note) :global(.text),
+	:global(.split) .segment:last-child:global(.has-note) :global(.text) {
+		border-bottom-right-radius: 0.0rem;
+		border-bottom-left-radius: 0.0rem;
 	}
 </style>

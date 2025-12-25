@@ -154,6 +154,8 @@ export function getAppToolbarConfig() {
 					underLabel: 'Notes',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'notesVisible',
+					toggleHandler: 'toggleNotes',
 					disabledStateProp: 'canToggleNotes'
 				},
 				{
