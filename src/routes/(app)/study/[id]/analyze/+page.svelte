@@ -615,7 +615,18 @@
 			if (endWordId && wordId === endWordId) {
 				// Flush any remaining verse buffer
 				if (verseBuffer.length > 0) {
-					capturedHTML.push(verseBuffer.join(' '));
+					// Check if first element is a chapter-verse span
+					const firstElement = verseBuffer[0];
+					if (firstElement.includes('class="chapter-verse"')) {
+						// First element is chapter-verse, rest are words
+						// No space between chapter-verse and first word to avoid leading space when hidden
+						const chapterVerse = verseBuffer[0];
+						const words = verseBuffer.slice(1);
+						capturedHTML.push(chapterVerse + words.join(' '));
+					} else {
+						// No chapter-verse, just join words with spaces
+						capturedHTML.push(verseBuffer.join(' '));
+					}
 					verseBuffer = [];
 				}
 				break;
@@ -626,13 +637,24 @@
 				const verseSpan = word.closest('.verse');
 				const verseId = verseSpan?.dataset?.verseId || null;
 				
-				// Check if we're starting a new verse
-				if (verseId !== currentVerseId) {
-					// Flush previous verse buffer
-					if (verseBuffer.length > 0) {
+			// Check if we're starting a new verse
+			if (verseId !== currentVerseId) {
+				// Flush previous verse buffer
+				if (verseBuffer.length > 0) {
+					// Check if first element is a chapter-verse span
+					const firstElement = verseBuffer[0];
+					if (firstElement.includes('class="chapter-verse"')) {
+						// First element is chapter-verse, rest are words
+						// No space between chapter-verse and first word to avoid leading space when hidden
+						const chapterVerse = verseBuffer[0];
+						const words = verseBuffer.slice(1);
+						capturedHTML.push(chapterVerse + words.join(' '));
+					} else {
+						// No chapter-verse, just join words with spaces
 						capturedHTML.push(verseBuffer.join(' '));
-						verseBuffer = [];
 					}
+					verseBuffer = [];
+				}
 					
 					currentVerseId = verseId;
 					
@@ -681,7 +703,18 @@
 		
 		// Flush any remaining verse buffer
 		if (verseBuffer.length > 0) {
-			capturedHTML.push(verseBuffer.join(' '));
+			// Check if first element is a chapter-verse span
+			const firstElement = verseBuffer[0];
+			if (firstElement.includes('class="chapter-verse"')) {
+				// First element is chapter-verse, rest are words
+				// No space between chapter-verse and first word to avoid leading space when hidden
+				const chapterVerse = verseBuffer[0];
+				const words = verseBuffer.slice(1);
+				capturedHTML.push(chapterVerse + words.join(' '));
+			} else {
+				// No chapter-verse, just join words with spaces
+				capturedHTML.push(verseBuffer.join(' '));
+			}
 		}
 		
 		return capturedHTML.join(' ');
@@ -1458,12 +1491,12 @@
 		border-color: var(--split-dark);
 	}
 
-	.overview-mode .heading-three {
+	.overview-mode :global(.heading-three) {
 		padding: 0.9rem;
 		border-bottom: 0.1rem solid var(--split-dark);
 	}
 
-	.overview-mode .heading-three:last-of-type {
+	.overview-mode :global(.segment:last-of-type .heading-three) {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
@@ -1501,6 +1534,7 @@
 	:global(.chapter-verse) {
 		font-weight: bold;
 		color: var(--blue-500);
+		padding-right: 0.3rem;
 	}
 
 	.hide-verses :global(.chapter-verse) {
