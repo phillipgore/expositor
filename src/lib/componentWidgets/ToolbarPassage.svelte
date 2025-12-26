@@ -5,7 +5,7 @@
 	import { crossfade, fade } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import { getPassageToolbarConfig } from '$lib/utils/toolbarConfig.js';
-	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setToolbarState } from '$lib/stores/toolbar.js';
 
 	let { 
 		toolbarMode = $bindable('outline'),
@@ -43,6 +43,10 @@
 				detail: { segmentId }
 			}));
 		} else if (button.iconId === 'note') {
+			// Auto-show notes if they're hidden
+			if (!$toolbarState.notesVisible) {
+				setToolbarState('notesVisible', true);
+			}
 			// Dispatch custom event for note insertion
 			window.dispatchEvent(new CustomEvent('insert-note', {
 				detail: { segmentId }

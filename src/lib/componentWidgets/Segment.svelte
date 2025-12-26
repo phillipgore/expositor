@@ -184,6 +184,11 @@
 		border-color: var(--split-dark);
 	}
 
+	/* Remove top padding when segment has heading-three */
+	.segment.has-heading-three .text {
+		padding-top: 0;
+	}
+
 	.segment:last-child,
 	.segment:last-child .text {
 		border-bottom-right-radius: 0.3rem;

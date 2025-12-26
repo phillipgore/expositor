@@ -25,7 +25,7 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
-	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setToolbarState } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuStructure' } = $props();
 
@@ -96,6 +96,10 @@
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
+			// Auto-show notes if they're hidden
+			if (!$toolbarState.notesVisible) {
+				setToolbarState('notesVisible', true);
+			}
 			// Trigger insert note event via custom event
 			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 		}}
