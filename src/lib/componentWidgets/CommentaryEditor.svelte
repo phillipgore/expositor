@@ -20,7 +20,6 @@
 	let linkUrl = $state('');
 	let showFootnoteInput = $state(false);
 	let footnoteContent = $state('');
-	let footnoteCounter = $state(0);
 
 	onMount(() => {
 		editor = new Editor({
@@ -122,9 +121,14 @@
 			return;
 		}
 
-		footnoteCounter++;
+		// Calculate next footnote number from existing footnotes
+		const maxId = footnotes.length > 0 
+			? Math.max(...footnotes.map(f => Number(f.id)))
+			: 0;
+		const nextId = maxId + 1;
+
 		editor?.chain().focus().setFootnote({
-			id: String(footnoteCounter),
+			id: String(nextId),
 			content: footnoteContent
 		}).run();
 
@@ -135,6 +139,59 @@
 	function clearFormatting() {
 		editor?.chain().focus().clearNodes().unsetAllMarks().run();
 	}
+
+	// Extract footnotes from editor content
+	let footnotes = $state([]);
+
+	// Extract footnotes when editor updates
+	$effect(() => {
+		if (!editor) {
+			console.log('[FOOTNOTES] No editor yet');
+			return;
+		}
+		
+		console.log('[FOOTNOTES] Editor initialized, setting up extraction');
+		
+		// Extract immediately
+		const extractAndUpdate = () => {
+			const json = editor.getJSON();
+			console.log('[FOOTNOTES] Editor JSON:', json);
+			const notes = [];
+			
+			// Recursively search for footnote nodes
+			const extractFootnotes = (node) => {
+				if (node.type === 'footnote' && node.attrs) {
+					console.log('[FOOTNOTES] Found footnote:', node.attrs);
+					notes.push({
+						id: node.attrs.id,
+						content: node.attrs.content
+					});
+				}
+				if (node.content) {
+					node.content.forEach(extractFootnotes);
+				}
+			};
+			
+			extractFootnotes(json);
+			console.log('[FOOTNOTES] Total found:', notes.length, notes);
+			footnotes = notes.sort((a, b) => Number(a.id) - Number(b.id));
+		};
+		
+		// Extract on mount
+		extractAndUpdate();
+		
+		// Re-extract on every editor update
+		const updateHandler = () => {
+			extractAndUpdate();
+		};
+		
+		editor.on('update', updateHandler);
+		
+		// Cleanup
+		return () => {
+			editor.off('update', updateHandler);
+		};
+	});
 
 	// Check active states
 	$effect(() => {
@@ -294,6 +351,20 @@
 
 	<div class="editor-content">
 		<div bind:this={editorElement}></div>
+		
+		{#if footnotes.length > 0}
+			<div class="footnotes-section">
+				<hr class="footnotes-divider" />
+				<div class="footnotes-list">
+					{#each footnotes as note}
+						<div class="footnote-item">
+							<span class="footnote-number">{note.id}.</span>
+							<span class="footnote-text">{note.content}</span>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -552,10 +623,8 @@
 		color: var(--blue-dark);
 	}
 
-	/* Footnotes */
+	/* Footnote Markers in Text */
 	:global(.tiptap-editor .footnote-marker) {
-		position: relative;
-		cursor: pointer;
 		color: var(--blue);
 		font-weight: 600;
 		margin: 0 0.1rem;
@@ -565,41 +634,41 @@
 		font-size: 0.75em;
 	}
 
-	:global(.tiptap-editor .footnote-marker:hover) {
-		text-decoration: underline;
+	/* Footnotes Section at Bottom */
+	.footnotes-section {
+		margin-top: 3rem;
+		padding-top: 1.5rem;
 	}
 
-	:global(.tiptap-editor .footnote-marker:hover::after) {
-		content: attr(data-footnote-content);
-		position: absolute;
-		bottom: 100%;
-		left: 50%;
-		transform: translateX(-50%);
-		margin-bottom: 0.5rem;
-		padding: 0.6rem 1rem;
-		background: var(--gray-900);
-		color: var(--white);
-		font-size: 1.2rem;
-		line-height: 1.4;
-		border-radius: 0.4rem;
-		white-space: pre-wrap;
-		max-width: 30rem;
-		width: max-content;
-		z-index: 1000;
-		box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.2);
-		font-weight: 400;
+	.footnotes-divider {
+		border: none;
+		border-top: 1px solid var(--gray-700);
+		margin: 0 0 1.5rem 0;
 	}
 
-	:global(.tiptap-editor .footnote-marker:hover::before) {
-		content: '';
-		position: absolute;
-		bottom: 100%;
-		left: 50%;
-		transform: translateX(-50%);
-		margin-bottom: 0.1rem;
-		border: 0.4rem solid transparent;
-		border-top-color: var(--gray-900);
-		z-index: 1000;
+	.footnotes-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.8rem;
+	}
+
+	.footnote-item {
+		display: flex;
+		gap: 0.8rem;
+		font-size: 1.3rem;
+		line-height: 1.6;
+		color: var(--gray-300);
+	}
+
+	.footnote-number {
+		flex-shrink: 0;
+		font-weight: 600;
+		color: var(--blue);
+		min-width: 2.5rem;
+	}
+
+	.footnote-text {
+		flex: 1;
 	}
 
 	/* Placeholder */
