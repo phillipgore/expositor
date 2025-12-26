@@ -160,24 +160,6 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'toggle',
-					iconId: 'commentary',
-					underLabel: 'Comment',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
-					disabledStateProp: 'canToggleComment'
-				}
-			]
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
-		},
-		{
-			type: 'section',
-			id: 'toggles',
-			items: [
-				{
-					type: 'toggle',
 					iconId: 'reference',
 					underLabel: 'Verses',
 					classes: 'toolbar-dark hide-at-narrow',
@@ -232,6 +214,24 @@ export function getAppToolbarConfig() {
 					underLabelClasses: 'light',
 					disabledStateProp: 'canSwitchMode'
 				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'flex'
+		},
+		{
+			type: 'section',
+			id: 'toggles',
+			items: [
+				{
+					type: 'toggle',
+					iconId: 'commentary',
+					underLabel: 'Commentary',
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow',
+					disabledStateProp: 'canToggleComment'
+				},
 			]
 		},
 		{
@@ -367,7 +367,7 @@ export function getPassageToolbarConfig() {
 					},
 					{
 						iconId: 'note',
-						title: 'Quick Note',
+						title: 'Note',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
 				]

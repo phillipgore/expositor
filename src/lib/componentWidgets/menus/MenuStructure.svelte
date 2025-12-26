@@ -92,7 +92,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note"
-		label="Quick Note"
+		label="Note"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();

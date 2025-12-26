@@ -115,10 +115,12 @@
 		border-radius: 0rem;
 		color: var(--white);
 		background-color: var(--split-darker);
-		border-color: var(--split-darker);
+		border-color: var(--split-lighter);
 		caret-color: var(--white);
 		height: auto;
 		line-height: 1.5;
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
 	}
 
 	input.heading-one-input:focus {
@@ -144,7 +146,7 @@
 		border-radius: 0rem;
 		background-color: var(--split-lighter);
 		color: var(--split-darker);
-		border-color: var(--split-dark);
+		border-color: var(--split-darker);
 		caret-color: var(--split-darker);
 		height: auto;
 		line-height: 1.5;
@@ -174,7 +176,7 @@
 		background-color: transparent;
 		color: var(--gray-100);
 		border-color: var(--split-dark);
-		caret-color: var(--gray-100);
+		caret-color: var(--split-dark);
 		height: auto;
 		line-height: 1.5;
 	}
