@@ -48,7 +48,7 @@
 	let clickTimeout = $state(null); // Timeout ID for delayed single-click processing
 
 	// Active segment state
-	let activeSegment = $state(null); // { passageIndex, segmentIndex }
+	let activeSegment = $state(null); // { passageIndex, segmentIndex, segmentId }
 
 	// Toolbar mode state
 	let toolbarMode = $state('outline'); // 'outline', 'literary', or 'color'
@@ -74,12 +74,14 @@
 
 	// Sync active segment state to toolbar store
 	$effect(() => {
-		setActiveSegment(activeSegment !== null);
-	});
-
-	// Sync active split state to toolbar store (for color mode)
-	$effect(() => {
-		setActiveSplit(activeSegment?.activateSplit === true);
+		if (activeSegment && activeSegment.segmentId) {
+			// Use the captured segment ID directly
+			console.log('[SYNC] Sending segment ID to store:', activeSegment.segmentId);
+			setActiveSegment(true, activeSegment.segmentId);
+		} else {
+			console.log('[SYNC] Clearing active segment from store');
+			setActiveSegment(false, null);
+		}
 	});
 
 	// Clear active segments and word selection when overview mode is enabled
@@ -871,18 +873,22 @@
 				const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
 				const segmentIndex = allSegments.indexOf(clickedSegment);
 				
-				if (passageIndex !== -1 && segmentIndex !== -1) {
+				// Capture the segment ID from the DOM
+				const segmentId = clickedSegment.dataset.segmentId;
+				console.log('[CLICK] Captured segment ID:', segmentId, 'from element:', clickedSegment);
+				
+				if (passageIndex !== -1 && segmentIndex !== -1 && segmentId) {
 					// In 'color' mode, activate the split instead of the segment
 					if (toolbarMode === 'color') {
 						// Find the split (parent of segment)
 						const splitElement = clickedSegment.closest('.split');
 						if (splitElement) {
-							// Store segment index but mark as split activation
-							activeSegment = { passageIndex, segmentIndex, activateSplit: true };
+							// Store segment ID along with indices
+							activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: true };
 						}
 					} else {
 						// In 'outline' and 'literary' modes, activate the segment
-						activeSegment = { passageIndex, segmentIndex, activateSplit: false };
+						activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: false };
 					}
 				}
 			}
@@ -1002,27 +1008,19 @@
 		});
 
 		// Add active class to the selected segment or split
-		if (activeSegment) {
-			const allPassages = Array.from(document.querySelectorAll('.passage'));
-			const passageElement = allPassages[activeSegment.passageIndex];
-			if (passageElement) {
+		if (activeSegment && activeSegment.segmentId) {
+			// Use segment ID to directly find the element (no index lookup!)
+			const segmentElement = document.querySelector(`[data-segment-id="${activeSegment.segmentId}"]`);
+			if (segmentElement) {
 				if (activeSegment.activateSplit) {
 					// Activate the split (color mode)
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentElement = allSegments[activeSegment.segmentIndex];
-					if (segmentElement) {
-						const splitElement = segmentElement.closest('.split');
-						if (splitElement) {
-							splitElement.classList.add('active');
-						}
+					const splitElement = segmentElement.closest('.split');
+					if (splitElement) {
+						splitElement.classList.add('active');
 					}
 				} else {
 					// Activate the segment (outline and literary modes)
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentElement = allSegments[activeSegment.segmentIndex];
-					if (segmentElement) {
-						segmentElement.classList.add('active');
-					}
+					segmentElement.classList.add('active');
 				}
 			}
 		}

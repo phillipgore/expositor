@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import ToolbarApp from '$lib/componentWidgets/ToolbarApp.svelte';
 	import StudiesPanel from '$lib/componentWidgets/StudiesPanel.svelte';
+	import CommentaryPanel from '$lib/componentWidgets/CommentaryPanel.svelte';
 	import { toolbarState, setToolbarState } from '$lib/stores/toolbar.js';
 
 	let { data, children } = $props();
@@ -13,6 +14,9 @@
 	$effect(() => {
 		if (data.studiesPanelOpen !== undefined) {
 			setToolbarState('studiesPanelOpen', data.studiesPanelOpen);
+		}
+		if (data.commentaryPanelOpen !== undefined) {
+			setToolbarState('commentaryPanelOpen', data.commentaryPanelOpen);
 		}
 	});
 
@@ -43,6 +47,10 @@
 		<div class="content-wrapper">
 			{@render children()}
 		</div>
+		<CommentaryPanel 
+			isOpen={$toolbarState.commentaryPanelOpen}
+			initialWidth={data.commentaryPanelWidth || 300}
+		/>
 	</div>
 {:else}
 	<div class="redirecting">Redirecting to sign in...</div>

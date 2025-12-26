@@ -47,6 +47,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canUseLiteraryItems - Whether Literary menu items should be enabled
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
+ * @property {boolean} commentaryPanelOpen - Whether the commentary panel is open
  * @property {boolean} notesVisible - Whether quick notes are visible in segments
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
@@ -55,6 +56,7 @@ import { writable, get } from 'svelte/store';
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
+ * @property {string|null} activeSegmentId - The ID of the currently active segment
  * @property {boolean} hasActiveSplit - Whether a split is currently active (for color mode)
  * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
  */
@@ -83,6 +85,7 @@ const defaultState = {
 	canUseLiteraryItems: false,
 	canUseColorItems: false,
 	studiesPanelOpen: true,
+	commentaryPanelOpen: false,
 	notesVisible: true,
 	versesVisible: false,
 	wideLayout: false,
@@ -91,6 +94,7 @@ const defaultState = {
 	selectedItem: null,
 	hasWordSelection: false,
 	hasActiveSegment: false,
+	activeSegmentId: null,
 	hasActiveSplit: false,
 	canInsertColumn: false
 };
@@ -281,14 +285,6 @@ export function resetToolbarState() {
 }
 
 /**
- * Get current toolbar state (useful for non-reactive contexts)
- * @returns {ToolbarState}
- */
-export function getToolbarState() {
-	return get(toolbarStateStore);
-}
-
-/**
  * Set the studies panel to a specific open/closed state
  * @param {boolean} newState - Whether the panel should be open
  * @returns {Promise<void>}
@@ -369,6 +365,16 @@ export function toggleOverview() {
 }
 
 /**
+ * Toggle the commentary panel open/closed
+ */
+export function toggleCommentary() {
+	toolbarStateStore.update(state => ({
+		...state,
+		commentaryPanelOpen: !state.commentaryPanelOpen
+	}));
+}
+
+/**
  * Set zoom level
  * @param {number} level - Zoom level as percentage (25-400) or 0 for fit
  */
@@ -424,11 +430,13 @@ export function setWordSelection(hasSelection) {
 /**
  * Set active segment state
  * @param {boolean} hasSegment - Whether a segment is currently active
+ * @param {string|null} segmentId - The ID of the active segment (optional)
  */
-export function setActiveSegment(hasSegment) {
+export function setActiveSegment(hasSegment, segmentId = null) {
 	toolbarStateStore.update(state => ({
 		...state,
-		hasActiveSegment: hasSegment
+		hasActiveSegment: hasSegment,
+		activeSegmentId: segmentId
 	}));
 }
 

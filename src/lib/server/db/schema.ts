@@ -13,6 +13,8 @@ export const user = pgTable('user', {
 	image: text('image'),
 	studiesPanelWidth: integer('studies_panel_width').default(300),
 	studiesPanelOpen: boolean('studies_panel_open').default(true),
+	commentaryPanelWidth: integer('commentary_panel_width').default(300),
+	commentaryPanelOpen: boolean('commentary_panel_open').default(false),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
@@ -161,6 +163,7 @@ export const passageSegment = pgTable('passage_segment', {
 	headingTwo: text('heading_two'),
 	headingThree: text('heading_three'),
 	note: text('note'),
+	commentary: text('commentary'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

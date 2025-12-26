@@ -15,7 +15,7 @@ export async function PATCH({ request }) {
 
 	try {
 		const body = await request.json();
-		const { studiesPanelWidth, studiesPanelOpen } = body;
+		const { studiesPanelWidth, studiesPanelOpen, commentaryPanelWidth, commentaryPanelOpen } = body;
 		
 		// Build update object with only provided fields
 		const updates = {};
@@ -34,6 +34,22 @@ export async function PATCH({ request }) {
 				return json({ error: 'Invalid panel open state' }, { status: 400 });
 			}
 			updates.studiesPanelOpen = studiesPanelOpen;
+		}
+		
+		// Validate and add commentaryPanelWidth if provided
+		if (commentaryPanelWidth !== undefined) {
+			if (typeof commentaryPanelWidth !== 'number' || commentaryPanelWidth < 300 || commentaryPanelWidth > 600) {
+				return json({ error: 'Invalid commentary panel width' }, { status: 400 });
+			}
+			updates.commentaryPanelWidth = commentaryPanelWidth;
+		}
+		
+		// Validate and add commentaryPanelOpen if provided
+		if (commentaryPanelOpen !== undefined) {
+			if (typeof commentaryPanelOpen !== 'boolean') {
+				return json({ error: 'Invalid commentary panel open state' }, { status: 400 });
+			}
+			updates.commentaryPanelOpen = commentaryPanelOpen;
 		}
 		
 		// Only update if there are changes

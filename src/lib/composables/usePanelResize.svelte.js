@@ -12,9 +12,14 @@
  * @param {string} storageKey - localStorage key for persisting width
  * @param {string} apiEndpoint - API endpoint for server sync
  * @param {Function} isOpen - Function that returns whether panel is open
+ * @param {string} apiPropertyName - Property name to use in API request (optional, defaults to storageKey)
+ * @param {string} side - Which side of the screen the panel is on: 'left' or 'right' (default: 'left')
  * @returns {Object} Resize state and handlers
  */
-export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen) {
+export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen, apiPropertyName = null, side = 'left') {
+	// Use apiPropertyName if provided, otherwise default to storageKey
+	const propertyName = apiPropertyName || storageKey;
+	
 	// Panel width state (initialized from localStorage or initial value)
 	const savedWidth = typeof window !== 'undefined' 
 		? localStorage.getItem(storageKey)
@@ -45,7 +50,8 @@ export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen) {
 	function handleResizeMove(event) {
 		if (!isResizing) return;
 		const delta = event.clientX - startX;
-		const newWidth = startWidth + delta;
+		// For right-side panels, invert the delta (drag left = grow, drag right = shrink)
+		const newWidth = side === 'right' ? startWidth - delta : startWidth + delta;
 		// Min: 300px, Max: 600px or 50% viewport
 		panelWidth = Math.max(300, Math.min(600, Math.min(newWidth, window.innerWidth * 0.5)));
 	}
@@ -67,7 +73,7 @@ export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen) {
 			await fetch(apiEndpoint, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ studiesPanelWidth: panelWidth })
+				body: JSON.stringify({ [propertyName]: panelWidth })
 			});
 		} catch (error) {
 			console.error('Failed to save panel width:', error);
@@ -118,7 +124,7 @@ export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen) {
 			await fetch(apiEndpoint, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ studiesPanelWidth: panelWidth })
+				body: JSON.stringify({ [propertyName]: panelWidth })
 			});
 		} catch (error) {
 			console.error('Failed to save panel width:', error);

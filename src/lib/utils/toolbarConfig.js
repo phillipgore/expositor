@@ -230,6 +230,8 @@ export function getAppToolbarConfig() {
 					underLabel: 'Commentary',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'commentaryPanelOpen',
+					toggleHandler: 'toggleCommentary',
 					disabledStateProp: 'canToggleComment'
 				},
 			]

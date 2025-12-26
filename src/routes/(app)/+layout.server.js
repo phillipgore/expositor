@@ -20,7 +20,9 @@ export async function load({ request, depends }) {
 		const userData = await db
 			.select({ 
 				studiesPanelWidth: user.studiesPanelWidth,
-				studiesPanelOpen: user.studiesPanelOpen
+				studiesPanelOpen: user.studiesPanelOpen,
+				commentaryPanelWidth: user.commentaryPanelWidth,
+				commentaryPanelOpen: user.commentaryPanelOpen
 			})
 			.from(user)
 			.where(eq(user.id, session.user.id))
@@ -28,6 +30,8 @@ export async function load({ request, depends }) {
 		
 		const studiesPanelWidth = userData[0]?.studiesPanelWidth || 300;
 		const studiesPanelOpen = userData[0]?.studiesPanelOpen ?? true;
+		const commentaryPanelWidth = userData[0]?.commentaryPanelWidth || 300;
+		const commentaryPanelOpen = userData[0]?.commentaryPanelOpen ?? false;
 		
 		// Query all groups for the logged-in user
 		const groupsData = await db
@@ -93,7 +97,9 @@ export async function load({ request, depends }) {
 			ungroupedStudies,
 			studies: studiesWithPassages, // Keep for backwards compatibility
 			studiesPanelWidth,
-			studiesPanelOpen
+			studiesPanelOpen,
+			commentaryPanelWidth,
+			commentaryPanelOpen
 		};
 	} catch (error) {
 		console.error('Error loading studies:', error);
