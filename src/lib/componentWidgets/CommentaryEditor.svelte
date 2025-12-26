@@ -9,6 +9,7 @@
 	import { Editor } from '@tiptap/core';
 	import StarterKit from '@tiptap/starter-kit';
 	import Link from '@tiptap/extension-link';
+	import { Footnote } from '$lib/utils/tiptapFootnote.js';
 	import Icon from '$lib/componentElements/Icon.svelte';
 
 	let { content = '', onUpdate = () => {} } = $props();
@@ -17,6 +18,9 @@
 	let editorElement;
 	let showLinkInput = $state(false);
 	let linkUrl = $state('');
+	let showFootnoteInput = $state(false);
+	let footnoteContent = $state('');
+	let footnoteCounter = $state(0);
 
 	onMount(() => {
 		editor = new Editor({
@@ -37,7 +41,8 @@
 						target: '_blank',
 						rel: 'noopener noreferrer'
 					}
-				})
+				}),
+				Footnote
 			],
 			content: content || '<p></p>',
 			editorProps: {
@@ -104,6 +109,27 @@
 		const previousUrl = editor?.getAttributes('link').href;
 		linkUrl = previousUrl || '';
 		showLinkInput = true;
+	}
+
+	function openFootnoteInput() {
+		showFootnoteInput = true;
+		footnoteContent = '';
+	}
+
+	function addFootnote() {
+		if (!footnoteContent.trim()) {
+			showFootnoteInput = false;
+			return;
+		}
+
+		footnoteCounter++;
+		editor?.chain().focus().setFootnote({
+			id: String(footnoteCounter),
+			content: footnoteContent
+		}).run();
+
+		showFootnoteInput = false;
+		footnoteContent = '';
 	}
 
 	function clearFormatting() {
@@ -223,6 +249,29 @@
 						{#if isActive('link')}
 							<button type="button" onclick={removeLink}>✕</button>
 						{/if}
+					</div>
+				{/if}
+			</div>
+			<div class="toolbar-button-wrapper">
+				<button
+					type="button"
+					class="toolbar-button"
+					class:active={isActive('footnote')}
+					onclick={openFootnoteInput}
+					title="Footnote"
+					aria-label="Footnote"
+				>
+					<sup>1</sup>
+				</button>
+				{#if showFootnoteInput}
+					<div class="footnote-input">
+						<textarea
+							bind:value={footnoteContent}
+							placeholder="Enter footnote text..."
+							rows="3"
+							onkeydown={(e) => e.key === 'Enter' && e.metaKey && addFootnote()}
+						></textarea>
+						<button type="button" onclick={addFootnote}>✓</button>
 					</div>
 				{/if}
 			</div>
@@ -357,6 +406,47 @@
 		background: var(--gray-light);
 	}
 
+	.footnote-input {
+		position: absolute;
+		top: 100%;
+		left: 0;
+		margin-top: 0.3rem;
+		padding: 0.6rem;
+		background: var(--white);
+		border: 1px solid var(--gray-700);
+		border-radius: 0.3rem;
+		box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.1);
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		z-index: 100;
+		min-width: 30rem;
+	}
+
+	.footnote-input textarea {
+		padding: 0.6rem;
+		border: 1px solid var(--gray-700);
+		border-radius: 0.3rem;
+		font-size: 1.4rem;
+		font-family: inherit;
+		resize: vertical;
+	}
+
+	.footnote-input button {
+		padding: 0.6rem 1.2rem;
+		border: 1px solid var(--gray-700);
+		border-radius: 0.3rem;
+		background: var(--white);
+		color: var(--black);
+		cursor: pointer;
+		font-size: 1.4rem;
+		align-self: flex-end;
+	}
+
+	.footnote-input button:hover {
+		background: var(--gray-light);
+	}
+
 	/* Editor Content */
 	.editor-content {
 		flex: 1;
@@ -460,6 +550,56 @@
 
 	:global(.tiptap-editor a:hover) {
 		color: var(--blue-dark);
+	}
+
+	/* Footnotes */
+	:global(.tiptap-editor .footnote-marker) {
+		position: relative;
+		cursor: pointer;
+		color: var(--blue);
+		font-weight: 600;
+		margin: 0 0.1rem;
+	}
+
+	:global(.tiptap-editor .footnote-marker sup) {
+		font-size: 0.75em;
+	}
+
+	:global(.tiptap-editor .footnote-marker:hover) {
+		text-decoration: underline;
+	}
+
+	:global(.tiptap-editor .footnote-marker:hover::after) {
+		content: attr(data-footnote-content);
+		position: absolute;
+		bottom: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		margin-bottom: 0.5rem;
+		padding: 0.6rem 1rem;
+		background: var(--gray-900);
+		color: var(--white);
+		font-size: 1.2rem;
+		line-height: 1.4;
+		border-radius: 0.4rem;
+		white-space: pre-wrap;
+		max-width: 30rem;
+		width: max-content;
+		z-index: 1000;
+		box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.2);
+		font-weight: 400;
+	}
+
+	:global(.tiptap-editor .footnote-marker:hover::before) {
+		content: '';
+		position: absolute;
+		bottom: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		margin-bottom: 0.1rem;
+		border: 0.4rem solid transparent;
+		border-top-color: var(--gray-900);
+		z-index: 1000;
 	}
 
 	/* Placeholder */
