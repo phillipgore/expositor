@@ -1496,7 +1496,7 @@
 		border-bottom: 0.1rem solid var(--split-dark);
 	}
 
-	.overview-mode :global(.segment:last-of-type .heading-three) {
+	.overview-mode :global(.segment:last-of-type .heading-three-container:last-child .heading-three) {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
