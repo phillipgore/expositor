@@ -24,6 +24,15 @@
 	let footnoteContent = $state('');
 	let footnoteInputElement;
 
+	// Zoom state
+	let commentaryZoom = $state(
+		typeof window !== 'undefined' 
+			? parseInt(localStorage.getItem('commentaryZoom') || '100')
+			: 100
+	);
+	
+	let zoomScale = $derived(commentaryZoom / 100);
+
 	onMount(() => {
 		editor = new Editor({
 			element: editorElement,
@@ -151,6 +160,23 @@
 
 	function clearFormatting() {
 		editor?.chain().focus().clearNodes().unsetAllMarks().run();
+	}
+
+	/**
+	 * Zoom controls
+	 */
+	function zoomIn() {
+		commentaryZoom = Math.min(200, commentaryZoom + 25);
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('commentaryZoom', commentaryZoom.toString());
+		}
+	}
+	
+	function zoomOut() {
+		commentaryZoom = Math.max(75, commentaryZoom - 25);
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('commentaryZoom', commentaryZoom.toString());
+		}
 	}
 
 	// Extract footnotes from editor content
@@ -431,9 +457,37 @@
 				<Icon iconId="x" />
 			</button>
 		</div>
+
+		<div class="toolbar-divider"></div>
+
+		<div class="toolbar-group">
+			<button
+				use:tooltip
+				type="button"
+				class="toolbar-button"
+				onclick={zoomOut}
+				disabled={commentaryZoom <= 75}
+				title="Zoom Out"
+				aria-label="Zoom Out"
+			>
+				<Icon iconId="minus-circle" />
+			</button>
+			<span class="zoom-level">{commentaryZoom}%</span>
+			<button
+				use:tooltip
+				type="button"
+				class="toolbar-button"
+				onclick={zoomIn}
+				disabled={commentaryZoom >= 200}
+				title="Zoom In"
+				aria-label="Zoom In"
+			>
+				<Icon iconId="plus-circle" />
+			</button>
+		</div>
 	</div>
 
-	<div class="editor-content">
+	<div class="editor-content" style="transform: scale({zoomScale}); transform-origin: top left;">
 		<div bind:this={editorElement}></div>
 		
 		{#if footnotes.length > 0}
@@ -522,9 +576,24 @@
 		color: var(--white);
 	}
 
+	.toolbar-button:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
 	.toolbar-button:focus-visible {
 		outline: 2px solid var(--blue);
 		outline-offset: 2px;
+	}
+
+	.zoom-level {
+		display: flex;
+		align-items: center;
+		font-size: 1.2rem;
+		font-weight: 500;
+		color: var(--gray-300);
+		min-width: 3.6rem;
+		justify-content: center;
 	}
 
 	.link-input {
@@ -535,7 +604,7 @@
 		transform: translateX(-50%);
 		
 		/* Fixed width */
-		width: 34.0rem;
+		width: 45.8rem;
 		
 		/* Popup styling */
 		padding: 0.6rem;
@@ -593,7 +662,7 @@
 		top: 3.8rem;
 		
 		/* Fixed width */
-		width: 34.0rem;
+		width: 45.8rem;
 		
 		/* Popup styling */
 		padding: 0.6rem;
@@ -649,7 +718,6 @@
 	.editor-content {
 		flex: 1;
 		overflow-y: auto;
-		padding: 1.5rem;
 	}
 
 	/* Tiptap Editor Styles */
@@ -660,6 +728,7 @@
 		font-size: 1.4rem;
 		line-height: 1.6;
 		color: var(--black);
+		padding: 1.5rem;
 	}
 
 	:global(.tiptap-editor p) {
