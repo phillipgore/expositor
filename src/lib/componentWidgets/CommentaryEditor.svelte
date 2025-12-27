@@ -11,6 +11,7 @@
 	import Link from '@tiptap/extension-link';
 	import { Footnote } from '$lib/utils/tiptapFootnote.js';
 	import Icon from '$lib/componentElements/Icon.svelte';
+	import { tooltip } from '$lib/composables/useTooltip.svelte.js';
 
 	let { content = '', onUpdate = () => {} } = $props();
 
@@ -18,8 +19,10 @@
 	let editorElement;
 	let showLinkInput = $state(false);
 	let linkUrl = $state('');
+	let linkInputElement;
 	let showFootnoteInput = $state(false);
 	let footnoteContent = $state('');
+	let footnoteInputElement;
 
 	onMount(() => {
 		editor = new Editor({
@@ -104,6 +107,11 @@
 		showLinkInput = false;
 	}
 
+	function cancelLink() {
+		showLinkInput = false;
+		linkUrl = '';
+	}
+
 	function openLinkInput() {
 		const previousUrl = editor?.getAttributes('link').href;
 		linkUrl = previousUrl || '';
@@ -132,6 +140,11 @@
 			content: footnoteContent
 		}).run();
 
+		showFootnoteInput = false;
+		footnoteContent = '';
+	}
+
+	function cancelFootnote() {
 		showFootnoteInput = false;
 		footnoteContent = '';
 	}
@@ -201,6 +214,46 @@
 		}
 	});
 
+	// Click-outside detection for link input
+	$effect(() => {
+		if (showLinkInput) {
+			const handleClickOutside = (event) => {
+				if (linkInputElement && !linkInputElement.contains(event.target)) {
+					cancelLink();
+				}
+			};
+			
+			// Small delay to avoid immediate close from opening click
+			setTimeout(() => {
+				window.addEventListener('click', handleClickOutside);
+			}, 0);
+			
+			return () => {
+				window.removeEventListener('click', handleClickOutside);
+			};
+		}
+	});
+
+	// Click-outside detection for footnote input
+	$effect(() => {
+		if (showFootnoteInput) {
+			const handleClickOutside = (event) => {
+				if (footnoteInputElement && !footnoteInputElement.contains(event.target)) {
+					cancelFootnote();
+				}
+			};
+			
+			// Small delay to avoid immediate close from opening click
+			setTimeout(() => {
+				window.addEventListener('click', handleClickOutside);
+			}, 0);
+			
+			return () => {
+				window.removeEventListener('click', handleClickOutside);
+			};
+		}
+	});
+
 	function isActive(type, attrs = {}) {
 		return editor?.isActive(type, attrs) ?? false;
 	}
@@ -210,6 +263,7 @@
 	<div class="editor-toolbar">
 		<div class="toolbar-group">
 			<button
+				use:tooltip
 				type="button"
 				class="toolbar-button"
 				class:active={isActive('bold')}
@@ -217,9 +271,10 @@
 				title="Bold (Cmd+B)"
 				aria-label="Bold"
 			>
-				<strong>B</strong>
+				<Icon iconId="bold" />
 			</button>
 			<button
+				use:tooltip
 				type="button"
 				class="toolbar-button"
 				class:active={isActive('italic')}
@@ -227,7 +282,7 @@
 				title="Italic (Cmd+I)"
 				aria-label="Italic"
 			>
-				<em>I</em>
+				<Icon iconId="italic" />
 			</button>
 		</div>
 
@@ -235,6 +290,7 @@
 
 		<div class="toolbar-group">
 			<button
+				use:tooltip
 				type="button"
 				class="toolbar-button"
 				class:active={isActive('bulletList')}
@@ -242,9 +298,10 @@
 				title="Bullet List"
 				aria-label="Bullet List"
 			>
-				•
+				<Icon iconId="outline" />
 			</button>
 			<button
+				use:tooltip
 				type="button"
 				class="toolbar-button"
 				class:active={isActive('orderedList')}
@@ -252,7 +309,7 @@
 				title="Numbered List"
 				aria-label="Numbered List"
 			>
-				1.
+				<Icon iconId="outline-numbered" />
 			</button>
 		</div>
 
@@ -260,6 +317,7 @@
 
 		<div class="toolbar-group">
 			<button
+				use:tooltip
 				type="button"
 				class="toolbar-button"
 				class:active={isActive('blockquote')}
@@ -267,84 +325,110 @@
 				title="Blockquote"
 				aria-label="Blockquote"
 			>
-				❝
+				<Icon iconId="block-quote" />
 			</button>
 			<button
+				use:tooltip
 				type="button"
 				class="toolbar-button"
 				onclick={insertHorizontalRule}
 				title="Horizontal Rule"
 				aria-label="Horizontal Rule"
 			>
-				—
+				<Icon iconId="horizontal-rule" />
 			</button>
 		</div>
 
 		<div class="toolbar-divider"></div>
 
 		<div class="toolbar-group">
-			<div class="toolbar-button-wrapper">
-				<button
-					type="button"
-					class="toolbar-button"
-					class:active={isActive('link')}
-					onclick={openLinkInput}
-					title="Link"
-					aria-label="Link"
-				>
-					🔗
-				</button>
-				{#if showLinkInput}
-					<div class="link-input">
-						<input
-							type="url"
-							bind:value={linkUrl}
-							placeholder="https://example.com"
-							onkeydown={(e) => e.key === 'Enter' && setLink()}
-						/>
-						<button type="button" onclick={setLink}>✓</button>
-						{#if isActive('link')}
-							<button type="button" onclick={removeLink}>✕</button>
-						{/if}
+			<button
+				use:tooltip
+				type="button"
+				class="toolbar-button"
+				class:active={isActive('link')}
+				onclick={openLinkInput}
+				title="Link"
+				aria-label="Link"
+			>
+				<Icon iconId="link" />
+			</button>
+			{#if showLinkInput}
+				<div class="link-input" bind:this={linkInputElement}>
+					<input
+						type="url"
+						bind:value={linkUrl}
+						placeholder="https://example.com"
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								setLink();
+							} else if (e.key === 'Escape') {
+								e.preventDefault();
+								cancelLink();
+							}
+						}}
+					/>
+					<div class="button-group">
+						<button type="button" onclick={setLink}>
+							<Icon iconId="check" />
+						</button>
+						<button type="button" onclick={cancelLink}>
+							<Icon iconId="x" />
+						</button>
 					</div>
-				{/if}
-			</div>
-			<div class="toolbar-button-wrapper">
-				<button
-					type="button"
-					class="toolbar-button"
-					class:active={isActive('footnote')}
-					onclick={openFootnoteInput}
-					title="Footnote"
-					aria-label="Footnote"
-				>
-					<sup>1</sup>
-				</button>
-				{#if showFootnoteInput}
-					<div class="footnote-input">
-						<textarea
-							bind:value={footnoteContent}
-							placeholder="Enter footnote text..."
-							rows="3"
-							onkeydown={(e) => e.key === 'Enter' && e.metaKey && addFootnote()}
-						></textarea>
-						<button type="button" onclick={addFootnote}>✓</button>
+				</div>
+			{/if}
+			
+			<button
+				use:tooltip
+				type="button"
+				class="toolbar-button"
+				class:active={isActive('footnote')}
+				onclick={openFootnoteInput}
+				title="Footnote"
+				aria-label="Footnote"
+			>
+				<Icon iconId="footnote" />
+			</button>
+			{#if showFootnoteInput}
+				<div class="footnote-input" bind:this={footnoteInputElement}>
+					<textarea
+						bind:value={footnoteContent}
+						placeholder="Enter footnote text..."
+						rows="3"
+						onkeydown={(e) => {
+							if (e.key === 'Enter' && e.metaKey) {
+								addFootnote();
+							} else if (e.key === 'Escape') {
+								e.preventDefault();
+								cancelFootnote();
+							}
+						}}
+					></textarea>
+					<div class="button-group">
+						<button type="button" onclick={addFootnote}>
+							<Icon iconId="check" />
+						</button>
+						<button type="button" onclick={cancelFootnote}>
+							<Icon iconId="x" />
+						</button>
 					</div>
-				{/if}
-			</div>
+				</div>
+			{/if}
 		</div>
 
 		<div class="toolbar-divider"></div>
 
 		<div class="toolbar-group">
 			<button
+				use:tooltip
 				type="button"
 				class="toolbar-button"
 				onclick={clearFormatting}
 				title="Clear Formatting"
 				aria-label="Clear Formatting"
 			>
-				×
+				<Icon iconId="x" />
 			</button>
 		</div>
 	</div>
@@ -370,6 +454,7 @@
 
 <style>
 	.commentary-editor {
+		position: relative; /* Positioning context for popups */
 		display: flex;
 		flex-direction: column;
 		height: 100%;
@@ -378,12 +463,14 @@
 
 	/* Toolbar */
 	.editor-toolbar {
+		position: relative;
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
-		padding: 0.9rem;
-		border-bottom: 1px solid var(--gray-700);
-		background-color: var(--gray-lighter);
+		justify-content: center;
+		gap: 0.9rem;
+		padding: 0.6rem;
+		/* border-bottom: 1px solid var(--gray-700); */
+		background-color: var(--white);
 		flex-shrink: 0;
 	}
 
@@ -402,17 +489,21 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 3.2rem;
-		height: 3.2rem;
+		min-width: 2.8rem;
+		height: 2.8rem;
 		padding: 0.6rem;
-		border: 1px solid var(--gray-700);
+		border: none;
 		border-radius: 0.3rem;
-		background-color: var(--white);
+		background-color: var(--gray-light);
 		color: var(--black);
 		font-size: 1.4rem;
 		font-weight: 600;
 		cursor: pointer;
 		transition: all 0.15s ease;
+	}
+
+	.toolbar-button :global(.icon path) {
+		fill: var(--gray-darker);
 	}
 
 	.toolbar-button:hover {
@@ -421,7 +512,8 @@
 	}
 
 	.toolbar-button:active {
-		background-color: var(--gray-400);
+		background-color: var(--gray-dark);
+		color: var(--white);
 	}
 
 	.toolbar-button.active {
@@ -435,53 +527,17 @@
 		outline-offset: 2px;
 	}
 
-	.toolbar-button-wrapper {
-		position: relative;
-	}
-
 	.link-input {
+		/* Center within panel */
 		position: absolute;
-		top: 100%;
-		left: 0;
-		margin-top: 0.3rem;
-		padding: 0.6rem;
-		background: var(--white);
-		border: 1px solid var(--gray-700);
-		border-radius: 0.3rem;
-		box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.1);
-		display: flex;
-		gap: 0.3rem;
-		z-index: 100;
-		min-width: 30rem;
-	}
-
-	.link-input input {
-		flex: 1;
-		padding: 0.6rem;
-		border: 1px solid var(--gray-700);
-		border-radius: 0.3rem;
-		font-size: 1.4rem;
-	}
-
-	.link-input button {
-		padding: 0.6rem 1.2rem;
-		border: 1px solid var(--gray-700);
-		border-radius: 0.3rem;
-		background: var(--white);
-		color: var(--black);
-		cursor: pointer;
-		font-size: 1.4rem;
-	}
-
-	.link-input button:hover {
-		background: var(--gray-light);
-	}
-
-	.footnote-input {
-		position: absolute;
-		top: 100%;
-		left: 0;
-		margin-top: 0.3rem;
+		left: 50%;
+		top: 3.8rem;
+		transform: translateX(-50%);
+		
+		/* Fixed width */
+		width: 34.0rem;
+		
+		/* Popup styling */
 		padding: 0.6rem;
 		background: var(--white);
 		border: 1px solid var(--gray-700);
@@ -491,7 +547,64 @@
 		flex-direction: column;
 		gap: 0.6rem;
 		z-index: 100;
-		min-width: 30rem;
+	}
+
+	.link-input input {
+		padding: 0.6rem;
+		border: 1px solid var(--gray-700);
+		border-radius: 0.3rem;
+		font-size: 1.4rem;
+	}
+
+	.link-input .button-group {
+		display: flex;
+		gap: 0.3rem;
+		justify-content: flex-end;
+	}
+
+	.link-input button {
+		min-width: 2.8rem;
+		height: 2.8rem;
+		padding: 0.6rem;
+		border: 1px solid var(--gray-700);
+		border-radius: 0.3rem;
+		background-color: var(--white);
+		color: var(--black);
+		font-size: 1.4rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.link-input button:hover {
+		background-color: var(--gray-light);
+		border-color: var(--gray-500);
+	}
+
+	.link-input button:active {
+		background-color: var(--gray-400);
+	}
+
+	.footnote-input {
+		/* Center within panel */
+		position: absolute;
+		left: 50%;
+		transform: translateX(-50%);
+		top: 3.8rem;
+		
+		/* Fixed width */
+		width: 34.0rem;
+		
+		/* Popup styling */
+		padding: 0.6rem;
+		background: var(--white);
+		border: 1px solid var(--gray-700);
+		border-radius: 0.3rem;
+		box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.1);
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		z-index: 100;
 	}
 
 	.footnote-input textarea {
@@ -503,19 +616,33 @@
 		resize: vertical;
 	}
 
+	.footnote-input .button-group {
+		display: flex;
+		gap: 0.3rem;
+		justify-content: flex-end;
+	}
+
 	.footnote-input button {
-		padding: 0.6rem 1.2rem;
+		min-width: 2.8rem;
+		height: 2.8rem;
+		padding: 0.6rem;
 		border: 1px solid var(--gray-700);
 		border-radius: 0.3rem;
-		background: var(--white);
+		background-color: var(--white);
 		color: var(--black);
-		cursor: pointer;
 		font-size: 1.4rem;
-		align-self: flex-end;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s ease;
 	}
 
 	.footnote-input button:hover {
-		background: var(--gray-light);
+		background-color: var(--gray-light);
+		border-color: var(--gray-500);
+	}
+
+	.footnote-input button:active {
+		background-color: var(--gray-400);
 	}
 
 	/* Editor Content */

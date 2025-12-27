@@ -60,7 +60,10 @@
 		initialWidth,
 		'studiesPanelWidth',
 		'/api/user/preferences',
-		() => isOpen
+		() => isOpen,
+		null, // Use default API property name
+		'left', // Panel is on the left side
+		300 // Minimum width: 30.0rem
 	);
 	
 	let panelWidth = $derived(panelResize.getWidth());

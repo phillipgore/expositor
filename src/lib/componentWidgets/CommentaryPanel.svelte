@@ -31,7 +31,8 @@
 		'/api/user/preferences',
 		() => isOpen,
 		'commentaryPanelWidth', // API property name
-		'right' // Panel is on the right side
+		'right', // Panel is on the right side
+		368 // Minimum width: 36.8rem
 	);
 	
 	let panelWidth = $derived(panelResize.getWidth());

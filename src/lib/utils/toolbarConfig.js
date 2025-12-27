@@ -180,7 +180,7 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'toggle',
-					iconId: 'outline',
+					iconId: 'binoculars',
 					underLabel: 'Overview',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
