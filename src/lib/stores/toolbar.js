@@ -119,6 +119,9 @@ export const toolbarState = {
 export function updateToolbarForRoute(pathname) {
 	// Route-based rules
 	const isDocumentRoute = pathname.includes('/document') || (pathname.includes('/study/') && !pathname.includes('/study-group'));
+	const isAnalyzeRoute = pathname.includes('/study/') && 
+	                       !pathname.includes('/study-group') && 
+	                       (pathname.endsWith('/analyze') || pathname.includes('/analyze/'));
 	const isStudyGroupRoute = pathname.includes('/study-group/');
 	const isSettingsRoute = pathname === '/settings';
 	const isNewRoute = pathname === '/new-study' || pathname === '/new-study-group';
@@ -131,7 +134,7 @@ export function updateToolbarForRoute(pathname) {
 				...state,
 				canFormat: true,
 				canToggleNotes: true,
-				canToggleComment: true,
+				canToggleComment: isAnalyzeRoute, // Only enable on analyze pages
 				canToggleVerses: true,
 				canToggleWide: true,
 				canToggleOverview: true,
@@ -144,7 +147,8 @@ export function updateToolbarForRoute(pathname) {
 				canUseStructureItems: true,
 				canUseHeadingItems: true,
 				canUseLiteraryItems: true,
-				canUseColorItems: true
+				canUseColorItems: true,
+				commentaryPanelOpen: isAnalyzeRoute ? state.commentaryPanelOpen : false // Close if leaving analyze
 			};
 		}
 
@@ -167,7 +171,8 @@ export function updateToolbarForRoute(pathname) {
 			canUseStructureItems: false,
 			canUseHeadingItems: false,
 			canUseLiteraryItems: false,
-			canUseColorItems: false
+			canUseColorItems: false,
+			commentaryPanelOpen: false // Close commentary panel on study-group pages
 		};
 	}
 
@@ -191,7 +196,8 @@ export function updateToolbarForRoute(pathname) {
 			canUseStructureItems: false, // Menu button enabled, items disabled
 			canUseHeadingItems: false, // Menu button enabled, items disabled
 			canUseLiteraryItems: false, // Menu button enabled, items disabled
-			canUseColorItems: false // Menu button enabled, items disabled
+			canUseColorItems: false, // Menu button enabled, items disabled
+			commentaryPanelOpen: false // Close commentary panel on settings/new pages
 		};
 	}
 

@@ -15,9 +15,10 @@
  * @param {string} apiPropertyName - Property name to use in API request (optional, defaults to storageKey)
  * @param {string} side - Which side of the screen the panel is on: 'left' or 'right' (default: 'left')
  * @param {number} minWidth - Minimum width in pixels (default: 300)
+ * @param {number} maxWidth - Maximum width in pixels (default: 600)
  * @returns {Object} Resize state and handlers
  */
-export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen, apiPropertyName = null, side = 'left', minWidth = 300) {
+export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen, apiPropertyName = null, side = 'left', minWidth = 300, maxWidth = 600) {
 	// Use apiPropertyName if provided, otherwise default to storageKey
 	const propertyName = apiPropertyName || storageKey;
 	
@@ -53,8 +54,8 @@ export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen, ap
 		const delta = event.clientX - startX;
 		// For right-side panels, invert the delta (drag left = grow, drag right = shrink)
 		const newWidth = side === 'right' ? startWidth - delta : startWidth + delta;
-		// Min: configurable, Max: 600px or 50% viewport
-		panelWidth = Math.max(minWidth, Math.min(600, Math.min(newWidth, window.innerWidth * 0.5)));
+		// Min: configurable, Max: configurable or 50% viewport
+		panelWidth = Math.max(minWidth, Math.min(maxWidth, Math.min(newWidth, window.innerWidth * 0.5)));
 	}
 
 	/**
@@ -114,8 +115,8 @@ export function usePanelResize(initialWidth, storageKey, apiEndpoint, isOpen, ap
 	 */
 	async function adjustWidth(delta) {
 		const newWidth = panelWidth + delta;
-		// Min: configurable, Max: 600px or 50% viewport
-		panelWidth = Math.max(minWidth, Math.min(600, Math.min(newWidth, window.innerWidth * 0.5)));
+		// Min: configurable, Max: configurable or 50% viewport
+		panelWidth = Math.max(minWidth, Math.min(maxWidth, Math.min(newWidth, window.innerWidth * 0.5)));
 		
 		// Save to localStorage immediately
 		localStorage.setItem(storageKey, panelWidth.toString());

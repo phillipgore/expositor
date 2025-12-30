@@ -1,8 +1,13 @@
 /**
  * Custom Tiptap Footnote Extension
  * 
- * Creates inline footnotes with popover display
+ * Creates inline footnotes with editable fields at bottom
  * Footnotes are stored as custom nodes in the content
+ * 
+ * Features:
+ * - Copy/paste support with attribute preservation
+ * - Visual feedback when selected
+ * - Inline deletion (can be deleted with Backspace/Delete like normal text)
  */
 import { Node, mergeAttributes } from '@tiptap/core';
 
@@ -14,6 +19,8 @@ export const Footnote = Node.create({
 	inline: true,
 
 	atom: true,
+
+	selectable: true,
 
 	addAttributes() {
 		return {
@@ -47,7 +54,24 @@ export const Footnote = Node.create({
 	parseHTML() {
 		return [
 			{
-				tag: 'span[data-footnote-id]'
+				tag: 'span.footnote-marker',
+				getAttrs: (dom) => {
+					if (!(dom instanceof HTMLElement)) return false;
+					return {
+						id: dom.getAttribute('data-footnote-id'),
+						content: dom.getAttribute('data-footnote-content')
+					};
+				}
+			},
+			{
+				tag: 'span[data-footnote-id]',
+				getAttrs: (dom) => {
+					if (!(dom instanceof HTMLElement)) return false;
+					return {
+						id: dom.getAttribute('data-footnote-id'),
+						content: dom.getAttribute('data-footnote-content')
+					};
+				}
 			}
 		];
 	},

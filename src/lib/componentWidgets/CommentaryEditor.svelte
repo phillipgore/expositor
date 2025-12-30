@@ -20,9 +20,7 @@
 	let showLinkInput = $state(false);
 	let linkUrl = $state('');
 	let linkInputElement;
-	let showFootnoteInput = $state(false);
-	let footnoteContent = $state('');
-	let footnoteInputElement;
+	let editingFootnoteId = $state(null);
 
 	// Zoom state
 	let commentaryZoom = $state(
@@ -127,35 +125,91 @@
 		showLinkInput = true;
 	}
 
-	function openFootnoteInput() {
-		showFootnoteInput = true;
-		footnoteContent = '';
-	}
-
+	/**
+	 * Add new footnote - inserts marker and creates editable field at bottom
+	 */
 	function addFootnote() {
-		if (!footnoteContent.trim()) {
-			showFootnoteInput = false;
-			return;
-		}
-
 		// Calculate next footnote number from existing footnotes
 		const maxId = footnotes.length > 0 
 			? Math.max(...footnotes.map(f => Number(f.id)))
 			: 0;
 		const nextId = maxId + 1;
 
+		// Insert footnote marker with empty content
 		editor?.chain().focus().setFootnote({
 			id: String(nextId),
-			content: footnoteContent
+			content: '' // Start with empty content
 		}).run();
 
-		showFootnoteInput = false;
-		footnoteContent = '';
+		// Set this footnote as being edited
+		editingFootnoteId = String(nextId);
+		
+		// Focus the new footnote field after it's rendered
+		// Use a longer timeout and more specific selector
+		const focusAttempts = [100, 200, 300]; // Try multiple times
+		
+		focusAttempts.forEach((delay) => {
+			setTimeout(() => {
+				// Look for textarea with matching data attribute
+				const footnoteField = document.querySelector(`.footnote-field[data-footnote-id="${nextId}"]`);
+				if (footnoteField && document.activeElement !== footnoteField) {
+					console.log('[FOOTNOTE] Focusing footnote field:', nextId);
+					// @ts-ignore - footnoteField is HTMLTextAreaElement
+					footnoteField.focus();
+					// Scroll into view
+					footnoteField.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				}
+			}, delay);
+		});
 	}
 
-	function cancelFootnote() {
-		showFootnoteInput = false;
-		footnoteContent = '';
+	/**
+	 * Handle footnote content change
+	 */
+	function handleFootnoteChange(footnoteId, newContent) {
+		// Update the footnote in the editor
+		updateFootnoteContent(footnoteId, newContent);
+	}
+
+	/**
+	 * Update footnote content in Tiptap editor
+	 */
+	function updateFootnoteContent(footnoteId, newContent) {
+		if (!editor) return;
+
+		const { state, view } = editor;
+		const { tr } = state;
+		let updated = false;
+
+		// Find and update the footnote node
+		state.doc.descendants((node, pos) => {
+			if (node.type.name === 'footnote' && node.attrs.id === footnoteId) {
+				tr.setNodeMarkup(pos, null, {
+					...node.attrs,
+					content: newContent
+				});
+				updated = true;
+				return false; // Stop searching
+			}
+		});
+
+		if (updated) {
+			view.dispatch(tr);
+		}
+	}
+
+	/**
+	 * Start editing a footnote
+	 */
+	function startEditingFootnote(footnoteId) {
+		editingFootnoteId = footnoteId;
+	}
+
+	/**
+	 * Stop editing a footnote
+	 */
+	function stopEditingFootnote() {
+		editingFootnoteId = null;
 	}
 
 	function clearFormatting() {
@@ -213,7 +267,8 @@
 			
 			extractFootnotes(json);
 			console.log('[FOOTNOTES] Total found:', notes.length, notes);
-			footnotes = notes.sort((a, b) => Number(a.id) - Number(b.id));
+			// Keep footnotes in document order (don't sort by ID)
+			footnotes = notes;
 		};
 		
 		// Extract on mount
@@ -240,6 +295,47 @@
 		}
 	});
 
+	// Auto-resize footnote textareas when footnotes are loaded
+	$effect(() => {
+		if (footnotes.length > 0) {
+			// Use setTimeout to ensure DOM is updated
+			setTimeout(() => {
+				const textareas = document.querySelectorAll('.footnote-field');
+				textareas.forEach((textarea) => {
+					// @ts-ignore - textarea is HTMLTextAreaElement
+					textarea.style.height = 'auto';
+					// @ts-ignore - textarea is HTMLTextAreaElement
+					textarea.style.height = textarea.scrollHeight + 'px';
+				});
+			}, 0);
+		}
+	});
+
+	// Renumber footnote markers in text to match document order
+	$effect(() => {
+		if (!editor || footnotes.length === 0) return;
+
+		setTimeout(() => {
+			// Create a map of ID to display number
+			const idToNumber = new Map();
+			footnotes.forEach((note, index) => {
+				idToNumber.set(note.id, index + 1);
+			});
+
+			// Update all footnote markers in the editor
+			const markers = document.querySelectorAll('.tiptap-editor .footnote-marker');
+			markers.forEach((marker) => {
+				const footnoteId = marker.getAttribute('data-footnote-id');
+				if (footnoteId && idToNumber.has(footnoteId)) {
+					const sup = marker.querySelector('sup');
+					if (sup) {
+						sup.textContent = String(idToNumber.get(footnoteId));
+					}
+				}
+			});
+		}, 0);
+	});
+
 	// Click-outside detection for link input
 	$effect(() => {
 		if (showLinkInput) {
@@ -260,28 +356,27 @@
 		}
 	});
 
-	// Click-outside detection for footnote input
-	$effect(() => {
-		if (showFootnoteInput) {
-			const handleClickOutside = (event) => {
-				if (footnoteInputElement && !footnoteInputElement.contains(event.target)) {
-					cancelFootnote();
-				}
-			};
-			
-			// Small delay to avoid immediate close from opening click
-			setTimeout(() => {
-				window.addEventListener('click', handleClickOutside);
-			}, 0);
-			
-			return () => {
-				window.removeEventListener('click', handleClickOutside);
-			};
-		}
-	});
-
 	function isActive(type, attrs = {}) {
 		return editor?.isActive(type, attrs) ?? false;
+	}
+
+	/**
+	 * Handle clicks on editor content area
+	 * Focus at end when clicking empty space (not on text or footnotes)
+	 */
+	function handleEditorContentClick(event) {
+		// Don't interfere if clicking in footnotes section
+		if (event.target.closest('.footnotes-section')) {
+			return;
+		}
+		
+		// Don't interfere if clicking directly on editor content
+		if (event.target.closest('.tiptap-editor')) {
+			return;
+		}
+		
+		// Clicking empty space - move cursor to end
+		editor?.commands.focus('end');
 	}
 </script>
 
@@ -395,11 +490,11 @@
 						}}
 					/>
 					<div class="button-group">
-						<button type="button" onclick={setLink}>
-							<Icon iconId="check" />
-						</button>
 						<button type="button" onclick={cancelLink}>
-							<Icon iconId="x" />
+							Cancel
+						</button>
+						<button type="button" onclick={setLink} class="blue">
+							Save
 						</button>
 					</div>
 				</div>
@@ -410,37 +505,12 @@
 				type="button"
 				class="toolbar-button"
 				class:active={isActive('footnote')}
-				onclick={openFootnoteInput}
-				title="Footnote"
-				aria-label="Footnote"
+				onclick={addFootnote}
+				title="Add Footnote"
+				aria-label="Add Footnote"
 			>
 				<Icon iconId="footnote" />
 			</button>
-			{#if showFootnoteInput}
-				<div class="footnote-input" bind:this={footnoteInputElement}>
-					<textarea
-						bind:value={footnoteContent}
-						placeholder="Enter footnote text..."
-						rows="3"
-						onkeydown={(e) => {
-							if (e.key === 'Enter' && e.metaKey) {
-								addFootnote();
-							} else if (e.key === 'Escape') {
-								e.preventDefault();
-								cancelFootnote();
-							}
-						}}
-					></textarea>
-					<div class="button-group">
-						<button type="button" onclick={addFootnote}>
-							<Icon iconId="check" />
-						</button>
-						<button type="button" onclick={cancelFootnote}>
-							<Icon iconId="x" />
-						</button>
-					</div>
-				</div>
-			{/if}
 		</div>
 
 		<div class="toolbar-divider"></div>
@@ -487,17 +557,36 @@
 		</div>
 	</div>
 
-	<div class="editor-content" style="transform: scale({zoomScale}); transform-origin: top left;">
+	<div class="editor-content" style="transform: scale({zoomScale}); transform-origin: top left;" onclick={handleEditorContentClick}>
 		<div bind:this={editorElement}></div>
 		
 		{#if footnotes.length > 0}
 			<div class="footnotes-section">
 				<hr class="footnotes-divider" />
 				<div class="footnotes-list">
-					{#each footnotes as note}
+					{#each footnotes as note, index (note.id)}
 						<div class="footnote-item">
-							<span class="footnote-number">{note.id}.</span>
-							<span class="footnote-text">{note.content}</span>
+							<span class="footnote-number">
+								<sup>{index + 1}</sup>
+							</span>
+							<textarea
+								class="footnote-field"
+								class:editing={editingFootnoteId === note.id}
+								data-footnote-id={note.id}
+								value={note.content}
+								placeholder="Enter footnote text..."
+								rows="1"
+								oninput={(e) => {
+									// @ts-ignore - e.target is HTMLTextAreaElement
+									const target = e.target;
+									// Auto-resize textarea
+									target.style.height = 'auto';
+									target.style.height = target.scrollHeight + 'px';
+									handleFootnoteChange(note.id, target.value);
+								}}
+								onfocus={() => startEditingFootnote(note.id)}
+								onblur={stopEditingFootnote}
+							></textarea>
 						</div>
 					{/each}
 				</div>
@@ -549,7 +638,7 @@
 		border: none;
 		border-radius: 0.3rem;
 		background-color: var(--gray-light);
-		color: var(--black);
+		color: var(--gray-darker);
 		font-size: 1.4rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -600,7 +689,7 @@
 		/* Center within panel */
 		position: absolute;
 		left: 50%;
-		top: 3.8rem;
+		top: 4.3rem;
 		transform: translateX(-50%);
 		
 		/* Fixed width */
@@ -611,7 +700,7 @@
 		background: var(--white);
 		border: 1px solid var(--gray-700);
 		border-radius: 0.3rem;
-		box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.1);
+		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
@@ -627,7 +716,7 @@
 
 	.link-input .button-group {
 		display: flex;
-		gap: 0.3rem;
+		gap: 0.6rem;
 		justify-content: flex-end;
 	}
 
@@ -635,23 +724,30 @@
 		min-width: 2.8rem;
 		height: 2.8rem;
 		padding: 0.6rem;
-		border: 1px solid var(--gray-700);
 		border-radius: 0.3rem;
-		background-color: var(--white);
-		color: var(--black);
+		background-color: var(--gray-400);
+		color: var(--white);
 		font-size: 1.4rem;
-		font-weight: 600;
+		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.15s ease;
+		font-size: 1.2rem;
+		border: none;
 	}
 
 	.link-input button:hover {
-		background-color: var(--gray-light);
-		border-color: var(--gray-500);
+		background-color: var(--gray-400);
 	}
 
 	.link-input button:active {
-		background-color: var(--gray-400);
+		background-color: var(--gray-dark);
+		color: var(--white);
+	}
+
+	.link-input button.blue {
+		border-color: var(--blue);
+		background-color: var(--blue);
+		color: var(--white);
 	}
 
 	.footnote-input {
@@ -659,7 +755,7 @@
 		position: absolute;
 		left: 50%;
 		transform: translateX(-50%);
-		top: 3.8rem;
+		top: 4.3rem;
 		
 		/* Fixed width */
 		width: 45.8rem;
@@ -669,7 +765,7 @@
 		background: var(--white);
 		border: 1px solid var(--gray-700);
 		border-radius: 0.3rem;
-		box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.1);
+		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
@@ -687,7 +783,7 @@
 
 	.footnote-input .button-group {
 		display: flex;
-		gap: 0.3rem;
+		gap: 0.6rem;
 		justify-content: flex-end;
 	}
 
@@ -695,23 +791,30 @@
 		min-width: 2.8rem;
 		height: 2.8rem;
 		padding: 0.6rem;
-		border: 1px solid var(--gray-700);
 		border-radius: 0.3rem;
-		background-color: var(--white);
-		color: var(--black);
+		background-color: var(--gray-400);
+		color: var(--white);
 		font-size: 1.4rem;
-		font-weight: 600;
 		cursor: pointer;
 		transition: all 0.15s ease;
+		font-size: 1.2rem;
+		font-weight: 500;
+		border: none;
 	}
 
 	.footnote-input button:hover {
-		background-color: var(--gray-light);
-		border-color: var(--gray-500);
+		background-color: var(--gray-400);
 	}
 
 	.footnote-input button:active {
-		background-color: var(--gray-400);
+		background-color: var(--gray-dark);
+		color: var(--white);
+	}
+
+	.footnote-input button.blue {
+		border-color: var(--blue);
+		background-color: var(--blue);
+		color: var(--white);
 	}
 
 	/* Editor Content */
@@ -728,7 +831,7 @@
 		font-size: 1.4rem;
 		line-height: 1.6;
 		color: var(--black);
-		padding: 1.5rem;
+		padding: 1.8rem;
 	}
 
 	:global(.tiptap-editor p) {
@@ -821,50 +924,91 @@
 
 	/* Footnote Markers in Text */
 	:global(.tiptap-editor .footnote-marker) {
-		color: var(--blue);
-		font-weight: 600;
+		color: inherit;
+		font-weight: inherit;
 		margin: 0 0.1rem;
+		padding: 0.2rem 0.1rem 0.0rem;
+		border-radius: 0.2rem;
+		transition: background-color 0.15s ease;
 	}
 
 	:global(.tiptap-editor .footnote-marker sup) {
 		font-size: 0.75em;
 	}
 
+	/* Selected footnote visual feedback */
+	:global(.tiptap-editor .ProseMirror-selectednode.footnote-marker) {
+		background-color: var(--blue-light);
+		outline: 0.1rem solid var(--blue);
+		outline-offset: 0.1rem;
+	}
+
+	/* Hover state for footnotes */
+	:global(.tiptap-editor .footnote-marker:hover) {
+		background-color: var(--gray-light);
+		cursor: pointer;
+	}
+
 	/* Footnotes Section at Bottom */
 	.footnotes-section {
 		margin-top: 3rem;
-		padding-top: 1.5rem;
+		padding: 1.8rem;
 	}
 
 	.footnotes-divider {
 		border: none;
 		border-top: 1px solid var(--gray-700);
-		margin: 0 0 1.5rem 0;
+		margin: 0 0 1.8rem 0;
 	}
 
 	.footnotes-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.8rem;
+		/* gap: 0.8rem; */
 	}
 
 	.footnote-item {
 		display: flex;
-		gap: 0.8rem;
-		font-size: 1.3rem;
+		font-size: 1.4rem;
 		line-height: 1.6;
-		color: var(--gray-300);
+		margin-bottom: 0.6rem;
 	}
 
 	.footnote-number {
 		flex-shrink: 0;
-		font-weight: 600;
-		color: var(--blue);
-		min-width: 2.5rem;
+		font-size: inherit;
+		font-weight: inherit;
+
+		sup {
+			font-size: 0.75em;
+			padding-right: 0.3rem;
+		}
 	}
 
-	.footnote-text {
+	.footnote-field {
 		flex: 1;
+		border: none;
+		border-radius: 0.3rem;
+		padding: 0.0rem;
+		font-size: 1.4rem;
+		font-family: inherit;
+		line-height: 1.6;
+		color: var(--gray-300);
+		background-color: transparent;
+		resize: none;
+		min-height: 2.4rem;
+		transition: all 0.15s ease;
+	}
+
+	.footnote-field:focus,
+	.footnote-field.editing {
+		outline: none;
+		background-color: var(--white);
+	}
+
+	.footnote-field::placeholder {
+		color: var(--gray-400);
+		font-style: italic;
 	}
 
 	/* Placeholder */
