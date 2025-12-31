@@ -8,7 +8,7 @@
 	 * ## Features
 	 * - Document operations (Studies panel, Actions)
 	 * - View controls (Zoom, Wide, Overview)
-	 * - Formatting menus (Outline, Text, Literary, Color)
+	 * - Formatting menus (Structure, Text, Literary, Color)
 	 * - Mode toggles (Notes, Verses)
 	 * - View mode switching (Analyze, Document)
 	 * - Settings access
@@ -25,7 +25,7 @@
 	 * ## Menu Integration
 	 * Integrates with several dropdown menus:
 	 * - MenuZoom: Zoom level control
-	 * - MenuStructure: Outline structure options
+	 * - MenuStructure: Structure options
 	 * - MenuHeadings: Heading insertion options
 	 * - MenuLiterary: Literary device highlighting
 	 * - MenuColor: Color scheme selection
@@ -34,7 +34,7 @@
 	 * ## Layout Structure
 	 * Left section: Studies toggle
 	 * Actions and Zoom
-	 * Center: Formatting menus (Outline, Headings, Literary, Color)
+	 * Center: Formatting menus (Structure, Headings, Literary, Color)
 	 * Center-right: View toggles (Notes, Verses, Wide, Overview)
 	 * Right section: Mode switcher (Analyze/Document), Settings
 	 * 
@@ -61,7 +61,7 @@
 	import Toolbar from '$lib/componentElements/Toolbar.svelte';
 	import MenuZoom from '$lib/componentWidgets/menus/MenuZoom.svelte';
 	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
-	import MenuHeadings from '$lib/componentWidgets/menus/MenuHeadings.svelte';
+	import MenuOutline from '$lib/componentWidgets/menus/MenuOutline.svelte';
 	import MenuLiterary from '$lib/componentWidgets/menus/MenuLiterary.svelte';
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
@@ -384,7 +384,7 @@
 
 <MenuZoom menuId="MenuZoom" onselect={handleZoomChange} />
 <MenuStructure menuId="MenuStructure" />
-<MenuHeadings menuId="MenuHeadings" />
+<MenuOutline menuId="MenuOutline" />
 <MenuLiterary menuId="MenuLiterary" />
 <MenuColor menuId="MenuColor" />
 <MenuSettings menuId="MenuSettings" alignment="end" />

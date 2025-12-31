@@ -30,7 +30,7 @@ The toolbar state system dynamically enables/disables toolbar buttons based on:
   canToggleWide: boolean,     // Wide layout toggle
   canToggleOverview: boolean, // Overview toggle
   canZoom: boolean,           // Zoom menu
-  canStructure: boolean,      // Outline/Structure menu
+  canStructure: boolean,      // Structure menu
   canText: boolean,           // Text formatting menu
   canLiterary: boolean,       // Literary devices menu
   canColor: boolean           // Color scheme menu

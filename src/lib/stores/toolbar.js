@@ -38,7 +38,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
  * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
- * @property {boolean} canStructure - Whether Outline menu should be enabled
+ * @property {boolean} canStructure - Whether Structure menu should be enabled
  * @property {boolean} canHeading - Whether Headings menu should be enabled
  * @property {boolean} canLiterary - Whether Literary menu should be enabled
  * @property {boolean} canColor - Whether Color menu should be enabled

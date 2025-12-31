@@ -115,6 +115,15 @@ export function getAppToolbarConfig() {
 					type: 'menu',
 					iconId: 'outline-section',
 					menuId: 'MenuStructure',
+					underLabel: 'Structure',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledCheck: (state) => !state.canStructure || state.overviewMode
+				},
+				{
+					type: 'menu',
+					iconId: 'outline-unit',
+					menuId: 'MenuOutline',
 					underLabel: 'Outline',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',

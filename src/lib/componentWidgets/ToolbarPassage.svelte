@@ -100,7 +100,7 @@
 		{#if toolbarMode !== 'color'}
 			<ButtonGrouped
 				buttons={[
-					{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Outline Tools' },
+					{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Stucture Tools' },
 					{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Tools' }
 				]}
 				activeButton={toolbarMode !== 'color' ? toolbarMode : null}
