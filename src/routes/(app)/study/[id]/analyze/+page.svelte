@@ -6,7 +6,7 @@
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSplit, setCanInsertColumn } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSplit, setCanInsertColumn, setActiveColumn, setActiveSection } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -48,24 +48,12 @@
 	let clickTimeout = $state(null); // Timeout ID for delayed single-click processing
 
 	// Active segment state
-	let activeSegment = $state(null); // { passageIndex, segmentIndex, segmentId }
-
-	// Toolbar mode state
-	let toolbarMode = $state('outline'); // 'outline', 'literary', or 'color'
-
-	// Reset toolbar mode to 'outline' when no segment is active
-	$effect(() => {
-		if (!activeSegment) {
-			toolbarMode = 'outline';
-		}
-	});
-
-	// Switch toolbar mode to 'outline' when a word is selected
-	$effect(() => {
-		if (selectedWord) {
-			toolbarMode = 'outline';
-		}
-	});
+	let activeSegment = $state(null); // { passageIndex, segmentIndex, segmentId, generation }
+	let segmentClickGeneration = $state(0); // Increments on every segment click to force toolbar remount
+	
+	// Active column and section state
+	let activeColumn = $state(null); // { segmentId } - tracks which column to activate
+	let activeSection = $state(null); // { segmentId } - tracks which section/split to activate
 
 	// Sync word selection state to toolbar store
 	$effect(() => {
@@ -73,15 +61,32 @@
 	});
 
 	// Sync active segment state to toolbar store
+	// Only set hasActiveSegment to true when neither column nor section mode is active
 	$effect(() => {
-		if (activeSegment && activeSegment.segmentId) {
-			// Use the captured segment ID directly
+		if (activeSegment && activeSegment.segmentId && !activeColumn && !activeSection) {
+			// Only set active segment in store when in pure segment mode (not column/section mode)
 			console.log('[SYNC] Sending segment ID to store:', activeSegment.segmentId);
 			setActiveSegment(true, activeSegment.segmentId);
 		} else {
 			console.log('[SYNC] Clearing active segment from store');
 			setActiveSegment(false, null);
 		}
+	});
+
+	// Sync active column state to toolbar store
+	$effect(() => {
+		setActiveColumn(activeColumn !== null);
+	});
+
+	// Sync active section state to toolbar store
+	$effect(() => {
+		setActiveSection(activeSection !== null);
+	});
+
+	// Sync active split state to toolbar store
+	// Set to true when column OR section is active (for color menu)
+	$effect(() => {
+		setActiveSplit(activeColumn !== null || activeSection !== null);
 	});
 
 	// Clear active segments and word selection when overview mode is enabled
@@ -213,11 +218,87 @@
 			}
 		};
 		
+		// Listen for select-column event from ToolbarStructure
+		const handleSelectColumnEvent = (event) => {
+			const { segmentId } = event.detail;
+			console.log('[SELECT-COLUMN] Activating column for segment:', segmentId);
+			
+			// Set activeColumn and clear activeSection (keep activeSegment for toolbar)
+			activeColumn = { segmentId };
+			activeSection = null;
+		};
+		
+		// Listen for deselect-column event from ToolbarStructure
+		const handleDeselectColumnEvent = (event) => {
+			const { segmentId } = event.detail;
+			console.log('[DESELECT-COLUMN] Reactivating segment:', segmentId);
+			
+			// Clear activeColumn and reactivate the segment
+			activeColumn = null;
+			
+			// Find the segment element and reactivate it
+			const segmentElement = document.querySelector(`[data-segment-id="${segmentId}"]`);
+			if (segmentElement) {
+				const passageElement = segmentElement.closest('.passage');
+				if (passageElement) {
+					const allPassages = Array.from(document.querySelectorAll('.passage'));
+					const passageIndex = allPassages.indexOf(passageElement);
+					
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentIndex = allSegments.indexOf(segmentElement);
+					
+					if (passageIndex !== -1 && segmentIndex !== -1) {
+						activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: false };
+					}
+				}
+			}
+		};
+		
+		// Listen for select-section event from ToolbarStructure
+		const handleSelectSectionEvent = (event) => {
+			const { segmentId } = event.detail;
+			console.log('[SELECT-SECTION] Activating section for segment:', segmentId);
+			
+			// Set activeSection and clear activeColumn (keep activeSegment for toolbar)
+			activeSection = { segmentId };
+			activeColumn = null;
+		};
+		
+		// Listen for deselect-section event from ToolbarStructure
+		const handleDeselectSectionEvent = (event) => {
+			const { segmentId } = event.detail;
+			console.log('[DESELECT-SECTION] Reactivating segment:', segmentId);
+			
+			// Clear activeSection and reactivate the segment
+			activeSection = null;
+			
+			// Find the segment element and reactivate it
+			const segmentElement = document.querySelector(`[data-segment-id="${segmentId}"]`);
+			if (segmentElement) {
+				const passageElement = segmentElement.closest('.passage');
+				if (passageElement) {
+					const allPassages = Array.from(document.querySelectorAll('.passage'));
+					const passageIndex = allPassages.indexOf(passageElement);
+					
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentIndex = allSegments.indexOf(segmentElement);
+					
+					if (passageIndex !== -1 && segmentIndex !== -1) {
+						activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: false };
+					}
+				}
+			}
+		};
+		
 		window.addEventListener('insert-column', handleInsertColumnEvent);
 		window.addEventListener('insert-split', handleInsertSplitEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
 		window.addEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
 		window.addEventListener('insert-note-from-menu', handleInsertNoteFromMenuEvent);
+		window.addEventListener('select-column', handleSelectColumnEvent);
+		window.addEventListener('deselect-column', handleDeselectColumnEvent);
+		window.addEventListener('select-section', handleSelectSectionEvent);
+		window.addEventListener('deselect-section', handleDeselectSectionEvent);
 		
 		return () => {
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
@@ -225,6 +306,10 @@
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
 			window.removeEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
 			window.removeEventListener('insert-note-from-menu', handleInsertNoteFromMenuEvent);
+			window.removeEventListener('select-column', handleSelectColumnEvent);
+			window.removeEventListener('deselect-column', handleDeselectColumnEvent);
+			window.removeEventListener('select-section', handleSelectSectionEvent);
+			window.removeEventListener('deselect-section', handleDeselectSectionEvent);
 		};
 	});
 
@@ -878,23 +963,20 @@
 				console.log('[CLICK] Captured segment ID:', segmentId, 'from element:', clickedSegment);
 				
 				if (passageIndex !== -1 && segmentIndex !== -1 && segmentId) {
-					// In 'color' mode, activate the split instead of the segment
-					if (toolbarMode === 'color') {
-						// Find the split (parent of segment)
-						const splitElement = clickedSegment.closest('.split');
-						if (splitElement) {
-							// Store segment ID along with indices
-							activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: true };
-						}
-					} else {
-						// In 'outline' and 'literary' modes, activate the segment
-						activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: false };
-					}
+					// Increment generation counter to force toolbar remount
+					segmentClickGeneration++;
+					// Clear any active column/section selections
+					activeColumn = null;
+					activeSection = null;
+					// Activate the segment with generation
+					activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: false, generation: segmentClickGeneration };
 				}
 			}
 		} else {
 			// Clicked outside any segment - clear active state
 			activeSegment = null;
+			activeColumn = null;
+			activeSection = null;
 		}
 		
 		// Clear any existing timeout to prevent duplicate processing
@@ -994,10 +1076,10 @@
 	});
 
 	/**
-	 * Update DOM elements with active class when active segment changes
+	 * Update DOM elements with active class when active segment/column/section changes
 	 */
 	$effect(() => {
-		// Remove active class from all segments and splits
+		// Remove active class from all segments, splits, and columns
 		const allSegments = document.querySelectorAll('.segment');
 		allSegments.forEach(segment => {
 			segment.classList.remove('active');
@@ -1006,10 +1088,34 @@
 		allSplits.forEach(split => {
 			split.classList.remove('active');
 		});
+		const allColumns = document.querySelectorAll('.column');
+		allColumns.forEach(column => {
+			column.classList.remove('active');
+		});
 
-		// Add active class to the selected segment or split
-		if (activeSegment && activeSegment.segmentId) {
-			// Use segment ID to directly find the element (no index lookup!)
+		// Add active class based on current state
+		if (activeColumn && activeColumn.segmentId) {
+			// Activate the column containing the segment (column mode takes priority)
+			const segmentElement = document.querySelector(`[data-segment-id="${activeColumn.segmentId}"]`);
+			if (segmentElement) {
+				const columnElement = segmentElement.closest('.column');
+				if (columnElement) {
+					columnElement.classList.add('active');
+					console.log('[EFFECT] Activated column for segment:', activeColumn.segmentId);
+				}
+			}
+		} else if (activeSection && activeSection.segmentId) {
+			// Activate the split/section containing the segment (section mode takes priority)
+			const segmentElement = document.querySelector(`[data-segment-id="${activeSection.segmentId}"]`);
+			if (segmentElement) {
+				const splitElement = segmentElement.closest('.split');
+				if (splitElement) {
+					splitElement.classList.add('active');
+					console.log('[EFFECT] Activated section for segment:', activeSection.segmentId);
+				}
+			}
+		} else if (activeSegment && activeSegment.segmentId && !activeColumn && !activeSection) {
+			// Only activate the segment if neither column nor section mode is active
 			const segmentElement = document.querySelector(`[data-segment-id="${activeSegment.segmentId}"]`);
 			if (segmentElement) {
 				if (activeSegment.activateSplit) {
@@ -1248,11 +1354,8 @@
 																		text={segmentHtml}
 																		{passageIndex}
 																		isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
-																		bind:toolbarMode={toolbarMode}
 																		segmentId={segment.id}
-																		onInsertColumn={handleInsertColumn}
-																		onInsertSplit={handleInsertSplit}
-																		onInsertSegment={handleInsertSegment}
+																		generation={activeSegment?.generation || 0}
 																	/>
 																{/each}
 															{/if}

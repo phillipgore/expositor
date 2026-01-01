@@ -58,6 +58,8 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {string|null} activeSegmentId - The ID of the currently active segment
  * @property {boolean} hasActiveSplit - Whether a split is currently active (for color mode)
+ * @property {boolean} hasActiveColumn - Whether a column is currently active
+ * @property {boolean} hasActiveSection - Whether a section is currently active
  * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
  */
 
@@ -96,6 +98,8 @@ const defaultState = {
 	hasActiveSegment: false,
 	activeSegmentId: null,
 	hasActiveSplit: false,
+	hasActiveColumn: false,
+	hasActiveSection: false,
 	canInsertColumn: false
 };
 
@@ -465,5 +469,27 @@ export function setCanInsertColumn(canInsert) {
 	toolbarStateStore.update(state => ({
 		...state,
 		canInsertColumn: canInsert
+	}));
+}
+
+/**
+ * Set active column state
+ * @param {boolean} hasColumn - Whether a column is currently active
+ */
+export function setActiveColumn(hasColumn) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasActiveColumn: hasColumn
+	}));
+}
+
+/**
+ * Set active section state
+ * @param {boolean} hasSection - Whether a section is currently active
+ */
+export function setActiveSection(hasSection) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasActiveSection: hasSection
 	}));
 }

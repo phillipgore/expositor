@@ -8,7 +8,7 @@
 	 * 
 	 * Usage:
 	 * ```
-	 * <MenuButton menuId="MenuLiterary" iconId="literary-chiasim" label="Literary" />
+	 * <MenuButton menuId="MenuLiterary" iconId="literary-chiasm" label="Literary" />
 	 * <MenuLiterary menuId="MenuLiterary" />
 	 * ```
 	 * 
@@ -40,8 +40,8 @@
 <Menu {menuId} ariaLabel="Literary devices menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="literary-chiasim"
-		label="Chiasim"
+		iconId="literary-chiasm"
+		label="Chiasm"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseLiteraryItems}
@@ -49,7 +49,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="literary-paralell"
-		label="Paralellism"
+		label="Parallelism"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseLiteraryItems}

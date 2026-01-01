@@ -1,7 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
-	import ToolbarPassage from './ToolbarPassage.svelte';
 	import ToolbarStructure from './ToolbarStructure.svelte';
 	import HeadingEditor from './HeadingEditor.svelte';
 	import NoteEditor from './NoteEditor.svelte';
@@ -15,11 +14,8 @@
 		passageIndex = 0,
 		wrapWordsInHtml = null,
 		isActive = false,
-		toolbarMode = $bindable('outline'),
 		segmentId = '',
-		onInsertColumn = () => {},
-		onInsertSplit = () => {},
-		onInsertSegment = () => {}
+		generation = 0
 	} = $props();
 
 	// Track input mode for each heading type and note
@@ -102,21 +98,14 @@
      class:has-heading-three={heading3 || headingThreeInputMode}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible} 
      data-segment-id="{segmentId}">
-	<!-- Hide toolbars when any input is active -->
+	<!-- Hide toolbar when any input is active -->
 	{#if !anyInputActive}
-		<ToolbarStructure 
-			{isActive}
-			{segmentId}
-			bind:toolbarMode
-		/>
-		<ToolbarPassage 
-			bind:toolbarMode 
-			{isActive} 
-			{onInsertColumn}
-			{onInsertSplit}
-			{onInsertSegment}
-			{segmentId}
-		/>
+		{#key `${isActive}-${generation}`}
+			<ToolbarStructure 
+				{isActive}
+				{segmentId}
+			/>
+		{/key}
 	{/if}
 	
 	<!-- Heading One -->

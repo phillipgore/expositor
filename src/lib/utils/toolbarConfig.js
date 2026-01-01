@@ -131,7 +131,7 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'menu',
-					iconId: 'literary-chiasim',
+					iconId: 'literary-chiasm',
 					menuId: 'MenuLiterary',
 					underLabel: 'Literary',
 					classes: 'toolbar-dark',
@@ -403,12 +403,12 @@ export function getPassageToolbarConfig() {
 				buttons: [
 					{
 						iconId: 'outline-disconnect',
-						title: 'Disconnect Segment',
+						title: 'Disconnect Section',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
 					{
 						iconId: 'outline-connect',
-						title: 'Connect Segment',
+						title: 'Connect Section',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
 				]
@@ -431,8 +431,8 @@ export function getPassageToolbarConfig() {
 		],
 		literary: [
 			{
-				iconId: 'literary-chiasim',
-				title: 'Chiasim'
+				iconId: 'literary-chiasm',
+				title: 'Chiasm'
 			},
 			{
 				iconId: 'literary-paralell',

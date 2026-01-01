@@ -47,7 +47,7 @@
 			// Trigger insert heading one event via custom event
 			window.dispatchEvent(new CustomEvent('insert-heading-one-from-menu'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -55,7 +55,7 @@
 		label="Heading Two"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -63,7 +63,7 @@
 		label="Heading Three"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 
 	<DividerHorizontal />
@@ -82,6 +82,6 @@
 			// Trigger insert note event via custom event
 			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 </Menu>

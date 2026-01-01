@@ -48,7 +48,7 @@
 			// Trigger insert segment event via custom event
 			window.dispatchEvent(new CustomEvent('insert-segment'));
 		}}
-		isDisabled={!$toolbarState.hasWordSelection}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -56,7 +56,7 @@
 		label="Join Segment"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 
 	<DividerHorizontal />
@@ -67,7 +67,7 @@
 		label="Move Text Up"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -75,7 +75,7 @@
 		label="Move Text Down"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 
 	<DividerHorizontal />
@@ -83,23 +83,23 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="outline-disconnect"
-		label="Disconnect Segment"
+		label="Disconnect Section"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
 			// Trigger insert split event via custom event
 			window.dispatchEvent(new CustomEvent('insert-split'));
 		}}
-		isDisabled={!$toolbarState.hasWordSelection}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="outline-connect"
-		label="Connect Segment"
+		label="Connect Section"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 
 	<DividerHorizontal />
@@ -114,7 +114,7 @@
 			// Trigger insert column event via custom event
 			window.dispatchEvent(new CustomEvent('insert-column'));
 		}}
-		isDisabled={!$toolbarState.canInsertColumn}
+		isDisabled={!$toolbarState.canInsertColumn || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -122,6 +122,6 @@
 		label="Join Column"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 </Menu>

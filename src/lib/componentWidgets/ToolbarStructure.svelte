@@ -1,14 +1,17 @@
 <script>
-	import ButtonGrouped from '$lib/componentElements/buttons/ButtonGrouped.svelte';
+	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import { fade } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { 
 		isActive = false,
-		segmentId = '',
-		toolbarMode = $bindable('outline')
+		segmentId = ''
 	} = $props();
+
+	// Track button active states
+	let columnSelectActive = $state(false);
+	let sectionSelectActive = $state(false);
 
 	// Calculate inverse scale to keep toolbar at fixed size when page zooms
 	let inverseScale = $derived.by(() => {
@@ -26,28 +29,90 @@
 		return 0;
 	});
 
-	// Button click handlers
-	function handleActiveChange(buttonId) {
-		if (buttonId === 'section') {
-			// Toggle between color and outline modes
-			toolbarMode = toolbarMode === 'color' ? 'outline' : 'color';
+	// Reset button states when toolbar becomes inactive
+	$effect(() => {
+		if (!isActive) {
+			columnSelectActive = false;
+			sectionSelectActive = false;
 		}
-		// Column select functionality will be implemented later
+	});
+
+	// Button click handlers
+	function handleColumnSelect(event) {
+		// CRITICAL: Stop event propagation to prevent segment click handler from firing
+		event?.stopPropagation();
+		event?.preventDefault();
+		
+		console.log('[TOOLBAR] Column Select clicked for segment:', segmentId);
+		console.log('[TOOLBAR] Current columnSelectActive:', columnSelectActive);
+		
+		// Toggle column select mode
+		columnSelectActive = !columnSelectActive;
+		
+		console.log('[TOOLBAR] New columnSelectActive:', columnSelectActive);
+		
+		// If activating column select, deactivate section select
+		if (columnSelectActive) {
+			console.log('[TOOLBAR] Activating column mode, dispatching select-column event');
+			sectionSelectActive = false;
+			// Dispatch event to parent to activate column
+			window.dispatchEvent(new CustomEvent('select-column', {
+				detail: { segmentId }
+			}));
+			console.log('[TOOLBAR] select-column event dispatched');
+		} else {
+			console.log('[TOOLBAR] Deactivating column mode, dispatching deselect-column event');
+			// Deactivating - dispatch event to reactivate segment
+			window.dispatchEvent(new CustomEvent('deselect-column', {
+				detail: { segmentId }
+			}));
+			console.log('[TOOLBAR] deselect-column event dispatched');
+		}
+	}
+
+	function handleSectionSelect(event) {
+		// CRITICAL: Stop event propagation to prevent segment click handler from firing
+		event?.stopPropagation();
+		event?.preventDefault();
+		
+		console.log('[TOOLBAR] Section Select clicked for segment:', segmentId);
+		
+		// Toggle section select mode
+		sectionSelectActive = !sectionSelectActive;
+		
+		// If activating section select, deactivate column select
+		if (sectionSelectActive) {
+			columnSelectActive = false;
+			// Dispatch event to parent to activate section
+			window.dispatchEvent(new CustomEvent('select-section', {
+				detail: { segmentId }
+			}));
+		} else {
+			// Deactivating - dispatch event to reactivate segment
+			window.dispatchEvent(new CustomEvent('deselect-section', {
+				detail: { segmentId }
+			}));
+		}
 	}
 </script>
 
 {#if isActive}
 	<div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
-		<ButtonGrouped
-			buttons={[
-				{ id: 'column', iconId: 'outline-column', label: '', title: 'Column Select' },
-				{ id: 'section', iconId: 'split', label: '', title: 'Section Select' }
-			]}
-			activeButton={null}
-			onActiveChange={handleActiveChange}
-			buttonClasses='passage-toolbar'
+		<IconButton
+			iconId="outline-column"
+			classes="passage-toolbar"
+			title="Column Select"
 			isSquare
-			isList
+			isActive={columnSelectActive}
+			handleClick={handleColumnSelect}
+		/>
+		<IconButton
+			iconId="split"
+			classes="passage-toolbar"
+			title="Section Select"
+			isSquare
+			isActive={sectionSelectActive}
+			handleClick={handleSectionSelect}
 		/>
 	</div>
 {/if}
@@ -62,12 +127,7 @@
 		position: absolute;
 		left: -3.4rem;
 		top: 0;
-		min-height: calc(100% - 1.2rem);
 		overflow: hidden;
-		gap: 0.6rem;
-	}
-
-	.controls :global(.group-container) {
-		margin: 0.0rem;
+		gap: 0.3rem;
 	}
 </style>
