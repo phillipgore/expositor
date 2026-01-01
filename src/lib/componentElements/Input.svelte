@@ -115,12 +115,14 @@
 		border-radius: 0rem;
 		color: var(--white);
 		background-color: var(--section-darker);
-		border-color: var(--section-lighter);
+		border-color: var(--section-darker);
 		caret-color: var(--white);
 		height: auto;
 		line-height: 1.5;
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
+		border-bottom-style: dashed;
+		border-bottom-color: var(--section-lighter);
 	}
 
 	input.heading-one-input:focus {
@@ -139,14 +141,14 @@
 		font-weight: 700;
 		padding: 0.9rem;
 		margin: 0.0rem;
-		border-bottom: 0.1rem solid;
+		border-bottom: 0.1rem dashed;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-top: 0rem;
 		border-radius: 0rem;
 		background-color: var(--section-lighter);
 		color: var(--section-darker);
-		border-color: var(--section-darker);
+		border-color: var(--section-dark);
 		caret-color: var(--section-darker);
 		height: auto;
 		line-height: 1.5;
@@ -167,11 +169,10 @@
 		font-size: 1.2rem;
 		font-weight: 700;
 		padding: 0.9rem 0.9rem 0.0rem;
-		margin: 0.0rem;
+		margin: 0.0rem 0.0rem -0.1rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-top: 0rem;
-		border-bottom: 0rem;
 		border-radius: 0rem;
 		background-color: transparent;
 		color: var(--gray-100);
@@ -179,6 +180,7 @@
 		caret-color: var(--section-dark);
 		height: auto;
 		line-height: 1.5;
+		border-bottom: 0.1rem dashed var(--section-dark);
 	}
 
 	input.heading-three-input:focus {

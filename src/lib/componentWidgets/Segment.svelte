@@ -24,6 +24,28 @@
 	let headingThreeInputMode = $state(false);
 	let noteInputMode = $state(false);
 
+	// Ensure only one heading is in input mode at a time
+	$effect(() => {
+		if (headingOneInputMode) {
+			headingTwoInputMode = false;
+			headingThreeInputMode = false;
+		}
+	});
+
+	$effect(() => {
+		if (headingTwoInputMode) {
+			headingOneInputMode = false;
+			headingThreeInputMode = false;
+		}
+	});
+
+	$effect(() => {
+		if (headingThreeInputMode) {
+			headingOneInputMode = false;
+			headingTwoInputMode = false;
+		}
+	});
+
 	// Computed: Check if any heading or note input is active
 	let anyHeadingInputActive = $derived(
 		headingOneInputMode || headingTwoInputMode || headingThreeInputMode

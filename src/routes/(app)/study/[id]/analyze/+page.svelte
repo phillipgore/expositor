@@ -1518,7 +1518,7 @@
 	.analyze-content-inner {
 		display: flex;
 		gap: 4.4rem;
-		padding: 6.5rem 4.4rem 1.8rem;
+		padding: 6.7rem 4.4rem 1.8rem;
 		transition: transform 0.2s ease-out;
 		width: fit-content;
 	}
