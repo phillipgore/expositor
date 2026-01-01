@@ -74,7 +74,7 @@
 	});
 
 	let scaledTop = $derived.by(() => {
-		return -1.4 * inverseScale;
+		return 0;
 	});
 
 	// Reset toolbar mode to 'outline' when component becomes inactive
@@ -87,29 +87,17 @@
 
 {#if isActive}
 	<div class="controls" style="transform: scale({inverseScale}); transform-origin: top right; right: {scaledRight}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
-		<IconButton
-			iconId="circle"
-			classes="passage-toolbar"
-			title="Section Select"
+		<ButtonGrouped
+			buttons={[
+				{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Stucture Tools' },
+				{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Tools' }
+			]}
+			activeButton={toolbarMode !== 'color' ? toolbarMode : null}
+			onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
+			buttonClasses='passage-toolbar'
 			isSquare
-			isActive={toolbarMode === 'color'}
-			handleClick={() => {
-				toolbarMode = toolbarMode === 'color' ? 'outline' : 'color';
-			}}
+			isList
 		/>
-		{#if toolbarMode !== 'color'}
-			<ButtonGrouped
-				buttons={[
-					{ id: 'outline', iconId: 'outline-section', label: '', title: 'View Stucture Tools' },
-					{ id: 'literary', iconId: 'literary-chiasim', label: '', title: 'View Literary Tools' }
-				]}
-				activeButton={toolbarMode !== 'color' ? toolbarMode : null}
-				onActiveChange={(buttonId) => { toolbarMode = buttonId; }}
-				buttonClasses='passage-toolbar'
-				isSquare
-				isList
-			/>
-		{/if}
 		<DividerHorizontal width="2.8rem"/>
 		{#key toolbarMode}
 			{#if toolbarMode === 'outline'}
@@ -169,7 +157,7 @@
 		width: 3.4rem;
 		position: absolute;
 		right: -3.4rem;
-		top: -1.4rem;
+		top: 0;
 		min-height: calc(100% - 1.2rem);
 		overflow: hidden;
 		gap: 0.6rem;

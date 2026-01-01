@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import ToolbarPassage from './ToolbarPassage.svelte';
+	import ToolbarStructure from './ToolbarStructure.svelte';
 	import HeadingEditor from './HeadingEditor.svelte';
 	import NoteEditor from './NoteEditor.svelte';
 
@@ -101,8 +102,13 @@
      class:has-heading-three={heading3 || headingThreeInputMode}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible} 
      data-segment-id="{segmentId}">
-	<!-- Hide ToolbarPassage when any input is active -->
+	<!-- Hide toolbars when any input is active -->
 	{#if !anyInputActive}
+		<ToolbarStructure 
+			{isActive}
+			{segmentId}
+			bind:toolbarMode
+		/>
 		<ToolbarPassage 
 			bind:toolbarMode 
 			{isActive} 
@@ -160,6 +166,7 @@
 <style>
 	.segment {
 		position: relative;
+		background-color: var(--white);
 	}
 
 	.segment:global(.active) {

@@ -1359,6 +1359,12 @@
 		width: 28.8rem;
 		margin-bottom: 4.4rem;
 		border-radius: 0.3rem;
+		padding: 0.2rem;
+	}
+
+	.column.active {
+		background-color: var(--gray-lighter);
+		outline: 0.1rem solid var(--gray-700);
 	}
 
 	.wide-layout .column {
