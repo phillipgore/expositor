@@ -54,7 +54,11 @@
 		iconId="heading-two"
 		label="Heading Two"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert heading two event via custom event
+			window.dispatchEvent(new CustomEvent('insert-heading-two-from-menu'));
+		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 	<IconButton
@@ -62,7 +66,11 @@
 		iconId="heading-three"
 		label="Heading Three"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert heading three event via custom event
+			window.dispatchEvent(new CustomEvent('insert-heading-three-from-menu'));
+		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 

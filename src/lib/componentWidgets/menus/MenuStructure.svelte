@@ -63,32 +63,13 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="arrow-up"
-		label="Move Text Up"
-		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
-	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="arrow-down"
-		label="Move Text Down"
-		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
-	/>
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
 		iconId="outline-disconnect"
-		label="Disconnect Section"
+		label="Insert Section"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			// Trigger insert split event via custom event
-			window.dispatchEvent(new CustomEvent('insert-split'));
+			// Trigger insert section event via custom event
+			window.dispatchEvent(new CustomEvent('insert-section'));
 		}}
 		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
@@ -96,7 +77,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="outline-connect"
-		label="Connect Section"
+		label="Join Section"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
@@ -123,5 +104,24 @@
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="arrow-up"
+		label="Move Text Up"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="arrow-down"
+		label="Move Text Down"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
 </Menu>

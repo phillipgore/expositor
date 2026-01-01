@@ -16,15 +16,15 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { passageId, columnId, splitId, segmentId, insertionWordId } = await request.json();
+		const { passageId, columnId, sectionId, segmentId, insertionWordId } = await request.json();
 
 		// Validate inputs
-		if (!passageId || !columnId || !splitId || !segmentId || !insertionWordId) {
-			return json({ error: 'Missing required fields: passageId, columnId, splitId, segmentId, and insertionWordId' }, { status: 400 });
+		if (!passageId || !columnId || !sectionId || !segmentId || !insertionWordId) {
+			return json({ error: 'Missing required fields: passageId, columnId, sectionId, segmentId, and insertionWordId' }, { status: 400 });
 		}
 
 		// Perform the column insertion
-		await insertColumn(db, session.user.id, passageId, columnId, splitId, segmentId, insertionWordId);
+		await insertColumn(db, session.user.id, passageId, columnId, sectionId, segmentId, insertionWordId);
 
 		return json({ success: true }, { status: 200 });
 	} catch (error) {

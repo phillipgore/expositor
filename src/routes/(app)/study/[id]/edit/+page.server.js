@@ -198,7 +198,7 @@ export const actions = {
 
 			await db.insert(passage).values(passageValues);
 
-			// Create default column, split, and segment for each passage
+			// Create default column, section, and segment for each passage
 			// Note: Since we delete all passages above, cascade delete removes their structures
 			// So we need to recreate the default structure for all passages
 			for (const passageValue of passageValues) {

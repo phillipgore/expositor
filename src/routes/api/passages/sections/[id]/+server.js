@@ -1,13 +1,14 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { insertSegment } from '$lib/server/db/utils.js';
+import { passageSection } from '$lib/server/db/schema.js';
+import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
 
 /**
- * Insert a new segment at the specified word ID
+ * Update section color
  * @type {import('./$types').RequestHandler}
  */
-export const POST = async ({ request }) => {
+export const PATCH = async ({ request, params }) => {
 	try {
 		// Get the current user from session
 		const session = await auth.api.getSession({ headers: request.headers });
@@ -16,27 +17,30 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { passageId, sectionId, insertionWordId } = await request.json();
+		const { color } = await request.json();
+		const sectionId = params.id;
 
-		// Validate inputs
-		if (!passageId || !sectionId || !insertionWordId) {
-			return json({ error: 'Missing required fields: passageId, sectionId, and insertionWordId' }, { status: 400 });
+		// Validate color
+		const validColors = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'];
+		if (!color || !validColors.includes(color)) {
+			return json({ error: 'Invalid color. Must be one of: ' + validColors.join(', ') }, { status: 400 });
 		}
 
-		// Perform the segment insertion
-		await insertSegment(db, session.user.id, passageId, sectionId, insertionWordId);
+		// Update section color
+		await db.update(passageSection)
+			.set({ 
+				color,
+				updatedAt: new Date()
+			})
+			.where(eq(passageSection.id, sectionId));
 
 		return json({ success: true }, { status: 200 });
 	} catch (error) {
-		console.error('Insert segment error:', error);
+		console.error('Update section color error:', error);
 		
 		// Return specific error messages for known validation errors
 		if (error.message === 'Unauthorized') {
 			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-		
-		if (error.message.includes('Cannot insert segment')) {
-			return json({ error: error.message }, { status: 400 });
 		}
 		
 		return json({ error: 'Internal server error' }, { status: 500 });

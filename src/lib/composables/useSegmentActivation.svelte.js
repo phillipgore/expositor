@@ -1,6 +1,6 @@
 /**
- * Composable for managing segment/split activation state
- * Handles click events to determine which segment or split should be active
+ * Composable for managing segment/section activation state
+ * Handles click events to determine which segment or section should be active
  */
 
 /**
@@ -8,15 +8,15 @@
  * @returns {Object} Segment activation state and handlers
  */
 export function useSegmentActivation() {
-	let activeSegment = $state(null); // { passageIndex, segmentIndex, activateSplit }
+	let activeSegment = $state(null); // { passageIndex, segmentIndex, activateSection }
 
 	/**
-	 * Handle click to activate segment or split
+	 * Handle click to activate segment or section
 	 * @param {MouseEvent} event - The click event
 	 * @param {string} toolbarMode - Current toolbar mode ('outline', 'literary', or 'color')
 	 */
 	function handleSegmentClick(event, toolbarMode) {
-		// Handle segment/split activation based on toolbar mode
+		// Handle segment/section activation based on toolbar mode
 		const target = /** @type {HTMLElement} */ (event.target);
 		const clickedSegment = target?.closest('.segment');
 		if (clickedSegment) {
@@ -30,17 +30,17 @@ export function useSegmentActivation() {
 				const segmentIndex = allSegments.indexOf(clickedSegment);
 				
 				if (passageIndex !== -1 && segmentIndex !== -1) {
-					// In 'color' mode, activate the split instead of the segment
+					// In 'color' mode, activate the section instead of the segment
 					if (toolbarMode === 'color') {
-						// Find the split (parent of segment)
-						const splitElement = clickedSegment.closest('.split');
-						if (splitElement) {
-							// Store segment index but mark as split activation
-							activeSegment = { passageIndex, segmentIndex, activateSplit: true };
+						// Find the section (parent of segment)
+						const sectionElement = clickedSegment.closest('.section');
+						if (sectionElement) {
+							// Store segment index but mark as section activation
+							activeSegment = { passageIndex, segmentIndex, activateSection: true };
 						}
 					} else {
 						// In 'outline' and 'literary' modes, activate the segment
-						activeSegment = { passageIndex, segmentIndex, activateSplit: false };
+						activeSegment = { passageIndex, segmentIndex, activateSection: false };
 					}
 				}
 			}
@@ -51,7 +51,7 @@ export function useSegmentActivation() {
 	}
 
 	/**
-	 * Clear active segment/split
+	 * Clear active segment/section
 	 */
 	function clearActiveSegment() {
 		activeSegment = null;
@@ -62,29 +62,29 @@ export function useSegmentActivation() {
 	 * Should be called in an $effect
 	 */
 	function updateActiveClasses() {
-		// Remove active class from all segments and splits
+		// Remove active class from all segments and sections
 		const allSegments = document.querySelectorAll('.segment');
 		allSegments.forEach(segment => {
 			segment.classList.remove('active');
 		});
-		const allSplits = document.querySelectorAll('.split');
-		allSplits.forEach(split => {
-			split.classList.remove('active');
+		const allSections = document.querySelectorAll('.section');
+		allSections.forEach(section => {
+			section.classList.remove('active');
 		});
 
-		// Add active class to the selected segment or split
+		// Add active class to the selected segment or section
 		if (activeSegment) {
 			const allPassages = Array.from(document.querySelectorAll('.passage'));
 			const passageElement = allPassages[activeSegment.passageIndex];
 			if (passageElement) {
-				if (activeSegment.activateSplit) {
-					// Activate the split (color mode)
+				if (activeSegment.activateSection) {
+					// Activate the section (color mode)
 					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
 					const segmentElement = allSegments[activeSegment.segmentIndex];
 					if (segmentElement) {
-						const splitElement = segmentElement.closest('.split');
-						if (splitElement) {
-							splitElement.classList.add('active');
+						const sectionElement = segmentElement.closest('.section');
+						if (sectionElement) {
+							sectionElement.classList.add('active');
 						}
 					}
 				} else {

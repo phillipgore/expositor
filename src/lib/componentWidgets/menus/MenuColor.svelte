@@ -60,7 +60,7 @@
 			label={color.label}
 			role="menuitem"
 			handleClick={() => handleColorSelect(color)}
-			isDisabled={!$toolbarState.hasActiveSplit}
+			isDisabled={!$toolbarState.hasActiveSection}
 		/>
 	{/each}
 </Menu>

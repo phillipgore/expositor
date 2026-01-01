@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { study, passage, passageColumn, passageSplit, passageSegment } from '$lib/server/db/schema.js';
+import { study, passage, passageColumn, passageSection, passageSegment } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, asc } from 'drizzle-orm';
 import { fetchPassagesText } from '$lib/server/bibleApi.js';
@@ -42,7 +42,7 @@ export async function load({ params, request, depends }) {
 		const translation = studyData.translation || 'esv';
 		const passagesWithText = await fetchPassagesText(passagesData, translation);
 
-		// Fetch structure (columns, splits, segments) for each passage
+		// Fetch structure (columns, sections, segments) for each passage
 		const passagesWithStructure = await Promise.all(
 			passagesWithText.map(async (passageText, index) => {
 				// Get the matching passage data by index
@@ -59,29 +59,29 @@ export async function load({ params, request, depends }) {
 					.where(eq(passageColumn.passageId, passageData.id))
 					.orderBy(asc(passageColumn.startingWordId));
 
-				// For each column, get its splits
-				const columnsWithSplits = await Promise.all(
+				// For each column, get its sections
+				const columnsWithSections = await Promise.all(
 					columns.map(async (col) => {
-						const splits = await db
+						const sections = await db
 							.select()
-							.from(passageSplit)
-							.where(eq(passageSplit.passageColumnId, col.id))
-							.orderBy(asc(passageSplit.startingWordId));
+							.from(passageSection)
+							.where(eq(passageSection.passageColumnId, col.id))
+							.orderBy(asc(passageSection.startingWordId));
 
-						// For each split, get its segments
-						const splitsWithSegments = await Promise.all(
-							splits.map(async (split) => {
+						// For each section, get its segments
+						const sectionsWithSegments = await Promise.all(
+							sections.map(async (section) => {
 								const segments = await db
 									.select()
 									.from(passageSegment)
-									.where(eq(passageSegment.passageSplitId, split.id))
+									.where(eq(passageSegment.passageSectionId, section.id))
 									.orderBy(asc(passageSegment.startingWordId));
 
-								return { ...split, segments };
+								return { ...section, segments };
 							})
 						);
 
-						return { ...col, splits: splitsWithSegments };
+						return { ...col, sections: sectionsWithSegments };
 					})
 				);
 
@@ -89,7 +89,7 @@ export async function load({ params, request, depends }) {
 					...passageText,
 					structure: {
 						passageId: passageData.id,
-						columns: columnsWithSplits
+						columns: columnsWithSections
 					}
 				};
 			})

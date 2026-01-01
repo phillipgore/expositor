@@ -403,12 +403,12 @@ export function getPassageToolbarConfig() {
 				buttons: [
 					{
 						iconId: 'outline-disconnect',
-						title: 'Disconnect Section',
+						title: 'Insert Section',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
 					{
 						iconId: 'outline-connect',
-						title: 'Connect Section',
+						title: 'Join Section',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
 				]

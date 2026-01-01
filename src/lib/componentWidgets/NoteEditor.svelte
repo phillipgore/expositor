@@ -230,7 +230,7 @@
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
 		border-top: 0rem;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 		background-color: var(--gray-light);
 		color: var(--gray-dark);
 		white-space: pre-wrap;
@@ -259,7 +259,7 @@
 		border-radius: 0rem;
 		background-color: var(--gray-light);
 		color: var(--gray-dark);
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 		caret-color: var(--gray-darker);
 		width: 100%;
 		box-sizing: border-box;

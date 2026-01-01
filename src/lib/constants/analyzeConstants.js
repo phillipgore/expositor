@@ -13,9 +13,9 @@ export const TOOLBAR_MODES = {
 };
 
 /**
- * Available split colors
+ * Available section colors
  */
-export const SPLIT_COLORS = {
+export const SECTION_COLORS = {
 	RED: 'red',
 	ORANGE: 'orange',
 	YELLOW: 'yellow',
@@ -57,7 +57,7 @@ export const DRAG_CONFIG = {
 export const LAYOUT_CONFIG = {
 	COLUMN_WIDTH_NORMAL: '28.8rem',
 	COLUMN_WIDTH_WIDE: '50.4rem',
-	SPLIT_MARGIN_TOP: '4.4rem',
+	SECTION_MARGIN_TOP: '4.4rem',
 	CONTENT_GAP: '4.4rem',
 	CONTENT_PADDING: '6.6rem 4.4rem 1.8rem'
 };
@@ -68,7 +68,7 @@ export const LAYOUT_CONFIG = {
 export const SELECTORS = {
 	PASSAGE: '.passage',
 	SEGMENT: '.segment',
-	SPLIT: '.split',
+	SECTION: '.section',
 	SELECTABLE_WORD: '.selectable-word',
 	SELECTABLE_SPACE: '.selectable-space',
 	ANALYZE_CONTENT: '.analyze-content'

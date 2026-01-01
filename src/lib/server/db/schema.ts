@@ -134,7 +134,7 @@ export const passageColumn = pgTable('passage_column', {
 	startingWordIdx: index('passage_column_starting_word_idx').on(table.startingWordId)
 }));
 
-export const passageSplit = pgTable('passage_split', {
+export const passageSection = pgTable('passage_section', {
 	id: text('id').primaryKey(),
 	passageColumnId: text('passage_column_id')
 		.notNull()
@@ -148,16 +148,16 @@ export const passageSplit = pgTable('passage_split', {
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()
 }, (table) => ({
-	columnIdIdx: index('passage_split_column_id_idx').on(table.passageColumnId),
-	startingWordIdx: index('passage_split_starting_word_idx').on(table.startingWordId),
+	columnIdIdx: index('passage_section_column_id_idx').on(table.passageColumnId),
+	startingWordIdx: index('passage_section_starting_word_idx').on(table.startingWordId),
 	colorCheck: sql`CHECK (color IN ('red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'))`
 }));
 
 export const passageSegment = pgTable('passage_segment', {
 	id: text('id').primaryKey(),
-	passageSplitId: text('passage_split_id')
+	passageSectionId: text('passage_section_id')
 		.notNull()
-		.references(() => passageSplit.id, { onDelete: 'cascade' }),
+		.references(() => passageSection.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
 	headingOne: text('heading_one'),
 	headingTwo: text('heading_two'),
@@ -171,6 +171,6 @@ export const passageSegment = pgTable('passage_segment', {
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()
 }, (table) => ({
-	splitIdIdx: index('passage_segment_split_id_idx').on(table.passageSplitId),
+	sectionIdIdx: index('passage_segment_section_id_idx').on(table.passageSectionId),
 	startingWordIdx: index('passage_segment_starting_word_idx').on(table.startingWordId)
 }));

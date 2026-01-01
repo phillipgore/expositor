@@ -186,7 +186,7 @@ export const actions = {
 
 			await db.insert(passage).values(passageValues);
 
-			// Create default column, split, and segment for each passage
+			// Create default column, section, and segment for each passage
 			for (const passageValue of passageValues) {
 				await createDefaultPassageStructure(
 					passageValue.id,

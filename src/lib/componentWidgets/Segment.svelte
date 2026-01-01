@@ -160,7 +160,7 @@
 
 	.segment:global(.active) {
 		z-index: 10;
-		box-shadow: 0rem 0rem 0.5rem var(--split-dark);
+		box-shadow: 0rem 0rem 0.5rem var(--section-dark);
 	}
 
 	.text {
@@ -177,7 +177,7 @@
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 	}
 
 	/* Remove top padding when segment has heading-three */
@@ -198,54 +198,54 @@
 		border-bottom-left-radius: 0;
 	}
 
-	/* First/last child styling rules for integration with parent split */
-	:global(.split) .segment:first-child:global(.has-heading-one) :global(.heading-one),
-	:global(.split) .segment:first-child:global(.has-heading-one) :global(.heading-one-input input) {
+	/* First/last child styling rules for integration with parent section */
+	:global(.section) .segment:first-child:global(.has-heading-one) :global(.heading-one),
+	:global(.section) .segment:first-child:global(.has-heading-one) :global(.heading-one-input input) {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
 	/* Heading Two gets top border when it's the first heading */
-	:global(.split) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(.heading-two),
-	:global(.split) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(.heading-two-input input) {
+	:global(.section) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(.heading-two),
+	:global(.section) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(.heading-two-input input) {
 		border-top: 0.1rem solid;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
 	/* Heading Three gets top border when it's the first heading */
-	:global(.split) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three),
-	:global(.split) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three-input input) {
+	:global(.section) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three),
+	:global(.section) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three-input input) {
 		border-top: 0.1rem solid;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
 	/* Text gets top border when there are no headings */
-	:global(.split) .segment:first-child .text.no-headings {
+	:global(.section) .segment:first-child .text.no-headings {
 		border-top: 0.1rem solid;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
-	:global(.split) .segment:last-child,
-	:global(.split) .segment:last-child .text {
+	:global(.section) .segment:last-child,
+	:global(.section) .segment:last-child .text {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
 
-	/* Add bottom border radius to notes in last segment of split */
-	:global(.split) .segment:last-child:global(.has-note) :global(.note),
-	:global(.split) .segment:last-child:global(.has-note) :global(.note-input textarea) {
+	/* Add bottom border radius to notes in last segment of section */
+	:global(.section) .segment:last-child:global(.has-note) :global(.note),
+	:global(.section) .segment:last-child:global(.has-note) :global(.note-input textarea) {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
 
-	:global(.split) .segment:last-child:global(.has-note) :global(.text),
-	:global(.split) .segment:last-child:global(.has-note) :global(.text) {
+	:global(.section) .segment:last-child:global(.has-note) :global(.text),
+	:global(.section) .segment:last-child:global(.has-note) :global(.text) {
 		border-bottom-right-radius: 0.0rem;
 		border-bottom-left-radius: 0.0rem;
 	}

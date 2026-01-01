@@ -6,7 +6,7 @@
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSplit, setCanInsertColumn, setActiveColumn, setActiveSection } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -53,7 +53,7 @@
 	
 	// Active column and section state
 	let activeColumn = $state(null); // { segmentId } - tracks which column to activate
-	let activeSection = $state(null); // { segmentId } - tracks which section/split to activate
+	let activeSection = $state(null); // { segmentId } - tracks which section to activate
 
 	// Sync word selection state to toolbar store
 	$effect(() => {
@@ -75,18 +75,48 @@
 
 	// Sync active column state to toolbar store
 	$effect(() => {
-		setActiveColumn(activeColumn !== null);
+		if (activeColumn && activeColumn.segmentId) {
+			// Get the column ID from the DOM
+			const segmentElement = document.querySelector(`[data-segment-id="${activeColumn.segmentId}"]`);
+			const columnElement = segmentElement?.closest('.column');
+			const columnId = columnElement?.dataset?.columnId || null;
+			setActiveColumn(true, columnId);
+		} else {
+			setActiveColumn(false, null);
+		}
 	});
 
 	// Sync active section state to toolbar store
 	$effect(() => {
-		setActiveSection(activeSection !== null);
+		if (activeSection && activeSection.segmentId) {
+			// Get the section ID from the DOM
+			const segmentElement = document.querySelector(`[data-segment-id="${activeSection.segmentId}"]`);
+			const sectionElement = segmentElement?.closest('.section');
+			const sectionId = sectionElement?.dataset?.sectionId || null;
+			setActiveSection(true, sectionId);
+		} else {
+			setActiveSection(false, null);
+		}
 	});
 
-	// Sync active split state to toolbar store
+	// Sync active section state to toolbar store
 	// Set to true when column OR section is active (for color menu)
 	$effect(() => {
-		setActiveSplit(activeColumn !== null || activeSection !== null);
+		const hasActiveSection = activeColumn !== null || activeSection !== null;
+		if (hasActiveSection) {
+			// Get section ID from whichever is active
+			const targetSegmentId = activeSection?.segmentId || activeColumn?.segmentId;
+			if (targetSegmentId) {
+				const segmentElement = document.querySelector(`[data-segment-id="${targetSegmentId}"]`);
+				const sectionElement = segmentElement?.closest('.section');
+				const sectionId = sectionElement?.dataset?.sectionId || null;
+				setActiveSection(true, sectionId);
+			} else {
+				setActiveSection(true, null);
+			}
+		} else {
+			setActiveSection(false, null);
+		}
 	});
 
 	// Clear active segments and word selection when overview mode is enabled
@@ -166,9 +196,9 @@
 			handleInsertColumn();
 		};
 		
-		// Listen for insert split event from MenuStructure
-		const handleInsertSplitEvent = () => {
-			handleInsertSplit();
+		// Listen for insert section event from MenuStructure
+		const handleInsertSectionEvent = () => {
+			handleInsertSection();
 		};
 		
 		// Listen for insert segment event from MenuStructure
@@ -189,6 +219,48 @@
 						const segmentId = segmentElement.dataset.segmentId;
 						if (segmentId) {
 							window.dispatchEvent(new CustomEvent('insert-heading-one', {
+								detail: { segmentId }
+							}));
+						}
+					}
+				}
+			}
+		};
+		
+		// Listen for insert heading two event from MenuStructure
+		const handleInsertHeadingTwoFromMenuEvent = () => {
+			// Find the active segment and dispatch event with its ID
+			if (activeSegment) {
+				const allPassages = Array.from(document.querySelectorAll('.passage'));
+				const passageElement = allPassages[activeSegment.passageIndex];
+				if (passageElement) {
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentElement = allSegments[activeSegment.segmentIndex];
+					if (segmentElement) {
+						const segmentId = segmentElement.dataset.segmentId;
+						if (segmentId) {
+							window.dispatchEvent(new CustomEvent('insert-heading-two', {
+								detail: { segmentId }
+							}));
+						}
+					}
+				}
+			}
+		};
+		
+		// Listen for insert heading three event from MenuStructure
+		const handleInsertHeadingThreeFromMenuEvent = () => {
+			// Find the active segment and dispatch event with its ID
+			if (activeSegment) {
+				const allPassages = Array.from(document.querySelectorAll('.passage'));
+				const passageElement = allPassages[activeSegment.passageIndex];
+				if (passageElement) {
+					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
+					const segmentElement = allSegments[activeSegment.segmentIndex];
+					if (segmentElement) {
+						const segmentId = segmentElement.dataset.segmentId;
+						if (segmentId) {
+							window.dispatchEvent(new CustomEvent('insert-heading-three', {
 								detail: { segmentId }
 							}));
 						}
@@ -248,7 +320,7 @@
 					const segmentIndex = allSegments.indexOf(segmentElement);
 					
 					if (passageIndex !== -1 && segmentIndex !== -1) {
-						activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: false };
+						activeSegment = { passageIndex, segmentIndex, segmentId, activateSection: false };
 					}
 				}
 			}
@@ -284,16 +356,18 @@
 					const segmentIndex = allSegments.indexOf(segmentElement);
 					
 					if (passageIndex !== -1 && segmentIndex !== -1) {
-						activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: false };
+						activeSegment = { passageIndex, segmentIndex, segmentId, activateSection: false };
 					}
 				}
 			}
 		};
 		
 		window.addEventListener('insert-column', handleInsertColumnEvent);
-		window.addEventListener('insert-split', handleInsertSplitEvent);
+		window.addEventListener('insert-section', handleInsertSectionEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
 		window.addEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
+		window.addEventListener('insert-heading-two-from-menu', handleInsertHeadingTwoFromMenuEvent);
+		window.addEventListener('insert-heading-three-from-menu', handleInsertHeadingThreeFromMenuEvent);
 		window.addEventListener('insert-note-from-menu', handleInsertNoteFromMenuEvent);
 		window.addEventListener('select-column', handleSelectColumnEvent);
 		window.addEventListener('deselect-column', handleDeselectColumnEvent);
@@ -302,9 +376,11 @@
 		
 		return () => {
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
-			window.removeEventListener('insert-split', handleInsertSplitEvent);
+			window.removeEventListener('insert-section', handleInsertSectionEvent);
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
 			window.removeEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
+			window.removeEventListener('insert-heading-two-from-menu', handleInsertHeadingTwoFromMenuEvent);
+			window.removeEventListener('insert-heading-three-from-menu', handleInsertHeadingThreeFromMenuEvent);
 			window.removeEventListener('insert-note-from-menu', handleInsertNoteFromMenuEvent);
 			window.removeEventListener('select-column', handleSelectColumnEvent);
 			window.removeEventListener('deselect-column', handleDeselectColumnEvent);
@@ -342,20 +418,20 @@
 		
 		// Find parent structural elements
 		const segmentElement = wordElement.closest('.segment');
-		const splitElement = wordElement.closest('.split');
+		const sectionElement = wordElement.closest('.section');
 		const columnElement = wordElement.closest('.column');
 		
-		if (!segmentElement || !splitElement || !columnElement) {
+		if (!segmentElement || !sectionElement || !columnElement) {
 			console.log('Parent structural elements not found');
 			return;
 		}
 		
 		// Extract IDs from data attributes
 		const columnId = columnElement.dataset.columnId;
-		const splitId = splitElement.dataset.splitId;
+		const sectionId = sectionElement.dataset.sectionId;
 		const segmentId = segmentElement.dataset.segmentId;
 		
-		if (!columnId || !splitId || !segmentId) {
+		if (!columnId || !sectionId || !segmentId) {
 			console.log('Missing structural IDs');
 			return;
 		}
@@ -382,7 +458,7 @@
 			return;
 		}
 
-		console.log('Inserting column at:', insertionWordId, 'in column:', columnId, 'split:', splitId, 'segment:', segmentId);
+		console.log('Inserting column at:', insertionWordId, 'in column:', columnId, 'section:', sectionId, 'segment:', segmentId);
 
 		try {
 			const response = await fetch('/api/passages/columns/insert', {
@@ -391,7 +467,7 @@
 				body: JSON.stringify({
 					passageId: passageText.structure.passageId,
 					columnId: columnId,
-					splitId: splitId,
+					sectionId: sectionId,
 					segmentId: segmentId,
 					insertionWordId: insertionWordId
 				})
@@ -420,10 +496,10 @@
 	}
 
 	/**
-	 * Handle Insert Split button click
+	 * Handle Insert Section button click (formerly Split)
 	 */
-	async function handleInsertSplit() {
-		console.log('handleInsertSplit called');
+	async function handleInsertSection() {
+		console.log('handleInsertSection called');
 		
 		if (!selectedWord || !data.passagesWithText) {
 			console.log('No selected word or passages');
@@ -448,20 +524,20 @@
 		
 		// Find parent structural elements
 		const segmentElement = wordElement.closest('.segment');
-		const splitElement = wordElement.closest('.split');
+		const sectionElement = wordElement.closest('.section');
 		const columnElement = wordElement.closest('.column');
 		
-		if (!segmentElement || !splitElement || !columnElement) {
+		if (!segmentElement || !sectionElement || !columnElement) {
 			console.log('Parent structural elements not found');
 			return;
 		}
 		
 		// Extract IDs from data attributes
 		const columnId = columnElement.dataset.columnId;
-		const splitId = splitElement.dataset.splitId;
+		const sectionId = sectionElement.dataset.sectionId;
 		const segmentId = segmentElement.dataset.segmentId;
 		
-		if (!columnId || !splitId || !segmentId) {
+		if (!columnId || !sectionId || !segmentId) {
 			console.log('Missing structural IDs');
 			return;
 		}
@@ -488,16 +564,16 @@
 			return;
 		}
 
-		console.log('Inserting split at:', insertionWordId, 'in column:', columnId, 'split:', splitId, 'segment:', segmentId);
+		console.log('Inserting section at:', insertionWordId, 'in column:', columnId, 'section:', sectionId, 'segment:', segmentId);
 
 		try {
-			const response = await fetch('/api/passages/splits/insert', {
+			const response = await fetch('/api/passages/sections/insert', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					passageId: passageText.structure.passageId,
 					columnId: columnId,
-					splitId: splitId,
+					sectionId: sectionId,
 					segmentId: segmentId,
 					insertionWordId: insertionWordId
 				})
@@ -506,7 +582,7 @@
 			console.log('Response status:', response.status);
 
 			if (response.ok) {
-				console.log('Split inserted successfully');
+				console.log('Section inserted successfully');
 				// Clear selection
 				selectedWord = null;
 				activeSegment = null;
@@ -516,12 +592,12 @@
 				await invalidate('app:studies');
 			} else {
 				const error = await response.json();
-				console.error('Insert split error response:', error);
-				alert(`Error: ${error.error || 'Failed to insert split'}`);
+				console.error('Insert section error response:', error);
+				alert(`Error: ${error.error || 'Failed to insert section'}`);
 			}
 		} catch (error) {
-			console.error('Insert split network error:', error);
-			alert(`Error: ${error.message || 'Failed to insert split'}`);
+			console.error('Insert section network error:', error);
+			alert(`Error: ${error.message || 'Failed to insert section'}`);
 		}
 	}
 
@@ -542,7 +618,7 @@
 			return;
 		}
 
-		// Get the word element to find its parent split
+		// Get the word element to find its parent section
 		const wordElement = document.querySelector(
 			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
 		);
@@ -552,17 +628,17 @@
 			return;
 		}
 		
-		// Find the parent split element
-		const splitElement = wordElement.closest('.split');
-		if (!splitElement) {
-			console.log('No parent split found');
+		// Find the parent section element
+		const sectionElement = wordElement.closest('.section');
+		if (!sectionElement) {
+			console.log('No parent section found');
 			return;
 		}
 		
-		// Extract split ID from the data attribute
-		const splitId = splitElement.dataset.splitId;
-		if (!splitId) {
-			console.log('No split ID found on element');
+		// Extract section ID from the data attribute
+		const sectionId = sectionElement.dataset.sectionId;
+		if (!sectionId) {
+			console.log('No section ID found on element');
 			return;
 		}
 
@@ -588,7 +664,7 @@
 			return;
 		}
 
-		console.log('Inserting segment at:', insertionWordId, 'in split:', splitId, 'for passage:', passageText.structure.passageId);
+		console.log('Inserting segment at:', insertionWordId, 'in section:', sectionId, 'for passage:', passageText.structure.passageId);
 
 		try {
 			const response = await fetch('/api/passages/segments/insert', {
@@ -596,7 +672,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					passageId: passageText.structure.passageId,
-					splitId: splitId,
+					sectionId: sectionId,
 					insertionWordId: insertionWordId
 				})
 			});
@@ -644,8 +720,8 @@
 	 * @param {Array} allSegments - All segments for a passage
 	 * @returns {Object} Map of verseId -> count
 	 */
-	function buildVerseSplitMap(allSegments) {
-		const verseSplitMap = {};
+	function buildVerseSectionMap(allSegments) {
+		const verseSectionMap = {};
 		
 		// Scan all segments and count how many segments each verse appears in
 		for (const segment of allSegments) {
@@ -658,11 +734,11 @@
 				const verseId = parts.slice(0, 3).join('-'); // BOOK-CHAPTER-VERSE
 				
 				// Count how many segments start with words from this verse
-				verseSplitMap[verseId] = (verseSplitMap[verseId] || 0) + 1;
+				verseSectionMap[verseId] = (verseSectionMap[verseId] || 0) + 1;
 			}
 		}
 		
-		return verseSplitMap;
+		return verseSectionMap;
 	}
 
 	/**
@@ -672,11 +748,11 @@
 	 * @param {string} startWordId - Starting word ID (e.g., 'ac-01-01-001')
 	 * @param {string|null} endWordId - Ending word ID (null = extract to end)
 	 * @param {number} passageIndex - Index of the passage
-	 * @param {Object} verseSplitMap - Map of verseId -> occurrence count
+	 * @param {Object} verseSectionMap - Map of verseId -> occurrence count
 	 * @param {Object} verseOccurrences - Tracker for current verse occurrences
 	 * @returns {string} Extracted HTML
 	 */
-	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex, verseSplitMap, verseOccurrences) {
+	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex, verseSectionMap, verseOccurrences) {
 		if (!fullHtml) return '';
 		
 		const tempDiv = document.createElement('div');
@@ -753,9 +829,9 @@
 							const chapterVerseText = chapterVerseSpan.textContent || '';
 							
 							// Determine if we need a suffix
-							const isSplit = verseSplitMap && verseSplitMap[verseId] > 1;
+							const isSection = verseSectionMap && verseSectionMap[verseId] > 1;
 							
-							if (isSplit) {
+							if (isSection) {
 								// Initialize counter for this verse if we haven't seen it yet
 								if (verseOccurrences[verseId] === undefined) {
 									verseOccurrences[verseId] = 0;
@@ -772,7 +848,7 @@
 								
 								verseBuffer.push(`<span class="chapter-verse">${chapterVerseText}${suffix}</span>`);
 							} else {
-								// Verse not split - use original without suffix
+								// Verse not section - use original without suffix
 								verseBuffer.push(chapterVerseSpan.outerHTML);
 							}
 						}
@@ -908,7 +984,7 @@
 			return;
 		}
 
-		// Don't allow segment/split activation in overview mode
+		// Don't allow segment/section activation in overview mode
 		if ($toolbarState.overviewMode) {
 			return;
 		}
@@ -946,7 +1022,7 @@
 			return;
 		}
 		
-		// Handle segment/split activation IMMEDIATELY (no delay)
+		// Handle segment/section activation IMMEDIATELY (no delay)
 		// This makes the toolbar appear instantly without waiting for debounce
 		if (clickedSegment) {
 			// Find passage and segment indices
@@ -969,7 +1045,7 @@
 					activeColumn = null;
 					activeSection = null;
 					// Activate the segment with generation
-					activeSegment = { passageIndex, segmentIndex, segmentId, activateSplit: false, generation: segmentClickGeneration };
+					activeSegment = { passageIndex, segmentIndex, segmentId, activateSection: false, generation: segmentClickGeneration };
 				}
 			}
 		} else {
@@ -1079,14 +1155,14 @@
 	 * Update DOM elements with active class when active segment/column/section changes
 	 */
 	$effect(() => {
-		// Remove active class from all segments, splits, and columns
+		// Remove active class from all segments, sections, and columns
 		const allSegments = document.querySelectorAll('.segment');
 		allSegments.forEach(segment => {
 			segment.classList.remove('active');
 		});
-		const allSplits = document.querySelectorAll('.split');
-		allSplits.forEach(split => {
-			split.classList.remove('active');
+		const allSections = document.querySelectorAll('.section');
+		allSections.forEach(section => {
+			section.classList.remove('active');
 		});
 		const allColumns = document.querySelectorAll('.column');
 		allColumns.forEach(column => {
@@ -1105,12 +1181,12 @@
 				}
 			}
 		} else if (activeSection && activeSection.segmentId) {
-			// Activate the split/section containing the segment (section mode takes priority)
+			// Activate the section/section containing the segment (section mode takes priority)
 			const segmentElement = document.querySelector(`[data-segment-id="${activeSection.segmentId}"]`);
 			if (segmentElement) {
-				const splitElement = segmentElement.closest('.split');
-				if (splitElement) {
-					splitElement.classList.add('active');
+				const sectionElement = segmentElement.closest('.section');
+				if (sectionElement) {
+					sectionElement.classList.add('active');
 					console.log('[EFFECT] Activated section for segment:', activeSection.segmentId);
 				}
 			}
@@ -1118,11 +1194,11 @@
 			// Only activate the segment if neither column nor section mode is active
 			const segmentElement = document.querySelector(`[data-segment-id="${activeSegment.segmentId}"]`);
 			if (segmentElement) {
-				if (activeSegment.activateSplit) {
-					// Activate the split (color mode)
-					const splitElement = segmentElement.closest('.split');
-					if (splitElement) {
-						splitElement.classList.add('active');
+				if (activeSegment.activateSection) {
+					// Activate the section (color mode)
+					const sectionElement = segmentElement.closest('.section');
+					if (sectionElement) {
+						sectionElement.classList.add('active');
 					}
 				} else {
 					// Activate the segment (outline and literary modes)
@@ -1279,12 +1355,10 @@
 <div class="container">
 	{#if showHeader}
 		<div class="study-header">
-			<div>
-				<Heading heading="h1" classes="h4 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
-				{#if data.study.subtitle}
-					<Heading heading="h2" classes="h5 subheading" isMuted>{data.study.subtitle}</Heading>
-				{/if}
-			</div>
+			<Heading heading="h1" classes="h4 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
+			{#if data.study.subtitle}
+				<Heading heading="h2" classes="h5 subheading" isMuted>{data.study.subtitle}</Heading>
+			{/if}
 		</div>
 	{/if}
 	
@@ -1315,35 +1389,35 @@
 								<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
 								<div class="container">
 									{#if passageText.structure.columns && passageText.structure.columns.length > 0}
-										{@const allSegments = passageText.structure.columns.flatMap(col => col.splits.flatMap(split => split.segments))}
+										{@const allSegments = passageText.structure.columns.flatMap(col => col.sections.flatMap(section => section.segments))}
 										{@const segmentCount = allSegments.length}
 										{@const structureKey = `${passageText.structure.passageId}-${segmentCount}`}
 										{#key structureKey}
 										{@const passageSegmentIndexTracker = { current: 0 }}
-										{@const verseSplitMap = buildVerseSplitMap(allSegments)}
-										{@const verseOccurrences = Object.keys(verseSplitMap).filter(verseId => verseSplitMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
+										{@const verseSectionMap = buildVerseSectionMap(allSegments)}
+										{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
 										{#each passageText.structure.columns as column, columnIndex}
 											<div class="column" data-column-id="{column.id}">
-												{#if column.splits && column.splits.length > 0}
-													{#each column.splits as split, splitIndex}
-														<div class="split {split.color}" data-split-id="{split.id}">
-															{#if split.segments && split.segments.length > 0}
-																{#each split.segments as segment, segmentIndex}
+												{#if column.sections && column.sections.length > 0}
+													{#each column.sections as section, sectionIndex}
+														<div class="section {section.color}" data-section-id="{section.id}">
+															{#if section.segments && section.segments.length > 0}
+																{#each section.segments as segment, segmentIndex}
 																	{@const domSegmentIndex = passageSegmentIndexTracker.current}
 																	{@const _segIncrement = (passageSegmentIndexTracker.current++, null)}
-																	{@const nextSegment = split.segments[segmentIndex + 1]}
-																	{@const nextSplit = column.splits[splitIndex + 1]}
+																	{@const nextSegment = section.segments[segmentIndex + 1]}
+																	{@const nextSection = column.sections[sectionIndex + 1]}
 																	{@const nextColumn = passageText.structure.columns[columnIndex + 1]}
 																	{@const endWordId = nextSegment?.startingWordId || 
-																	                    nextSplit?.segments[0]?.startingWordId || 
-																	                    nextColumn?.splits[0]?.segments[0]?.startingWordId || 
+																	                    nextSection?.segments[0]?.startingWordId || 
+																	                    nextColumn?.sections[0]?.segments[0]?.startingWordId || 
 																	                    null}
 																	{@const segmentHtml = extractSegmentText(
 																		passageText.text,
 																		segment.startingWordId,
 																		endWordId,
 																		passageIndex,
-																		verseSplitMap,
+																		verseSectionMap,
 																		verseOccurrences
 																	)}
 																	<Segment 
@@ -1395,17 +1469,31 @@
 	}
 
 	.study-header {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: left;
 		position: absolute;
 		top: 0.9rem;
-		left: 3.5rem;
-		background: var(--white-alpha);
-		padding: 0.0rem 0.9rem;
-		border-radius: 0.3rem;
+		left: 4.6rem;
+		background: var(--gray-light);
+		padding: 0.6rem 2.2rem;
+		border-radius: 999em;
 		z-index: 100;
+		/* min-height: 4.8rem; */
+	}
+
+	.study-header :global(.heading.has-sub) {
+		margin: 0.0rem;
+		padding: 0.0rem;
+		line-height: 1.2;
 	}
 
 	.study-header :global(.subheading) {
 		margin: 0.0rem;
+		padding: 0.0rem;
+		line-height: 1.2;
+		color: var(--gray-400)
 	}
 
 	.placeholder-text {
@@ -1447,6 +1535,7 @@
 
 	.reference {
 		font-size: 1.2rem;
+		margin-left: 0.2rem;
 		margin-top: 0.0rem;
 		margin-bottom: 0.9rem;
 	}
@@ -1478,76 +1567,86 @@
 		display: none;
 	}
 
-	.split {
+	.section,
+	.section {
 		position: relative;
 		/* CSS Custom Properties for color theming */
-		--split-darker: var(--green-darker);
-		--split-dark: var(--green-dark);
-		--split-light: var(--green-light);
-		--split-lighter: var(--green-lighter);
-		--split-color: var(--green-dark);
+		--section-darker: var(--green-darker);
+		--section-dark: var(--green-dark);
+		--section-light: var(--green-light);
+		--section-lighter: var(--green-lighter);
+		--section-color: var(--green-dark);
 		transition: box-shadow 50ms ease-in-out;
 	}
 
-	.split:not(:first-of-type) {
+	.section:not(:first-of-type),
+	.section:not(:first-of-type) {
 		margin-top: 4.4rem;
 	}
 
 	/* Color variant overrides */
-	.split.red {
-		--split-darker: var(--red-darker);
-		--split-dark: var(--red-dark);
-		--split-light: var(--red-light);
-		--split-lighter: var(--red-lighter);
+	.section.red,
+	.section.red {
+		--section-darker: var(--red-darker);
+		--section-dark: var(--red-dark);
+		--section-light: var(--red-light);
+		--section-lighter: var(--red-lighter);
 	}
 
-	.split.orange {
-		--split-darker: var(--orange-darker);
-		--split-dark: var(--orange-dark);
-		--split-light: var(--orange-light);
-		--split-lighter: var(--orange-lighter);
+	.section.orange,
+	.section.orange {
+		--section-darker: var(--orange-darker);
+		--section-dark: var(--orange-dark);
+		--section-light: var(--orange-light);
+		--section-lighter: var(--orange-lighter);
 	}
 
-	.split.yellow {
-		--split-darker: var(--yellow-darker);
-		--split-dark: var(--yellow-dark);
-		--split-light: var(--yellow-light);
-		--split-lighter: var(--yellow-lighter);
+	.section.yellow,
+	.section.yellow {
+		--section-darker: var(--yellow-darker);
+		--section-dark: var(--yellow-dark);
+		--section-light: var(--yellow-light);
+		--section-lighter: var(--yellow-lighter);
 	}
 
-	.split.green {
-		--split-darker: var(--green-darker);
-		--split-dark: var(--green-dark);
-		--split-light: var(--green-light);
-		--split-lighter: var(--green-lighter);
+	.section.green,
+	.section.green {
+		--section-darker: var(--green-darker);
+		--section-dark: var(--green-dark);
+		--section-light: var(--green-light);
+		--section-lighter: var(--green-lighter);
 	}
 
-	.split.aqua {
-		--split-darker: var(--aqua-darker);
-		--split-dark: var(--aqua-dark);
-		--split-light: var(--aqua-light);
-		--split-lighter: var(--aqua-lighter);
+	.section.aqua,
+	.section.aqua {
+		--section-darker: var(--aqua-darker);
+		--section-dark: var(--aqua-dark);
+		--section-light: var(--aqua-light);
+		--section-lighter: var(--aqua-lighter);
 	}
 
-	.split.blue {
-		--split-darker: var(--blue-darker);
-		--split-dark: var(--blue-dark);
-		--split-light: var(--blue-light);
-		--split-lighter: var(--blue-lighter);
+	.section.blue,
+	.section.blue {
+		--section-darker: var(--blue-darker);
+		--section-dark: var(--blue-dark);
+		--section-light: var(--blue-light);
+		--section-lighter: var(--blue-lighter);
 	}
 
-	.split.purple {
-		--split-darker: var(--purple-darker);
-		--split-dark: var(--purple-dark);
-		--split-light: var(--purple-light);
-		--split-lighter: var(--purple-lighter);
+	.section.purple,
+	.section.purple {
+		--section-darker: var(--purple-darker);
+		--section-dark: var(--purple-dark);
+		--section-light: var(--purple-light);
+		--section-lighter: var(--purple-lighter);
 	}
 
-	.split.pink {
-		--split-darker: var(--pink-darker);
-		--split-dark: var(--pink-dark);
-		--split-light: var(--pink-light);
-		--split-lighter: var(--pink-lighter);
+	.section.pink,
+	.section.pink {
+		--section-darker: var(--pink-darker);
+		--section-dark: var(--pink-dark);
+		--section-light: var(--pink-light);
+		--section-lighter: var(--pink-lighter);
 	}
 
 	.segment {
@@ -1555,10 +1654,11 @@
 		transition: box-shadow 50ms ease-in-out;
 	}
 
-	.split:global(.active),
+	.section:global(.active),
+	.section:global(.active),
 	.segment:global(.active) {
 		z-index: 10;
-		box-shadow: 0rem 0rem 0.5rem var(--split-dark);
+		box-shadow: 0rem 0rem 0.5rem var(--section-dark);
 	}
 
 	.heading-one {
@@ -1567,9 +1667,9 @@
 		padding: 0.9rem;
 		margin: 0.0rem;
 		border: 0.1rem solid;
-		color: var(--split-lighter);
-		background-color: var(--split-darker);
-		border-color: var(--split-darker);
+		color: var(--section-lighter);
+		background-color: var(--section-darker);
+		border-color: var(--section-darker);
 	}
 
 	.heading-two {
@@ -1581,9 +1681,9 @@
 		border-bottom: 0.1rem solid;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
-		background-color: var(--split-lighter);
-		color: var(--split-darker);
-		border-color: var(--split-dark);
+		background-color: var(--section-lighter);
+		color: var(--section-darker);
+		border-color: var(--section-dark);
 	}
 
 	.heading-three {
@@ -1595,12 +1695,12 @@
 		padding: 0.9rem 0.9rem 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 	}
 
 	.overview-mode :global(.heading-three) {
 		padding: 0.9rem;
-		border-bottom: 0.1rem solid var(--split-dark);
+		border-bottom: 0.1rem solid var(--section-dark);
 	}
 
 	.overview-mode :global(.segment:last-of-type .heading-three-container:last-child .heading-three) {
@@ -1622,12 +1722,12 @@
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 	}
 
 	.segment:first-child .text.no-headings {
 		border-top: 0.1rem solid;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
@@ -1657,171 +1757,181 @@
 		display: none;
 	}
 
-	/* Color-specific word selection styles for green split */
-	.split.green :global(.text .selectable-word:hover:not([data-selected])) {
+	/* Color-specific word selection styles for green section */
+	.section.green :global(.text .selectable-word:hover:not([data-selected])),
+	.section.green :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--green-light);
 	}
 
-	.split.green :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.section.green :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before),
+	.section.green :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.green :global(.text .selectable-word[data-selected="true"]) {
+	.section.green :global(.text .selectable-word[data-selected="true"]),
+	.section.green :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--green-light);
 	}
 
-	.split.green :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
+	.section.green :global(.text .selectable-word[data-selected="true"][data-position="before"]::before),
+	.section.green :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.green :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
+	.section.green :global(.text .selectable-word[data-selected="true"][data-position="after"]::before),
+	.section.green :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	/* Color-specific word selection styles for red split */
-	.split.red :global(.text .selectable-word:hover:not([data-selected])) {
+	/* Color-specific word selection styles for red section */
+	.section.red :global(.text .selectable-word:hover:not([data-selected])),
+	.section.red :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--red-light);
 	}
 
-	.split.red :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.section.red :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before),
+	.section.red :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.red :global(.text .selectable-word[data-selected="true"]) {
+	.section.red :global(.text .selectable-word[data-selected="true"]),
+	.section.red :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--red-light);
 	}
 
-	.split.red :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
+	.section.red :global(.text .selectable-word[data-selected="true"][data-position="before"]::before),
+	.section.red :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.red :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
+	.section.red :global(.text .selectable-word[data-selected="true"][data-position="after"]::before),
+	.section.red :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	/* Color-specific word selection styles for orange split */
-	.split.orange :global(.text .selectable-word:hover:not([data-selected])) {
+	/* Color-specific word selection styles for orange section */
+	.section.orange :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--orange-light);
 	}
 
-	.split.orange :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.section.orange :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.orange :global(.text .selectable-word[data-selected="true"]) {
+	.section.orange :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--orange-light);
 	}
 
-	.split.orange :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
+	.section.orange :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.orange :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
+	.section.orange :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	/* Color-specific word selection styles for yellow split */
-	.split.yellow :global(.text .selectable-word:hover:not([data-selected])) {
+	/* Color-specific word selection styles for yellow section */
+	.section.yellow :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--yellow-light);
 	}
 
-	.split.yellow :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.section.yellow :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.yellow :global(.text .selectable-word[data-selected="true"]) {
+	.section.yellow :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--yellow-light);
 	}
 
-	.split.yellow :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
+	.section.yellow :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.yellow :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
+	.section.yellow :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	/* Color-specific word selection styles for aqua split */
-	.split.aqua :global(.text .selectable-word:hover:not([data-selected])) {
+	/* Color-specific word selection styles for aqua section */
+	.section.aqua :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--aqua-light);
 	}
 
-	.split.aqua :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.section.aqua :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.aqua :global(.text .selectable-word[data-selected="true"]) {
+	.section.aqua :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--aqua-light);
 	}
 
-	.split.aqua :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
+	.section.aqua :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.aqua :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
+	.section.aqua :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	/* Color-specific word selection styles for blue split */
-	.split.blue :global(.text .selectable-word:hover:not([data-selected])) {
+	/* Color-specific word selection styles for blue section */
+	.section.blue :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--blue-light);
 	}
 
-	.split.blue :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.section.blue :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.blue :global(.text .selectable-word[data-selected="true"]) {
+	.section.blue :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--blue-light);
 	}
 
-	.split.blue :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
+	.section.blue :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.blue :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
+	.section.blue :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	/* Color-specific word selection styles for purple split */
-	.split.purple :global(.text .selectable-word:hover:not([data-selected])) {
+	/* Color-specific word selection styles for purple section */
+	.section.purple :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--purple-light);
 	}
 
-	.split.purple :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.section.purple :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.purple :global(.text .selectable-word[data-selected="true"]) {
+	.section.purple :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--purple-light);
 	}
 
-	.split.purple :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
+	.section.purple :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.purple :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
+	.section.purple :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	/* Color-specific word selection styles for pink split */
-	.split.pink :global(.text .selectable-word:hover:not([data-selected])) {
+	/* Color-specific word selection styles for pink section */
+	.section.pink :global(.text .selectable-word:hover:not([data-selected])) {
 		background-color: var(--pink-light);
 	}
 
-	.split.pink :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+	.section.pink :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.pink :global(.text .selectable-word[data-selected="true"]) {
+	.section.pink :global(.text .selectable-word[data-selected="true"]) {
 		background-color: var(--pink-light);
 	}
 
-	.split.pink :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
+	.section.pink :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 
-	.split.pink :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
+	.section.pink :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 	}
 

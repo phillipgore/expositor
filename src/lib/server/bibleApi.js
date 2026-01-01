@@ -16,7 +16,7 @@ import { getBookAbbreviation } from '$lib/utils/bibleData.js';
 function wrapWords(verseText, bookAbbr, chapter, verse) {
 	if (!verseText) return '';
 	
-	// Split on whitespace first, then split em/en dashes (but not hyphens)
+	// Split on whitespace first, then section em/en dashes (but not hyphens)
 	const words = verseText
 		.split(/\s+/)
 		.flatMap(token => 

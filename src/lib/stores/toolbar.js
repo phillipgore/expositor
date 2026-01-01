@@ -57,9 +57,10 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {string|null} activeSegmentId - The ID of the currently active segment
- * @property {boolean} hasActiveSplit - Whether a split is currently active (for color mode)
+ * @property {boolean} hasActiveSection - Whether a section is currently active (for color mode)
+ * @property {string|null} activeSectionId - The ID of the currently active section
  * @property {boolean} hasActiveColumn - Whether a column is currently active
- * @property {boolean} hasActiveSection - Whether a section is currently active
+ * @property {string|null} activeColumnId - The ID of the currently active column
  * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
  */
 
@@ -97,9 +98,10 @@ const defaultState = {
 	hasWordSelection: false,
 	hasActiveSegment: false,
 	activeSegmentId: null,
-	hasActiveSplit: false,
-	hasActiveColumn: false,
 	hasActiveSection: false,
+	activeSectionId: null,
+	hasActiveColumn: false,
+	activeColumnId: null,
 	canInsertColumn: false
 };
 
@@ -451,17 +453,6 @@ export function setActiveSegment(hasSegment, segmentId = null) {
 }
 
 /**
- * Set active split state
- * @param {boolean} hasSplit - Whether a split is currently active
- */
-export function setActiveSplit(hasSplit) {
-	toolbarStateStore.update(state => ({
-		...state,
-		hasActiveSplit: hasSplit
-	}));
-}
-
-/**
  * Set Insert Column availability state
  * @param {boolean} canInsert - Whether Insert Column should be enabled
  */
@@ -475,21 +466,25 @@ export function setCanInsertColumn(canInsert) {
 /**
  * Set active column state
  * @param {boolean} hasColumn - Whether a column is currently active
+ * @param {string|null} columnId - The ID of the active column (optional)
  */
-export function setActiveColumn(hasColumn) {
+export function setActiveColumn(hasColumn, columnId = null) {
 	toolbarStateStore.update(state => ({
 		...state,
-		hasActiveColumn: hasColumn
+		hasActiveColumn: hasColumn,
+		activeColumnId: columnId
 	}));
 }
 
 /**
  * Set active section state
  * @param {boolean} hasSection - Whether a section is currently active
+ * @param {string|null} sectionId - The ID of the active section (optional)
  */
-export function setActiveSection(hasSection) {
+export function setActiveSection(hasSection, sectionId = null) {
 	toolbarStateStore.update(state => ({
 		...state,
-		hasActiveSection: hasSection
+		hasActiveSection: hasSection,
+		activeSectionId: sectionId
 	}));
 }

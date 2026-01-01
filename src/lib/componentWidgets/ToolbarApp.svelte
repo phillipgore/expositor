@@ -94,6 +94,58 @@
 		}
 	}
 
+	/**
+	 * Handle color selection from MenuColor
+	 * Supports both column mode (bulk update all sections) and section mode (single section)
+	 * @param {string} colorId - The selected color ID (e.g., "red", "blue")
+	 */
+	async function handleColorChange(colorId) {
+		// Determine if we're in column or section mode
+		const isColumnMode = $toolbarState.activeColumnId !== null;
+		const isSectionMode = $toolbarState.activeSectionId !== null;
+
+		if (!isColumnMode && !isSectionMode) {
+			console.error('No active column or section ID');
+			return;
+		}
+
+		try {
+			let response;
+			
+			if (isColumnMode) {
+				// Column mode: update all sections in the column
+				console.log('Updating all sections in column:', $toolbarState.activeColumnId);
+				response = await fetch(`/api/passages/columns/${$toolbarState.activeColumnId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ color: colorId })
+				});
+			} else {
+				// Section mode: update single section
+				console.log('Updating single section:', $toolbarState.activeSectionId);
+				response = await fetch(`/api/passages/sections/${$toolbarState.activeSectionId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ color: colorId })
+				});
+			}
+
+			if (response.ok) {
+				const mode = isColumnMode ? 'Column sections' : 'Section';
+				console.log(`${mode} color updated successfully`);
+				// Refresh data to show the new color
+				await invalidate('app:studies');
+			} else {
+				const error = await response.json();
+				console.error('Update color error:', error);
+				alert(`Error: ${error.error || 'Failed to update color'}`);
+			}
+		} catch (error) {
+			console.error('Update color network error:', error);
+			alert(`Error: ${error.message || 'Failed to update color'}`);
+		}
+	}
+
 	// Modal state
 	let showDeleteModal = $state(false);
 	let deleteOpenedViaKeyboard = $state(false);
@@ -386,7 +438,7 @@
 <MenuStructure menuId="MenuStructure" />
 <MenuOutline menuId="MenuOutline" />
 <MenuLiterary menuId="MenuLiterary" />
-<MenuColor menuId="MenuColor" />
+<MenuColor menuId="MenuColor" onselect={handleColorChange} />
 <MenuSettings menuId="MenuSettings" alignment="end" />
 <MenuView menuId="MenuView" />
 <MenuActions 

@@ -262,14 +262,14 @@
 		margin: 0.0rem;
 		border: 0.1rem solid;
 		color: var(--white);
-		background-color: var(--split-darker);
-		border-color: var(--split-darker);
+		background-color: var(--section-darker);
+		border-color: var(--section-darker);
 		line-height: 1.5;
 	}
 
-	/* Heading One rounded top corners for first segment in split */
-	:global(.split .segment:first-child) .heading-one,
-	:global(.split .segment:first-child) .heading-one-input {
+	/* Heading One rounded top corners for first segment in section */
+	:global(.section .segment:first-child) .heading-one,
+	:global(.section .segment:first-child) .heading-one-input {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
@@ -284,9 +284,9 @@
 		border-bottom: 0.1rem solid;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
-		background-color: var(--split-lighter);
-		color: var(--split-darker);
-		border-color: var(--split-dark);
+		background-color: var(--section-lighter);
+		color: var(--section-darker);
+		border-color: var(--section-dark);
 		line-height: 1.5;
 	}
 
@@ -300,7 +300,7 @@
 		padding: 0.9rem 0.9rem 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
-		border-color: var(--split-dark);
+		border-color: var(--section-dark);
 		line-height: 1.5;
 	}
 
@@ -308,7 +308,7 @@
 	:global(.segment:first-child .no-headings) .heading-two,
 	:global(.segment:first-child .no-headings) .heading-two-input :global(input) {
 		border-top: 0.1rem solid !important;
-		border-color: var(--split-dark) !important;
+		border-color: var(--section-dark) !important;
 		border-top-right-radius: 0.3rem !important;
 		border-top-left-radius: 0.3rem !important;
 	}
@@ -316,7 +316,7 @@
 	:global(.segment:first-child .no-headings) .heading-three,
 	:global(.segment:first-child .no-headings) .heading-three-input :global(input) {
 		border-top: 0.1rem solid !important;
-		border-color: var(--split-dark) !important;
+		border-color: var(--section-dark) !important;
 		border-top-right-radius: 0.3rem !important;
 		border-top-left-radius: 0.3rem !important;
 	}
