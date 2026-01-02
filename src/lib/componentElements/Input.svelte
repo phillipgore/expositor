@@ -168,8 +168,8 @@
 	input.heading-three-input {
 		font-size: 1.2rem;
 		font-weight: 700;
-		padding: 0.9rem 0.9rem 0.0rem;
-		margin: 0.0rem 0.0rem -0.1rem;
+		padding: 0.5rem 0.9rem 0.5rem;
+		margin: 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-top: 0rem;

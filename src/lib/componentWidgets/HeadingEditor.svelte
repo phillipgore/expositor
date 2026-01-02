@@ -281,6 +281,7 @@
 		background-color: var(--section-darker);
 		border-color: var(--section-darker);
 		line-height: 1.5;
+		transition: border 0.2s ease-in-out;
 	}
 
 	/* Clickable heading styles */
@@ -300,7 +301,7 @@
 
 	.heading-three.clickable:hover {
 		border-bottom: 0.1rem dashed var(--section-dark);
-		margin-bottom: -0.1rem;
+		padding: 0.5rem 0.9rem 0.5rem;
 	}
 
 	/* Heading One rounded top corners for first segment in section */
@@ -324,6 +325,7 @@
 		color: var(--section-darker);
 		border-color: var(--section-dark);
 		line-height: 1.5;
+		transition: border 0.2s ease-in-out;
 	}
 
 	/* Heading Three Display */
@@ -333,11 +335,13 @@
 		font-size: 1.2rem;
 		font-weight: 700;
 		margin: 0.0rem;
-		padding: 0.9rem 0.9rem 0.0rem;
+		padding: 0.9rem 0.9rem 0.1rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-color: var(--section-dark);
 		line-height: 1.5;
+		border-bottom: 0.1rem dashed transparent;
+		transition: padding 0.2s ease-in-out, border 0.2s ease-in-out, margin 0.2s ease-in-out;
 	}
 
 	/* No-headings styles (when heading appears at top of segment without prior headings) */

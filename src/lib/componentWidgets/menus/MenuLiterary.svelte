@@ -40,6 +40,17 @@
 <Menu {menuId} ariaLabel="Literary devices menu">
 	<IconButton
 		classes="menu-light justify-content-left"
+		iconId="connect"
+		label="Connect"
+		role="menuitem"
+		handleClick={closeMenu}
+		isDisabled={!$toolbarState.canUseLiteraryItems}
+	/>
+	
+	<DividerHorizontal />
+	
+	<IconButton
+		classes="menu-light justify-content-left"
 		iconId="literary-chiasm"
 		label="Chiasm"
 		role="menuitem"
