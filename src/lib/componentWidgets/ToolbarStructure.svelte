@@ -107,7 +107,7 @@
 			handleClick={handleColumnSelect}
 		/>
 		<IconButton
-			iconId="split"
+			iconId="outline-section"
 			classes="passage-toolbar"
 			title="Section Select"
 			isSquare
