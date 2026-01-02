@@ -68,7 +68,7 @@
 				{:else if passageText.text}
 					<div class="passage-section">
 						<h2 class="passage-reference">{passageText.reference}</h2>
-						<div class="passage-text">{passageText.text}</div>
+						<div class="passage-text">{@html passageText.text}</div>
 					</div>
 				{/if}
 			{/each}

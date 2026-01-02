@@ -160,6 +160,15 @@
 			handleCancel();
 		}
 	});
+
+	/**
+	 * Handle note click to enter edit mode
+	 */
+	function handleNoteClick() {
+		if (isActive && !isInputMode) {
+			isInputMode = true;
+		}
+	}
 </script>
 
 <div class="note-container">
@@ -174,7 +183,13 @@
 			/>
 		</div>
 	{:else if displayValue}
-		<div class="note">
+		<div 
+			class="note"
+			class:clickable={isActive}
+			onclick={handleNoteClick}
+			role="button"
+			tabindex={isActive ? 0 : -1}
+		>
 			{displayValue}
 		</div>
 	{/if}
@@ -237,6 +252,16 @@
 		word-wrap: break-word;
 	}
 
+	/* Clickable note styles */
+	.note.clickable {
+		cursor: pointer;
+	}
+
+	.note.clickable:hover {
+		border-top: 0.1rem dashed var(--gray);
+		margin-top: -0.1rem;
+	}
+
 	/* Note Input */
 	.note-input {
 		position: relative;
@@ -251,7 +276,7 @@
 		font-weight: 700;
 		line-height: 1.5;
 		padding: 0.6rem 0.9rem;
-		margin: 0.0rem;
+		margin: -0.1rem 0.0rem 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
@@ -266,6 +291,7 @@
 		display: block;
 		resize: none;
 		min-height: 3.1rem;
+		border-top: 0.1rem dashed var(--gray);
 	}
 
 	.note-input :global(textarea:focus) {

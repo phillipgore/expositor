@@ -97,6 +97,18 @@
 		}
 	}
 
+	/**
+	 * Handle clicks on segment to exit heading edit mode
+	 */
+	function handleSegmentClick() {
+		// If any heading is in input mode, cancel it
+		if (anyHeadingInputActive) {
+			headingOneInputMode = false;
+			headingTwoInputMode = false;
+			headingThreeInputMode = false;
+		}
+	}
+
 	// Listen for custom events
 	onMount(() => {
 		window.addEventListener('insert-heading-one', handleInsertHeadingOne);
@@ -157,7 +169,7 @@
 		{isActive}
 	/>
 	
-	<div class="text" class:no-headings={!hasAnyHeadings}>
+	<div class="text" class:no-headings={!hasAnyHeadings} onclick={handleSegmentClick}>
 		{#if wrapWordsInHtml}
 			{@html wrapWordsInHtml(text, passageIndex)}
 		{:else}

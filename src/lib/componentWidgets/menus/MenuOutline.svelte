@@ -40,38 +40,38 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one"
-		label="Heading One"
+		label="Insert Heading One"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
 			// Trigger insert heading one event via custom event
 			window.dispatchEvent(new CustomEvent('insert-heading-one-from-menu'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingOne}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-two"
-		label="Heading Two"
+		label="Insert Heading Two"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
 			// Trigger insert heading two event via custom event
 			window.dispatchEvent(new CustomEvent('insert-heading-two-from-menu'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingTwo}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-three"
-		label="Heading Three"
+		label="Insert Heading Three"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
 			// Trigger insert heading three event via custom event
 			window.dispatchEvent(new CustomEvent('insert-heading-three-from-menu'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingThree}
 	/>
 
 	<DividerHorizontal />
@@ -79,7 +79,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note"
-		label="Note"
+		label="Insert Note"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -90,6 +90,6 @@
 			// Trigger insert note event via custom event
 			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasNote}
 	/>
 </Menu>

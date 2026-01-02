@@ -38,7 +38,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one"
-		label="Heading One"
+		label="Insert Heading One"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseHeadingItems}
@@ -46,7 +46,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-two"
-		label="Heading Two"
+		label="Insert Heading Two"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseHeadingItems}
@@ -54,7 +54,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-three"
-		label="Heading Three"
+		label="Insert Heading Three"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseHeadingItems}

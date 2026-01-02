@@ -57,6 +57,10 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {string|null} activeSegmentId - The ID of the currently active segment
+ * @property {boolean} activeSegmentHasHeadingOne - Whether active segment has a heading one
+ * @property {boolean} activeSegmentHasHeadingTwo - Whether active segment has a heading two
+ * @property {boolean} activeSegmentHasHeadingThree - Whether active segment has a heading three
+ * @property {boolean} activeSegmentHasNote - Whether active segment has a note
  * @property {boolean} hasActiveSection - Whether a section is currently active (for color mode)
  * @property {string|null} activeSectionId - The ID of the currently active section
  * @property {boolean} hasActiveColumn - Whether a column is currently active
@@ -98,6 +102,10 @@ const defaultState = {
 	hasWordSelection: false,
 	hasActiveSegment: false,
 	activeSegmentId: null,
+	activeSegmentHasHeadingOne: false,
+	activeSegmentHasHeadingTwo: false,
+	activeSegmentHasHeadingThree: false,
+	activeSegmentHasNote: false,
 	hasActiveSection: false,
 	activeSectionId: null,
 	hasActiveColumn: false,
@@ -443,12 +451,21 @@ export function setWordSelection(hasSelection) {
  * Set active segment state
  * @param {boolean} hasSegment - Whether a segment is currently active
  * @param {string|null} segmentId - The ID of the active segment (optional)
+ * @param {Object} [options] - Optional segment status information
+ * @param {boolean} [options.hasHeadingOne] - Whether segment has heading one
+ * @param {boolean} [options.hasHeadingTwo] - Whether segment has heading two
+ * @param {boolean} [options.hasHeadingThree] - Whether segment has heading three
+ * @param {boolean} [options.hasNote] - Whether segment has a note
  */
-export function setActiveSegment(hasSegment, segmentId = null) {
+export function setActiveSegment(hasSegment, segmentId = null, options) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveSegment: hasSegment,
-		activeSegmentId: segmentId
+		activeSegmentId: segmentId,
+		activeSegmentHasHeadingOne: options?.hasHeadingOne || false,
+		activeSegmentHasHeadingTwo: options?.hasHeadingTwo || false,
+		activeSegmentHasHeadingThree: options?.hasHeadingThree || false,
+		activeSegmentHasNote: options?.hasNote || false
 	}));
 }
 

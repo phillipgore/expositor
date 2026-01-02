@@ -66,7 +66,28 @@
 		if (activeSegment && activeSegment.segmentId && !activeColumn && !activeSection) {
 			// Only set active segment in store when in pure segment mode (not column/section mode)
 			console.log('[SYNC] Sending segment ID to store:', activeSegment.segmentId);
-			setActiveSegment(true, activeSegment.segmentId);
+			
+			// Look up segment data to pass heading/note status
+			const segmentElement = document.querySelector(`[data-segment-id="${activeSegment.segmentId}"]`);
+			let hasHeadingOne = false;
+			let hasHeadingTwo = false;
+			let hasHeadingThree = false;
+			let hasNote = false;
+			
+			if (segmentElement) {
+				// Check for heading elements in the DOM
+				hasHeadingOne = !!segmentElement.querySelector('.heading-one, .heading-one-input');
+				hasHeadingTwo = !!segmentElement.querySelector('.heading-two, .heading-two-input');
+				hasHeadingThree = !!segmentElement.querySelector('.heading-three, .heading-three-input');
+				hasNote = !!segmentElement.querySelector('.note, .note-input');
+			}
+			
+			setActiveSegment(true, activeSegment.segmentId, {
+				hasHeadingOne,
+				hasHeadingTwo,
+				hasHeadingThree,
+				hasNote
+			});
 		} else {
 			console.log('[SYNC] Clearing active segment from store');
 			setActiveSegment(false, null);
@@ -1483,7 +1504,7 @@
 		/* min-height: 4.8rem; */
 	}
 
-	.study-header :global(.heading.has-sub) {
+	.study-header :global(.heading) {
 		margin: 0.0rem;
 		padding: 0.0rem;
 		line-height: 1.2;

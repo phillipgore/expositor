@@ -198,6 +198,15 @@
 			handleCancel();
 		}
 	});
+
+	/**
+	 * Handle heading click to enter edit mode
+	 */
+	function handleHeadingClick() {
+		if (isActive && !isInputMode) {
+			isInputMode = true;
+		}
+	}
 </script>
 
 <div class="{config.class}-container">
@@ -210,7 +219,14 @@
 			onkeydown={handleInputKeyDown}
 		/>
 	{:else if displayValue}
-		<svelte:element this={config.tag} class={config.class}>
+		<svelte:element 
+			this={config.tag} 
+			class={config.class}
+			class:clickable={isActive}
+			onclick={handleHeadingClick}
+			role="button"
+			tabindex={isActive ? 0 : -1}
+		>
 			{displayValue}
 		</svelte:element>
 	{/if}
@@ -265,6 +281,26 @@
 		background-color: var(--section-darker);
 		border-color: var(--section-darker);
 		line-height: 1.5;
+	}
+
+	/* Clickable heading styles */
+	.heading-one.clickable,
+	.heading-two.clickable,
+	.heading-three.clickable {
+		cursor: pointer;
+	}
+
+	.heading-one.clickable:hover {
+		border-bottom: 0.1rem dashed var(--section-lighter);
+	}
+
+	.heading-two.clickable:hover {
+		border-bottom: 0.1rem dashed var(--section-dark);
+	}
+
+	.heading-three.clickable:hover {
+		border-bottom: 0.1rem dashed var(--section-dark);
+		margin-bottom: -0.1rem;
 	}
 
 	/* Heading One rounded top corners for first segment in section */
