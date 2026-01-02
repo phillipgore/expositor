@@ -252,7 +252,7 @@
 	:global(.section) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three),
 	:global(.section) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three-input input) {
 		border-top: 0.1rem solid;
-		border-color: var(--section-dark);
+		border-top-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}

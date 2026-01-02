@@ -336,9 +336,8 @@
 		font-weight: 700;
 		margin: 0.0rem;
 		padding: 0.9rem 0.9rem 0.1rem;
-		border-right: 0.1rem solid;
-		border-left: 0.1rem solid;
-		border-color: var(--section-dark);
+		border-right: 0.1rem solid var(--section-dark);
+		border-left: 0.1rem solid var(--section-dark);
 		line-height: 1.5;
 		border-bottom: 0.1rem dashed transparent;
 		transition: padding 0.2s ease-in-out, border 0.2s ease-in-out, margin 0.2s ease-in-out;
@@ -356,7 +355,7 @@
 	:global(.segment:first-child .no-headings) .heading-three,
 	:global(.segment:first-child .no-headings) .heading-three-input :global(input) {
 		border-top: 0.1rem solid !important;
-		border-color: var(--section-dark) !important;
+		border-top-color: var(--section-dark) !important;
 		border-top-right-radius: 0.3rem !important;
 		border-top-left-radius: 0.3rem !important;
 	}
