@@ -1,0 +1,399 @@
+[
+  {
+    "_id": "literary-structures",
+    "title": "Literary Structures",
+    "terms": [
+      {
+        "_id": "ls-acrostic",
+        "term": "Acrostic",
+        "definition": "A poetic device where successive lines, pairs of lines, or stanzas begin with consecutive letters of the Hebrew alphabet. Found in Psalm 119 and Lamentations 1-4, this structure aided memorization in oral cultures."
+      },
+      {
+        "_id": "ls-chiasm",
+        "term": "Chiasm (Chiasmus)",
+        "definition": "A figure of speech where clauses are related through reversal of their structure in an inverted parallel pattern (A-B-C-B'-A'). The central element (C) often contains the main point. Named after the Greek letter chi (χ).",
+        "example": "Whoever sheds man's blood, by man his blood shall be shed (Genesis 9:6)"
+      },
+      {
+        "_id": "ls-climax",
+        "term": "Climax",
+        "definition": "A text that builds progressively to a high point, with each element increasing in force or meaning, often moving from lesser to greater or from physical to spiritual realities."
+      },
+      {
+        "_id": "ls-epic",
+        "term": "Epic",
+        "definition": "A long narrative, often in elevated style, combining many episodes. The Exodus account (Exodus through Deuteronomy) functions as a biblical epic, though uniquely focused on God's acts rather than human exploits."
+      },
+      {
+        "_id": "ls-inclusio",
+        "term": "Inclusio (Bracketing)",
+        "definition": "Beginning and ending a passage with similar or identical phrases to mark boundaries and emphasize themes.",
+        "example": "Psalm 8 begins and ends with 'O LORD, our Lord, how majestic is your name in all the earth!'"
+      },
+      {
+        "_id": "ls-intensification",
+        "term": "Intensification (Climactic Parallelism)",
+        "definition": "Building progression where each line increases in force or meaning, creating a sense of mounting importance or urgency."
+      },
+      {
+        "_id": "ls-parallelism",
+        "term": "Parallelism",
+        "definition": "The hallmark of Hebrew poetry, where lines echo, contrast, or build upon each other",
+        "subtypes": [
+          {
+            "_id": "ls-parallelism-synonymous",
+            "type": "Synonymous Parallelism",
+            "description": "The second line restates the first in different words"
+          },
+          {
+            "_id": "ls-parallelism-antithetic",
+            "type": "Antithetic Parallelism",
+            "description": "The second line contrasts with the first"
+          },
+          {
+            "_id": "ls-parallelism-synthetic",
+            "type": "Synthetic Parallelism",
+            "description": "The second line builds upon or completes the first"
+          }
+        ]
+      },
+      {
+        "_id": "ls-refrain",
+        "term": "Refrain",
+        "definition": "Regular repetition of a line or phrase in poetry to mark sections.",
+        "example": "The repeated phrase in Psalm 136, 'His love endures forever'"
+      },
+      {
+        "_id": "ls-ring-composition",
+        "term": "Ring Composition",
+        "definition": "A narrative or argument that circles back to its beginning, often on a larger scale than chiasm, creating a sense of completeness."
+      },
+      {
+        "_id": "ls-type-scene",
+        "term": "Type Scene",
+        "definition": "Recurring narrative patterns used to convey familiar situations.",
+        "examples": "Betrothal stories at wells (Genesis 24, 29; Exodus 2) or annunciation narratives"
+      }
+    ]
+  },
+  {
+    "_id": "figures-of-speech",
+    "title": "Figures of Speech",
+    "terms": [
+      {
+        "_id": "fos-allegory",
+        "term": "Allegory",
+        "definition": "An extended metaphor where elements systematically correspond to other meanings. The entire narrative operates on both literal and symbolic levels."
+      },
+      {
+        "_id": "fos-alliteration",
+        "term": "Alliteration",
+        "definition": "Repetition of the same initial sounds of adjacent or nearby words, used for narrative effect. Often only visible in the original Hebrew, Aramaic, or Greek."
+      },
+      {
+        "_id": "fos-allusion",
+        "term": "Allusion",
+        "definition": "An indirect reference to something understood from personal or cultural context.",
+        "example": "John 8:58, 'Before Abraham was, I AM' alludes to Exodus 3:14"
+      },
+      {
+        "_id": "fos-anthropomorphism",
+        "term": "Anthropomorphism",
+        "definition": "Attribution of human bodily characteristics to God (hands, eyes, feet, walking). Helps finite humans understand an infinite God. Distinguished from theophany (actual divine appearance in human form)."
+      },
+      {
+        "_id": "fos-anthropopathism",
+        "term": "Anthropopathism",
+        "definition": "Attribution of human emotions or passions to God (anger, joy, regret, jealousy). A subset of anthropomorphism focusing specifically on feelings and psychological states."
+      },
+      {
+        "_id": "fos-assonance",
+        "term": "Assonance",
+        "definition": "Repetition of the same internal sounds of adjacent or nearby words, used for narrative effect. Primarily recognizable in original languages."
+      },
+      {
+        "_id": "fos-euphemism",
+        "term": "Euphemism",
+        "definition": "Indirect expression for something considered indelicate or sensitive.",
+        "examples": "'knew his wife' for sexual relations, 'uncovered nakedness,' 'feet' as euphemism for genitals"
+      },
+      {
+        "_id": "fos-hyperbole",
+        "term": "Hyperbole",
+        "definition": "Intentional exaggeration for emphasis or rhetorical effect.",
+        "examples": "'If your right eye causes you to sin, pluck it out' (Matthew 5:29), 'easier for a camel to go through the eye of a needle' (Matthew 19:24)"
+      },
+      {
+        "_id": "fos-hypocatastasis",
+        "term": "Hypocatastasis",
+        "definition": "An implied comparison without using 'like' or 'as' and without explicitly stating both elements being compared. More subtle than direct metaphor."
+      },
+      {
+        "_id": "fos-idiom",
+        "term": "Idiom",
+        "definition": "An expression whose meaning differs from its literal words, unique to a particular language and culture.",
+        "examples": "'kick against the goads,' 'gird up your loins,' 'heap coals of fire'"
+      },
+      {
+        "_id": "fos-irony",
+        "term": "Irony",
+        "definition": "Saying one thing but meaning another, often for dramatic effect.",
+        "example": "Elijah mocking the prophets of Baal, 'Perhaps he is sleeping' (1 Kings 18:27)"
+      },
+      {
+        "_id": "fos-litotes",
+        "term": "Litotes",
+        "definition": "Deliberate understatement for effect, often using negative construction.",
+        "example": "Paul calling himself 'not inferior to the most eminent apostles' (2 Corinthians 11:5)"
+      },
+      {
+        "_id": "fos-merism",
+        "term": "Merism (Merismus)",
+        "definition": "Expressing totality by naming opposite extremes or polar pairs.",
+        "examples": "'heaven and earth' = universe (Genesis 1:1), 'evening and morning' = whole day, 'searched me and known me, sitting down and rising up' = all activities (Psalm 139)"
+      },
+      {
+        "_id": "fos-metaphor",
+        "term": "Metaphor",
+        "definition": "Direct comparison without 'like' or 'as'.",
+        "examples": "'The LORD is my shepherd' (Psalm 23:1), 'You are the salt of the earth' (Matthew 5:13)"
+      },
+      {
+        "_id": "fos-metonymy",
+        "term": "Metonymy",
+        "definition": "Substituting an associated term for the thing meant. A trope of association where one term stands for another typically broader term.",
+        "examples": "'the crown' for the king, 'the sword' for war, 'blood' for death or life, 'Red Sea' evoking the exodus event"
+      },
+      {
+        "_id": "fos-parable",
+        "term": "Parable",
+        "definition": "Short narrative with a spiritual or moral lesson, often using everyday situations to illustrate deeper truths. May serve as illustrations but not standalone doctrine."
+      },
+      {
+        "_id": "fos-personification",
+        "term": "Personification",
+        "definition": "Giving human qualities to non-human things.",
+        "examples": "'Wisdom calls out in the streets' (Proverbs 1:20), 'Let the mountains sing' (Psalm 98:8)"
+      },
+      {
+        "_id": "fos-proverb",
+        "term": "Proverb (Mashal)",
+        "definition": "Short, memorable saying expressing general truth or wisdom, characteristic of wisdom literature."
+      },
+      {
+        "_id": "fos-simile",
+        "term": "Simile",
+        "definition": "Comparison using 'like' or 'as'.",
+        "example": "'He will be like a tree planted by streams of water' (Psalm 1:3)"
+      },
+      {
+        "_id": "fos-symbolism",
+        "term": "Symbolism",
+        "definition": "Objects or actions representing deeper realities (bread and wine, lamb, water, light and darkness). The physical represents spiritual truth."
+      },
+      {
+        "_id": "fos-synecdoche",
+        "term": "Synecdoche",
+        "definition": "A subcategory of metonymy using a part to represent the whole or vice versa.",
+        "examples": "'all flesh' = all people, 'daily bread' = all food, 'give us this day our daily bread' includes all necessities",
+        "note": "Also called 'eponymy' when an individual stands for a nation (Jacob for Israel)"
+      },
+      {
+        "_id": "fos-type-typology",
+        "term": "Type/Typology",
+        "definition": "A person, event, or thing in the Old Testament that prefigures another in the New Testament.",
+        "example": "The bronze serpent (Numbers 21:9) as a type of the Cross (John 3:14-15)"
+      }
+    ]
+  },
+  {
+    "_id": "rhetorical-devices",
+    "title": "Rhetorical Devices",
+    "terms": [
+      {
+        "_id": "rd-apostrophe",
+        "term": "Apostrophe",
+        "definition": "Directly addressing absent persons, abstract concepts, or inanimate objects.",
+        "examples": "'O death, where is your sting?' (1 Corinthians 15:55), 'O Jerusalem, Jerusalem' (Matthew 23:37)"
+      },
+      {
+        "_id": "rd-beatitude",
+        "term": "Beatitude",
+        "definition": "'Blessed is/are...' statements expressing divine favor. Prominent in Jesus' Sermon on the Mount (Matthew 5:3-11)."
+      },
+      {
+        "_id": "rd-lesser-to-greater",
+        "term": "Lesser to Greater (Qal Wahomer)",
+        "definition": "Making an inference based on an already established lesser reality to prove a greater one.",
+        "example": "'If God so clothes the grass of the field...will he not much more clothe you?' (Matthew 6:30)"
+      },
+      {
+        "_id": "rd-greater-to-lesser",
+        "term": "Greater to Lesser",
+        "definition": "Making an inference from a greater established reality to a lesser one."
+      },
+      {
+        "_id": "rd-rhetorical-question",
+        "term": "Rhetorical Question",
+        "definition": "Question asked for effect rather than information.",
+        "examples": "'How long, O LORD?' (Psalm 13:1), 'Shall we continue in sin?' (Romans 6:1), 'What is man that you are mindful of him?' (Psalm 8:4)"
+      },
+      {
+        "_id": "rd-woe-oracle",
+        "term": "Woe Oracle",
+        "definition": "'Woe to...' statements pronouncing judgment or warning. Common in prophetic literature."
+      }
+    ]
+  },
+  {
+    "_id": "narrative-elements",
+    "title": "Narrative Elements",
+    "terms": [
+      {
+        "_id": "ne-comparison",
+        "term": "Comparison",
+        "definition": "Showing two or more things to be similar, helping readers understand one thing in terms of another."
+      },
+      {
+        "_id": "ne-contrast",
+        "term": "Contrast",
+        "definition": "Showing two or more things to be different from one another, often using 'but' to highlight differences."
+      },
+      {
+        "_id": "ne-dialogue",
+        "term": "Dialogue",
+        "definition": "Direct speech between characters. In biblical narrative, everything gravitates toward dialogue, which carries the theme forward."
+      },
+      {
+        "_id": "ne-explanation-analysis",
+        "term": "Explanation/Analysis",
+        "definition": "Presenting an idea or event followed by its interpretation, helping readers understand significance."
+      },
+      {
+        "_id": "ne-point-of-view",
+        "term": "Point of View",
+        "definition": "The perspective from which a narrative is told, revealing the author's intended emphasis and theological message."
+      },
+      {
+        "_id": "ne-preparation-introduction",
+        "term": "Preparation/Introduction",
+        "definition": "Background or setting for events or ideas that will be presented, providing necessary context."
+      },
+      {
+        "_id": "ne-scene",
+        "term": "Scene",
+        "definition": "The basic unit of biblical narrative, usually containing no more than two characters or groups functioning as characters. God often appears as one of the characters."
+      }
+    ]
+  },
+  {
+    "_id": "genres",
+    "title": "Genres",
+    "terms": [
+      {
+        "_id": "gn-epistle",
+        "term": "Epistle (Letter)",
+        "definition": "Correspondence addressing specific situations in early churches, containing doctrine, instruction, and pastoral care."
+      },
+      {
+        "_id": "gn-gospel",
+        "term": "Gospel",
+        "definition": "Unique literary form presenting the good news about Jesus Christ. Highly episodic and different from other ancient biographical genres."
+      },
+      {
+        "_id": "gn-law",
+        "term": "Law",
+        "definition": "Legal codes, commandments, and covenant stipulations governing Israel's relationship with God and community life."
+      },
+      {
+        "_id": "gn-narrative-history",
+        "term": "Narrative History",
+        "definition": "Story-telling that records God's redemptive work. The most common literary form in the Bible, operating on multiple levels from individual stories to the ultimate narrative of God's kingdom."
+      },
+      {
+        "_id": "gn-oratory",
+        "term": "Oratory",
+        "definition": "Speeches and sermons delivered to audiences, recorded in both testaments."
+      },
+      {
+        "_id": "gn-poetry",
+        "term": "Poetry",
+        "definition": "Uses parallelism, imagery, figurative language, and terseness rather than rhyme and meter. Found throughout Scripture, especially in Psalms, Song of Songs, and prophetic literature."
+      },
+      {
+        "_id": "gn-prophecy",
+        "term": "Prophecy",
+        "definition": "Messages from God delivered through prophets, including judgment oracles, promises of restoration, and visions of the future."
+      },
+      {
+        "_id": "gn-wisdom-literature",
+        "term": "Wisdom Literature",
+        "definition": "Practical and philosophical reflections on life, righteousness, and the fear of the Lord. Includes Job, Proverbs, Ecclesiastes."
+      }
+    ]
+  },
+  {
+    "_id": "hermeneutical-terms",
+    "title": "Hermeneutical Terms",
+    "terms": [
+      {
+        "_id": "ht-exegesis",
+        "term": "Exegesis",
+        "definition": "The process of explaining or drawing out the meaning of a text. Critical analysis to determine what the original author intended to communicate."
+      },
+      {
+        "_id": "ht-hermeneutics",
+        "term": "Hermeneutics",
+        "definition": "The science and art of biblical interpretation. The principles and methods used to understand and apply Scripture correctly."
+      },
+      {
+        "_id": "ht-historical-grammatical-method",
+        "term": "Historical-Grammatical Method",
+        "definition": "Interpretive approach that seeks the meaning intended by the original author through examining the historical context and grammatical structure."
+      },
+      {
+        "_id": "ht-literal-meaning",
+        "term": "Literal Meaning",
+        "definition": "The normal or customary usage of a word or expression. The plain meaning intended by the author within its genre and context."
+      },
+      {
+        "_id": "ht-figurative-meaning",
+        "term": "Figurative Meaning",
+        "definition": "Meaning that refers to a concept represented in terms of another, departing from literal usage for rhetorical or theological purposes."
+      },
+      {
+        "_id": "ht-literary-context",
+        "term": "Literary Context",
+        "definition": "The surrounding text that helps determine how a passage should be interpreted. Includes the verses before and after, the chapter, the book, and the broader biblical narrative."
+      },
+      {
+        "_id": "ht-theophany",
+        "term": "Theophany",
+        "definition": "An appearance of God in visible, often human form. Distinguished from anthropomorphism, which is figurative language. Examples include God's appearance to Abraham (Genesis 18) and Moses (Exodus 3)."
+      }
+    ]
+  },
+  {
+    "_id": "specialized-terms",
+    "title": "Specialized Terms",
+    "terms": [
+      {
+        "_id": "st-apocalyptic",
+        "term": "Apocalyptic",
+        "definition": "A genre of revelatory literature using highly symbolic imagery, visions, and cosmic imagery to reveal divine mysteries about the end times and God's ultimate victory. Found in Daniel and Revelation."
+      },
+      {
+        "_id": "st-numerical-patterns",
+        "term": "Numerical Patterns",
+        "definition": "Deliberate use of numbers for symbolic or structural purposes.",
+        "examples": "'x, x+1' formula ('three things...four things' in Proverbs 30), groups of seven throughout Scripture"
+      },
+      {
+        "_id": "st-wordplay-puns",
+        "term": "Wordplay/Puns",
+        "definition": "Witty use of word meanings and ambiguities, often visible only in original languages.",
+        "example": "'Adam' from 'adamah' (man from ground)"
+      }
+    ]
+  }
+]
