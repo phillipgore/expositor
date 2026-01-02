@@ -122,7 +122,7 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'menu',
-					iconId: 'outline-unit',
+					iconId: 'outline',
 					menuId: 'MenuOutline',
 					underLabel: 'Outline',
 					classes: 'toolbar-dark',

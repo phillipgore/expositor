@@ -564,7 +564,7 @@
 				title="Bullet List"
 				aria-label="Bullet List"
 			>
-				<Icon iconId="outline" />
+				<Icon iconId="outline-bulleted" />
 			</button>
 			<button
 				use:tooltip

@@ -38,7 +38,7 @@
 	 * Toolbar toggle with under-label:
 	 * ```svelte
 	 * <ToggleButton 
-	 *   iconId="outline" 
+	 *   iconId="outline-bulleted" 
 	 *   underLabel="Overview"
 	 *   underLabelClasses="light"
 	 *   classes="toolbar-dark"

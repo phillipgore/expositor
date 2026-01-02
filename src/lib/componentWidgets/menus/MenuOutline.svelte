@@ -7,7 +7,7 @@
 	 * 
 	 * Usage:
 	 * ```
-	 * <MenuButton menuId="MenuOutline" iconId="outline" label="Outline" />
+	 * <MenuButton menuId="MenuOutline" iconId="outline-bulleted" label="Outline" />
 	 * <MenuOutline menuId="MenuOutline" />
 	 * ```
 	 * 

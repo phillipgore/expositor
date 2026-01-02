@@ -41,7 +41,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="connect"
-		label="Connect"
+		label="Connection"
 		role="menuitem"
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.canUseLiteraryItems}

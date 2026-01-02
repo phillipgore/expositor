@@ -9,7 +9,7 @@
 	 * 
 	 * Usage:
 	 * ```
-	 * <MenuButton menuId="MenuView" iconId="outline" label="View" />
+	 * <MenuButton menuId="MenuView" iconId="outline-bulleted" label="View" />
 	 * <MenuView menuId="MenuView" />
 	 * ```
 	 * 
@@ -68,7 +68,7 @@
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="outline"
+		iconId="outline-bulleted"
 		label="Overview"
 		role="menuitem"
 		handleClick={closeMenu}
