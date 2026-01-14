@@ -4,6 +4,7 @@
 	import { slide } from 'svelte/transition';
 	import Input from '$lib/componentElements/Input.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
+	import { toolbarState, setActiveSegment } from '$lib/stores/toolbar.js';
 
 	let { 
 		headingType = 'one', // 'one', 'two', or 'three'
@@ -134,12 +135,26 @@
 				await invalidate('app:studies');
 				// Clear optimistic state once real data arrives
 				optimisticValue = undefined;
+				
+				// Update toolbar state immediately to reflect heading removal
+				const updatedOptions = {
+					hasHeadingOne: headingType === 'one' ? false : $toolbarState.activeSegmentHasHeadingOne,
+					hasHeadingTwo: headingType === 'two' ? false : $toolbarState.activeSegmentHasHeadingTwo,
+					hasHeadingThree: headingType === 'three' ? false : $toolbarState.activeSegmentHasHeadingThree,
+					hasNote: $toolbarState.activeSegmentHasNote
+				};
+				setActiveSegment(true, segmentId, updatedOptions);
+				
+				// Dispatch success event
+				window.dispatchEvent(new CustomEvent(`remove-heading-${headingType}-success`));
 			} else {
 				const error = await response.json();
 				console.error('Delete heading error:', error);
 				// Revert optimistic update on error
 				optimisticValue = undefined;
 				isInputMode = true;
+				// Dispatch failure event
+				window.dispatchEvent(new CustomEvent(`remove-heading-${headingType}-failure`));
 				alert(`Error: ${error.error || 'Failed to delete heading'}`);
 			}
 		} catch (error) {
@@ -147,6 +162,8 @@
 			// Revert optimistic update on error
 			optimisticValue = undefined;
 			isInputMode = true;
+			// Dispatch failure event
+			window.dispatchEvent(new CustomEvent(`remove-heading-${headingType}-failure`));
 			alert(`Error: ${error.message || 'Failed to delete heading'}`);
 		}
 	}
@@ -207,6 +224,27 @@
 			isInputMode = true;
 		}
 	}
+
+	/**
+	 * Handle remove heading event from menu
+	 */
+	function handleRemoveHeading(event) {
+		if (event.detail?.segmentId === segmentId) {
+			handleDelete();
+		}
+	}
+
+	/**
+	 * Listen for remove heading events
+	 */
+	$effect(() => {
+		const eventName = `remove-heading-${headingType}`;
+		window.addEventListener(eventName, handleRemoveHeading);
+		
+		return () => {
+			window.removeEventListener(eventName, handleRemoveHeading);
+		};
+	});
 </script>
 
 <div class="{config.class}-container">
@@ -248,16 +286,6 @@
 				isSquare
 				handleClick={handleCancel}
 			/>
-			{#if headingValue}
-				<div class="toolbar-divider"></div>
-				<IconButton
-					iconId="trashcan"
-					classes="passage-toolbar"
-					title="Delete Heading"
-					isSquare
-					handleClick={handleDelete}
-				/>
-			{/if}
 		</div>
 	{/if}
 </div>

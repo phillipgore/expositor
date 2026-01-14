@@ -4,6 +4,7 @@
 	import { slide } from 'svelte/transition';
 	import Textarea from '$lib/componentElements/Textarea.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
+	import { toolbarState, setActiveSegment } from '$lib/stores/toolbar.js';
 
 	let { 
 		noteValue = null,
@@ -109,12 +110,26 @@
 				await invalidate('app:studies');
 				// Clear optimistic state once real data arrives
 				optimisticValue = undefined;
+				
+				// Update toolbar state immediately to reflect note removal
+				const updatedOptions = {
+					hasHeadingOne: $toolbarState.activeSegmentHasHeadingOne,
+					hasHeadingTwo: $toolbarState.activeSegmentHasHeadingTwo,
+					hasHeadingThree: $toolbarState.activeSegmentHasHeadingThree,
+					hasNote: false
+				};
+				setActiveSegment(true, segmentId, updatedOptions);
+				
+				// Dispatch success event
+				window.dispatchEvent(new CustomEvent('remove-note-success'));
 			} else {
 				const error = await response.json();
 				console.error('Delete note error:', error);
 				// Revert optimistic update on error
 				optimisticValue = undefined;
 				isInputMode = true;
+				// Dispatch failure event
+				window.dispatchEvent(new CustomEvent('remove-note-failure'));
 				alert(`Error: ${error.error || 'Failed to delete note'}`);
 			}
 		} catch (error) {
@@ -122,6 +137,8 @@
 			// Revert optimistic update on error
 			optimisticValue = undefined;
 			isInputMode = true;
+			// Dispatch failure event
+			window.dispatchEvent(new CustomEvent('remove-note-failure'));
 			alert(`Error: ${error.message || 'Failed to delete note'}`);
 		}
 	}
@@ -169,6 +186,26 @@
 			isInputMode = true;
 		}
 	}
+
+	/**
+	 * Handle remove note event from menu
+	 */
+	function handleRemoveNote(event) {
+		if (event.detail?.segmentId === segmentId) {
+			handleDelete();
+		}
+	}
+
+	/**
+	 * Listen for remove note events
+	 */
+	$effect(() => {
+		window.addEventListener('remove-note', handleRemoveNote);
+		
+		return () => {
+			window.removeEventListener('remove-note', handleRemoveNote);
+		};
+	});
 </script>
 
 <div class="note-container">
@@ -211,16 +248,6 @@
 				isSquare
 				handleClick={handleCancel}
 			/>
-			{#if noteValue}
-				<div class="toolbar-divider"></div>
-				<IconButton
-					iconId="trashcan"
-					classes="passage-toolbar"
-					title="Delete Note"
-					isSquare
-					handleClick={handleDelete}
-				/>
-			{/if}
 		</div>
 	{/if}
 </div>
