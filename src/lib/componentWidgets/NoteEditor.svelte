@@ -238,8 +238,8 @@
 		font-size: 1.2rem;
 		font-style: italic;
 		font-weight: 700;
-		line-height: 1.5;
-		padding: 0.6rem 0.9rem;
+		line-height: 1.6;
+		padding: 0.6rem;
 		margin: 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;

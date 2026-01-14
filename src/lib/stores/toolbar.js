@@ -31,6 +31,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canDelete - Whether Delete button should be enabled (has document open)
  * @property {boolean} canEdit - Whether Edit button should be enabled (has selected item)
  * @property {boolean} canFormat - Whether formatting buttons should be enabled (has content/selection)
+ * @property {boolean} canToggleConnections - Whether Connections toggle should be enabled
  * @property {boolean} canToggleNotes - Whether Notes toggle should be enabled (document supports notes)
  * @property {boolean} canToggleComment - Whether Comment toggle should be enabled (document supports comment)
  * @property {boolean} canToggleVerses - Whether Verses toggle should be enabled (document has verses)
@@ -40,14 +41,13 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
  * @property {boolean} canStructure - Whether Structure menu should be enabled
  * @property {boolean} canHeading - Whether Headings menu should be enabled
- * @property {boolean} canLiterary - Whether Literary menu should be enabled
  * @property {boolean} canColor - Whether Color menu should be enabled
  * @property {boolean} canUseStructureItems - Whether Structure menu items should be enabled
  * @property {boolean} canUseHeadingItems - Whether Heading menu items should be enabled
- * @property {boolean} canUseLiteraryItems - Whether Literary menu items should be enabled
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
  * @property {boolean} commentaryPanelOpen - Whether the commentary panel is open
+ * @property {boolean} connectionsVisible - Whether connections are visible
  * @property {boolean} notesVisible - Whether quick notes are visible in segments
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
@@ -76,6 +76,7 @@ const defaultState = {
 	canDelete: false,
 	canEdit: false,
 	canFormat: false,
+	canToggleConnections: false,
 	canToggleNotes: false,
 	canToggleComment: false,
 	canToggleVerses: false,
@@ -85,14 +86,13 @@ const defaultState = {
 	canZoom: false,
 	canStructure: false,
 	canHeading: false,
-	canLiterary: false,
 	canColor: false,
 	canUseStructureItems: false,
 	canUseHeadingItems: false,
-	canUseLiteraryItems: false,
 	canUseColorItems: false,
 	studiesPanelOpen: true,
 	commentaryPanelOpen: false,
+	connectionsVisible: false,
 	notesVisible: true,
 	versesVisible: false,
 	wideLayout: false,
@@ -147,6 +147,7 @@ export function updateToolbarForRoute(pathname) {
 			return {
 				...state,
 				canFormat: true,
+				canToggleConnections: true,
 				canToggleNotes: true,
 				canToggleComment: isAnalyzeRoute, // Only enable on analyze pages
 				canToggleVerses: true,
@@ -156,11 +157,9 @@ export function updateToolbarForRoute(pathname) {
 				canZoom: true,
 				canStructure: true,
 				canHeading: true,
-				canLiterary: true,
 				canColor: true,
 				canUseStructureItems: true,
 				canUseHeadingItems: true,
-				canUseLiteraryItems: true,
 				canUseColorItems: true,
 				commentaryPanelOpen: isAnalyzeRoute ? state.commentaryPanelOpen : false // Close if leaving analyze
 			};
@@ -171,6 +170,7 @@ export function updateToolbarForRoute(pathname) {
 		return {
 			...state,
 			canFormat: false,
+			canToggleConnections: false,
 			canToggleNotes: false,
 			canToggleComment: false,
 			canToggleVerses: false,
@@ -180,11 +180,9 @@ export function updateToolbarForRoute(pathname) {
 			canZoom: false,
 			canStructure: false,
 			canHeading: false,
-			canLiterary: false,
 			canColor: false,
 			canUseStructureItems: false,
 			canUseHeadingItems: false,
-			canUseLiteraryItems: false,
 			canUseColorItems: false,
 			commentaryPanelOpen: false // Close commentary panel on study-group pages
 		};
@@ -196,6 +194,7 @@ export function updateToolbarForRoute(pathname) {
 		return {
 			...state,
 			canFormat: false,
+			canToggleConnections: false,
 			canToggleNotes: false,
 			canToggleComment: false,
 			canToggleVerses: false,
@@ -205,11 +204,9 @@ export function updateToolbarForRoute(pathname) {
 			canZoom: false,
 			canStructure: true,
 			canHeading: true,
-			canLiterary: true,
 			canColor: true,
 			canUseStructureItems: false, // Menu button enabled, items disabled
 			canUseHeadingItems: false, // Menu button enabled, items disabled
-			canUseLiteraryItems: false, // Menu button enabled, items disabled
 			canUseColorItems: false, // Menu button enabled, items disabled
 			commentaryPanelOpen: false // Close commentary panel on settings/new pages
 		};
@@ -229,6 +226,7 @@ export function onDocumentOpen() {
 	toolbarStateStore.update(state => ({
 		...state,
 		canFormat: true,
+		canToggleConnections: true,
 		canToggleNotes: true,
 		canToggleComment: true,
 		canToggleVerses: true,
@@ -238,11 +236,9 @@ export function onDocumentOpen() {
 		canZoom: true,
 		canStructure: true,
 		canHeading: true,
-		canLiterary: true,
 		canColor: true,
 		canUseStructureItems: true,
 		canUseHeadingItems: true,
-		canUseLiteraryItems: true,
 		canUseColorItems: true
 	}));
 }
@@ -256,6 +252,7 @@ export function onDocumentClose() {
 	toolbarStateStore.update(state => ({
 		...state,
 		canFormat: false,
+		canToggleConnections: false,
 		canToggleNotes: false,
 		canToggleComment: false,
 		canToggleVerses: false,
@@ -265,11 +262,9 @@ export function onDocumentClose() {
 		canZoom: false,
 		canStructure: false,
 		canHeading: false,
-		canLiterary: false,
 		canColor: false,
 		canUseStructureItems: false,
 		canUseHeadingItems: false,
-		canUseLiteraryItems: false,
 		canUseColorItems: false
 	}));
 }
@@ -342,6 +337,16 @@ export async function toggleStudiesPanel() {
 	const currentState = get(toolbarStateStore);
 	const newState = !currentState.studiesPanelOpen;
 	await setStudiesPanelOpen(newState);
+}
+
+/**
+ * Toggle connections visibility
+ */
+export function toggleConnections() {
+	toolbarStateStore.update(state => ({
+		...state,
+		connectionsVisible: !state.connectionsVisible
+	}));
 }
 
 /**

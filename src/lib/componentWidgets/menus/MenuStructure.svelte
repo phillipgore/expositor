@@ -124,4 +124,21 @@
 		handleClick={closeMenu}
 		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect"
+		label="Insert Connection"
+		role="menuitem"
+		handleClick={closeMenu}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect-remove"
+		label="Remove Connection"
+		role="menuitem"
+		handleClick={closeMenu}
+	/>
 </Menu>

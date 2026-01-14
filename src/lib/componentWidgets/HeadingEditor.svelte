@@ -272,9 +272,9 @@
 
 	/* Heading One Display */
 	.heading-one {
-		font-size: 1.6rem;
+		font-size: 1.4rem;
 		text-align: center;
-		padding: 0.9rem;
+		padding: 0.6rem;
 		margin: 0.0rem;
 		border: 0.1rem solid;
 		color: var(--white);
@@ -301,7 +301,7 @@
 
 	.heading-three.clickable:hover {
 		border-bottom: 0.1rem dashed var(--section-dark);
-		padding: 0.5rem 0.9rem 0.5rem;
+		padding: 0.4rem 0.6rem 0.3rem;
 	}
 
 	/* Heading One rounded top corners for first segment in section */
@@ -315,8 +315,8 @@
 	.heading-two {
 		position: inherit;
 		z-index: inherit;
-		font-size: 1.4rem;
-		padding: 0.9rem;
+		font-size: 1.2rem;
+		padding: 0.6rem;
 		margin: 0.0rem;
 		border-bottom: 0.1rem solid;
 		border-right: 0.1rem solid;
@@ -335,7 +335,7 @@
 		font-size: 1.2rem;
 		font-weight: 700;
 		margin: 0.0rem;
-		padding: 0.9rem 0.9rem 0.1rem;
+		padding: 0.6rem 0.6rem 0.1rem;
 		border-right: 0.1rem solid var(--section-dark);
 		border-left: 0.1rem solid var(--section-dark);
 		line-height: 1.5;

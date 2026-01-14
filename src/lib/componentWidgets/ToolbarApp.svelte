@@ -62,14 +62,13 @@
 	import MenuZoom from '$lib/componentWidgets/menus/MenuZoom.svelte';
 	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
 	import MenuOutline from '$lib/componentWidgets/menus/MenuOutline.svelte';
-	import MenuLiterary from '$lib/componentWidgets/menus/MenuLiterary.svelte';
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
 	import MenuView from '$lib/componentWidgets/menus/MenuView.svelte';
 	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
-	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleNotes, toggleVerses, toggleWide, toggleOverview, toggleCommentary, setZoomLevel } from '$lib/stores/toolbar.js';
+	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleConnections, toggleNotes, toggleVerses, toggleWide, toggleOverview, toggleCommentary, setZoomLevel } from '$lib/stores/toolbar.js';
 	import { invalidate } from '$app/navigation';
 
 	// Props to receive data from layout
@@ -156,6 +155,7 @@
 	// Handlers map for toggle buttons and other callbacks
 	const handlers = {
 		toggleStudiesPanel,
+		toggleConnections,
 		toggleNotes,
 		toggleVerses,
 		toggleWide,
@@ -437,7 +437,6 @@
 <MenuZoom menuId="MenuZoom" onselect={handleZoomChange} />
 <MenuStructure menuId="MenuStructure" />
 <MenuOutline menuId="MenuOutline" />
-<MenuLiterary menuId="MenuLiterary" />
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
 <MenuSettings menuId="MenuSettings" alignment="end" />
 <MenuView menuId="MenuView" />

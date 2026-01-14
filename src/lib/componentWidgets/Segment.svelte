@@ -200,12 +200,12 @@
 	.text {
 		position: inherit;
 		z-index: inherit;
-		font-size: 1.4rem;
+		font-size: 1.2rem;
 		line-height: 1.6;
 		color: var(--gray-100);
 		white-space: pre-wrap;
 		text-align: left;
-		padding: 0.9rem;
+		padding: 0.6rem;
 		-webkit-user-select: text;
 		user-select: text;
 		border-right: 0.1rem solid;

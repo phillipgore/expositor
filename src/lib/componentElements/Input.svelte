@@ -106,10 +106,10 @@
 	
 	/* Heading One Input */
 	input.heading-one-input {
-		font-size: 1.6rem;
+		font-size: 1.4rem;
 		font-weight: 700;
 		text-align: center;
-		padding: 0.9rem;
+		padding: 0.6rem;
 		margin: 0.0rem;
 		border: 0.1rem solid;
 		border-radius: 0rem;
@@ -137,9 +137,9 @@
 
 	/* Heading Two Input */
 	input.heading-two-input {
-		font-size: 1.4rem;
+		font-size: 1.2rem;
 		font-weight: 700;
-		padding: 0.9rem;
+		padding: 0.6rem;
 		margin: 0.0rem;
 		border-bottom: 0.1rem dashed;
 		border-right: 0.1rem solid;
@@ -168,7 +168,7 @@
 	input.heading-three-input {
 		font-size: 1.2rem;
 		font-weight: 700;
-		padding: 0.5rem 0.9rem 0.5rem;
+		padding: 0.4rem 0.6rem 0.3rem;
 		margin: 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;

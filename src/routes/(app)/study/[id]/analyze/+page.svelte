@@ -1538,7 +1538,7 @@
 
 	.analyze-content-inner {
 		display: flex;
-		gap: 4.4rem;
+		gap: 3.9rem;
 		padding: 6.7rem 4.4rem 1.8rem;
 		transition: transform 0.2s ease-out;
 		width: fit-content;
@@ -1563,13 +1563,13 @@
 
 	.container {
 		display: flex;
-		gap: 4.4rem;
+		gap: 3.9rem;
 	}
 
 	.column {
 		display: flex;
 		flex-direction: column;
-		width: 28.8rem;
+		width: 26.8rem;
 		margin-bottom: 4.4rem;
 		border-radius: 0.3rem;
 		padding: 0.2rem;
@@ -1602,7 +1602,7 @@
 
 	.section:not(:first-of-type),
 	.section:not(:first-of-type) {
-		margin-top: 4.4rem;
+		margin-top: 4.3rem;
 	}
 
 	/* Color variant overrides */
@@ -1683,9 +1683,9 @@
 	}
 
 	.heading-one {
-		font-size: 1.6rem;
+		font-size: 1.4rem;
 		text-align: center;
-		padding: 0.9rem;
+		padding: 0.6rem;
 		margin: 0.0rem;
 		border: 0.1rem solid;
 		color: var(--section-lighter);
@@ -1696,8 +1696,8 @@
 	.heading-two {
 		position: inherit;
 		z-index: inherit;
-		font-size: 1.4rem;
-		padding: 0.9rem;
+		font-size: 1.2rem;
+		padding: 0.6rem;
 		margin: 0.0rem;
 		border-bottom: 0.1rem solid;
 		border-right: 0.1rem solid;
@@ -1713,7 +1713,7 @@
 		font-size: 1.4rem;
 		font-weight: 700;
 		margin: 0.0rem;
-		padding: 0.9rem 0.9rem 0.0rem;
+		padding: 0.6rem 0.6rem 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-color: var(--section-dark);
@@ -1732,7 +1732,7 @@
 	.text {
 		position: inherit;
 		z-index: inherit;
-		font-size: 1.3rem;
+		font-size: 1.1rem;
 		line-height: 1.7;
 		color: var(--gray-100);
 		white-space: pre-wrap;

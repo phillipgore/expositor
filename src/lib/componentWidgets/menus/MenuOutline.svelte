@@ -51,6 +51,16 @@
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
+		iconId="heading-one-remove"
+		label="Remove Heading One"
+		role="menuitem"
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasHeadingOne}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
 		iconId="heading-two"
 		label="Insert Heading Two"
 		role="menuitem"
@@ -63,6 +73,16 @@
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
+		iconId="heading-two-remove"
+		label="Remove Heading Two"
+		role="menuitem"
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasHeadingTwo}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
 		iconId="heading-three"
 		label="Insert Heading Three"
 		role="menuitem"
@@ -73,13 +93,20 @@
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingThree}
 	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-three-remove"
+		label="Remove Heading Three"
+		role="menuitem"
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasHeadingThree}
+	/>
 
 	<DividerHorizontal />
 
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note"
-		label="Insert Note"
+		label="Insert Quick Note"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -91,5 +118,12 @@
 			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasNote}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-remove"
+		label="Remove Quick Note"
+		role="menuitem"
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasNote}
 	/>
 </Menu>

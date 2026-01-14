@@ -3,7 +3,7 @@
 	 * MenuZoom Component
 	 * 
 	 * Zoom level selection menu with predefined percentage options.
-	 * Allows users to adjust document zoom from 25% to 400% or set to full width.
+	 * Allows users to adjust document zoom from 25% to 200% or set to full width.
 	 * 
 	 * Usage:
 	 * ```
@@ -17,7 +17,7 @@
 	 * - onselect (function, optional) - Callback when zoom level selected, receives label
 	 * 
 	 * Features:
-	 * - 9 predefined zoom levels (25% - 400%)
+	 * - 8 predefined zoom levels (25% - 200%)
 	 * - Full width option
 	 * - Visual checkmark indicator for active zoom level
 	 * - Callback support for parent component updates
@@ -34,11 +34,10 @@
 		{ id: '50', type: 'button', label: '50%', iconId: 'blank', isActive: false },
 		{ id: '75', type: 'button', label: '75%', iconId: 'blank', isActive: false },
 		{ id: '100', type: 'button', label: '100%', iconId: 'check', isActive: true },
+		{ id: '110', type: 'button', label: '110%', iconId: 'blank', isActive: false },
 		{ id: '125', type: 'button', label: '125%', iconId: 'blank', isActive: false },
 		{ id: '150', type: 'button', label: '150%', iconId: 'blank', isActive: false },
-		{ id: '200', type: 'button', label: '200%', iconId: 'blank', isActive: false },
-		{ id: '300', type: 'button', label: '300%', iconId: 'blank', isActive: false },
-		{ id: '400', type: 'button', label: '400%', iconId: 'blank', isActive: false }
+		{ id: '200', type: 'button', label: '200%', iconId: 'blank', isActive: false }
 	]);
 
 	const handleSelect = (item) => {

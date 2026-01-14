@@ -131,15 +131,6 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'menu',
-					iconId: 'literary-chiasm',
-					menuId: 'MenuLiterary',
-					underLabel: 'Literary',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					disabledCheck: (state) => !state.canLiterary || state.overviewMode
-				},
-				{
-					type: 'menu',
 					iconId: 'paintbrush',
 					menuId: 'MenuColor',
 					underLabel: 'Color',
@@ -151,12 +142,22 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'flex',
+			variant: 'fixed',
 		},
 		{
 			type: 'section',
 			id: 'toggles',
 			items: [
+				{
+					type: 'toggle',
+					iconId: 'connect',
+					underLabel: 'Connects',
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'connectionsVisible',
+					toggleHandler: 'toggleConnections',
+					disabledStateProp: 'canToggleConnections'
+				},
 				{
 					type: 'toggle',
 					iconId: 'note',
@@ -167,6 +168,27 @@ export function getAppToolbarConfig() {
 					toggleHandler: 'toggleNotes',
 					disabledStateProp: 'canToggleNotes'
 				},
+				{
+					type: 'toggle',
+					iconId: 'commentary',
+					underLabel: 'Comment',
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'commentaryPanelOpen',
+					toggleHandler: 'toggleCommentary',
+					disabledStateProp: 'canToggleComment'
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'flex',
+			classes: 'hide-at-narrow'
+		},
+		{
+			type: 'section',
+			id: 'toggles',
+			items: [
 				{
 					type: 'toggle',
 					iconId: 'reference',
@@ -223,26 +245,6 @@ export function getAppToolbarConfig() {
 					underLabelClasses: 'light',
 					disabledStateProp: 'canSwitchMode'
 				}
-			]
-		},
-		{
-			type: 'spacer',
-			variant: 'flex'
-		},
-		{
-			type: 'section',
-			id: 'toggles',
-			items: [
-				{
-					type: 'toggle',
-					iconId: 'commentary',
-					underLabel: 'Commentary',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
-					activeStateProp: 'commentaryPanelOpen',
-					toggleHandler: 'toggleCommentary',
-					disabledStateProp: 'canToggleComment'
-				},
 			]
 		},
 		{
