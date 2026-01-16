@@ -225,23 +225,16 @@
 		border-bottom-left-radius: 0.3rem;
 	}
 
-	/* Remove bottom border and radius from text when segment has a note */
-	.segment.has-note .text {
-		border-bottom: 0;
-		border-bottom-right-radius: 0;
-		border-bottom-left-radius: 0;
-	}
-
 	/* First/last child styling rules for integration with parent section */
 	:global(.section) .segment:first-child:global(.has-heading-one) :global(.heading-one),
-	:global(.section) .segment:first-child:global(.has-heading-one) :global(.heading-one-input input) {
+	:global(.section) .segment:first-child:global(.has-heading-one) :global(input.heading-one-input) {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
 	/* Heading Two gets top border when it's the first heading */
 	:global(.section) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(.heading-two),
-	:global(.section) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(.heading-two-input input) {
+	:global(.section) .segment:first-child:not(.has-heading-one):global(.has-heading-two) :global(input.heading-two-input) {
 		border-top: 0.1rem solid;
 		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
@@ -250,7 +243,7 @@
 
 	/* Heading Three gets top border when it's the first heading */
 	:global(.section) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three),
-	:global(.section) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(.heading-three-input input) {
+	:global(.section) .segment:first-child:not(.has-heading-one):not(.has-heading-two):global(.has-heading-three) :global(input.heading-three-input) {
 		border-top: 0.1rem solid;
 		border-top-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
@@ -278,8 +271,10 @@
 		border-bottom-left-radius: 0.3rem;
 	}
 
-	:global(.section) .segment:last-child:global(.has-note) :global(.text),
-	:global(.section) .segment:last-child:global(.has-note) :global(.text) {
+	/* Remove bottom border and radius from text when segment has a note */
+	.segment:global(.has-note) .text,
+	.segment:last-child:global(.has-note) .text {
+		border-bottom: 0.0rem;
 		border-bottom-right-radius: 0.0rem;
 		border-bottom-left-radius: 0.0rem;
 	}

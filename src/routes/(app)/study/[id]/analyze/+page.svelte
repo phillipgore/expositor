@@ -1993,8 +1993,8 @@
 	:global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
-		left: -0.8rem;
-		top: -1.1rem;
+		left: -0.7rem;
+		top: -0.9rem;
 		width: 1.0rem;
 		height: 1.0rem;
 		opacity: 0.5;
@@ -2009,8 +2009,8 @@
 	:global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
-		left: -0.8rem;
-		top: -1.1rem;
+		left: -0.7rem;
+		top: -0.9rem;
 		width: 1.0rem;
 		height: 1.0rem;
 		opacity: 1;
@@ -2020,8 +2020,8 @@
 	:global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
 		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
 		position: absolute;
-		right: -0.8rem;
-		top: -1.1rem;
+		right: -0.7rem;
+		top: -0.9rem;
 		width: 1.0rem;
 		height: 1.0rem;
 		opacity: 1;

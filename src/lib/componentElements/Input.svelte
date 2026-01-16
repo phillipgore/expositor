@@ -123,6 +123,7 @@
 		border-top-left-radius: 0.3rem;
 		border-bottom-style: dashed;
 		border-bottom-color: var(--section-lighter);
+		transition: border 0.2s ease-in-out;
 	}
 
 	input.heading-one-input:focus {
@@ -152,6 +153,7 @@
 		caret-color: var(--section-darker);
 		height: auto;
 		line-height: 1.5;
+		transition: border 0.2s ease-in-out;
 	}
 
 	input.heading-two-input:focus {
@@ -169,7 +171,7 @@
 		font-size: 1.2rem;
 		font-weight: 700;
 		padding: 0.4rem 0.6rem 0.3rem;
-		margin: 0.0rem;
+		margin: 0.0rem 0.0rem -0.1rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-top: 0rem;
@@ -181,6 +183,7 @@
 		height: auto;
 		line-height: 1.5;
 		border-bottom: 0.1rem dashed var(--section-dark);
+		transition: padding 0.2s ease-in-out, border-bottom 0.2s ease-in-out, margin 0.2s ease-in-out;
 	}
 
 	input.heading-three-input:focus {

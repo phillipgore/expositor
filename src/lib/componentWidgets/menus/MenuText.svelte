@@ -7,7 +7,7 @@
 	 * 
 	 * Usage:
 	 * ```
-	 * <MenuButton menuId="MenuText" iconId="text-join" label="Text" />
+	 * <MenuButton menuId="MenuText" iconId="text" label="Text" />
 	 * <MenuText menuId="MenuText" />
 	 * ```
 	 * 
@@ -39,7 +39,7 @@
 <Menu {menuId} ariaLabel="Text manipulation menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="text-split"
+		iconId="text"
 		label="Insert Segment"
 		role="menuitem"
 		handleClick={closeMenu}
@@ -47,7 +47,7 @@
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="text-join"
+		iconId="text"
 		label="Join Segment"
 		role="menuitem"
 		handleClick={closeMenu}

@@ -115,6 +115,35 @@
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingOne}
 	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-two"
+		label="Insert Heading Two"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert heading two event via custom event
+			window.dispatchEvent(new CustomEvent('insert-heading-two-from-menu'));
+		}}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingTwo}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-three"
+		label="Insert Heading Three"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			// Trigger insert heading three event via custom event
+			window.dispatchEvent(new CustomEvent('insert-heading-three-from-menu'));
+		}}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingThree}
+	/>
+	
+	<DividerHorizontal />
+
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one-remove"
@@ -131,20 +160,6 @@
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasHeadingOne || deletingHeadingOne}
 	/>
 
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="heading-two"
-		label="Insert Heading Two"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			// Trigger insert heading two event via custom event
-			window.dispatchEvent(new CustomEvent('insert-heading-two-from-menu'));
-		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingTwo}
-	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-two-remove"
@@ -161,20 +176,6 @@
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasHeadingTwo || deletingHeadingTwo}
 	/>
 
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="heading-three"
-		label="Insert Heading Three"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			// Trigger insert heading three event via custom event
-			window.dispatchEvent(new CustomEvent('insert-heading-three-from-menu'));
-		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingThree}
-	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-three-remove"
@@ -209,6 +210,7 @@
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasNote}
 	/>
+
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note-remove"

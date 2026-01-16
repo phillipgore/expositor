@@ -15,7 +15,14 @@
 
 	// Input state
 	let inputValue = $state('');
+	let originalValue = $state(''); // Track original value for Escape key
 	let optimisticValue = $state(undefined); // undefined = use noteValue, null = deleted, string = optimistic value
+	let saveTimeout = $state(null);
+	let hasInitialized = $state(false); // Track if input has been initialized for this edit session
+	
+	// Track previous prop values to detect real changes
+	let previousSegmentId = $state(segmentId);
+	let previousNoteValue = $state(noteValue);
 	
 	// Slide animation logic
 	let shouldSlideIn = $derived(!noteValue);
@@ -30,58 +37,116 @@
 	const inputId = $derived(`note-input-${segmentId}`);
 
 	/**
-	 * Handle save note with optimistic UI
+	 * Auto-save note to database (debounced)
 	 */
-	async function handleSave() {
-
-		// Set optimistic value FIRST for smooth crossfade
-		optimisticValue = inputValue.trim() || null;
-		
-		// Exit input mode immediately (triggers crossfade)
-		isInputMode = false;
-		const savedValue = inputValue;
-		inputValue = '';
-		
+	async function autoSaveNote(text) {
 		try {
 			const response = await fetch('/api/passages/segments/note', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					segmentId: segmentId,
-					noteText: savedValue.trim() || null
+					noteText: text.trim() || null
 				})
 			});
 
-			if (response.ok) {
-				// Refresh data
-				await invalidate('app:studies');
-				// Clear optimistic state once real data arrives
-				optimisticValue = undefined;
-			} else {
+			if (!response.ok) {
 				const error = await response.json();
-				console.error('Update note error:', error);
-				// Revert optimistic update on error
-				optimisticValue = undefined;
-				isInputMode = true;
-				inputValue = savedValue;
-				alert(`Error: ${error.error || 'Failed to update note'}`);
+				console.error('Auto-save note error:', error);
+				alert(`Error: ${error.error || 'Failed to auto-save note'}`);
 			}
+			// Note: We don't call invalidate() here to avoid constant data reloads
+			// The local state is already updated via inputValue binding
 		} catch (error) {
-			console.error('Update note network error:', error);
-			// Revert optimistic update on error
-			optimisticValue = undefined;
-			isInputMode = true;
-			inputValue = savedValue;
-			alert(`Error: ${error.message || 'Failed to update note'}`);
+			console.error('Auto-save note network error:', error);
+			alert(`Error: ${error.message || 'Failed to auto-save note'}`);
 		}
 	}
 
 	/**
-	 * Handle cancel note input
+	 * Handle input changes with debounced auto-save
 	 */
-	function handleCancel() {
+	function handleInputChange() {
+		// Clear existing timeout
+		if (saveTimeout) {
+			clearTimeout(saveTimeout);
+		}
+
+		// Capture current value AND segment ID for saving
+		// This prevents race condition if user switches segments before save fires
+		const valueToSave = inputValue;
+		const segmentIdToSave = segmentId;
+
+		// Save after 1 second of inactivity
+		saveTimeout = setTimeout(() => {
+			// Use captured segment ID to prevent saving to wrong segment
+			if (segmentIdToSave === segmentId) {
+				autoSaveNote(valueToSave);
+			}
+		}, 1000);
+	}
+
+	/**
+	 * Commit changes immediately and exit edit mode
+	 */
+	async function commitChanges() {
+		// Clear any pending auto-save
+		if (saveTimeout) {
+			clearTimeout(saveTimeout);
+			saveTimeout = null;
+		}
+
+		// Set optimistic value FIRST so it displays immediately
+		const newValue = inputValue.trim() || null;
+		optimisticValue = newValue;
+
+		// Exit input mode
+		isInputMode = false;
+		const savedValue = inputValue;
+		inputValue = '';
+		originalValue = '';
+
+		// Save if value changed
+		if (savedValue !== (noteValue || '')) {
+			await autoSaveNote(savedValue);
+			
+			// Reload when note status changes (added OR removed)
+			// This updates CSS classes in Segment.svelte which depend on props
+			if (Boolean(newValue) !== Boolean(noteValue)) {
+				await invalidate('app:studies');
+				
+				// Update toolbar state to reflect new note status
+				const updatedOptions = {
+					hasHeadingOne: $toolbarState.activeSegmentHasHeadingOne,
+					hasHeadingTwo: $toolbarState.activeSegmentHasHeadingTwo,
+					hasHeadingThree: $toolbarState.activeSegmentHasHeadingThree,
+					hasNote: Boolean(newValue)
+				};
+				setActiveSegment(true, segmentId, updatedOptions);
+			}
+		}
+	}
+
+	/**
+	 * Cancel and revert to original value
+	 */
+	function cancelChanges() {
+		// Clear any pending auto-save
+		if (saveTimeout) {
+			clearTimeout(saveTimeout);
+			saveTimeout = null;
+		}
+
+		// Revert to original value if it was changed
+		if (inputValue !== originalValue) {
+			// Restore original value in database
+			autoSaveNote(originalValue);
+		}
+
+		// Exit input mode
 		isInputMode = false;
 		inputValue = '';
+		originalValue = '';
 	}
 
 	/**
@@ -145,6 +210,7 @@
 
 	/**
 	 * Auto-focus input when it appears and select text if editing
+	 * Also attach keydown and input event handlers
 	 */
 	$effect(() => {
 		if (isInputMode) {
@@ -155,28 +221,88 @@
 					if (inputValue) {
 						inputElement.select();
 					}
+					// Attach event handlers
+					inputElement.addEventListener('keydown', handleKeyDown);
+					inputElement.addEventListener('input', handleInput);
 				}
 			});
 		}
+		
+		// Cleanup: remove event listeners when exiting input mode
+		return () => {
+			const inputElement = document.getElementById(inputId);
+			if (inputElement) {
+				inputElement.removeEventListener('keydown', handleKeyDown);
+				inputElement.removeEventListener('input', handleInput);
+			}
+		};
 	});
 
 	/**
-	 * Pre-fill input value when entering input mode
+	 * Pre-fill input value and set original value when entering input mode
+	 * Only runs once per edit session to avoid re-filling when user deletes all text
 	 */
 	$effect(() => {
-		if (isInputMode && !inputValue) {
+		if (isInputMode && !hasInitialized) {
 			inputValue = noteValue || '';
+			originalValue = noteValue || '';
+			hasInitialized = true;
+		} else if (!isInputMode) {
+			// Reset for next edit session
+			hasInitialized = false;
 		}
 	});
 
 	/**
-	 * Cancel input mode when segment becomes inactive
+	 * Handle input event to trigger auto-save
+	 * Also updates optimistic value so changes display immediately
+	 */
+	function handleInput() {
+		// Update optimistic value immediately for visual feedback
+		optimisticValue = inputValue.trim() || null;
+		
+		// Trigger debounced save
+		handleInputChange();
+	}
+
+	/**
+	 * Commit changes when segment becomes inactive
 	 */
 	$effect(() => {
 		if (!isActive && isInputMode) {
-			handleCancel();
+			commitChanges();
 		}
 	});
+
+	/**
+	 * Clear optimistic value only when props actually change
+	 * This prevents stale values from other segments while preserving optimistic updates
+	 */
+	$effect(() => {
+		// Check if segment or value changed from props
+		if (segmentId !== previousSegmentId || noteValue !== previousNoteValue) {
+			// Clear optimistic value only when not editing
+			if (!isInputMode && optimisticValue !== undefined) {
+				optimisticValue = undefined;
+			}
+			// Update tracked values
+			previousSegmentId = segmentId;
+			previousNoteValue = noteValue;
+		}
+	});
+
+	/**
+	 * Handle textarea keydown (Enter to commit, Esc to cancel)
+	 */
+	function handleKeyDown(event) {
+		if (event.key === 'Enter' && !event.shiftKey) {
+			event.preventDefault();
+			commitChanges();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			cancelChanges();
+		}
+	}
 
 	/**
 	 * Handle note click to enter edit mode
@@ -228,26 +354,6 @@
 			tabindex={isActive ? 0 : -1}
 		>
 			{displayValue}
-		</div>
-	{/if}
-	
-	<!-- Toolbar (positioned absolutely) -->
-	{#if isInputMode}
-		<div class="note-toolbar">
-			<IconButton
-				iconId="check"
-				classes="passage-toolbar"
-				title="Save"
-				isSquare
-				handleClick={handleSave}
-			/>
-			<IconButton
-				iconId="x"
-				classes="passage-toolbar"
-				title="Cancel"
-				isSquare
-				handleClick={handleCancel}
-			/>
 		</div>
 	{/if}
 </div>
@@ -302,8 +408,8 @@
 		font-style: italic;
 		font-weight: 700;
 		line-height: 1.5;
-		padding: 0.6rem 0.9rem;
-		margin: -0.1rem 0.0rem 0.0rem;
+		padding: 0.6rem;
+		margin: 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
 		border-bottom: 0.1rem solid;
@@ -324,22 +430,5 @@
 	.note-input :global(textarea:focus) {
 		outline: none;
 		box-shadow: none;
-	}
-
-	/* Toolbar */
-	.note-toolbar {
-		position: absolute;
-		right: -3.4rem;
-		bottom: 0rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-
-	.toolbar-divider {
-		width: 100%;
-		height: 0.1rem;
-		background-color: var(--gray-700);
-		margin: 0.3rem 0rem;
 	}
 </style>
