@@ -396,6 +396,7 @@
 	/* Heading One Display */
 	.heading-one {
 		font-size: 1.4rem;
+		font-weight: 700;
 		text-align: center;
 		padding: 0.6rem;
 		margin: 0.0rem;
@@ -417,6 +418,7 @@
 		position: inherit;
 		z-index: inherit;
 		font-size: 1.2rem;
+		font-weight: 700;
 		padding: 0.6rem;
 		margin: 0.0rem;
 		border-bottom: 0.1rem solid;
@@ -446,8 +448,8 @@
 		border-left: 0.1rem solid var(--section-dark);
 		line-height: 1.5;
 		border-bottom: none;
-		transition: padding 0.2s ease-in-out, border-bottom 0.2s ease-in-out, margin 0.2s ease-in-out;
 		cursor: pointer;
+		color: var(--gray-200);
 	}
 
 	.heading-three:hover {

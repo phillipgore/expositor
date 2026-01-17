@@ -67,6 +67,7 @@
 	   BASE INPUT STYLES
 	   ============================================ */
 	input {
+		font-family: inherit;
 		appearance: none;
 		border: solid 0.1rem var(--gray-700);
 		border-radius: 0.3rem;

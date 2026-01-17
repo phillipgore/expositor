@@ -1,7 +1,6 @@
 <script>
 	import { invalidate } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { fade } from 'svelte/transition';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
@@ -1409,7 +1408,7 @@
 										<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
 									</div>
 								{:else if passageText.text && passageText.structure}
-									<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
+									<Heading heading="h3" classes="reference">{passageText.reference} [{translationAbbr}]</Heading>
 									<div class="passage-container">
 										{#if passageText.structure.columns && passageText.structure.columns.length > 0}
 											{@const allSegments = passageText.structure.columns.flatMap(col => col.sections.flatMap(section => section.segments))}
@@ -1556,7 +1555,7 @@
 		flex-shrink: 0;
 	}
 
-	.reference {
+	:global(h3.reference) {
 		font-size: 1.2rem;
 		margin-left: 0.2rem;
 		margin-top: 0.0rem;
@@ -1590,7 +1589,6 @@
 		display: none;
 	}
 
-	.section,
 	.section {
 		position: relative;
 		/* CSS Custom Properties for color theming */
@@ -1602,13 +1600,11 @@
 		transition: box-shadow 50ms ease-in-out;
 	}
 
-	.section:not(:first-of-type),
 	.section:not(:first-of-type) {
 		margin-top: 4.3rem;
 	}
 
 	/* Color variant overrides */
-	.section.red,
 	.section.red {
 		--section-darker: var(--red-darker);
 		--section-dark: var(--red-dark);
@@ -1616,7 +1612,6 @@
 		--section-lighter: var(--red-lighter);
 	}
 
-	.section.orange,
 	.section.orange {
 		--section-darker: var(--orange-darker);
 		--section-dark: var(--orange-dark);
@@ -1624,7 +1619,6 @@
 		--section-lighter: var(--orange-lighter);
 	}
 
-	.section.yellow,
 	.section.yellow {
 		--section-darker: var(--yellow-darker);
 		--section-dark: var(--yellow-dark);
@@ -1632,7 +1626,6 @@
 		--section-lighter: var(--yellow-lighter);
 	}
 
-	.section.green,
 	.section.green {
 		--section-darker: var(--green-darker);
 		--section-dark: var(--green-dark);
@@ -1640,7 +1633,6 @@
 		--section-lighter: var(--green-lighter);
 	}
 
-	.section.aqua,
 	.section.aqua {
 		--section-darker: var(--aqua-darker);
 		--section-dark: var(--aqua-dark);
@@ -1648,7 +1640,6 @@
 		--section-lighter: var(--aqua-lighter);
 	}
 
-	.section.blue,
 	.section.blue {
 		--section-darker: var(--blue-darker);
 		--section-dark: var(--blue-dark);
@@ -1656,7 +1647,6 @@
 		--section-lighter: var(--blue-lighter);
 	}
 
-	.section.purple,
 	.section.purple {
 		--section-darker: var(--purple-darker);
 		--section-dark: var(--purple-dark);
@@ -1664,7 +1654,6 @@
 		--section-lighter: var(--purple-lighter);
 	}
 
-	.section.pink,
 	.section.pink {
 		--section-darker: var(--pink-darker);
 		--section-dark: var(--pink-dark);
@@ -1677,7 +1666,6 @@
 		transition: box-shadow 50ms ease-in-out;
 	}
 
-	.section:global(.active),
 	.section:global(.active),
 	.segment:global(.active) {
 		z-index: 10;
@@ -1780,182 +1768,19 @@
 		display: none;
 	}
 
-	/* Color-specific word selection styles for green section */
-	.section.green :global(.text .selectable-word:hover:not([data-selected])),
-	.section.green :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--green-light);
+	/* ============================================================ */
+	/* Color-Aware Word Selection Styles */
+	/* Uses CSS custom properties from .section for theming */
+	/* ============================================================ */
+
+	/* Hover state - color-aware highlight */
+	.section :global(.text .selectable-word:hover:not([data-selected])) {
+		background-color: var(--section-light);
 	}
 
-	.section.green :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before),
-	.section.green :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.green :global(.text .selectable-word[data-selected="true"]),
-	.section.green :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--green-light);
-	}
-
-	.section.green :global(.text .selectable-word[data-selected="true"][data-position="before"]::before),
-	.section.green :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.green :global(.text .selectable-word[data-selected="true"][data-position="after"]::before),
-	.section.green :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%231d6d37' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	/* Color-specific word selection styles for red section */
-	.section.red :global(.text .selectable-word:hover:not([data-selected])),
-	.section.red :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--red-light);
-	}
-
-	.section.red :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before),
-	.section.red :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.red :global(.text .selectable-word[data-selected="true"]),
-	.section.red :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--red-light);
-	}
-
-	.section.red :global(.text .selectable-word[data-selected="true"][data-position="before"]::before),
-	.section.red :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.red :global(.text .selectable-word[data-selected="true"][data-position="after"]::before),
-	.section.red :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	/* Color-specific word selection styles for orange section */
-	.section.orange :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--orange-light);
-	}
-
-	.section.orange :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.orange :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--orange-light);
-	}
-
-	.section.orange :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.orange :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D2800' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	/* Color-specific word selection styles for yellow section */
-	.section.yellow :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--yellow-light);
-	}
-
-	.section.yellow :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.yellow :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--yellow-light);
-	}
-
-	.section.yellow :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.yellow :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D4D08' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	/* Color-specific word selection styles for aqua section */
-	.section.aqua :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--aqua-light);
-	}
-
-	.section.aqua :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.aqua :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--aqua-light);
-	}
-
-	.section.aqua :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.aqua :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23084D4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	/* Color-specific word selection styles for blue section */
-	.section.blue :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--blue-light);
-	}
-
-	.section.blue :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.blue :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--blue-light);
-	}
-
-	.section.blue :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.blue :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23082A4D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	/* Color-specific word selection styles for purple section */
-	.section.purple :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--purple-light);
-	}
-
-	.section.purple :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.purple :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--purple-light);
-	}
-
-	.section.purple :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.purple :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232A084D' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	/* Color-specific word selection styles for pink section */
-	.section.pink :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--pink-light);
-	}
-
-	.section.pink :global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.pink :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--pink-light);
-	}
-
-	.section.pink :global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-	}
-
-	.section.pink :global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%234D0831' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+	/* Selected state - color-aware highlight */
+	.section :global(.text .selectable-word[data-selected="true"]) {
+		background-color: var(--section-light);
 	}
 
 	/* Enable text selection when Cmd/Ctrl is held */
