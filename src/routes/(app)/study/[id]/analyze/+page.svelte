@@ -1374,14 +1374,7 @@
 <svelte:window on:keydown={handleKeyDown} />
 
 <div class="container">
-	{#if showHeader}
-		<div class="study-header">
-			<Heading heading="h1" classes="h4 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
-			{#if data.study.subtitle}
-				<Heading heading="h2" classes="h5 subheading" isMuted>{data.study.subtitle}</Heading>
-			{/if}
-		</div>
-	{/if}
+	
 	
 	<!-- Analyze View Content -->
 	<div 
@@ -1399,75 +1392,85 @@
 	>
 		<div class="analyze-content-wrapper" style="{wrapperDimensions}">
 			<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
-				{#if data.passagesWithText && data.passagesWithText.length > 0}
-					{#each data.passagesWithText as passageText, passageIndex}
-						<div class="passage">
-							{#if passageText.error}
-								<div class="error-message">
-									<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
-								</div>
-							{:else if passageText.text && passageText.structure}
-								<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
-								<div class="container">
-									{#if passageText.structure.columns && passageText.structure.columns.length > 0}
-										{@const allSegments = passageText.structure.columns.flatMap(col => col.sections.flatMap(section => section.segments))}
-										{@const segmentCount = allSegments.length}
-										{@const structureKey = `${passageText.structure.passageId}-${segmentCount}`}
-										{#key structureKey}
-										{@const passageSegmentIndexTracker = { current: 0 }}
-										{@const verseSectionMap = buildVerseSectionMap(allSegments)}
-										{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
-										{#each passageText.structure.columns as column, columnIndex}
-											<div class="column" data-column-id="{column.id}">
-												{#if column.sections && column.sections.length > 0}
-													{#each column.sections as section, sectionIndex}
-														<div class="section {section.color}" data-section-id="{section.id}">
-															{#if section.segments && section.segments.length > 0}
-																{#each section.segments as segment, segmentIndex}
-																	{@const domSegmentIndex = passageSegmentIndexTracker.current}
-																	{@const _segIncrement = (passageSegmentIndexTracker.current++, null)}
-																	{@const nextSegment = section.segments[segmentIndex + 1]}
-																	{@const nextSection = column.sections[sectionIndex + 1]}
-																	{@const nextColumn = passageText.structure.columns[columnIndex + 1]}
-																	{@const endWordId = nextSegment?.startingWordId || 
-																	                    nextSection?.segments[0]?.startingWordId || 
-																	                    nextColumn?.sections[0]?.segments[0]?.startingWordId || 
-																	                    null}
-																	{@const segmentHtml = extractSegmentText(
-																		passageText.text,
-																		segment.startingWordId,
-																		endWordId,
-																		passageIndex,
-																		verseSectionMap,
-																		verseOccurrences
-																	)}
-																	<Segment 
-																		heading1={segment.headingOne}
-																		heading2={segment.headingTwo}
-																		heading3={segment.headingThree}
-																		note={segment.note}
-																		text={segmentHtml}
-																		{passageIndex}
-																		isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
-																		segmentId={segment.id}
-																		generation={activeSegment?.generation || 0}
-																	/>
-																{/each}
-															{/if}
-														</div>
-													{/each}
-												{/if}
-											</div>
-										{/each}
-										{/key}
-									{/if}
-								</div>
-							{/if}
-						</div>
-					{/each}
-				{:else}
-					<p class="placeholder-text">No passages available for this study.</p>
+				{#if showHeader}
+					<div class="study-header">
+						<Heading heading="h1" classes="h3 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
+						{#if data.study.subtitle}
+							<Heading heading="h2" classes="h4 subheading" isMuted>{data.study.subtitle}</Heading>
+						{/if}
+					</div>
 				{/if}
+				<div class="passage-wrapper">
+					{#if data.passagesWithText && data.passagesWithText.length > 0}
+						{#each data.passagesWithText as passageText, passageIndex}
+							<div class="passage">
+								{#if passageText.error}
+									<div class="error-message">
+										<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
+									</div>
+								{:else if passageText.text && passageText.structure}
+									<h3 class="reference">{passageText.reference} [{translationAbbr}]</h3>
+									<div class="passage-container">
+										{#if passageText.structure.columns && passageText.structure.columns.length > 0}
+											{@const allSegments = passageText.structure.columns.flatMap(col => col.sections.flatMap(section => section.segments))}
+											{@const segmentCount = allSegments.length}
+											{@const structureKey = `${passageText.structure.passageId}-${segmentCount}`}
+											{#key structureKey}
+											{@const passageSegmentIndexTracker = { current: 0 }}
+											{@const verseSectionMap = buildVerseSectionMap(allSegments)}
+											{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
+											{#each passageText.structure.columns as column, columnIndex}
+												<div class="column" data-column-id="{column.id}">
+													{#if column.sections && column.sections.length > 0}
+														{#each column.sections as section, sectionIndex}
+															<div class="section {section.color}" data-section-id="{section.id}">
+																{#if section.segments && section.segments.length > 0}
+																	{#each section.segments as segment, segmentIndex}
+																		{@const domSegmentIndex = passageSegmentIndexTracker.current}
+																		{@const _segIncrement = (passageSegmentIndexTracker.current++, null)}
+																		{@const nextSegment = section.segments[segmentIndex + 1]}
+																		{@const nextSection = column.sections[sectionIndex + 1]}
+																		{@const nextColumn = passageText.structure.columns[columnIndex + 1]}
+																		{@const endWordId = nextSegment?.startingWordId || 
+																							nextSection?.segments[0]?.startingWordId || 
+																							nextColumn?.sections[0]?.segments[0]?.startingWordId || 
+																							null}
+																		{@const segmentHtml = extractSegmentText(
+																			passageText.text,
+																			segment.startingWordId,
+																			endWordId,
+																			passageIndex,
+																			verseSectionMap,
+																			verseOccurrences
+																		)}
+																		<Segment 
+																			heading1={segment.headingOne}
+																			heading2={segment.headingTwo}
+																			heading3={segment.headingThree}
+																			note={segment.note}
+																			text={segmentHtml}
+																			{passageIndex}
+																			isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
+																			segmentId={segment.id}
+																			generation={activeSegment?.generation || 0}
+																		/>
+																	{/each}
+																{/if}
+															</div>
+														{/each}
+													{/if}
+												</div>
+											{/each}
+											{/key}
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/each}
+					{:else}
+						<p class="placeholder-text">No passages available for this study.</p>
+					{/if}
+				</div>
 			</div>
 		</div>
 	</div>
@@ -1485,6 +1488,7 @@
 <style>
 	.container {
 		display: flex;
+		flex-direction: column;
 		position: relative;
 		height: 100%;
 	}
@@ -1494,27 +1498,19 @@
 		flex-direction: column;
 		justify-content: center;
 		align-items: left;
-		position: absolute;
-		top: 0.9rem;
-		left: 4.6rem;
-		background: var(--gray-light);
-		padding: 0.6rem 2.2rem;
-		border-radius: 999em;
-		z-index: 100;
-		/* min-height: 4.8rem; */
 	}
 
 	.study-header :global(.heading) {
 		margin: 0.0rem;
 		padding: 0.0rem;
-		line-height: 1.2;
+		line-height: 1;
 	}
 
 	.study-header :global(.subheading) {
-		margin: 0.0rem;
+		margin: 0.6rem 0.0rem 0.0rem;
 		padding: 0.0rem;
-		line-height: 1.2;
-		color: var(--gray-400)
+		color: var(--gray-400);
+		line-height: 1;
 	}
 
 	.placeholder-text {
@@ -1538,8 +1534,9 @@
 
 	.analyze-content-inner {
 		display: flex;
-		gap: 3.9rem;
-		padding: 6.7rem 4.4rem 1.8rem;
+		flex-direction: column;
+		gap: 2.6rem;
+		padding: 2.6rem 4.4rem;
 		transition: transform 0.2s ease-out;
 		width: fit-content;
 	}
@@ -1547,6 +1544,11 @@
 	/* ============================================================ */
 	/* Passage Layout */
 	/* ============================================================ */
+
+	.passage-wrapper {
+		display: flex;
+		gap: 3.9rem;
+	}
 
 	.passage {
 		display: flex;
@@ -1561,7 +1563,7 @@
 		margin-bottom: 0.9rem;
 	}
 
-	.container {
+	.passage-container {
 		display: flex;
 		gap: 3.9rem;
 	}
