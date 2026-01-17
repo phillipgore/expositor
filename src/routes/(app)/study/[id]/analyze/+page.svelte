@@ -1373,8 +1373,6 @@
 <svelte:window on:keydown={handleKeyDown} />
 
 <div class="container">
-	
-	
 	<!-- Analyze View Content -->
 	<div 
 		class="analyze-content" 
