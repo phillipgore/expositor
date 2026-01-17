@@ -132,15 +132,13 @@
      class:has-heading-three={heading3 || headingThreeInputMode}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible} 
      data-segment-id="{segmentId}">
-	<!-- Hide toolbar when any input is active -->
-	{#if !anyInputActive}
-		{#key `${isActive}-${generation}`}
-			<ToolbarStructure 
-				{isActive}
-				{segmentId}
-			/>
-		{/key}
-	{/if}
+	<!-- Keep toolbar visible even during editing -->
+	{#key `${isActive}-${generation}`}
+		<ToolbarStructure 
+			{isActive}
+			{segmentId}
+		/>
+	{/key}
 	
 	<!-- Heading One -->
 	<HeadingEditor
@@ -149,6 +147,10 @@
 		{segmentId}
 		bind:isInputMode={headingOneInputMode}
 		{isActive}
+		hasHeadingOne={!!heading1}
+		hasHeadingTwo={!!heading2}
+		hasHeadingThree={!!heading3}
+		hasNote={!!note}
 	/>
 	
 	<!-- Heading Two -->
@@ -158,6 +160,10 @@
 		{segmentId}
 		bind:isInputMode={headingTwoInputMode}
 		{isActive}
+		hasHeadingOne={!!heading1}
+		hasHeadingTwo={!!heading2}
+		hasHeadingThree={!!heading3}
+		hasNote={!!note}
 	/>
 	
 	<!-- Heading Three -->
@@ -167,6 +173,10 @@
 		{segmentId}
 		bind:isInputMode={headingThreeInputMode}
 		{isActive}
+		hasHeadingOne={!!heading1}
+		hasHeadingTwo={!!heading2}
+		hasHeadingThree={!!heading3}
+		hasNote={!!note}
 	/>
 	
 	<div class="text" class:no-headings={!hasAnyHeadings} onclick={handleSegmentClick}>
@@ -183,6 +193,10 @@
 		{segmentId}
 		bind:isInputMode={noteInputMode}
 		{isActive}
+		hasHeadingOne={!!heading1}
+		hasHeadingTwo={!!heading2}
+		hasHeadingThree={!!heading3}
+		hasNote={!!note}
 	/>
 </div>
 

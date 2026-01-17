@@ -179,7 +179,7 @@
 		background-color: transparent;
 		color: var(--gray-100);
 		border-color: var(--section-dark);
-		caret-color: var(--section-dark);
+		caret-color: var(--section-darker);
 		height: auto;
 		line-height: 1.5;
 		border-bottom: 0.1rem dashed var(--section-dark);

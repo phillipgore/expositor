@@ -10,7 +10,11 @@
 		noteValue = null,
 		segmentId = '',
 		isInputMode = $bindable(false),
-		isActive = false
+		isActive = false,
+		hasHeadingOne = false,
+		hasHeadingTwo = false,
+		hasHeadingThree = false,
+		hasNote = false
 	} = $props();
 
 	// Input state
@@ -208,62 +212,29 @@
 		}
 	}
 
-	/**
-	 * Auto-focus input when it appears and select text if editing
-	 * Also attach keydown and input event handlers
-	 */
-	$effect(() => {
-		if (isInputMode) {
-			tick().then(() => {
-				const inputElement = document.getElementById(inputId);
-				if (inputElement && inputElement instanceof HTMLTextAreaElement) {
-					inputElement.focus();
-					if (inputValue) {
-						inputElement.select();
-					}
-					// Attach event handlers
-					inputElement.addEventListener('keydown', handleKeyDown);
-					inputElement.addEventListener('input', handleInput);
-				}
-			});
-		}
-		
-		// Cleanup: remove event listeners when exiting input mode
-		return () => {
-			const inputElement = document.getElementById(inputId);
-			if (inputElement) {
-				inputElement.removeEventListener('keydown', handleKeyDown);
-				inputElement.removeEventListener('input', handleInput);
-			}
-		};
-	});
 
 	/**
-	 * Pre-fill input value and set original value when entering input mode
-	 * Only runs once per edit session to avoid re-filling when user deletes all text
+	 * Reset hasInitialized when exiting input mode
 	 */
 	$effect(() => {
-		if (isInputMode && !hasInitialized) {
-			inputValue = noteValue || '';
-			originalValue = noteValue || '';
-			hasInitialized = true;
-		} else if (!isInputMode) {
-			// Reset for next edit session
+		if (!isInputMode) {
 			hasInitialized = false;
 		}
 	});
 
 	/**
-	 * Handle input event to trigger auto-save
-	 * Also updates optimistic value so changes display immediately
+	 * Watch inputValue changes reactively to trigger auto-save
+	 * This works with Svelte's bind:value without conflicting event listeners
 	 */
-	function handleInput() {
-		// Update optimistic value immediately for visual feedback
-		optimisticValue = inputValue.trim() || null;
-		
-		// Trigger debounced save
-		handleInputChange();
-	}
+	$effect(() => {
+		if (isInputMode && hasInitialized && inputValue !== originalValue) {
+			// Update optimistic value immediately for visual feedback
+			optimisticValue = inputValue.trim() || null;
+			
+			// Trigger debounced save
+			handleInputChange();
+		}
+	});
 
 	/**
 	 * Commit changes when segment becomes inactive
@@ -306,10 +277,42 @@
 
 	/**
 	 * Handle note click to enter edit mode
+	 * Activates segment if not already active
 	 */
-	function handleNoteClick() {
-		if (isActive && !isInputMode) {
+	async function handleNoteClick() {
+		// Activate segment if not already active
+		if (!isActive) {
+			const options = {
+				hasHeadingOne,
+				hasHeadingTwo,
+				hasHeadingThree,
+				hasNote
+			};
+			setActiveSegment(true, segmentId, options);
+			await tick();
+		}
+		
+		// Enter edit mode
+		if (!isInputMode) {
+			// Set values and enter input mode
+			inputValue = displayValue || '';
+			originalValue = displayValue || '';
 			isInputMode = true;
+			
+			// Wait for textarea to render, then focus after a small delay
+			await tick();
+			
+			// Use setTimeout to ensure toolbar transitions complete before focusing
+			setTimeout(() => {
+				const inputElement = document.getElementById(inputId);
+				if (inputElement && inputElement instanceof HTMLTextAreaElement) {
+					inputElement.focus();
+					// Attach keydown handler for Enter/Escape
+					inputElement.addEventListener('keydown', handleKeyDown);
+					// Set hasInitialized AFTER focus to prevent reactive effects from interfering
+					hasInitialized = true;
+				}
+			}, 200);
 		}
 	}
 
@@ -383,14 +386,10 @@
 		color: var(--gray-dark);
 		white-space: pre-wrap;
 		word-wrap: break-word;
-	}
-
-	/* Clickable note styles */
-	.note.clickable {
 		cursor: pointer;
 	}
 
-	.note.clickable:hover {
+	.note:hover {
 		border-top: 0.1rem dashed var(--gray);
 		margin-top: -0.1rem;
 	}

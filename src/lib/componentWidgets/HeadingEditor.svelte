@@ -11,7 +11,11 @@
 		headingValue = null,
 		segmentId = '',
 		isInputMode = $bindable(false),
-		isActive = false
+		isActive = false,
+		hasHeadingOne = false,
+		hasHeadingTwo = false,
+		hasHeadingThree = false,
+		hasNote = false
 	} = $props();
 
 	// Input state
@@ -247,59 +251,29 @@
 		}
 	}
 
-	/**
-	 * Auto-focus input when it appears, select text if editing, and attach input handler
-	 */
-	$effect(() => {
-		if (isInputMode) {
-			tick().then(() => {
-				const inputElement = document.getElementById(inputId);
-				if (inputElement && inputElement instanceof HTMLInputElement) {
-					inputElement.focus();
-					if (inputValue) {
-						inputElement.select();
-					}
-					// Attach input handler for auto-save
-					inputElement.addEventListener('input', handleInput);
-				}
-			});
-		}
-		
-		// Cleanup: remove event listener when exiting input mode
-		return () => {
-			const inputElement = document.getElementById(inputId);
-			if (inputElement) {
-				inputElement.removeEventListener('input', handleInput);
-			}
-		};
-	});
 
 	/**
-	 * Pre-fill input value and set original value when entering input mode
-	 * Only runs once per edit session to avoid re-filling when user deletes all text
+	 * Reset hasInitialized when exiting input mode
 	 */
 	$effect(() => {
-		if (isInputMode && !hasInitialized) {
-			inputValue = headingValue || '';
-			originalValue = headingValue || '';
-			hasInitialized = true;
-		} else if (!isInputMode) {
-			// Reset for next edit session
+		if (!isInputMode) {
 			hasInitialized = false;
 		}
 	});
 
 	/**
-	 * Handle input event to trigger auto-save
-	 * Also updates optimistic value so changes display immediately
+	 * Watch inputValue changes reactively to trigger auto-save
+	 * This works with Svelte's bind:value without conflicting event listeners
 	 */
-	function handleInput() {
-		// Update optimistic value immediately for visual feedback
-		optimisticValue = inputValue.trim() || null;
-		
-		// Trigger debounced save
-		handleInputChange();
-	}
+	$effect(() => {
+		if (isInputMode && hasInitialized && inputValue !== originalValue) {
+			// Update optimistic value immediately for visual feedback
+			optimisticValue = inputValue.trim() || null;
+			
+			// Trigger debounced save
+			handleInputChange();
+		}
+	});
 
 	/**
 	 * Commit changes when segment becomes inactive
@@ -329,10 +303,40 @@
 
 	/**
 	 * Handle heading click to enter edit mode
+	 * Activates segment if not already active
 	 */
-	function handleHeadingClick() {
-		if (isActive && !isInputMode) {
+	async function handleHeadingClick() {
+		// Activate segment if not already active
+		if (!isActive) {
+			const options = {
+				hasHeadingOne,
+				hasHeadingTwo,
+				hasHeadingThree,
+				hasNote
+			};
+			setActiveSegment(true, segmentId, options);
+			await tick();
+		}
+		
+		// Enter edit mode
+		if (!isInputMode) {
+			// Set values and enter input mode
+			inputValue = displayValue || '';
+			originalValue = displayValue || '';
 			isInputMode = true;
+			
+			// Wait for input to render, then focus after a small delay
+			await tick();
+			
+			// Use setTimeout to ensure toolbar transitions complete before focusing
+			setTimeout(() => {
+				const inputElement = document.getElementById(inputId);
+				if (inputElement && inputElement instanceof HTMLInputElement) {
+					inputElement.focus();
+					// Set hasInitialized AFTER focus to prevent reactive effects from interfering
+					hasInitialized = true;
+				}
+			}, 200);
 		}
 	}
 
@@ -401,34 +405,11 @@
 		border-color: var(--section-darker);
 		line-height: 1.5;
 		transition: border 0.2s ease-in-out;
-	}
-
-	/* Clickable heading styles */
-	.heading-one.clickable,
-	.heading-two.clickable,
-	.heading-three.clickable {
 		cursor: pointer;
 	}
 
-	.heading-one.clickable:hover {
+	.heading-one:hover {
 		border-bottom: 0.1rem dashed var(--section-lighter);
-	}
-
-	.heading-two.clickable:hover {
-		border-bottom: 0.1rem dashed var(--section-dark);
-	}
-
-	.heading-three.clickable:hover {
-		border-bottom: 0.1rem dashed var(--section-dark);
-		padding: 0.4rem 0.6rem 0.3rem;
-		margin-bottom: -0.1rem;
-	}
-
-	/* Heading One rounded top corners for first segment in section */
-	:global(.section .segment:first-child) .heading-one,
-	:global(.section .segment:first-child) .heading-one-input {
-		border-top-right-radius: 0.3rem;
-		border-top-left-radius: 0.3rem;
 	}
 
 	/* Heading Two Display */
@@ -446,6 +427,11 @@
 		border-color: var(--section-dark);
 		line-height: 1.5;
 		transition: border 0.2s ease-in-out;
+		cursor: pointer;
+	}
+
+	.heading-two:hover {
+		border-bottom: 0.1rem dashed var(--section-dark);
 	}
 
 	/* Heading Three Display */
@@ -459,8 +445,21 @@
 		border-right: 0.1rem solid var(--section-dark);
 		border-left: 0.1rem solid var(--section-dark);
 		line-height: 1.5;
-		/* border-bottom: 0.1rem dashed transparent; */
 		border-bottom: none;
 		transition: padding 0.2s ease-in-out, border-bottom 0.2s ease-in-out, margin 0.2s ease-in-out;
+		cursor: pointer;
+	}
+
+	.heading-three:hover {
+		border-bottom: 0.1rem dashed var(--section-dark);
+		padding: 0.4rem 0.6rem 0.3rem;
+		margin-bottom: -0.1rem;
+	}
+
+	/* Heading One rounded top corners for first segment in section */
+	:global(.section .segment:first-child) .heading-one,
+	:global(.section .segment:first-child) .heading-one-input {
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
 	}
 </style>
