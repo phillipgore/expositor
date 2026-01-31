@@ -137,12 +137,22 @@ export function getAppToolbarConfig() {
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledCheck: (state) => !state.canColor || state.overviewMode
+				},
+				{
+					type: 'toggle',
+					iconId: 'compare',
+					underLabel: 'Compare',
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'comparisonsVisible',
+					toggleHandler: 'toggleComparison',
+					disabledStateProp: 'canToggleComparison'
 				}
 			]
 		},
 		{
 			type: 'spacer',
-			variant: 'fixed',
+			variant: 'flex',
 		},
 		{
 			type: 'section',
@@ -151,7 +161,7 @@ export function getAppToolbarConfig() {
 				{
 					type: 'toggle',
 					iconId: 'connect',
-					underLabel: 'Connects',
+					underLabel: 'Bonds',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
 					activeStateProp: 'connectionsVisible',

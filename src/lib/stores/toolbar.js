@@ -31,6 +31,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canDelete - Whether Delete button should be enabled (has document open)
  * @property {boolean} canEdit - Whether Edit button should be enabled (has selected item)
  * @property {boolean} canFormat - Whether formatting buttons should be enabled (has content/selection)
+ * @property {boolean} canToggleComparison - Whether Comparison toggle should be enabled
  * @property {boolean} canToggleConnections - Whether Connections toggle should be enabled
  * @property {boolean} canToggleNotes - Whether Notes toggle should be enabled (document supports notes)
  * @property {boolean} canToggleComment - Whether Comment toggle should be enabled (document supports comment)
@@ -47,6 +48,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
  * @property {boolean} commentaryPanelOpen - Whether the commentary panel is open
+ * @property {boolean} comparisonsVisible - Whether comparisons are visible
  * @property {boolean} connectionsVisible - Whether connections are visible
  * @property {boolean} notesVisible - Whether quick notes are visible in segments
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
@@ -76,6 +78,7 @@ const defaultState = {
 	canDelete: false,
 	canEdit: false,
 	canFormat: false,
+	canToggleComparison: false,
 	canToggleConnections: false,
 	canToggleNotes: false,
 	canToggleComment: false,
@@ -92,6 +95,7 @@ const defaultState = {
 	canUseColorItems: false,
 	studiesPanelOpen: true,
 	commentaryPanelOpen: false,
+	comparisonsVisible: false,
 	connectionsVisible: false,
 	notesVisible: true,
 	versesVisible: false,
@@ -170,6 +174,7 @@ export function updateToolbarForRoute(pathname) {
 		return {
 			...state,
 			canFormat: false,
+			canToggleComparison: false,
 			canToggleConnections: false,
 			canToggleNotes: false,
 			canToggleComment: false,
@@ -194,6 +199,7 @@ export function updateToolbarForRoute(pathname) {
 		return {
 			...state,
 			canFormat: false,
+			canToggleComparison: false,
 			canToggleConnections: false,
 			canToggleNotes: false,
 			canToggleComment: false,
@@ -252,6 +258,7 @@ export function onDocumentClose() {
 	toolbarStateStore.update(state => ({
 		...state,
 		canFormat: false,
+		canToggleComparison: false,
 		canToggleConnections: false,
 		canToggleNotes: false,
 		canToggleComment: false,
@@ -337,6 +344,16 @@ export async function toggleStudiesPanel() {
 	const currentState = get(toolbarStateStore);
 	const newState = !currentState.studiesPanelOpen;
 	await setStudiesPanelOpen(newState);
+}
+
+/**
+ * Toggle comparisons visibility
+ */
+export function toggleComparison() {
+	toolbarStateStore.update(state => ({
+		...state,
+		comparisonsVisible: !state.comparisonsVisible
+	}));
 }
 
 /**

@@ -1,7 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
-	import ToolbarStructure from './ToolbarStructure.svelte';
 	import HeadingEditor from './HeadingEditor.svelte';
 	import NoteEditor from './NoteEditor.svelte';
 
@@ -132,13 +131,6 @@
      class:has-heading-three={heading3 || headingThreeInputMode}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible} 
      data-segment-id="{segmentId}">
-	<!-- Keep toolbar visible even during editing -->
-	{#key `${isActive}-${generation}`}
-		<ToolbarStructure 
-			{isActive}
-			{segmentId}
-		/>
-	{/key}
 	
 	<!-- Heading One -->
 	<HeadingEditor

@@ -4,6 +4,8 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
+	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
+	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn } from '$lib/stores/toolbar.js';
 
@@ -51,8 +53,8 @@
 	let segmentClickGeneration = $state(0); // Increments on every segment click to force toolbar remount
 	
 	// Active column and section state
-	let activeColumn = $state(null); // { segmentId } - tracks which column to activate
-	let activeSection = $state(null); // { segmentId } - tracks which section to activate
+	let activeColumn = $state(null); // { columnId } - tracks which column to activate
+	let activeSection = $state(null); // { sectionId } - tracks which section to activate
 
 	// Sync word selection state to toolbar store
 	$effect(() => {
@@ -95,27 +97,10 @@
 
 	// Sync active column state to toolbar store
 	$effect(() => {
-		if (activeColumn && activeColumn.segmentId) {
-			// Get the column ID from the DOM
-			const segmentElement = document.querySelector(`[data-segment-id="${activeColumn.segmentId}"]`);
-			const columnElement = segmentElement?.closest('.column');
-			const columnId = columnElement?.dataset?.columnId || null;
-			setActiveColumn(true, columnId);
+		if (activeColumn && activeColumn.columnId) {
+			setActiveColumn(true, activeColumn.columnId);
 		} else {
 			setActiveColumn(false, null);
-		}
-	});
-
-	// Sync active section state to toolbar store
-	$effect(() => {
-		if (activeSection && activeSection.segmentId) {
-			// Get the section ID from the DOM
-			const segmentElement = document.querySelector(`[data-segment-id="${activeSection.segmentId}"]`);
-			const sectionElement = segmentElement?.closest('.section');
-			const sectionId = sectionElement?.dataset?.sectionId || null;
-			setActiveSection(true, sectionId);
-		} else {
-			setActiveSection(false, null);
 		}
 	});
 
@@ -124,16 +109,17 @@
 	$effect(() => {
 		const hasActiveSection = activeColumn !== null || activeSection !== null;
 		if (hasActiveSection) {
-			// Get section ID from whichever is active
-			const targetSegmentId = activeSection?.segmentId || activeColumn?.segmentId;
-			if (targetSegmentId) {
-				const segmentElement = document.querySelector(`[data-segment-id="${targetSegmentId}"]`);
-				const sectionElement = segmentElement?.closest('.section');
-				const sectionId = sectionElement?.dataset?.sectionId || null;
-				setActiveSection(true, sectionId);
-			} else {
-				setActiveSection(true, null);
+			// Get section ID from the active column or section
+			let sectionId = null;
+			if (activeSection && activeSection.sectionId) {
+				sectionId = activeSection.sectionId;
+			} else if (activeColumn && activeColumn.columnId) {
+				// Get section ID from column element
+				const columnElement = document.querySelector(`[data-column-id="${activeColumn.columnId}"]`);
+				const sectionElement = columnElement?.querySelector('.section');
+				sectionId = sectionElement?.dataset?.sectionId || null;
 			}
+			setActiveSection(true, sectionId);
 		} else {
 			setActiveSection(false, null);
 		}
@@ -312,74 +298,40 @@
 		
 		// Listen for select-column event from ToolbarStructure
 		const handleSelectColumnEvent = (event) => {
-			const { segmentId } = event.detail;
-			console.log('[SELECT-COLUMN] Activating column for segment:', segmentId);
+			const { columnId } = event.detail;
+			console.log('[SELECT-COLUMN] Activating column:', columnId);
 			
-			// Set activeColumn and clear activeSection (keep activeSegment for toolbar)
-			activeColumn = { segmentId };
+			// Set activeColumn and clear activeSection
+			activeColumn = { columnId };
 			activeSection = null;
 		};
 		
 		// Listen for deselect-column event from ToolbarStructure
 		const handleDeselectColumnEvent = (event) => {
-			const { segmentId } = event.detail;
-			console.log('[DESELECT-COLUMN] Reactivating segment:', segmentId);
+			const { columnId } = event.detail;
+			console.log('[DESELECT-COLUMN] Deactivating column:', columnId);
 			
-			// Clear activeColumn and reactivate the segment
+			// Clear activeColumn - segment remains active
 			activeColumn = null;
-			
-			// Find the segment element and reactivate it
-			const segmentElement = document.querySelector(`[data-segment-id="${segmentId}"]`);
-			if (segmentElement) {
-				const passageElement = segmentElement.closest('.passage');
-				if (passageElement) {
-					const allPassages = Array.from(document.querySelectorAll('.passage'));
-					const passageIndex = allPassages.indexOf(passageElement);
-					
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentIndex = allSegments.indexOf(segmentElement);
-					
-					if (passageIndex !== -1 && segmentIndex !== -1) {
-						activeSegment = { passageIndex, segmentIndex, segmentId, activateSection: false };
-					}
-				}
-			}
 		};
 		
 		// Listen for select-section event from ToolbarStructure
 		const handleSelectSectionEvent = (event) => {
-			const { segmentId } = event.detail;
-			console.log('[SELECT-SECTION] Activating section for segment:', segmentId);
+			const { sectionId } = event.detail;
+			console.log('[SELECT-SECTION] Activating section:', sectionId);
 			
-			// Set activeSection and clear activeColumn (keep activeSegment for toolbar)
-			activeSection = { segmentId };
+			// Set activeSection and clear activeColumn
+			activeSection = { sectionId };
 			activeColumn = null;
 		};
 		
 		// Listen for deselect-section event from ToolbarStructure
 		const handleDeselectSectionEvent = (event) => {
-			const { segmentId } = event.detail;
-			console.log('[DESELECT-SECTION] Reactivating segment:', segmentId);
+			const { sectionId } = event.detail;
+			console.log('[DESELECT-SECTION] Deactivating section:', sectionId);
 			
-			// Clear activeSection and reactivate the segment
+			// Clear activeSection - segment remains active
 			activeSection = null;
-			
-			// Find the segment element and reactivate it
-			const segmentElement = document.querySelector(`[data-segment-id="${segmentId}"]`);
-			if (segmentElement) {
-				const passageElement = segmentElement.closest('.passage');
-				if (passageElement) {
-					const allPassages = Array.from(document.querySelectorAll('.passage'));
-					const passageIndex = allPassages.indexOf(passageElement);
-					
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentIndex = allSegments.indexOf(segmentElement);
-					
-					if (passageIndex !== -1 && segmentIndex !== -1) {
-						activeSegment = { passageIndex, segmentIndex, segmentId, activateSection: false };
-					}
-				}
-			}
 		};
 		
 		window.addEventListener('insert-column', handleInsertColumnEvent);
@@ -732,6 +684,28 @@
 		const letter = String.fromCharCode(97 + (index % 26));
 		const repeatCount = Math.floor(index / 26) + 1;
 		return letter.repeat(repeatCount);
+	}
+
+	/**
+	 * Check if a segment is in a column
+	 * @param {Object} column - Column object
+	 * @param {string} segmentId - Segment ID to search for
+	 * @returns {boolean} True if segment is in column
+	 */
+	function isSegmentInColumn(column, segmentId) {
+		return column.sections.some(section => 
+			section.segments.some(segment => segment.id === segmentId)
+		);
+	}
+
+	/**
+	 * Check if a segment is in a section
+	 * @param {Object} section - Section object
+	 * @param {string} segmentId - Segment ID to search for
+	 * @returns {boolean} True if segment is in section
+	 */
+	function isSegmentInSection(section, segmentId) {
+		return section.segments.some(segment => segment.id === segmentId);
 	}
 
 	/**
@@ -1190,25 +1164,19 @@
 		});
 
 		// Add active class based on current state
-		if (activeColumn && activeColumn.segmentId) {
-			// Activate the column containing the segment (column mode takes priority)
-			const segmentElement = document.querySelector(`[data-segment-id="${activeColumn.segmentId}"]`);
-			if (segmentElement) {
-				const columnElement = segmentElement.closest('.column');
-				if (columnElement) {
-					columnElement.classList.add('active');
-					console.log('[EFFECT] Activated column for segment:', activeColumn.segmentId);
-				}
+		if (activeColumn && activeColumn.columnId) {
+			// Activate the column by its ID (column mode takes priority)
+			const columnElement = document.querySelector(`[data-column-id="${activeColumn.columnId}"]`);
+			if (columnElement) {
+				columnElement.classList.add('active');
+				console.log('[EFFECT] Activated column:', activeColumn.columnId);
 			}
-		} else if (activeSection && activeSection.segmentId) {
-			// Activate the section/section containing the segment (section mode takes priority)
-			const segmentElement = document.querySelector(`[data-segment-id="${activeSection.segmentId}"]`);
-			if (segmentElement) {
-				const sectionElement = segmentElement.closest('.section');
-				if (sectionElement) {
-					sectionElement.classList.add('active');
-					console.log('[EFFECT] Activated section for segment:', activeSection.segmentId);
-				}
+		} else if (activeSection && activeSection.sectionId) {
+			// Activate the section by its ID (section mode takes priority)
+			const sectionElement = document.querySelector(`[data-section-id="${activeSection.sectionId}"]`);
+			if (sectionElement) {
+				sectionElement.classList.add('active');
+				console.log('[EFFECT] Activated section:', activeSection.sectionId);
 			}
 		} else if (activeSegment && activeSegment.segmentId && !activeColumn && !activeSection) {
 			// Only activate the segment if neither column nor section mode is active
@@ -1453,8 +1421,24 @@
 																		/>
 																	{/each}
 																{/if}
+																
+																<!-- Section toolbar appears when segment is selected anywhere in this column -->
+																{#if activeSegment?.segmentId && isSegmentInColumn(column, activeSegment.segmentId)}
+																	<ToolbarSection 
+																		sectionId={section.id}
+																		isActive={!!activeSection && activeSection.sectionId === section.id}
+																	/>
+																{/if}
 															</div>
 														{/each}
+													{/if}
+
+													<!-- Column toolbar appears when segment is selected in this column -->
+													{#if activeSegment?.segmentId && isSegmentInColumn(column, activeSegment.segmentId)}
+														<ToolbarColumn 
+															columnId={column.id} 
+															isActive={!!activeColumn && activeColumn.columnId === column.id}
+														/>
 													{/if}
 												</div>
 											{/each}
@@ -1562,10 +1546,12 @@
 
 	.passage-container {
 		display: flex;
+		align-items: flex-start;
 		gap: 3.9rem;
 	}
 
 	.column {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		width: 26.8rem;
