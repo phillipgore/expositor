@@ -57,6 +57,12 @@
 	let activeSections = $state([]); // Array of sectionId strings
 	let segmentClickGeneration = $state(0); // Increments on every segment click to force toolbar remount
 
+	// Derived state: Check if we're in multi-select mode (more than 1 item selected)
+	let isInMultiSelectMode = $derived.by(() => {
+		const totalSelected = activeColumns.length + activeSections.length + activeSegments.length;
+		return totalSelected > 1;
+	});
+
 	// Sync word selection state to toolbar store
 	$effect(() => {
 		setWordSelection(selectedWord !== null);
@@ -1751,8 +1757,9 @@
 																	{/each}
 																{/if}
 																
-																<!-- Section toolbar appears when segment is selected in this column OR when Command key is held -->
-																{#if (activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || isCommandKeyHeld}
+																<!-- Section toolbar: Command+any selection shows all, Single-select shows for active columns -->
+																{#if (isCommandKeyHeld && (activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0))
+																     || (!isInMultiSelectMode && activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId)))}
 																	<ToolbarSection 
 																		sectionId={section.id}
 																		isActive={activeSections.includes(section.id)}
@@ -1762,8 +1769,9 @@
 														{/each}
 													{/if}
 
-													<!-- Column toolbar appears when segment is selected in this column OR when Command key is held -->
-													{#if (activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || isCommandKeyHeld}
+													<!-- Column toolbar: Command+any selection shows all, Single-select shows for active columns -->
+													{#if (isCommandKeyHeld && (activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0))
+													     || (!isInMultiSelectMode && activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId)))}
 														<ToolbarColumn 
 															columnId={column.id} 
 															isActive={activeColumns.includes(column.id)}
