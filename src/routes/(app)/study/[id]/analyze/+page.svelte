@@ -48,13 +48,14 @@
 	// Click debouncing for separating single clicks from double/triple clicks
 	let clickTimeout = $state(null); // Timeout ID for delayed single-click processing
 
-	// Active segment state
-	let activeSegment = $state(null); // { passageIndex, segmentIndex, segmentId, generation }
+	// Command key detection for multi-select mode
+	let isCommandKeyHeld = $state(false);
+
+	// Multi-selection state (replaces single selection)
+	let activeSegments = $state([]); // Array of { passageIndex, segmentIndex, segmentId, generation }
+	let activeColumns = $state([]); // Array of columnId strings
+	let activeSections = $state([]); // Array of sectionId strings
 	let segmentClickGeneration = $state(0); // Increments on every segment click to force toolbar remount
-	
-	// Active column and section state
-	let activeColumn = $state(null); // { columnId } - tracks which column to activate
-	let activeSection = $state(null); // { sectionId } - tracks which section to activate
 
 	// Sync word selection state to toolbar store
 	$effect(() => {
@@ -64,12 +65,13 @@
 	// Sync active segment state to toolbar store
 	// Only set hasActiveSegment to true when neither column nor section mode is active
 	$effect(() => {
-		if (activeSegment && activeSegment.segmentId && !activeColumn && !activeSection) {
+		if (activeSegments.length > 0 && activeColumns.length === 0 && activeSections.length === 0) {
 			// Only set active segment in store when in pure segment mode (not column/section mode)
-			console.log('[SYNC] Sending segment ID to store:', activeSegment.segmentId);
+			// Use the first active segment for toolbar state
+			const firstSegment = activeSegments[0];
 			
 			// Look up segment data to pass heading/note status
-			const segmentElement = document.querySelector(`[data-segment-id="${activeSegment.segmentId}"]`);
+			const segmentElement = document.querySelector(`[data-segment-id="${firstSegment.segmentId}"]`);
 			let hasHeadingOne = false;
 			let hasHeadingTwo = false;
 			let hasHeadingThree = false;
@@ -83,22 +85,22 @@
 				hasNote = !!segmentElement.querySelector('.note, .note-input');
 			}
 			
-			setActiveSegment(true, activeSegment.segmentId, {
+			setActiveSegment(true, firstSegment.segmentId, {
 				hasHeadingOne,
 				hasHeadingTwo,
 				hasHeadingThree,
 				hasNote
 			});
 		} else {
-			console.log('[SYNC] Clearing active segment from store');
 			setActiveSegment(false, null);
 		}
 	});
 
 	// Sync active column state to toolbar store
 	$effect(() => {
-		if (activeColumn && activeColumn.columnId) {
-			setActiveColumn(true, activeColumn.columnId);
+		if (activeColumns.length > 0) {
+			// Use the first active column for toolbar state
+			setActiveColumn(true, activeColumns[0]);
 		} else {
 			setActiveColumn(false, null);
 		}
@@ -107,15 +109,15 @@
 	// Sync active section state to toolbar store
 	// Set to true when column OR section is active (for color menu)
 	$effect(() => {
-		const hasActiveSection = activeColumn !== null || activeSection !== null;
+		const hasActiveSection = activeColumns.length > 0 || activeSections.length > 0;
 		if (hasActiveSection) {
 			// Get section ID from the active column or section
 			let sectionId = null;
-			if (activeSection && activeSection.sectionId) {
-				sectionId = activeSection.sectionId;
-			} else if (activeColumn && activeColumn.columnId) {
+			if (activeSections.length > 0) {
+				sectionId = activeSections[0];
+			} else if (activeColumns.length > 0) {
 				// Get section ID from column element
-				const columnElement = document.querySelector(`[data-column-id="${activeColumn.columnId}"]`);
+				const columnElement = document.querySelector(`[data-column-id="${activeColumns[0]}"]`);
 				const sectionElement = columnElement?.querySelector('.section');
 				sectionId = sectionElement?.dataset?.sectionId || null;
 			}
@@ -128,10 +130,23 @@
 	// Clear active segments and word selection when overview mode is enabled
 	$effect(() => {
 		if ($toolbarState.overviewMode) {
-			activeSegment = null;
+			activeSegments = [];
+			activeColumns = [];
+			activeSections = [];
 			selectedWord = null;
 			suppressHoverCaret = null;
 		}
+	});
+
+	// Console logger for multi-select state tracking
+	$effect(() => {
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+		console.log('📊 MULTI-SELECT STATE TRACKER');
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+		console.log(`📦 Columns (${activeColumns.length}):`, activeColumns.length > 0 ? activeColumns : '(none)');
+		console.log(`📄 Sections (${activeSections.length}):`, activeSections.length > 0 ? activeSections : '(none)');
+		console.log(`✂️  Segments (${activeSegments.length}):`, activeSegments.length > 0 ? activeSegments.map(s => s.segmentId) : '(none)');
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 	});
 
 	// Validate Insert Column availability based on word selection
@@ -214,124 +229,90 @@
 		
 		// Listen for insert heading one event from MenuStructure
 		const handleInsertHeadingOneFromMenuEvent = () => {
-			// Find the active segment and dispatch event with its ID
-			if (activeSegment) {
-				const allPassages = Array.from(document.querySelectorAll('.passage'));
-				const passageElement = allPassages[activeSegment.passageIndex];
-				if (passageElement) {
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentElement = allSegments[activeSegment.segmentIndex];
-					if (segmentElement) {
-						const segmentId = segmentElement.dataset.segmentId;
-						if (segmentId) {
-							window.dispatchEvent(new CustomEvent('insert-heading-one', {
-								detail: { segmentId }
-							}));
-						}
-					}
-				}
+			// Find the first active segment and dispatch event with its ID
+			if (activeSegments.length > 0) {
+				const firstSegment = activeSegments[0];
+				window.dispatchEvent(new CustomEvent('insert-heading-one', {
+					detail: { segmentId: firstSegment.segmentId }
+				}));
 			}
 		};
 		
 		// Listen for insert heading two event from MenuStructure
 		const handleInsertHeadingTwoFromMenuEvent = () => {
-			// Find the active segment and dispatch event with its ID
-			if (activeSegment) {
-				const allPassages = Array.from(document.querySelectorAll('.passage'));
-				const passageElement = allPassages[activeSegment.passageIndex];
-				if (passageElement) {
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentElement = allSegments[activeSegment.segmentIndex];
-					if (segmentElement) {
-						const segmentId = segmentElement.dataset.segmentId;
-						if (segmentId) {
-							window.dispatchEvent(new CustomEvent('insert-heading-two', {
-								detail: { segmentId }
-							}));
-						}
-					}
-				}
+			// Find the first active segment and dispatch event with its ID
+			if (activeSegments.length > 0) {
+				const firstSegment = activeSegments[0];
+				window.dispatchEvent(new CustomEvent('insert-heading-two', {
+					detail: { segmentId: firstSegment.segmentId }
+				}));
 			}
 		};
 		
 		// Listen for insert heading three event from MenuStructure
 		const handleInsertHeadingThreeFromMenuEvent = () => {
-			// Find the active segment and dispatch event with its ID
-			if (activeSegment) {
-				const allPassages = Array.from(document.querySelectorAll('.passage'));
-				const passageElement = allPassages[activeSegment.passageIndex];
-				if (passageElement) {
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentElement = allSegments[activeSegment.segmentIndex];
-					if (segmentElement) {
-						const segmentId = segmentElement.dataset.segmentId;
-						if (segmentId) {
-							window.dispatchEvent(new CustomEvent('insert-heading-three', {
-								detail: { segmentId }
-							}));
-						}
-					}
-				}
+			// Find the first active segment and dispatch event with its ID
+			if (activeSegments.length > 0) {
+				const firstSegment = activeSegments[0];
+				window.dispatchEvent(new CustomEvent('insert-heading-three', {
+					detail: { segmentId: firstSegment.segmentId }
+				}));
 			}
 		};
 		
 		// Listen for insert note event from MenuStructure
 		const handleInsertNoteFromMenuEvent = () => {
-			// Find the active segment and dispatch event with its ID
-			if (activeSegment) {
-				const allPassages = Array.from(document.querySelectorAll('.passage'));
-				const passageElement = allPassages[activeSegment.passageIndex];
-				if (passageElement) {
-					const allSegments = Array.from(passageElement.querySelectorAll('.segment'));
-					const segmentElement = allSegments[activeSegment.segmentIndex];
-					if (segmentElement) {
-						const segmentId = segmentElement.dataset.segmentId;
-						if (segmentId) {
-							window.dispatchEvent(new CustomEvent('insert-note', {
-								detail: { segmentId }
-							}));
-						}
-					}
-				}
+			// Find the first active segment and dispatch event with its ID
+			if (activeSegments.length > 0) {
+				const firstSegment = activeSegments[0];
+				window.dispatchEvent(new CustomEvent('insert-note', {
+					detail: { segmentId: firstSegment.segmentId }
+				}));
 			}
 		};
 		
 		// Listen for select-column event from ToolbarStructure
 		const handleSelectColumnEvent = (event) => {
 			const { columnId } = event.detail;
-			console.log('[SELECT-COLUMN] Activating column:', columnId);
 			
-			// Set activeColumn and clear activeSection
-			activeColumn = { columnId };
-			activeSection = null;
+			// Use hierarchical selection handler
+			const newState = handleSelection('column', columnId);
+			activeColumns = newState.columns;
+			activeSections = newState.sections;
+			activeSegments = newState.segments;
 		};
 		
 		// Listen for deselect-column event from ToolbarStructure
 		const handleDeselectColumnEvent = (event) => {
 			const { columnId } = event.detail;
-			console.log('[DESELECT-COLUMN] Deactivating column:', columnId);
 			
-			// Clear activeColumn - segment remains active
-			activeColumn = null;
+			// Use hierarchical selection handler (same as select - it toggles)
+			const newState = handleSelection('column', columnId);
+			activeColumns = newState.columns;
+			activeSections = newState.sections;
+			activeSegments = newState.segments;
 		};
 		
 		// Listen for select-section event from ToolbarStructure
 		const handleSelectSectionEvent = (event) => {
 			const { sectionId } = event.detail;
-			console.log('[SELECT-SECTION] Activating section:', sectionId);
 			
-			// Set activeSection and clear activeColumn
-			activeSection = { sectionId };
-			activeColumn = null;
+			// Use hierarchical selection handler
+			const newState = handleSelection('section', sectionId);
+			activeColumns = newState.columns;
+			activeSections = newState.sections;
+			activeSegments = newState.segments;
 		};
 		
 		// Listen for deselect-section event from ToolbarStructure
 		const handleDeselectSectionEvent = (event) => {
 			const { sectionId } = event.detail;
-			console.log('[DESELECT-SECTION] Deactivating section:', sectionId);
 			
-			// Clear activeSection - segment remains active
-			activeSection = null;
+			// Use hierarchical selection handler (same as select - it toggles)
+			const newState = handleSelection('section', sectionId);
+			activeColumns = newState.columns;
+			activeSections = newState.sections;
+			activeSegments = newState.segments;
 		};
 		
 		window.addEventListener('insert-column', handleInsertColumnEvent);
@@ -451,7 +432,9 @@
 				console.log('Column inserted successfully');
 				// Clear selection
 				selectedWord = null;
-				activeSegment = null;
+				activeSegments = [];
+				activeColumns = [];
+				activeSections = [];
 				suppressHoverCaret = null;
 				
 				// Refresh data using the dependency key from the layout
@@ -557,7 +540,9 @@
 				console.log('Section inserted successfully');
 				// Clear selection
 				selectedWord = null;
-				activeSegment = null;
+				activeSegments = [];
+				activeColumns = [];
+				activeSections = [];
 				suppressHoverCaret = null;
 				
 				// Refresh data using the dependency key from the layout
@@ -655,7 +640,9 @@
 				console.log('Segment inserted successfully');
 				// Clear selection
 				selectedWord = null;
-				activeSegment = null;
+				activeSegments = [];
+				activeColumns = [];
+				activeSections = [];
 				suppressHoverCaret = null;
 				
 				// Refresh data using the dependency key from the layout
@@ -706,6 +693,294 @@
 	 */
 	function isSegmentInSection(section, segmentId) {
 		return section.segments.some(segment => segment.id === segmentId);
+	}
+
+	// ============================================================
+	// HIERARCHICAL SELECTION HELPER FUNCTIONS
+	// ============================================================
+
+	/**
+	 * Get the column ID that contains a given section ID
+	 * @param {string} sectionId - Section ID to search for
+	 * @returns {string|null} Column ID or null if not found
+	 */
+	function getColumnIdFromSectionId(sectionId) {
+		if (!data.passagesWithText) return null;
+		
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			
+			for (const column of passageText.structure.columns) {
+				if (column.sections.some(section => section.id === sectionId)) {
+					return column.id;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Get the column ID that contains a given segment ID
+	 * @param {string} segmentId - Segment ID to search for
+	 * @returns {string|null} Column ID or null if not found
+	 */
+	function getColumnIdFromSegmentId(segmentId) {
+		if (!data.passagesWithText) return null;
+		
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			
+			for (const column of passageText.structure.columns) {
+				for (const section of column.sections) {
+					if (section.segments.some(segment => segment.id === segmentId)) {
+						return column.id;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Get the section ID that contains a given segment ID
+	 * @param {string} segmentId - Segment ID to search for
+	 * @returns {string|null} Section ID or null if not found
+	 */
+	function getSectionIdFromSegmentId(segmentId) {
+		if (!data.passagesWithText) return null;
+		
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			
+			for (const column of passageText.structure.columns) {
+				for (const section of column.sections) {
+					if (section.segments.some(segment => segment.id === segmentId)) {
+						return section.id;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Get all section IDs in a given column
+	 * @param {string} columnId - Column ID
+	 * @returns {string[]} Array of section IDs
+	 */
+	function getAllSectionIdsInColumn(columnId) {
+		if (!data.passagesWithText) return [];
+		
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			
+			const column = passageText.structure.columns.find(col => col.id === columnId);
+			if (column) {
+				return column.sections.map(section => section.id);
+			}
+		}
+		return [];
+	}
+
+	/**
+	 * Get all segment IDs in a given section
+	 * @param {string} sectionId - Section ID
+	 * @returns {string[]} Array of segment IDs
+	 */
+	function getAllSegmentIdsInSection(sectionId) {
+		if (!data.passagesWithText) return [];
+		
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			
+			for (const column of passageText.structure.columns) {
+				const section = column.sections.find(sec => sec.id === sectionId);
+				if (section) {
+					return section.segments.map(segment => segment.id);
+				}
+			}
+		}
+		return [];
+	}
+
+	/**
+	 * Get all segment IDs in a given column (across all its sections)
+	 * @param {string} columnId - Column ID
+	 * @returns {string[]} Array of segment IDs
+	 */
+	function getAllSegmentIdsInColumn(columnId) {
+		if (!data.passagesWithText) return [];
+		
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			
+			const column = passageText.structure.columns.find(col => col.id === columnId);
+			if (column) {
+				const segmentIds = [];
+				for (const section of column.sections) {
+					segmentIds.push(...section.segments.map(segment => segment.id));
+				}
+				return segmentIds;
+			}
+		}
+		return [];
+	}
+
+	// ============================================================
+	// HIERARCHICAL SELECTION HANDLER
+	// ============================================================
+
+	/**
+	 * Handle hierarchical selection logic for columns, sections, and segments
+	 * Implements all 7 scenarios from the Multi-Select Scenarios document
+	 * @param {string} type - Type of item: 'column', 'section', or 'segment'
+	 * @param {string} id - ID of the item being selected
+	 * @param {Object} segmentData - Additional data for segment selection (passageIndex, segmentIndex, generation)
+	 * @returns {Object} New state: { columns: [], sections: [], segments: [] }
+	 */
+	function handleSelection(type, id, segmentData = null) {
+		console.log(`[SELECTION] Handling ${type} selection:`, id);
+		console.log('[SELECTION] Current state - Columns:', activeColumns, 'Sections:', activeSections, 'Segments:', activeSegments.map(s => s.segmentId));
+		
+		// Determine current state
+		const hasColumns = activeColumns.length > 0;
+		const hasSections = activeSections.length > 0;
+		const hasSegments = activeSegments.length > 0;
+		
+		let newColumns = [...activeColumns];
+		let newSections = [...activeSections];
+		let newSegments = [...activeSegments];
+		
+		// SCENARIO ROUTING
+		if (type === 'column') {
+			// Check if this column is already selected (toggle/deselect)
+			if (newColumns.includes(id)) {
+				console.log('[SELECTION] Column already selected - removing');
+				newColumns = newColumns.filter(c => c !== id);
+			} else {
+				// Column not selected - add it
+				// Remove any sections that are in this column
+				const sectionsInColumn = getAllSectionIdsInColumn(id);
+				newSections = newSections.filter(s => !sectionsInColumn.includes(s));
+				
+				// Remove any segments that are in this column
+				const segmentsInColumn = getAllSegmentIdsInColumn(id);
+				newSegments = newSegments.filter(seg => !segmentsInColumn.includes(seg.segmentId));
+				
+				newColumns.push(id);
+				console.log('[SELECTION] Added column, removed its sections/segments');
+			}
+		}
+		else if (type === 'section') {
+			const parentColumnId = getColumnIdFromSectionId(id);
+			
+			// Check if this section is already selected (toggle/deselect)
+			if (newSections.includes(id)) {
+				console.log('[SELECTION] Section already selected - removing');
+				newSections = newSections.filter(s => s !== id);
+			} else {
+				// Section not selected - add it
+				// If parent column is selected, remove it
+				if (parentColumnId && newColumns.includes(parentColumnId)) {
+					newColumns = newColumns.filter(c => c !== parentColumnId);
+					console.log('[SELECTION] Removed parent column');
+				}
+				
+				// Remove any segments that are in this section
+				const segmentsInSection = getAllSegmentIdsInSection(id);
+				newSegments = newSegments.filter(seg => !segmentsInSection.includes(seg.segmentId));
+				
+				newSections.push(id);
+				console.log('[SELECTION] Added section, removed its segments');
+				
+				// Check if all sections in the column are now selected -> upgrade to column
+				if (parentColumnId) {
+					const allSectionsInColumn = getAllSectionIdsInColumn(parentColumnId);
+					const allSelected = allSectionsInColumn.every(sId => newSections.includes(sId));
+					if (allSelected) {
+						console.log('[SELECTION] All sections selected - upgrading to column');
+						newSections = newSections.filter(s => !allSectionsInColumn.includes(s));
+						newColumns.push(parentColumnId);
+					}
+				}
+			}
+		}
+		else if (type === 'segment') {
+			// Check if this segment is already selected (toggle/deselect)
+			if (newSegments.some(seg => seg.segmentId === id)) {
+				console.log('[SELECTION] Segment already selected - removing');
+				newSegments = newSegments.filter(seg => seg.segmentId !== id);
+			} else {
+				// Segment not selected - add it
+				const parentSectionId = getSectionIdFromSegmentId(id);
+				const parentColumnId = getColumnIdFromSegmentId(id);
+				
+				// If parent section is selected, remove it
+				if (parentSectionId && newSections.includes(parentSectionId)) {
+					newSections = newSections.filter(s => s !== parentSectionId);
+					console.log('[SELECTION] Removed parent section');
+				}
+				
+				// If parent column is selected, remove it
+				if (parentColumnId && newColumns.includes(parentColumnId)) {
+					newColumns = newColumns.filter(c => c !== parentColumnId);
+					console.log('[SELECTION] Removed parent column');
+				}
+				
+				// Add the segment
+				if (segmentData) {
+					newSegments.push({
+						passageIndex: segmentData.passageIndex,
+						segmentIndex: segmentData.segmentIndex,
+						segmentId: id,
+						activateSection: false,
+						generation: segmentData.generation
+					});
+				} else {
+					// Fallback if segmentData not provided
+					newSegments.push({
+						passageIndex: 0,
+						segmentIndex: 0,
+						segmentId: id,
+						activateSection: false,
+						generation: segmentClickGeneration
+					});
+				}
+				console.log('[SELECTION] Added segment');
+				
+				// Check if all segments in the section are now selected -> upgrade to section
+				if (parentSectionId) {
+					const allSegmentsInSection = getAllSegmentIdsInSection(parentSectionId);
+					const allSelected = allSegmentsInSection.every(segId => 
+						newSegments.some(seg => seg.segmentId === segId)
+					);
+					if (allSelected) {
+						console.log('[SELECTION] All segments in section selected - upgrading to section');
+						newSegments = newSegments.filter(seg => !allSegmentsInSection.includes(seg.segmentId));
+						newSections.push(parentSectionId);
+						
+						// Check if all sections in the column are now selected -> upgrade to column
+						if (parentColumnId) {
+							const allSectionsInColumn = getAllSectionIdsInColumn(parentColumnId);
+							const allSectionsSelected = allSectionsInColumn.every(sId => newSections.includes(sId));
+							if (allSectionsSelected) {
+								console.log('[SELECTION] All sections in column selected - upgrading to column');
+								newSections = newSections.filter(s => !allSectionsInColumn.includes(s));
+								newColumns.push(parentColumnId);
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		console.log('[SELECTION] New state - Columns:', newColumns, 'Sections:', newSections, 'Segments:', newSegments.map(s => s.segmentId));
+		
+		return {
+			columns: newColumns,
+			sections: newSections,
+			segments: newSegments
+		};
 	}
 
 	/**
@@ -909,9 +1184,11 @@
 				selectedWord = null;
 				suppressHoverCaret = null;
 				
-				// Only clear active segment if NOT dragging in an input
+				// Only clear active segments if NOT dragging in an input
 				if (!isInInput) {
-					activeSegment = null;
+					activeSegments = [];
+					activeColumns = [];
+					activeSections = [];
 				}
 			}
 		}
@@ -997,8 +1274,10 @@
 			// Allow text selection in input fields without deactivating segment
 			const isInInput = event.target.closest('input, textarea');
 			if (!isInInput) {
-				// Only clear active segment if NOT clicking in an input
-				activeSegment = null;
+				// Only clear active segments if NOT clicking in an input
+				activeSegments = [];
+				activeColumns = [];
+				activeSections = [];
 			}
 			return; // Let browser handle double/triple-click text selection
 		}
@@ -1035,18 +1314,40 @@
 				if (passageIndex !== -1 && segmentIndex !== -1 && segmentId) {
 					// Increment generation counter to force toolbar remount
 					segmentClickGeneration++;
-					// Clear any active column/section selections
-					activeColumn = null;
-					activeSection = null;
-					// Activate the segment with generation
-					activeSegment = { passageIndex, segmentIndex, segmentId, activateSection: false, generation: segmentClickGeneration };
+					
+					// Check if Command/Ctrl key is held for multi-select mode (directly from event)
+					const isMultiSelectMode = event.metaKey || event.ctrlKey;
+					
+					if (isMultiSelectMode) {
+						console.log('[CLICK] Command/Ctrl held - using hierarchical selection');
+						// Multi-select mode: use hierarchical selection handler
+						const newState = handleSelection('segment', segmentId, {
+							passageIndex,
+							segmentIndex,
+							generation: segmentClickGeneration
+						});
+						activeColumns = newState.columns;
+						activeSections = newState.sections;
+						activeSegments = newState.segments;
+					} else {
+						// Normal mode: replace selection with single segment
+						console.log('[CLICK] Normal click - replacing selection');
+						// Clear any active column/section selections
+						activeColumns = [];
+						activeSections = [];
+						// Activate the segment with generation
+						activeSegments = [{ passageIndex, segmentIndex, segmentId, activateSection: false, generation: segmentClickGeneration }];
+					}
 				}
 			}
 		} else {
-			// Clicked outside any segment - clear active state
-			activeSegment = null;
-			activeColumn = null;
-			activeSection = null;
+			// Clicked outside any segment - clear active state (unless Command/Ctrl is held)
+			const isMultiSelectMode = event.metaKey || event.ctrlKey;
+			if (!isMultiSelectMode) {
+				activeSegments = [];
+				activeColumns = [];
+				activeSections = [];
+			}
 		}
 		
 		// Clear any existing timeout to prevent duplicate processing
@@ -1076,7 +1377,7 @@
 						// After -> Deselect (suppress hover caret until mouse out)
 						selectedWord = null;
 						suppressHoverCaret = { passageIndex, wordId };
-						activeSegment = null; // Also deactivate segment
+						activeSegments = []; // Also deactivate segments
 					}
 				} else {
 					// Clicking different word: start with "before"
@@ -1101,6 +1402,7 @@
 	/**
 	 * Handle global key down events
 	 * - ESC: Clear word selections and browser text selections
+	 * - Command/Ctrl: Enable multi-select mode
 	 */
 	function handleKeyDown(event) {
 		if (event.key === 'Escape') {
@@ -1108,6 +1410,24 @@
 			hoveredWord = null;
 			// Clear browser's text selection
 			window.getSelection()?.removeAllRanges();
+		}
+		
+		// Detect Command (Mac) or Ctrl (Windows/Linux) key
+		if (event.key === 'Meta' || event.key === 'Control') {
+			isCommandKeyHeld = true;
+			console.log('[KEY] Command/Ctrl key pressed - multi-select mode enabled');
+		}
+	}
+	
+	/**
+	 * Handle global key up events
+	 * - Command/Ctrl release: Disable multi-select mode
+	 */
+	function handleKeyUp(event) {
+		// Detect Command (Mac) or Ctrl (Windows/Linux) key release
+		if (event.key === 'Meta' || event.key === 'Control') {
+			isCommandKeyHeld = false;
+			console.log('[KEY] Command/Ctrl key released - multi-select mode disabled');
 		}
 	}
 
@@ -1163,36 +1483,45 @@
 			column.classList.remove('active');
 		});
 
-		// Add active class based on current state
-		if (activeColumn && activeColumn.columnId) {
-			// Activate the column by its ID (column mode takes priority)
-			const columnElement = document.querySelector(`[data-column-id="${activeColumn.columnId}"]`);
-			if (columnElement) {
-				columnElement.classList.add('active');
-				console.log('[EFFECT] Activated column:', activeColumn.columnId);
-			}
-		} else if (activeSection && activeSection.sectionId) {
-			// Activate the section by its ID (section mode takes priority)
-			const sectionElement = document.querySelector(`[data-section-id="${activeSection.sectionId}"]`);
-			if (sectionElement) {
-				sectionElement.classList.add('active');
-				console.log('[EFFECT] Activated section:', activeSection.sectionId);
-			}
-		} else if (activeSegment && activeSegment.segmentId && !activeColumn && !activeSection) {
-			// Only activate the segment if neither column nor section mode is active
-			const segmentElement = document.querySelector(`[data-segment-id="${activeSegment.segmentId}"]`);
-			if (segmentElement) {
-				if (activeSegment.activateSection) {
-					// Activate the section (color mode)
-					const sectionElement = segmentElement.closest('.section');
-					if (sectionElement) {
-						sectionElement.classList.add('active');
-					}
-				} else {
-					// Activate the segment (outline and literary modes)
-					segmentElement.classList.add('active');
+		// Add active class to all selected columns
+		if (activeColumns.length > 0) {
+			activeColumns.forEach(columnId => {
+				const columnElement = document.querySelector(`[data-column-id="${columnId}"]`);
+				if (columnElement) {
+					columnElement.classList.add('active');
+					console.log('[EFFECT] Activated column:', columnId);
 				}
-			}
+			});
+		}
+		
+		// Add active class to all selected sections
+		if (activeSections.length > 0) {
+			activeSections.forEach(sectionId => {
+				const sectionElement = document.querySelector(`[data-section-id="${sectionId}"]`);
+				if (sectionElement) {
+					sectionElement.classList.add('active');
+					console.log('[EFFECT] Activated section:', sectionId);
+				}
+			});
+		}
+		
+		// Add active class to all selected segments
+		if (activeSegments.length > 0) {
+			activeSegments.forEach(segment => {
+				const segmentElement = document.querySelector(`[data-segment-id="${segment.segmentId}"]`);
+				if (segmentElement) {
+					if (segment.activateSection) {
+						// Activate the section (color mode)
+						const sectionElement = segmentElement.closest('.section');
+						if (sectionElement) {
+							sectionElement.classList.add('active');
+						}
+					} else {
+						// Activate the segment (outline and literary modes)
+						segmentElement.classList.add('active');
+					}
+				}
+			});
 		}
 	});
 
@@ -1338,7 +1667,7 @@
 	});
 </script>
 
-<svelte:window on:keydown={handleKeyDown} />
+<svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
 
 <div class="container">
 	<!-- Analyze View Content -->
@@ -1415,29 +1744,29 @@
 																			note={segment.note}
 																			text={segmentHtml}
 																			{passageIndex}
-																			isActive={activeSegment?.passageIndex === passageIndex && activeSegment?.segmentIndex === domSegmentIndex}
+																			isActive={activeSegments.some(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)}
 																			segmentId={segment.id}
-																			generation={activeSegment?.generation || 0}
+																			generation={activeSegments.find(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)?.generation || 0}
 																		/>
 																	{/each}
 																{/if}
 																
-																<!-- Section toolbar appears when segment is selected anywhere in this column -->
-																{#if activeSegment?.segmentId && isSegmentInColumn(column, activeSegment.segmentId)}
+																<!-- Section toolbar appears when segment is selected in this column OR when Command key is held -->
+																{#if (activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || isCommandKeyHeld}
 																	<ToolbarSection 
 																		sectionId={section.id}
-																		isActive={!!activeSection && activeSection.sectionId === section.id}
+																		isActive={activeSections.includes(section.id)}
 																	/>
 																{/if}
 															</div>
 														{/each}
 													{/if}
 
-													<!-- Column toolbar appears when segment is selected in this column -->
-													{#if activeSegment?.segmentId && isSegmentInColumn(column, activeSegment.segmentId)}
+													<!-- Column toolbar appears when segment is selected in this column OR when Command key is held -->
+													{#if (activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || isCommandKeyHeld}
 														<ToolbarColumn 
 															columnId={column.id} 
-															isActive={!!activeColumn && activeColumn.columnId === column.id}
+															isActive={activeColumns.includes(column.id)}
 														/>
 													{/if}
 												</div>
