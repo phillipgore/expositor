@@ -898,17 +898,6 @@
 				
 				newSections.push(id);
 				console.log('[SELECTION] Added section, removed its segments');
-				
-				// Check if all sections in the column are now selected -> upgrade to column
-				if (parentColumnId) {
-					const allSectionsInColumn = getAllSectionIdsInColumn(parentColumnId);
-					const allSelected = allSectionsInColumn.every(sId => newSections.includes(sId));
-					if (allSelected) {
-						console.log('[SELECTION] All sections selected - upgrading to column');
-						newSections = newSections.filter(s => !allSectionsInColumn.includes(s));
-						newColumns.push(parentColumnId);
-					}
-				}
 			}
 		}
 		else if (type === 'segment') {
@@ -935,48 +924,24 @@
 				
 				// Add the segment
 				if (segmentData) {
-					newSegments.push({
-						passageIndex: segmentData.passageIndex,
-						segmentIndex: segmentData.segmentIndex,
-						segmentId: id,
-						activateSection: false,
-						generation: segmentData.generation
-					});
-				} else {
-					// Fallback if segmentData not provided
-					newSegments.push({
-						passageIndex: 0,
-						segmentIndex: 0,
-						segmentId: id,
-						activateSection: false,
-						generation: segmentClickGeneration
-					});
-				}
-				console.log('[SELECTION] Added segment');
-				
-				// Check if all segments in the section are now selected -> upgrade to section
-				if (parentSectionId) {
-					const allSegmentsInSection = getAllSegmentIdsInSection(parentSectionId);
-					const allSelected = allSegmentsInSection.every(segId => 
-						newSegments.some(seg => seg.segmentId === segId)
-					);
-					if (allSelected) {
-						console.log('[SELECTION] All segments in section selected - upgrading to section');
-						newSegments = newSegments.filter(seg => !allSegmentsInSection.includes(seg.segmentId));
-						newSections.push(parentSectionId);
-						
-						// Check if all sections in the column are now selected -> upgrade to column
-						if (parentColumnId) {
-							const allSectionsInColumn = getAllSectionIdsInColumn(parentColumnId);
-							const allSectionsSelected = allSectionsInColumn.every(sId => newSections.includes(sId));
-							if (allSectionsSelected) {
-								console.log('[SELECTION] All sections in column selected - upgrading to column');
-								newSections = newSections.filter(s => !allSectionsInColumn.includes(s));
-								newColumns.push(parentColumnId);
-							}
-						}
-					}
-				}
+				newSegments.push({
+					passageIndex: segmentData.passageIndex,
+					segmentIndex: segmentData.segmentIndex,
+					segmentId: id,
+					activateSection: false,
+					generation: segmentData.generation
+				});
+			} else {
+				// Fallback if segmentData not provided
+				newSegments.push({
+					passageIndex: 0,
+					segmentIndex: 0,
+					segmentId: id,
+					activateSection: false,
+					generation: segmentClickGeneration
+				});
+			}
+			console.log('[SELECTION] Added segment');
 			}
 		}
 		
@@ -1757,21 +1722,21 @@
 																	{/each}
 																{/if}
 																
-																<!-- Section toolbar: Command+any selection shows all, Single-select shows for active columns -->
-																{#if (isCommandKeyHeld && (activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0))
-																     || (!isInMultiSelectMode && activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId)))}
-																	<ToolbarSection 
-																		sectionId={section.id}
-																		isActive={activeSections.includes(section.id)}
-																	/>
-																{/if}
+															<!-- Section toolbar: Command+any selection shows all, Single-select shows for active columns in that column -->
+															{#if (isCommandKeyHeld && (activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0))
+															     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
+																<ToolbarSection 
+																	sectionId={section.id}
+																	isActive={activeSections.includes(section.id)}
+																/>
+															{/if}
 															</div>
 														{/each}
 													{/if}
 
-													<!-- Column toolbar: Command+any selection shows all, Single-select shows for active columns -->
+													<!-- Column toolbar: Command+any selection shows all, Single-select shows for active columns in that column -->
 													{#if (isCommandKeyHeld && (activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0))
-													     || (!isInMultiSelectMode && activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId)))}
+													     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
 														<ToolbarColumn 
 															columnId={column.id} 
 															isActive={activeColumns.includes(column.id)}
