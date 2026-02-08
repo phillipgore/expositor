@@ -1212,6 +1212,17 @@
 	 * Only active when not dragging
 	 */
 	function handleWordClick(event) {
+		// Check if browser has an active text selection
+		const selection = window.getSelection();
+		const hasTextSelection = selection && selection.toString().length > 0;
+		
+		// If Shift is held AND there's an active text selection, 
+		// let browser handle it to extend selection
+		if (event.shiftKey && hasTextSelection) {
+			console.log('[CLICK] Shift+click with active selection - allowing browser to extend');
+			return; // Don't process - let browser extend selection
+		}
+		
 		// Check if a drag just completed - if so, ignore this click
 		if (dragJustCompleted) {
 			dragJustCompleted = false; // Reset flag
