@@ -14,7 +14,8 @@
 		wrapWordsInHtml = null,
 		isActive = false,
 		segmentId = '',
-		generation = 0
+		generation = 0,
+		isCompareHidden = false
 	} = $props();
 
 	// Track input mode for each heading type and note
@@ -129,7 +130,8 @@
      class:has-heading-one={heading1 || headingOneInputMode}
      class:has-heading-two={heading2 || headingTwoInputMode}
      class:has-heading-three={heading3 || headingThreeInputMode}
-     class:has-note={(note || noteInputMode) && $toolbarState.notesVisible} 
+     class:has-note={(note || noteInputMode) && $toolbarState.notesVisible}
+     class:compare-hidden={isCompareHidden}
      data-segment-id="{segmentId}">
 	
 	<!-- Heading One -->

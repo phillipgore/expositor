@@ -350,10 +350,15 @@ export async function toggleStudiesPanel() {
  * Toggle comparisons visibility
  */
 export function toggleComparison() {
-	toolbarStateStore.update(state => ({
-		...state,
-		comparisonsVisible: !state.comparisonsVisible
-	}));
+	console.log('🔘 [TOOLBAR] toggleComparison called');
+	toolbarStateStore.update(state => {
+		const newValue = !state.comparisonsVisible;
+		console.log('🔘 [TOOLBAR] comparisonsVisible changing from', state.comparisonsVisible, 'to', newValue);
+		return {
+			...state,
+			comparisonsVisible: newValue
+		};
+	});
 }
 
 /**
@@ -525,5 +530,17 @@ export function setActiveSection(hasSection, sectionId = null) {
 		...state,
 		hasActiveSection: hasSection,
 		activeSectionId: sectionId
+	}));
+}
+
+/**
+ * Set multi-select mode state (enables Compare button when multiple items selected)
+ * @param {boolean} isMultiSelect - Whether multiple items are currently selected
+ */
+export function setMultiSelectMode(isMultiSelect) {
+	toolbarStateStore.update(state => ({
+		...state,
+		// Keep Compare button enabled if already in compare mode OR if multi-selecting
+		canToggleComparison: isMultiSelect || state.comparisonsVisible
 	}));
 }

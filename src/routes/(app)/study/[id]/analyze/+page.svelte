@@ -7,7 +7,7 @@
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -57,9 +57,24 @@
 	let activeSections = $state([]); // Array of sectionId strings
 	let segmentClickGeneration = $state(0); // Increments on every segment click to force toolbar remount
 
+	// Compare mode state
+	let isCompareMode = $state(false);
+	let originalComparisonSelection = $state({ columns: [], sections: [], segments: [] });
+	let compareActiveColumns = $state([]);
+	let compareActiveSections = $state([]);
+	let compareActiveSegments = $state([]);
+	let visibleColumnIds = $state(new Set());
+	let visibleSectionIds = $state(new Set());
+	let visibleSegmentIds = $state(new Set());
+
 	// Derived state: Check if we're in multi-select mode (more than 1 item selected)
 	let isInMultiSelectMode = $derived.by(() => {
-		const totalSelected = activeColumns.length + activeSections.length + activeSegments.length;
+		// Use compare-mode selections if in compare mode, otherwise use normal selections
+		const selections = isCompareMode
+			? { columns: compareActiveColumns, sections: compareActiveSections, segments: compareActiveSegments }
+			: { columns: activeColumns, sections: activeSections, segments: activeSegments };
+		
+		const totalSelected = selections.columns.length + selections.sections.length + selections.segments.length;
 		return totalSelected > 1;
 	});
 
@@ -133,6 +148,11 @@
 		}
 	});
 
+	// Sync multi-select mode to toolbar store (enables Compare button when 2+ items selected)
+	$effect(() => {
+		setMultiSelectMode(isInMultiSelectMode);
+	});
+
 	// Clear active segments and word selection when overview mode is enabled
 	$effect(() => {
 		if ($toolbarState.overviewMode) {
@@ -141,6 +161,95 @@
 			activeSections = [];
 			selectedWord = null;
 			suppressHoverCaret = null;
+		}
+	});
+
+	// Compare mode toggle logic
+	$effect(() => {
+		console.log('🔍 [COMPARE EFFECT] Running - comparisonsVisible:', $toolbarState.comparisonsVisible, 'isCompareMode:', isCompareMode);
+		
+		if ($toolbarState.comparisonsVisible && !isCompareMode) {
+			// ENTERING COMPARE MODE
+			console.log('🔄 ENTERING COMPARE MODE');
+			console.log('📦 Active state before saving:', {
+				columns: activeColumns,
+				sections: activeSections,
+				segments: activeSegments.map(s => s.segmentId)
+			});
+			
+			// 1. Save original selection
+			originalComparisonSelection = {
+				columns: [...activeColumns],
+				sections: [...activeSections],
+				segments: [...activeSegments]
+			};
+			
+			console.log('💾 Saved originalComparisonSelection:', {
+				columns: originalComparisonSelection.columns,
+				sections: originalComparisonSelection.sections,
+				segments: originalComparisonSelection.segments.map(s => s.segmentId)
+			});
+			
+			// 2. Calculate visible items
+			const visible = calculateVisibleItems(originalComparisonSelection);
+			console.log('🔍 calculateVisibleItems returned:', {
+				columns: Array.from(visible.columns),
+				sections: Array.from(visible.sections),
+				segments: Array.from(visible.segments)
+			});
+			
+			// Create new Set instances to trigger Svelte reactivity
+			visibleColumnIds = new Set(visible.columns);
+			visibleSectionIds = new Set(visible.sections);
+			visibleSegmentIds = new Set(visible.segments);
+			
+			console.log('✅ Final visible Sets:', {
+				columnIds: Array.from(visibleColumnIds),
+				sectionIds: Array.from(visibleSectionIds),
+				segmentIds: Array.from(visibleSegmentIds)
+			});
+			
+			// 3. Clear word selections
+			selectedWord = null;
+			suppressHoverCaret = null;
+			
+			// 4. Clear visual selection (but keep original stored)
+			activeColumns = [];
+			activeSections = [];
+			activeSegments = [];
+			
+			// 5. Initialize compare-mode selections (empty)
+			compareActiveColumns = [];
+			compareActiveSections = [];
+			compareActiveSegments = [];
+			
+			// 6. Mark we're in compare mode
+			isCompareMode = true;
+			
+		} else if (!$toolbarState.comparisonsVisible && isCompareMode) {
+			// EXITING COMPARE MODE
+			console.log('🔄 EXITING COMPARE MODE');
+			
+			// 1. Clear compare-mode selections
+			compareActiveColumns = [];
+			compareActiveSections = [];
+			compareActiveSegments = [];
+			
+			// 2. Clear visibility filters (show all)
+			visibleColumnIds = new Set();
+			visibleSectionIds = new Set();
+			visibleSegmentIds = new Set();
+			
+			// 3. Restore original selection
+			activeColumns = [...originalComparisonSelection.columns];
+			activeSections = [...originalComparisonSelection.sections];
+			activeSegments = [...originalComparisonSelection.segments];
+			
+			// 4. Clear original selection storage
+			originalComparisonSelection = { columns: [], sections: [], segments: [] };
+			
+			// 5. Mark we're out of compare mode
+			isCompareMode = false;
 		}
 	});
 
@@ -283,9 +392,17 @@
 			
 			// Use hierarchical selection handler
 			const newState = handleSelection('column', columnId);
-			activeColumns = newState.columns;
-			activeSections = newState.sections;
-			activeSegments = newState.segments;
+			
+			// Update the appropriate state based on compare mode
+			if (isCompareMode) {
+				compareActiveColumns = newState.columns;
+				compareActiveSections = newState.sections;
+				compareActiveSegments = newState.segments;
+			} else {
+				activeColumns = newState.columns;
+				activeSections = newState.sections;
+				activeSegments = newState.segments;
+			}
 		};
 		
 		// Listen for deselect-column event from ToolbarStructure
@@ -294,9 +411,17 @@
 			
 			// Use hierarchical selection handler (same as select - it toggles)
 			const newState = handleSelection('column', columnId);
-			activeColumns = newState.columns;
-			activeSections = newState.sections;
-			activeSegments = newState.segments;
+			
+			// Update the appropriate state based on compare mode
+			if (isCompareMode) {
+				compareActiveColumns = newState.columns;
+				compareActiveSections = newState.sections;
+				compareActiveSegments = newState.segments;
+			} else {
+				activeColumns = newState.columns;
+				activeSections = newState.sections;
+				activeSegments = newState.segments;
+			}
 		};
 		
 		// Listen for select-section event from ToolbarStructure
@@ -305,9 +430,17 @@
 			
 			// Use hierarchical selection handler
 			const newState = handleSelection('section', sectionId);
-			activeColumns = newState.columns;
-			activeSections = newState.sections;
-			activeSegments = newState.segments;
+			
+			// Update the appropriate state based on compare mode
+			if (isCompareMode) {
+				compareActiveColumns = newState.columns;
+				compareActiveSections = newState.sections;
+				compareActiveSegments = newState.segments;
+			} else {
+				activeColumns = newState.columns;
+				activeSections = newState.sections;
+				activeSegments = newState.segments;
+			}
 		};
 		
 		// Listen for deselect-section event from ToolbarStructure
@@ -316,9 +449,17 @@
 			
 			// Use hierarchical selection handler (same as select - it toggles)
 			const newState = handleSelection('section', sectionId);
-			activeColumns = newState.columns;
-			activeSections = newState.sections;
-			activeSegments = newState.segments;
+			
+			// Update the appropriate state based on compare mode
+			if (isCompareMode) {
+				compareActiveColumns = newState.columns;
+				compareActiveSections = newState.sections;
+				compareActiveSegments = newState.segments;
+			} else {
+				activeColumns = newState.columns;
+				activeSections = newState.sections;
+				activeSegments = newState.segments;
+			}
 		};
 		
 		window.addEventListener('insert-column', handleInsertColumnEvent);
@@ -702,6 +843,57 @@
 	}
 
 	// ============================================================
+	// COMPARE MODE HELPER FUNCTIONS
+	// ============================================================
+
+	/**
+	 * Calculate which columns, sections, and segments should be visible in compare mode
+	 * based on the original selection. Respects hierarchical containment rules.
+	 * 
+	 * Key behavior:
+	 * - Selected segments → Show ONLY those segments (+ parent section/column as containers)
+	 * - Selected sections → Show section + ALL its segments (+ parent column as container)
+	 * - Selected columns → Show column + ALL its sections + ALL their segments
+	 * 
+	 * @param {Object} selection - Original selection { columns: [], sections: [], segments: [] }
+	 * @returns {Object} Visible items { columns: Set, sections: Set, segments: Set }
+	 */
+	function calculateVisibleItems(selection) {
+		const columns = new Set();
+		const sections = new Set();
+		const segments = new Set();
+		
+		// Add selected segments and their parent sections/columns (but NOT sibling segments)
+		selection.segments.forEach(seg => {
+			segments.add(seg.segmentId);
+			const sectionId = getSectionIdFromSegmentId(seg.segmentId);
+			const columnId = getColumnIdFromSegmentId(seg.segmentId);
+			if (sectionId) sections.add(sectionId);
+			if (columnId) columns.add(columnId);
+		});
+		
+		// Add selected sections, their parent columns, and ALL their segments
+		selection.sections.forEach(sectionId => {
+			sections.add(sectionId);
+			const columnId = getColumnIdFromSectionId(sectionId);
+			if (columnId) columns.add(columnId);
+			// Add all segments in this section
+			getAllSegmentIdsInSection(sectionId).forEach(segId => segments.add(segId));
+		});
+		
+		// Add selected columns and ALL their sections and segments
+		selection.columns.forEach(columnId => {
+			columns.add(columnId);
+			// Add all sections in this column
+			getAllSectionIdsInColumn(columnId).forEach(secId => sections.add(secId));
+			// Add all segments in this column
+			getAllSegmentIdsInColumn(columnId).forEach(segId => segments.add(segId));
+		});
+		
+		return { columns, sections, segments };
+	}
+
+	// ============================================================
 	// HIERARCHICAL SELECTION HELPER FUNCTIONS
 	// ============================================================
 
@@ -839,23 +1031,25 @@
 	/**
 	 * Handle hierarchical selection logic for columns, sections, and segments
 	 * Implements all 7 scenarios from the Multi-Select Scenarios document
+	 * Works with both normal and compare mode selections
 	 * @param {string} type - Type of item: 'column', 'section', or 'segment'
 	 * @param {string} id - ID of the item being selected
 	 * @param {Object} segmentData - Additional data for segment selection (passageIndex, segmentIndex, generation)
 	 * @returns {Object} New state: { columns: [], sections: [], segments: [] }
 	 */
 	function handleSelection(type, id, segmentData = null) {
-		console.log(`[SELECTION] Handling ${type} selection:`, id);
-		console.log('[SELECTION] Current state - Columns:', activeColumns, 'Sections:', activeSections, 'Segments:', activeSegments.map(s => s.segmentId));
+		console.log(`[SELECTION] Handling ${type} selection:`, id, 'Compare mode:', isCompareMode);
 		
-		// Determine current state
-		const hasColumns = activeColumns.length > 0;
-		const hasSections = activeSections.length > 0;
-		const hasSegments = activeSegments.length > 0;
+		// Use compare-mode selections if in compare mode
+		const currentColumns = isCompareMode ? compareActiveColumns : activeColumns;
+		const currentSections = isCompareMode ? compareActiveSections : activeSections;
+		const currentSegments = isCompareMode ? compareActiveSegments : activeSegments;
 		
-		let newColumns = [...activeColumns];
-		let newSections = [...activeSections];
-		let newSegments = [...activeSegments];
+		console.log('[SELECTION] Current state - Columns:', currentColumns, 'Sections:', currentSections, 'Segments:', currentSegments.map(s => s.segmentId));
+		
+		let newColumns = [...currentColumns];
+		let newSections = [...currentSections];
+		let newSegments = [...currentSegments];
 		
 		// SCENARIO ROUTING
 		if (type === 'column') {
@@ -1340,6 +1534,13 @@
 		
 		// Delay word selection processing to allow double/triple-clicks to work
 		clickTimeout = setTimeout(() => {
+			// Block word selection in compare mode
+			if (isCompareMode) {
+				console.log('[CLICK] Word selection blocked in compare mode');
+				clickTimeout = null;
+				return;
+			}
+			
 			// Handle word selection
 			if (target.classList.contains('selectable-word')) {
 				const passageIndex = parseInt(target.dataset.passageIndex);
@@ -1696,10 +1897,10 @@
 											{@const verseSectionMap = buildVerseSectionMap(allSegments)}
 											{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
 											{#each passageText.structure.columns as column, columnIndex}
-												<div class="column" data-column-id="{column.id}">
+												<div class="column" data-column-id="{column.id}" class:compare-hidden={isCompareMode && !visibleColumnIds.has(column.id)}>
 													{#if column.sections && column.sections.length > 0}
 														{#each column.sections as section, sectionIndex}
-															<div class="section {section.color}" data-section-id="{section.id}">
+															<div class="section {section.color}" data-section-id="{section.id}" class:compare-hidden={isCompareMode && !visibleSectionIds.has(section.id)}>
 																{#if section.segments && section.segments.length > 0}
 																	{#each section.segments as segment, segmentIndex}
 																		{@const domSegmentIndex = passageSegmentIndexTracker.current}
@@ -1729,6 +1930,7 @@
 																			isActive={activeSegments.some(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)}
 																			segmentId={segment.id}
 																			generation={activeSegments.find(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)?.generation || 0}
+																			isCompareHidden={isCompareMode && !visibleSegmentIds.has(segment.id)}
 																		/>
 																	{/each}
 																{/if}
@@ -2063,6 +2265,14 @@
 	.hide-notes :global(.note),
 	.hide-notes :global(.note-input) {
 		display: none;
+	}
+
+	/* ============================================================ */
+	/* Compare Mode - Hide unselected items */
+	/* ============================================================ */
+	
+	:global(.compare-hidden) {
+		display: none !important;
 	}
 
 	/* ============================================================ */
