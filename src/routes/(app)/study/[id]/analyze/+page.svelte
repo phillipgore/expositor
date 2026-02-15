@@ -1,6 +1,6 @@
 <script>
 	import { invalidate } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
@@ -251,6 +251,55 @@
 			// 5. Mark we're out of compare mode
 			isCompareMode = false;
 		}
+	});
+
+	// Apply dynamic classes for first/last visible elements in compare mode
+	$effect(() => {
+		// Force reactivity by reading from the Sets
+		const _cols = Array.from(visibleColumnIds);
+		const _secs = Array.from(visibleSectionIds);
+		const _segs = Array.from(visibleSegmentIds);
+		
+		// Wait for DOM to update before applying classes
+		tick().then(() => {
+			// Clear all compare position classes first
+			document.querySelectorAll('.compare-first-segment, .compare-last-segment, .compare-first-section').forEach(el => {
+				el.classList.remove('compare-first-segment', 'compare-last-segment', 'compare-first-section');
+			});
+			
+			// Only apply classes when in compare mode
+			if (!isCompareMode) return;
+			
+			// Process each column
+			document.querySelectorAll('.column').forEach(column => {
+				// Skip hidden columns
+				if (column.classList.contains('compare-hidden')) return;
+				
+				// Get all visible sections in this column
+				const visibleSections = Array.from(column.querySelectorAll('.section')).filter(
+					section => !section.classList.contains('compare-hidden')
+				);
+				
+				// Mark first visible section
+				if (visibleSections.length > 0) {
+					visibleSections[0].classList.add('compare-first-section');
+				}
+				
+				// Process each visible section
+				visibleSections.forEach(section => {
+					// Get all visible segments in this section
+					const visibleSegments = Array.from(section.querySelectorAll('.segment')).filter(
+						segment => !segment.classList.contains('compare-hidden')
+					);
+					
+					// Mark first and last visible segments
+					if (visibleSegments.length > 0) {
+						visibleSegments[0].classList.add('compare-first-segment');
+						visibleSegments[visibleSegments.length - 1].classList.add('compare-last-segment');
+					}
+				});
+			});
+		});
 	});
 
 	// Console logger for multi-select state tracking
@@ -2273,6 +2322,52 @@
 	
 	:global(.compare-hidden) {
 		display: none !important;
+	}
+
+	/* ============================================================ */
+	/* Compare Mode - Dynamic positioning classes */
+	/* ============================================================ */
+	
+	/* First visible segment in compare mode */
+	:global(.compare-first-segment .text.no-headings) {
+		border-top: 0.1rem solid;
+		border-color: var(--section-dark);
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
+	}
+
+	/* Last visible segment in compare mode */
+	:global(.compare-last-segment),
+	:global(.compare-last-segment .text) {
+		border-bottom-right-radius: 0.3rem;
+		border-bottom-left-radius: 0.3rem;
+	}
+
+	/* First visible section in compare mode - remove top margin */
+	:global(.compare-first-section) {
+		margin-top: 0 !important;
+	}
+
+	/* First segment with Heading One at top in compare mode */
+	:global(.compare-first-segment .heading-one) {
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
+	}
+
+	/* First segment with Heading Two at top in compare mode */
+	:global(.compare-first-segment .heading-two) {
+		border-top: 0.1rem solid;
+		border-color: var(--section-dark);
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
+	}
+
+	/* First segment with Heading Three at top in compare mode */
+	:global(.compare-first-segment:not(.has-heading-one):not(.has-heading-two).has-heading-three .heading-three) {
+		border-top: 0.1rem solid;
+		border-color: var(--section-dark);
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
 	}
 
 	/* ============================================================ */

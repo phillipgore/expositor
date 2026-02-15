@@ -120,8 +120,6 @@
 		caret-color: var(--white);
 		height: auto;
 		line-height: 1.5;
-		border-top-right-radius: 0.3rem;
-		border-top-left-radius: 0.3rem;
 		border-bottom-style: dashed;
 		border-bottom-color: var(--section-lighter);
 		transition: border 0.2s ease-in-out;
