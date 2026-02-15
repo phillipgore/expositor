@@ -458,6 +458,21 @@
 		margin-bottom: -0.1rem;
 	}
 
+	/* Disable hover effects in overview mode - preserve the solid borders */
+	:global(.overview-mode .heading-one:hover) {
+		border-bottom: 0.1rem solid var(--section-darker) !important;
+	}
+
+	:global(.overview-mode .heading-two:hover) {
+		border-bottom: 0.1rem solid var(--section-dark) !important;
+	}
+
+	:global(.overview-mode .heading-three:hover) {
+		border-bottom: 0.1rem solid var(--section-dark) !important;
+		padding: 0.9rem !important;
+		margin-bottom: 0 !important;
+	}
+
 	/* Heading One rounded top corners for first segment in section */
 	:global(.section .segment:first-child) .heading-one,
 	:global(.section .segment:first-child) .heading-one-input {

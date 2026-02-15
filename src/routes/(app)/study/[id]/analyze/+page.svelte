@@ -2262,9 +2262,47 @@
 		border-bottom: 0.1rem solid var(--section-dark);
 	}
 
-	.overview-mode :global(.segment:last-of-type .heading-three-container:last-child .heading-three) {
-		border-bottom-right-radius: 0.3rem;
-		border-bottom-left-radius: 0.3rem;
+	/* Border radius for headings in last segment (overview mode) */
+	/* Only apply to the truly last heading - check if followed by other headings */
+	
+	/* Heading One: only if NOT followed by Heading Two or Three */
+	.overview-mode :global(.section .segment:last-child:not(.has-note) .heading-one-container:not(:has(~ .heading-two-container)):not(:has(~ .heading-three-container)) .heading-one) {
+		border-bottom-right-radius: 0.3rem !important;
+		border-bottom-left-radius: 0.3rem !important;
+	}
+
+	/* Heading Two: only if NOT followed by Heading Three */
+	.overview-mode :global(.section .segment:last-child:not(.has-note) .heading-two-container:not(:has(~ .heading-three-container)) .heading-two) {
+		border-bottom-right-radius: 0.3rem !important;
+		border-bottom-left-radius: 0.3rem !important;
+	}
+
+	/* Heading Three: always gets radius (it's the last possible heading) */
+	.overview-mode :global(.section .segment:last-child:not(.has-note) .heading-three) {
+		border-bottom-right-radius: 0.3rem !important;
+		border-bottom-left-radius: 0.3rem !important;
+	}
+
+	/* Also apply when notes are hidden via hide-notes class */
+	.overview-mode.hide-notes :global(.section .segment:last-child .heading-one-container:not(:has(~ .heading-two-container)):not(:has(~ .heading-three-container)) .heading-one) {
+		border-bottom-right-radius: 0.3rem !important;
+		border-bottom-left-radius: 0.3rem !important;
+	}
+
+	.overview-mode.hide-notes :global(.section .segment:last-child .heading-two-container:not(:has(~ .heading-three-container)) .heading-two) {
+		border-bottom-right-radius: 0.3rem !important;
+		border-bottom-left-radius: 0.3rem !important;
+	}
+
+	.overview-mode.hide-notes :global(.section .segment:last-child .heading-three) {
+		border-bottom-right-radius: 0.3rem !important;
+		border-bottom-left-radius: 0.3rem !important;
+	}
+
+	/* Note in last segment gets bottom radius in overview mode (when notes are visible) */
+	.overview-mode :global(.section .segment:last-child.has-note .note) {
+		border-bottom-right-radius: 0.3rem !important;
+		border-bottom-left-radius: 0.3rem !important;
 	}
 
 	.text {
