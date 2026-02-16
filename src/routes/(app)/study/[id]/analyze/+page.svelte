@@ -2176,7 +2176,8 @@
 		position: relative;
 		display: flex;
 		flex-direction: column;
-		width: 26.8rem;
+		/* Readable column widthe 260 plus 18 for spacing */
+		width: 27.8rem;
 		margin-bottom: 4.4rem;
 		border-radius: 0.3rem;
 		padding: 0.2rem;
@@ -2188,7 +2189,8 @@
 	}
 
 	.wide-layout .column {
-		width: 50.4rem;
+		/* Readable column widthe 480 plus 18 for spacing */
+		width: 49.8rem; 
 	}
 
 	.overview-mode :global(.text) {

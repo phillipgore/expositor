@@ -130,14 +130,14 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="connect"
-		label="Insert Bond"
+		label="Insert Connection"
 		role="menuitem"
 		handleClick={closeMenu}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="connect-remove"
-		label="Remove Bond"
+		label="Remove Connection"
 		role="menuitem"
 		handleClick={closeMenu}
 	/>

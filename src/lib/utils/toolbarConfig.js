@@ -161,12 +161,12 @@ export function getAppToolbarConfig() {
 				{
 					type: 'toggle',
 					iconId: 'connect',
-					underLabel: 'Bonds',
+					underLabel: 'Connections',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
 					activeStateProp: 'connectionsVisible',
 					toggleHandler: 'toggleConnections',
-					disabledStateProp: 'canToggleConnections'
+					disabledCheck: (state) => !state.canToggleConnections || state.overviewMode
 				},
 				{
 					type: 'toggle',
@@ -186,7 +186,7 @@ export function getAppToolbarConfig() {
 					underLabelClasses: 'light hide-at-narrow',
 					activeStateProp: 'commentaryPanelOpen',
 					toggleHandler: 'toggleCommentary',
-					disabledStateProp: 'canToggleComment'
+					disabledCheck: (state) => !state.canToggleComment || state.overviewMode
 				}
 			]
 		},
@@ -207,7 +207,7 @@ export function getAppToolbarConfig() {
 					underLabelClasses: 'light hide-at-narrow',
 					activeStateProp: 'versesVisible',
 					toggleHandler: 'toggleVerses',
-					disabledStateProp: 'canToggleVerses'
+					disabledCheck: (state) => !state.canToggleVerses || state.overviewMode
 				},
 				{
 					type: 'toggle',

@@ -379,6 +379,35 @@ export function isValidPassage(passage) {
 }
 
 /**
+ * Gets the full book name from a 2-letter abbreviation.
+ * 
+ * @param {string} bookAbbr - 2-letter book abbreviation (e.g., "MT", "GE")
+ * @returns {string|null} Full book name (e.g., "Matthew", "Genesis") or null if not found
+ */
+export function getBookNameFromAbbreviation(bookAbbr) {
+	try {
+		if (!bookAbbr) {
+			console.warn('getBookNameFromAbbreviation called with empty bookAbbr');
+			return null;
+		}
+
+		// Search in both OT and NT
+		const allBooks = [...otBookData, ...ntBookData];
+		const book = allBooks.find((b) => b.titleShortAbbreviation === bookAbbr);
+
+		if (!book || !book.title) {
+			console.warn(`Book name not found for abbreviation: ${bookAbbr}`);
+			return null;
+		}
+
+		return book.title;
+	} catch (error) {
+		console.error('Error in getBookNameFromAbbreviation:', error);
+		return null;
+	}
+}
+
+/**
  * Parses a wordId into its components.
  * 
  * @param {string} wordId - Word ID in format "BOOK-CHAPTER-VERSE-WORD" (e.g., "JN-001-001-005")
@@ -408,11 +437,11 @@ export function parseWordId(wordId) {
 }
 
 /**
- * Formats a scripture reference for display using 2-letter book abbreviation.
+ * Formats a scripture reference for display using full book name.
  * 
  * @param {string} startWordId - Starting word ID
  * @param {string} [endWordId] - Ending word ID (optional, for ranges)
- * @returns {string} Formatted reference (e.g., "MT 5:3", "MT 5:3-12", "MT 5:3-6:4")
+ * @returns {string} Formatted reference (e.g., "Matthew 5:3", "Matthew 5:3-12", "Matthew 5:3-6:4")
  */
 export function formatScriptureReference(startWordId, endWordId = null) {
 	try {
@@ -421,30 +450,36 @@ export function formatScriptureReference(startWordId, endWordId = null) {
 			return '';
 		}
 
-		const bookAbbr = start.bookAbbr;
+		// Get full book name from abbreviation
+		const bookName = getBookNameFromAbbreviation(start.bookAbbr);
+		if (!bookName) {
+			// Fallback to abbreviation if book name not found
+			console.warn(`Could not find book name for ${start.bookAbbr}, using abbreviation`);
+			return '';
+		}
 
 		// Single verse reference
 		if (!endWordId) {
-			return `${bookAbbr} ${start.chapter}:${start.verse}`;
+			return `${bookName} ${start.chapter}:${start.verse}`;
 		}
 
 		const end = parseWordId(endWordId);
 		if (!end) {
-			return `${bookAbbr} ${start.chapter}:${start.verse}`;
+			return `${bookName} ${start.chapter}:${start.verse}`;
 		}
 
 		// Same verse
 		if (start.chapter === end.chapter && start.verse === end.verse) {
-			return `${bookAbbr} ${start.chapter}:${start.verse}`;
+			return `${bookName} ${start.chapter}:${start.verse}`;
 		}
 
 		// Same chapter, different verses
 		if (start.chapter === end.chapter) {
-			return `${bookAbbr} ${start.chapter}:${start.verse}-${end.verse}`;
+			return `${bookName} ${start.chapter}:${start.verse}-${end.verse}`;
 		}
 
 		// Different chapters
-		return `${bookAbbr} ${start.chapter}:${start.verse}-${end.chapter}:${end.verse}`;
+		return `${bookName} ${start.chapter}:${start.verse}-${end.chapter}:${end.verse}`;
 	} catch (error) {
 		console.error('Error in formatScriptureReference:', error);
 		return '';

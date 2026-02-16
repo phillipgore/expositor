@@ -383,6 +383,7 @@
 		>
 			{displayValue}
 			{#if $toolbarState.overviewMode && scriptureRef}
+				<br>
 				<span class="scripture-ref">{scriptureRef}</span>
 			{/if}
 		</svelte:element>
@@ -484,11 +485,11 @@
 		border-top-left-radius: 0.3rem;
 	}
 
-	/* Scripture reference styling */
+	/* Scripture reference styling - displayed on new line inside headings */
 	.scripture-ref {
-		margin-left: 0.6rem;
-		font-weight: 400;
-		font-size: 0.9em;
+		font-weight: 500;
+		font-size: 1.1rem;
+		display: inline-block;
 	}
 
 	/* Heading One scripture reference */
@@ -503,6 +504,6 @@
 
 	/* Heading Three scripture reference */
 	.heading-three .scripture-ref {
-		color: var(--black);
+		color: var(--gray-300);
 	}
 </style>

@@ -411,9 +411,11 @@
 						isActive={button.activeStateProp ? $toolbarState[button.activeStateProp] : undefined}
 						onToggle={button.toggleHandler ? handlers[button.toggleHandler] : undefined}
 						isDisabled={
-							button.disabledStateProp
-								? !$toolbarState[button.disabledStateProp]
-								: false
+							button.disabledCheck
+								? button.disabledCheck($toolbarState)
+								: button.disabledStateProp
+									? !$toolbarState[button.disabledStateProp]
+									: false
 						}
 					/>
 				{:else if button.type === 'grouped'}
