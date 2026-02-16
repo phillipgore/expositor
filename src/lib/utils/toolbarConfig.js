@@ -181,7 +181,7 @@ export function getAppToolbarConfig() {
 				{
 					type: 'toggle',
 					iconId: 'commentary',
-					underLabel: 'Comment',
+					underLabel: 'Commentary',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
 					activeStateProp: 'commentaryPanelOpen',

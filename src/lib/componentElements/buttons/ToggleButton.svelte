@@ -187,6 +187,12 @@
 			display: flex;
 			flex-direction: column;
 			position: relative;
+
+			:global(button) {
+				width: auto;
+				min-width: 4.8rem;
+				align-self: center;
+			}
 		}
 
 		.button-under-label {
