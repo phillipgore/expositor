@@ -1967,7 +1967,7 @@
 		onmousemove={handleMouseMove}
 		onmouseup={handleMouseUp}
 		onmouseover={handleWordHover}
-		onmouseout={handleWordHoverEnd}
+		onmouseleave={handleWordHoverEnd}
 		onclick={handleWordClick}
 	>
 		<div class="analyze-content-wrapper" style="{wrapperDimensions}">
@@ -2525,6 +2525,14 @@
 		width: 1.0rem;
 		height: 1.0rem;
 		opacity: 0.5;
+	}
+
+	/* Safari-specific fix: Force GPU compositing to ensure :hover state updates properly */
+	@supports (-webkit-appearance:none) {
+		:global(.text .selectable-word::before) {
+			transform: translateZ(0);
+			-webkit-transform: translateZ(0);
+		}
 	}
 
 	/* Selected state - persistent highlight */
