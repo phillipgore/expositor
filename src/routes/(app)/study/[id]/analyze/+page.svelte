@@ -7,6 +7,7 @@
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
+	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
@@ -1198,6 +1199,59 @@
 	}
 
 	/**
+	 * Calculate scripture references for headings in all segments
+	 * @param {Array} allSegments - Flat array of all segments in document order
+	 * @returns {Object} Map of segmentId -> { heading1Ref, heading2Ref, heading3Ref }
+	 */
+	function calculateHeadingReferences(allSegments) {
+		const references = {};
+		
+		for (let i = 0; i < allSegments.length; i++) {
+			const segment = allSegments[i];
+			references[segment.id] = {
+				heading1Ref: null,
+				heading2Ref: null,
+				heading3Ref: null
+			};
+			
+			// Calculate Heading One reference (if exists)
+			if (segment.headingOne) {
+				// Find next segment with Heading One
+				let endIdx = i + 1;
+				while (endIdx < allSegments.length && !allSegments[endIdx].headingOne) {
+					endIdx++;
+				}
+				const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
+				references[segment.id].heading1Ref = formatScriptureReference(segment.startingWordId, endWordId);
+			}
+			
+			// Calculate Heading Two reference (if exists)
+			if (segment.headingTwo) {
+				// Find next segment with Heading Two or Heading One
+				let endIdx = i + 1;
+				while (endIdx < allSegments.length && !allSegments[endIdx].headingTwo && !allSegments[endIdx].headingOne) {
+					endIdx++;
+				}
+				const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
+				references[segment.id].heading2Ref = formatScriptureReference(segment.startingWordId, endWordId);
+			}
+			
+			// Calculate Heading Three reference (if exists)
+			if (segment.headingThree) {
+				// Find next segment with any heading
+				let endIdx = i + 1;
+				while (endIdx < allSegments.length && !allSegments[endIdx].headingOne && !allSegments[endIdx].headingTwo && !allSegments[endIdx].headingThree) {
+					endIdx++;
+				}
+				const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
+				references[segment.id].heading3Ref = formatScriptureReference(segment.startingWordId, endWordId);
+			}
+		}
+		
+		return references;
+	}
+
+	/**
 	 * Build a map of verses to their segment counts (pre-scan)
 	 * Counts how many segments contain words from each verse
 	 * @param {Array} allSegments - All segments for a passage
@@ -1945,6 +1999,7 @@
 											{@const passageSegmentIndexTracker = { current: 0 }}
 											{@const verseSectionMap = buildVerseSectionMap(allSegments)}
 											{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
+											{@const headingReferences = calculateHeadingReferences(allSegments)}
 											{#each passageText.structure.columns as column, columnIndex}
 												<div class="column" data-column-id="{column.id}" class:compare-hidden={isCompareMode && !visibleColumnIds.has(column.id)}>
 													{#if column.sections && column.sections.length > 0}
@@ -1973,6 +2028,9 @@
 																			heading1={segment.headingOne}
 																			heading2={segment.headingTwo}
 																			heading3={segment.headingThree}
+																			heading1Ref={headingReferences[segment.id]?.heading1Ref}
+																			heading2Ref={headingReferences[segment.id]?.heading2Ref}
+																			heading3Ref={headingReferences[segment.id]?.heading3Ref}
 																			note={segment.note}
 																			text={segmentHtml}
 																			{passageIndex}

@@ -9,6 +9,7 @@
 	let { 
 		headingType = 'one', // 'one', 'two', or 'three'
 		headingValue = null,
+		scriptureRef = null,
 		segmentId = '',
 		isInputMode = $bindable(false),
 		isActive = false,
@@ -381,6 +382,9 @@
 			tabindex={isActive ? 0 : -1}
 		>
 			{displayValue}
+			{#if $toolbarState.overviewMode && scriptureRef}
+				<span class="scripture-ref">{scriptureRef}</span>
+			{/if}
 		</svelte:element>
 	{/if}
 </div>
@@ -478,5 +482,27 @@
 	:global(.section .segment:first-child) .heading-one-input {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
+	}
+
+	/* Scripture reference styling */
+	.scripture-ref {
+		margin-left: 0.6rem;
+		font-weight: 400;
+		font-size: 0.9em;
+	}
+
+	/* Heading One scripture reference */
+	.heading-one .scripture-ref {
+		color: var(--white);
+	}
+
+	/* Heading Two scripture reference */
+	.heading-two .scripture-ref {
+		color: var(--section-darker);
+	}
+
+	/* Heading Three scripture reference */
+	.heading-three .scripture-ref {
+		color: var(--black);
 	}
 </style>

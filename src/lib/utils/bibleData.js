@@ -377,3 +377,76 @@ export function isValidPassage(passage) {
 		return false;
 	}
 }
+
+/**
+ * Parses a wordId into its components.
+ * 
+ * @param {string} wordId - Word ID in format "BOOK-CHAPTER-VERSE-WORD" (e.g., "JN-001-001-005")
+ * @returns {Object|null} Parsed components { bookAbbr, chapter, verse, word } or null if invalid
+ */
+export function parseWordId(wordId) {
+	try {
+		if (!wordId || typeof wordId !== 'string') {
+			return null;
+		}
+
+		const parts = wordId.split('-');
+		if (parts.length !== 4) {
+			return null;
+		}
+
+		return {
+			bookAbbr: parts[0],
+			chapter: parseInt(parts[1], 10),
+			verse: parseInt(parts[2], 10),
+			word: parseInt(parts[3], 10)
+		};
+	} catch (error) {
+		console.error('Error in parseWordId:', error);
+		return null;
+	}
+}
+
+/**
+ * Formats a scripture reference for display using 2-letter book abbreviation.
+ * 
+ * @param {string} startWordId - Starting word ID
+ * @param {string} [endWordId] - Ending word ID (optional, for ranges)
+ * @returns {string} Formatted reference (e.g., "MT 5:3", "MT 5:3-12", "MT 5:3-6:4")
+ */
+export function formatScriptureReference(startWordId, endWordId = null) {
+	try {
+		const start = parseWordId(startWordId);
+		if (!start) {
+			return '';
+		}
+
+		const bookAbbr = start.bookAbbr;
+
+		// Single verse reference
+		if (!endWordId) {
+			return `${bookAbbr} ${start.chapter}:${start.verse}`;
+		}
+
+		const end = parseWordId(endWordId);
+		if (!end) {
+			return `${bookAbbr} ${start.chapter}:${start.verse}`;
+		}
+
+		// Same verse
+		if (start.chapter === end.chapter && start.verse === end.verse) {
+			return `${bookAbbr} ${start.chapter}:${start.verse}`;
+		}
+
+		// Same chapter, different verses
+		if (start.chapter === end.chapter) {
+			return `${bookAbbr} ${start.chapter}:${start.verse}-${end.verse}`;
+		}
+
+		// Different chapters
+		return `${bookAbbr} ${start.chapter}:${start.verse}-${end.chapter}:${end.verse}`;
+	} catch (error) {
+		console.error('Error in formatScriptureReference:', error);
+		return '';
+	}
+}

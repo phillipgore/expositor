@@ -8,6 +8,9 @@
 		heading1 = null,
 		heading2 = null,
 		heading3 = null,
+		heading1Ref = null,
+		heading2Ref = null,
+		heading3Ref = null,
 		note = null,
 		text = '',
 		passageIndex = 0,
@@ -138,6 +141,7 @@
 	<HeadingEditor
 		headingType="one"
 		headingValue={heading1}
+		scriptureRef={heading1Ref}
 		{segmentId}
 		bind:isInputMode={headingOneInputMode}
 		{isActive}
@@ -151,6 +155,7 @@
 	<HeadingEditor
 		headingType="two"
 		headingValue={heading2}
+		scriptureRef={heading2Ref}
 		{segmentId}
 		bind:isInputMode={headingTwoInputMode}
 		{isActive}
@@ -164,6 +169,7 @@
 	<HeadingEditor
 		headingType="three"
 		headingValue={heading3}
+		scriptureRef={heading3Ref}
 		{segmentId}
 		bind:isInputMode={headingThreeInputMode}
 		{isActive}
