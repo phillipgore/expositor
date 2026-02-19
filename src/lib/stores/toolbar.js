@@ -403,12 +403,20 @@ export function toggleWide() {
 
 /**
  * Toggle overview mode
+ * Automatically closes commentary panel when enabling overview mode
  */
 export function toggleOverview() {
-	toolbarStateStore.update(state => ({
-		...state,
-		overviewMode: !state.overviewMode
-	}));
+	toolbarStateStore.update(state => {
+		// If turning overview ON and commentary is open, close commentary first
+		const newOverviewMode = !state.overviewMode;
+		const shouldCloseCommentary = newOverviewMode && state.commentaryPanelOpen;
+		
+		return {
+			...state,
+			overviewMode: newOverviewMode,
+			commentaryPanelOpen: shouldCloseCommentary ? false : state.commentaryPanelOpen
+		};
+	});
 }
 
 /**

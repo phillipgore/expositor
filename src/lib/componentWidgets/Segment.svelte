@@ -11,6 +11,7 @@
 		heading1Ref = null,
 		heading2Ref = null,
 		heading3Ref = null,
+		segmentRef = null,
 		note = null,
 		text = '',
 		passageIndex = 0,
@@ -179,6 +180,13 @@
 		hasNote={!!note}
 	/>
 	
+	<!-- Segment Reference Placeholder (for segments without headings in overview mode) -->
+	{#if $toolbarState.overviewMode && !heading1 && !heading2 && !heading3 && segmentRef}
+		<div class="segment-ref-placeholder">
+			{segmentRef}
+		</div>
+	{/if}
+	
 	<div class="text" class:no-headings={!hasAnyHeadings} onclick={handleSegmentClick}>
 		{#if wrapWordsInHtml}
 			{@html wrapWordsInHtml(text, passageIndex)}
@@ -291,5 +299,35 @@
 		border-bottom: 0.0rem;
 		border-bottom-right-radius: 0.0rem;
 		border-bottom-left-radius: 0.0rem;
+	}
+
+	/* Segment Reference Placeholder - matches Heading Three style in overview mode */
+	.segment-ref-placeholder {
+		position: inherit;
+		z-index: inherit;
+		font-size: 1.2rem;
+		font-weight: 500;
+		margin: 0.0rem;
+		padding: 0.9rem;
+		border-right: 0.1rem solid;
+		border-left: 0.1rem solid;
+		border-bottom: 0.1rem solid;
+		border-color: var(--section-dark);
+		color: var(--gray-300);
+		line-height: 1.5;
+	}
+
+	/* Segment reference placeholder gets top border when it's the first element */
+	:global(.section) .segment:first-child .segment-ref-placeholder {
+		border-top: 0.1rem solid;
+		border-top-color: var(--section-dark);
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
+	}
+
+	/* Segment reference placeholder in last segment gets bottom radius (when no note) */
+	:global(.section) .segment:last-child:not(.has-note) .segment-ref-placeholder {
+		border-bottom-right-radius: 0.3rem;
+		border-bottom-left-radius: 0.3rem;
 	}
 </style>

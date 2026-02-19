@@ -137,7 +137,17 @@ export function getAppToolbarConfig() {
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledCheck: (state) => !state.canColor || state.overviewMode
-				},
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
+			id: 'comparing',
+			items: [
 				{
 					type: 'toggle',
 					iconId: 'compare',
@@ -147,7 +157,7 @@ export function getAppToolbarConfig() {
 					activeStateProp: 'comparisonsVisible',
 					toggleHandler: 'toggleComparison',
 					disabledStateProp: 'canToggleComparison'
-				}
+				},
 			]
 		},
 		{
@@ -199,6 +209,15 @@ export function getAppToolbarConfig() {
 			type: 'section',
 			id: 'toggles',
 			items: [
+				{
+					type: 'toggle',
+					iconId: 'bookmark',
+					underLabel: 'References',
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'referencesVisible',
+					toggleHandler: 'toggleReferences',
+				},
 				{
 					type: 'toggle',
 					iconId: 'reference',

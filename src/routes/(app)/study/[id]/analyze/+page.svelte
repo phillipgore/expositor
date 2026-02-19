@@ -1201,7 +1201,7 @@
 	/**
 	 * Calculate scripture references for headings in all segments
 	 * @param {Array} allSegments - Flat array of all segments in document order
-	 * @returns {Object} Map of segmentId -> { heading1Ref, heading2Ref, heading3Ref }
+	 * @returns {Object} Map of segmentId -> { heading1Ref, heading2Ref, heading3Ref, segmentRef }
 	 */
 	function calculateHeadingReferences(allSegments) {
 		const references = {};
@@ -1211,7 +1211,8 @@
 			references[segment.id] = {
 				heading1Ref: null,
 				heading2Ref: null,
-				heading3Ref: null
+				heading3Ref: null,
+				segmentRef: null
 			};
 			
 			// Calculate Heading One reference (if exists)
@@ -1246,6 +1247,12 @@
 				const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
 				references[segment.id].heading3Ref = formatScriptureReference(segment.startingWordId, endWordId);
 			}
+			
+			// Calculate segment reference (for segments without headings in overview mode)
+			// Use the same logic as heading calculation - reference spans until next segment
+			const endIdx = i + 1;
+			const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
+			references[segment.id].segmentRef = formatScriptureReference(segment.startingWordId, endWordId);
 		}
 		
 		return references;
@@ -2031,6 +2038,7 @@
 																			heading1Ref={headingReferences[segment.id]?.heading1Ref}
 																			heading2Ref={headingReferences[segment.id]?.heading2Ref}
 																			heading3Ref={headingReferences[segment.id]?.heading3Ref}
+																			segmentRef={headingReferences[segment.id]?.segmentRef}
 																			note={segment.note}
 																			text={segmentHtml}
 																			{passageIndex}

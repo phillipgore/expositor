@@ -478,6 +478,13 @@
 		margin-bottom: 0 !important;
 	}
 
+	/* Remove pointer cursor in overview mode - headings are not clickable */
+	:global(.overview-mode .heading-one),
+	:global(.overview-mode .heading-two),
+	:global(.overview-mode .heading-three) {
+		cursor: default;
+	}
+
 	/* Heading One rounded top corners for first segment in section */
 	:global(.section .segment:first-child) .heading-one,
 	:global(.section .segment:first-child) .heading-one-input {
