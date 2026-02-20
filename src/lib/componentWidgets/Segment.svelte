@@ -134,6 +134,7 @@
      class:has-heading-one={heading1 || headingOneInputMode}
      class:has-heading-two={heading2 || headingTwoInputMode}
      class:has-heading-three={heading3 || headingThreeInputMode}
+     class:has-segment-ref={!heading1 && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible}
      class:compare-hidden={isCompareHidden}
      data-segment-id="{segmentId}">
@@ -180,8 +181,8 @@
 		hasNote={!!note}
 	/>
 	
-	<!-- Segment Reference Placeholder (for segments without headings in overview mode) -->
-	{#if $toolbarState.overviewMode && !heading1 && !heading2 && !heading3 && segmentRef}
+	<!-- Segment Reference Placeholder (for segments without headings) -->
+	{#if !heading1 && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
 		<div class="segment-ref-placeholder">
 			{segmentRef}
 		</div>
@@ -305,29 +306,58 @@
 	.segment-ref-placeholder {
 		position: inherit;
 		z-index: inherit;
-		font-size: 1.2rem;
+		font-size: 1.1rem;
 		font-weight: 500;
 		margin: 0.0rem;
-		padding: 0.9rem;
+		padding: 0.9rem 0.6rem 0.0rem;
 		border-right: 0.1rem solid;
 		border-left: 0.1rem solid;
-		border-bottom: 0.1rem solid;
 		border-color: var(--section-dark);
 		color: var(--gray-300);
-		line-height: 1.5;
 	}
 
 	/* Segment reference placeholder gets top border when it's the first element */
-	:global(.section) .segment:first-child .segment-ref-placeholder {
+	:global(.analyze-content):not(.overview-mode) :global(.section) .segment:first-child .segment-ref-placeholder {
 		border-top: 0.1rem solid;
 		border-top-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
+	:global(.analyze-content):not(.overview-mode) :global(.section) .segment:first-child.has-segment-ref .text,
+	:global(.analyze-content):not(.overview-mode) :global(.section) .segment.has-segment-ref .text {
+		padding-top: 0.4rem;
+		border-top: none;
+		border-top-right-radius: 0.0rem;
+		border-top-left-radius: 0.0rem;
+	}
+
 	/* Segment reference placeholder in last segment gets bottom radius (when no note) */
-	:global(.section) .segment:last-child:not(.has-note) .segment-ref-placeholder {
+	:global(.analyze-content):not(.overview-mode) :global(.section) .segment.has-segment-ref:last-child:not(.has-note) .segment-ref-placeholder {
+		border-bottom-right-radius: 0.0rem;
+		border-bottom-left-radius: 0.0rem;
+	}
+
+
+	:global(.analyze-content.overview-mode) :global(.section) .segment.has-segment-ref .segment-ref-placeholder  {
+		padding: 0.9rem;
+		border-top: 0.1rem solid;
+		border-top-color: var(--section-dark);
+		border-top-right-radius: 0.0rem;
+		border-top-left-radius: 0.0rem;
+	}
+
+	:global(.analyze-content.overview-mode) :global(.section) .segment:first-child .segment-ref-placeholder {
+		border-top: 0.1rem solid;
+		border-top-color: var(--section-dark);
+		border-top-right-radius: 0.3rem;
+		border-top-left-radius: 0.3rem;
+	}
+
+	:global(.analyze-content.overview-mode) :global(.section) .segment.has-segment-ref:last-child:not(.has-note) .segment-ref-placeholder {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
+		border-bottom: 0.1rem solid;
+		border-bottom-color: var(--section-dark);
 	}
 </style>

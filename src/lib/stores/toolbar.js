@@ -35,6 +35,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canToggleConnections - Whether Connections toggle should be enabled
  * @property {boolean} canToggleNotes - Whether Notes toggle should be enabled (document supports notes)
  * @property {boolean} canToggleComment - Whether Comment toggle should be enabled (document supports comment)
+ * @property {boolean} canToggleReferences - Whether References toggle should be enabled
  * @property {boolean} canToggleVerses - Whether Verses toggle should be enabled (document has verses)
  * @property {boolean} canToggleWide - Whether Wide layout toggle should be enabled
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
@@ -51,6 +52,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} comparisonsVisible - Whether comparisons are visible
  * @property {boolean} connectionsVisible - Whether connections are visible
  * @property {boolean} notesVisible - Whether quick notes are visible in segments
+ * @property {boolean} referencesVisible - Whether scripture references are visible in headings
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
@@ -82,6 +84,7 @@ const defaultState = {
 	canToggleConnections: false,
 	canToggleNotes: false,
 	canToggleComment: false,
+	canToggleReferences: false,
 	canToggleVerses: false,
 	canToggleWide: false,
 	canToggleOverview: false,
@@ -98,6 +101,7 @@ const defaultState = {
 	comparisonsVisible: false,
 	connectionsVisible: false,
 	notesVisible: true,
+	referencesVisible: false,
 	versesVisible: false,
 	wideLayout: false,
 	overviewMode: false,
@@ -154,6 +158,7 @@ export function updateToolbarForRoute(pathname) {
 				canToggleConnections: true,
 				canToggleNotes: true,
 				canToggleComment: isAnalyzeRoute, // Only enable on analyze pages
+				canToggleReferences: true,
 				canToggleVerses: true,
 				canToggleWide: true,
 				canToggleOverview: true,
@@ -178,6 +183,7 @@ export function updateToolbarForRoute(pathname) {
 			canToggleConnections: false,
 			canToggleNotes: false,
 			canToggleComment: false,
+			canToggleReferences: false,
 			canToggleVerses: false,
 			canToggleWide: false,
 			canToggleOverview: false,
@@ -203,6 +209,7 @@ export function updateToolbarForRoute(pathname) {
 			canToggleConnections: false,
 			canToggleNotes: false,
 			canToggleComment: false,
+			canToggleReferences: false,
 			canToggleVerses: false,
 			canToggleWide: false,
 			canToggleOverview: false,
@@ -235,6 +242,7 @@ export function onDocumentOpen() {
 		canToggleConnections: true,
 		canToggleNotes: true,
 		canToggleComment: true,
+		canToggleReferences: true,
 		canToggleVerses: true,
 		canToggleWide: true,
 		canToggleOverview: true,
@@ -262,6 +270,7 @@ export function onDocumentClose() {
 		canToggleConnections: false,
 		canToggleNotes: false,
 		canToggleComment: false,
+		canToggleReferences: false,
 		canToggleVerses: false,
 		canToggleWide: false,
 		canToggleOverview: false,
@@ -378,6 +387,16 @@ export function toggleNotes() {
 	toolbarStateStore.update(state => ({
 		...state,
 		notesVisible: !state.notesVisible
+	}));
+}
+
+/**
+ * Toggle references visibility
+ */
+export function toggleReferences() {
+	toolbarStateStore.update(state => ({
+		...state,
+		referencesVisible: !state.referencesVisible
 	}));
 }
 
