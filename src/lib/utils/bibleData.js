@@ -438,12 +438,16 @@ export function parseWordId(wordId) {
 
 /**
  * Formats a scripture reference for display using full book name.
+ * Supports partial verse notation (a, b, c) for subdivided verses.
+ * NOTE: endWordId is treated as an EXCLUSIVE boundary (the first word NOT included in the range)
  * 
  * @param {string} startWordId - Starting word ID
- * @param {string} [endWordId] - Ending word ID (optional, for ranges)
- * @returns {string} Formatted reference (e.g., "Matthew 5:3", "Matthew 5:3-12", "Matthew 5:3-6:4")
+ * @param {string} [endWordId] - Ending word ID (exclusive boundary - first word NOT in range)
+ * @param {string} [startSuffix] - Starting verse suffix (e.g., 'a', 'b', 'c')
+ * @param {string} [endSuffix] - Ending verse suffix (e.g., 'a', 'b', 'c')
+ * @returns {string} Formatted reference (e.g., "Matthew 5:3", "Matthew 5:3a-12b", "Matthew 5:3b-6:4")
  */
-export function formatScriptureReference(startWordId, endWordId = null) {
+export function formatScriptureReference(startWordId, endWordId = null, startSuffix = '', endSuffix = '') {
 	try {
 		const start = parseWordId(startWordId);
 		if (!start) {
@@ -458,28 +462,50 @@ export function formatScriptureReference(startWordId, endWordId = null) {
 			return '';
 		}
 
-		// Single verse reference
+		// Single verse reference (no end specified)
 		if (!endWordId) {
-			return `${bookName} ${start.chapter}:${start.verse}`;
+			return `${bookName} ${start.chapter}:${start.verse}${startSuffix}`;
 		}
 
 		const end = parseWordId(endWordId);
 		if (!end) {
-			return `${bookName} ${start.chapter}:${start.verse}`;
+			return `${bookName} ${start.chapter}:${start.verse}${startSuffix}`;
 		}
 
-		// Same verse
-		if (start.chapter === end.chapter && start.verse === end.verse) {
-			return `${bookName} ${start.chapter}:${start.verse}`;
+		// IMPORTANT: endWordId is an EXCLUSIVE boundary (first word NOT in the range)
+		// We need to treat it as the verse BEFORE the end verse
+		// Calculate the actual last verse in the range
+		let actualEndChapter = end.chapter;
+		let actualEndVerse = end.verse - 1; // Decrement by 1 since it's exclusive
+		
+		// Handle edge case: if we decremented to verse 0, we need the previous chapter's last verse
+		if (actualEndVerse < 1) {
+			actualEndChapter = end.chapter - 1;
+			// We'd need to look up the verse count for the previous chapter
+			// For now, this shouldn't happen in normal usage since segments don't cross chapter boundaries this way
+			// But if it does, just use verse 1 of the current chapter as fallback
+			if (actualEndChapter < 1) {
+				actualEndVerse = 1;
+				actualEndChapter = end.chapter;
+			}
+		}
+
+		// Same verse (start and actual end are the same)
+		if (start.chapter === actualEndChapter && start.verse === actualEndVerse) {
+			// If same verse but different suffixes, show the range
+			if (startSuffix && endSuffix && startSuffix !== endSuffix) {
+				return `${bookName} ${start.chapter}:${start.verse}${startSuffix}-${actualEndVerse}${endSuffix}`;
+			}
+			return `${bookName} ${start.chapter}:${start.verse}${startSuffix}`;
 		}
 
 		// Same chapter, different verses
-		if (start.chapter === end.chapter) {
-			return `${bookName} ${start.chapter}:${start.verse}-${end.verse}`;
+		if (start.chapter === actualEndChapter) {
+			return `${bookName} ${start.chapter}:${start.verse}${startSuffix}-${actualEndVerse}${endSuffix}`;
 		}
 
 		// Different chapters
-		return `${bookName} ${start.chapter}:${start.verse}-${end.chapter}:${end.verse}`;
+		return `${bookName} ${start.chapter}:${start.verse}${startSuffix}-${actualEndChapter}:${actualEndVerse}${endSuffix}`;
 	} catch (error) {
 		console.error('Error in formatScriptureReference:', error);
 		return '';

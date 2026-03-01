@@ -1200,11 +1200,16 @@
 
 	/**
 	 * Calculate scripture references for headings in all segments
+	 * Includes support for partial verses (a, b, c) and fixes "one verse too long" bug
 	 * @param {Array} allSegments - Flat array of all segments in document order
+	 * @param {Object} verseSectionMap - Map of verseId -> count of segments containing that verse
 	 * @returns {Object} Map of segmentId -> { heading1Ref, heading2Ref, heading3Ref, segmentRef }
 	 */
-	function calculateHeadingReferences(allSegments) {
+	function calculateHeadingReferences(allSegments, verseSectionMap) {
 		const references = {};
+		
+		// Track verse subdivision occurrences for calculating suffixes
+		const verseOccurrenceTracker = {};
 		
 		for (let i = 0; i < allSegments.length; i++) {
 			const segment = allSegments[i];
@@ -1215,6 +1220,21 @@
 				segmentRef: null
 			};
 			
+			// Get verse ID from starting word ID for suffix calculation
+			const startParts = segment.startingWordId?.split('-');
+			const startVerseId = startParts?.length >= 3 ? startParts.slice(0, 3).join('-') : null;
+			
+			// Calculate starting verse suffix
+			let startSuffix = '';
+			if (startVerseId && verseSectionMap && verseSectionMap[startVerseId] > 1) {
+				// This verse is subdivided - calculate which occurrence this is
+				if (verseOccurrenceTracker[startVerseId] === undefined) {
+					verseOccurrenceTracker[startVerseId] = 0;
+				}
+				startSuffix = generateVerseSuffix(verseOccurrenceTracker[startVerseId]);
+				verseOccurrenceTracker[startVerseId]++;
+			}
+			
 			// Calculate Heading One reference (if exists)
 			if (segment.headingOne) {
 				// Find next segment with Heading One
@@ -1222,8 +1242,10 @@
 				while (endIdx < allSegments.length && !allSegments[endIdx].headingOne) {
 					endIdx++;
 				}
-				const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
-				references[segment.id].heading1Ref = formatScriptureReference(segment.startingWordId, endWordId);
+				
+				// Get the ending reference (previous segment's last word)
+				const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker);
+				references[segment.id].heading1Ref = formatScriptureReference(segment.startingWordId, endWordId, startSuffix, endSuffix);
 			}
 			
 			// Calculate Heading Two reference (if exists)
@@ -1233,8 +1255,10 @@
 				while (endIdx < allSegments.length && !allSegments[endIdx].headingTwo && !allSegments[endIdx].headingOne) {
 					endIdx++;
 				}
-				const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
-				references[segment.id].heading2Ref = formatScriptureReference(segment.startingWordId, endWordId);
+				
+				// Get the ending reference (previous segment's last word)
+				const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker);
+				references[segment.id].heading2Ref = formatScriptureReference(segment.startingWordId, endWordId, startSuffix, endSuffix);
 			}
 			
 			// Calculate Heading Three reference (if exists)
@@ -1244,18 +1268,65 @@
 				while (endIdx < allSegments.length && !allSegments[endIdx].headingOne && !allSegments[endIdx].headingTwo && !allSegments[endIdx].headingThree) {
 					endIdx++;
 				}
-				const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
-				references[segment.id].heading3Ref = formatScriptureReference(segment.startingWordId, endWordId);
+				
+				// Get the ending reference (previous segment's last word)
+				const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker);
+				references[segment.id].heading3Ref = formatScriptureReference(segment.startingWordId, endWordId, startSuffix, endSuffix);
 			}
 			
 			// Calculate segment reference (for segments without headings in overview mode)
-			// Use the same logic as heading calculation - reference spans until next segment
 			const endIdx = i + 1;
-			const endWordId = endIdx < allSegments.length ? allSegments[endIdx].startingWordId : null;
-			references[segment.id].segmentRef = formatScriptureReference(segment.startingWordId, endWordId);
+			const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker);
+			references[segment.id].segmentRef = formatScriptureReference(segment.startingWordId, endWordId, startSuffix, endSuffix);
 		}
 		
 		return references;
+	}
+	
+	/**
+	 * Calculate the end word ID and suffix for a reference range
+	 * Returns the last word of the segment BEFORE the next heading/segment
+	 * @param {Array} allSegments - All segments
+	 * @param {number} currentIdx - Current segment index
+	 * @param {number} endIdx - Index of next segment with heading (or end of array)
+	 * @param {Object} verseSectionMap - Map of verse subdivisions
+	 * @param {Object} verseOccurrenceTracker - Tracker for verse occurrences
+	 * @returns {Object} { endWordId, endSuffix }
+	 */
+	function calculateEndReference(allSegments, currentIdx, endIdx, verseSectionMap, verseOccurrenceTracker) {
+		// If there's no next segment, the range goes to the end (null endWordId)
+		if (endIdx >= allSegments.length) {
+			return { endWordId: null, endSuffix: '' };
+		}
+		
+		// Get the segment just before the next heading (the last segment in our range)
+		const lastSegmentInRange = allSegments[endIdx - 1];
+		
+		// The end word ID is the starting word of the NEXT segment (which is outside our range)
+		// This way formatScriptureReference will format up to but not including this verse
+		const endWordId = allSegments[endIdx].startingWordId;
+		
+		// Calculate the ending verse suffix
+		// We need to know which subdivision the last segment's ending verse is in
+		let endSuffix = '';
+		const endParts = lastSegmentInRange.startingWordId?.split('-');
+		const endVerseId = endParts?.length >= 3 ? endParts.slice(0, 3).join('-') : null;
+		
+		if (endVerseId && verseSectionMap && verseSectionMap[endVerseId] > 1) {
+			// Find which occurrence this is by counting segments up to lastSegmentInRange
+			let occurrenceCount = 0;
+			for (let i = 0; i <= endIdx - 1; i++) {
+				const segParts = allSegments[i].startingWordId?.split('-');
+				const segVerseId = segParts?.length >= 3 ? segParts.slice(0, 3).join('-') : null;
+				if (segVerseId === endVerseId) {
+					occurrenceCount++;
+				}
+			}
+			// Use the last occurrence's suffix (occurrenceCount - 1 because we're 0-indexed)
+			endSuffix = generateVerseSuffix(occurrenceCount - 1);
+		}
+		
+		return { endWordId, endSuffix };
 	}
 
 	/**
@@ -2006,7 +2077,7 @@
 											{@const passageSegmentIndexTracker = { current: 0 }}
 											{@const verseSectionMap = buildVerseSectionMap(allSegments)}
 											{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
-											{@const headingReferences = calculateHeadingReferences(allSegments)}
+											{@const headingReferences = calculateHeadingReferences(allSegments, verseSectionMap)}
 											{#each passageText.structure.columns as column, columnIndex}
 												<div class="column" data-column-id="{column.id}" class:compare-hidden={isCompareMode && !visibleColumnIds.has(column.id)}>
 													{#if column.sections && column.sections.length > 0}
