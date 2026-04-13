@@ -170,7 +170,7 @@
      class:has-heading-one={heading1 || headingOneInputMode}
      class:has-heading-two={heading2 || headingTwoInputMode}
      class:has-heading-three={heading3 || headingThreeInputMode}
-     class:has-segment-ref={!heading1 && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
+	     class:has-segment-ref={!heading1 && !heading2 && !heading3 && segmentRef && ($toolbarState.referencesVisible || $toolbarState.overviewMode)}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible}
      class:compare-hidden={isCompareHidden}
      data-segment-id="{segmentId}">
@@ -222,10 +222,10 @@
 	/>
 	
 	<!-- Segment Reference Placeholder (for segments without headings) -->
-	{#if !heading1 && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
+	{#if !heading1 && !heading2 && !heading3 && segmentRef && ($toolbarState.referencesVisible || $toolbarState.overviewMode)}
 		<div class="segment-ref-placeholder"
 		     style:border-top={prevSegmentHasHeading ? 'none' : ''}
-		     style:border-bottom={nextSegmentHasHeading ? '0.1rem solid var(--section-dark)' : ''}>
+		     style:border-bottom={(nextSegmentHasHeading && $toolbarState.overviewMode) ? '0.1rem solid var(--section-dark)' : ''}>
 			{segmentRef}
 		</div>
 	{/if}
