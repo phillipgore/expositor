@@ -19,7 +19,13 @@
 		isActive = false,
 		segmentId = '',
 		generation = 0,
-		isCompareHidden = false
+		isCompareHidden = false,
+		prevSegmentHasHeading = false,
+		nextSegmentHasHeading = false,
+		prevVisibleSegmentHasBorderBottom = false,
+		prevSegmentHasRef = false,
+		isFirstInSection = false,
+		isFirstVisibleInSection = false
 	} = $props();
 
 	// Track input mode for each heading type and note
@@ -64,6 +70,36 @@
 		heading1 || heading2 || heading3 || 
 		headingOneInputMode || headingTwoInputMode || headingThreeInputMode
 	);
+
+	// In overview mode, if there is no visible segment above that provides a border-bottom,
+	// the current heading element needs its own border-top (since its background-color would
+	// otherwise paint over the previous element's border-bottom, making the separator disappear).
+	//
+	// prevVisibleSegmentHasBorderBottom: scans back through consecutive invisible segments to
+	// find the nearest visible one — if it has a heading or note (both have border-bottom),
+	// we must NOT add border-top (it would create a double border at the same Y position).
+	//
+	// Only applies to non-first segments with heading-two or heading-three (heading-one
+	// already has border-top as part of its full border declaration).
+	// Also excludes the refs-on case (ref-placeholder from previous segment handles borders).
+	let needsFirstHeadingBorderTop = $derived(
+		$toolbarState.overviewMode &&
+		!isFirstInSection &&
+		!prevVisibleSegmentHasBorderBottom &&
+		!(prevSegmentHasRef && $toolbarState.referencesVisible) &&
+		!heading1
+	);
+
+	// heading-two gets border-top when it's the topmost heading in the segment
+	let needsHeadingTwoBorderTop = $derived(needsFirstHeadingBorderTop && !!heading2);
+
+	// heading-three gets border-top only when it's the ONLY heading (no heading-two above it)
+	let needsHeadingThreeBorderTop = $derived(needsFirstHeadingBorderTop && !heading2 && !!heading3);
+
+	// When the heading needs border-top AND this is the first visible element in the section
+	// (all prior segments were invisible), also apply rounded top corners to match the
+	// first-child visual design.
+	let needsHeadingTopBorderRadius = $derived(needsFirstHeadingBorderTop && isFirstVisibleInSection);
 
 	/**
 	 * Handle insert-heading-one custom event
@@ -165,6 +201,8 @@
 		hasHeadingTwo={!!heading2}
 		hasHeadingThree={!!heading3}
 		hasNote={!!note}
+		needsBorderTop={needsHeadingTwoBorderTop}
+		needsBorderTopRadius={needsHeadingTopBorderRadius}
 	/>
 	
 	<!-- Heading Three -->
@@ -179,11 +217,15 @@
 		hasHeadingTwo={!!heading2}
 		hasHeadingThree={!!heading3}
 		hasNote={!!note}
+		needsBorderTop={needsHeadingThreeBorderTop}
+		needsBorderTopRadius={needsHeadingTopBorderRadius}
 	/>
 	
 	<!-- Segment Reference Placeholder (for segments without headings) -->
 	{#if !heading1 && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
-		<div class="segment-ref-placeholder">
+		<div class="segment-ref-placeholder"
+		     style:border-top={prevSegmentHasHeading ? 'none' : ''}
+		     style:border-bottom={nextSegmentHasHeading ? '0.1rem solid var(--section-dark)' : ''}>
 			{segmentRef}
 		</div>
 	{/if}
@@ -345,6 +387,12 @@
 		border-top-color: var(--section-dark);
 		border-top-right-radius: 0.0rem;
 		border-top-left-radius: 0.0rem;
+	}
+
+	/* When the previous segment has a heading, its border-bottom already provides separation */
+	/* so we remove the top border from this segment-ref-placeholder to prevent double lines */
+	.segment-ref-placeholder.no-top-border {
+		border-top: none !important;
 	}
 
 	:global(.analyze-content.overview-mode) :global(.section) .segment:first-child .segment-ref-placeholder {

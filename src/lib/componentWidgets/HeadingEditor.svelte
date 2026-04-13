@@ -16,7 +16,9 @@
 		hasHeadingOne = false,
 		hasHeadingTwo = false,
 		hasHeadingThree = false,
-		hasNote = false
+		hasNote = false,
+		needsBorderTop = false,
+		needsBorderTopRadius = false
 	} = $props();
 
 	// Input state
@@ -377,6 +379,9 @@
 			this={config.tag} 
 			class={config.class}
 			class:clickable={isActive}
+			style:border-top={needsBorderTop ? '0.1rem solid var(--section-dark)' : ''}
+			style:border-top-left-radius={needsBorderTopRadius ? '0.3rem' : ''}
+			style:border-top-right-radius={needsBorderTopRadius ? '0.3rem' : ''}
 			onclick={handleHeadingClick}
 			role="button"
 			tabindex={isActive ? 0 : -1}

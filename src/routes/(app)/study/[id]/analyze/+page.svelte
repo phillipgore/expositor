@@ -2117,6 +2117,12 @@
 																			segmentId={segment.id}
 																			generation={activeSegments.find(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)?.generation || 0}
 																			isCompareHidden={isCompareMode && !visibleSegmentIds.has(segment.id)}
+																			prevSegmentHasHeading={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree)}
+																			nextSegmentHasHeading={!!(section.segments[segmentIndex + 1]?.headingOne || section.segments[segmentIndex + 1]?.headingTwo || section.segments[segmentIndex + 1]?.headingThree)}
+																			prevVisibleSegmentHasBorderBottom={(() => { for (let i = segmentIndex - 1; i >= 0; i--) { const s = section.segments[i]; if (s.headingOne || s.headingTwo || s.headingThree || s.note) return true; } return false; })()}
+																			prevSegmentHasRef={!!(headingReferences[section.segments[segmentIndex - 1]?.id]?.segmentRef)}
+																			isFirstInSection={segmentIndex === 0}
+																			isFirstVisibleInSection={(() => { for (let i = 0; i < segmentIndex; i++) { const s = section.segments[i]; if (s.headingOne || s.headingTwo || s.headingThree || s.note) return false; } return true; })()}
 																		/>
 																	{/each}
 																{/if}
@@ -2442,6 +2448,15 @@
 	.overview-mode :global(.section .segment:last-child.has-note .note) {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
+	}
+
+	/* Remove top border from segment-ref-placeholder when it follows a segment with headings */
+	/* Prevents double line: heading's border-bottom + segment-ref-placeholder's border-top */
+	/* Uses .analyze-content.overview-mode (local scope, 3 classes with hash) for higher specificity than Segment.svelte's general rule */
+	.analyze-content.overview-mode :global(.section .segment.has-heading-one + .segment.has-segment-ref .segment-ref-placeholder),
+	.analyze-content.overview-mode :global(.section .segment.has-heading-two + .segment.has-segment-ref .segment-ref-placeholder),
+	.analyze-content.overview-mode :global(.section .segment.has-heading-three + .segment.has-segment-ref .segment-ref-placeholder) {
+		border-top: none;
 	}
 
 	.text {
