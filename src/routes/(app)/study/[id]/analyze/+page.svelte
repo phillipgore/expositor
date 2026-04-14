@@ -440,18 +440,31 @@
 		const handleSelectColumnEvent = (event) => {
 			const { columnId } = event.detail;
 			
-			// Use hierarchical selection handler
-			const newState = handleSelection('column', columnId);
-			
-			// Update the appropriate state based on compare mode
-			if (isCompareMode) {
-				compareActiveColumns = newState.columns;
-				compareActiveSections = newState.sections;
-				compareActiveSegments = newState.segments;
+			if (!isCommandKeyHeld) {
+				// Normal click: replace selection with just this column
+				if (isCompareMode) {
+					compareActiveColumns = [columnId];
+					compareActiveSections = [];
+					compareActiveSegments = [];
+				} else {
+					activeColumns = [columnId];
+					activeSections = [];
+					activeSegments = [];
+				}
 			} else {
-				activeColumns = newState.columns;
-				activeSections = newState.sections;
-				activeSegments = newState.segments;
+				// Cmd/Ctrl held: use hierarchical selection handler (additive/toggle)
+				const newState = handleSelection('column', columnId);
+				
+				// Update the appropriate state based on compare mode
+				if (isCompareMode) {
+					compareActiveColumns = newState.columns;
+					compareActiveSections = newState.sections;
+					compareActiveSegments = newState.segments;
+				} else {
+					activeColumns = newState.columns;
+					activeSections = newState.sections;
+					activeSegments = newState.segments;
+				}
 			}
 		};
 		
@@ -478,18 +491,31 @@
 		const handleSelectSectionEvent = (event) => {
 			const { sectionId } = event.detail;
 			
-			// Use hierarchical selection handler
-			const newState = handleSelection('section', sectionId);
-			
-			// Update the appropriate state based on compare mode
-			if (isCompareMode) {
-				compareActiveColumns = newState.columns;
-				compareActiveSections = newState.sections;
-				compareActiveSegments = newState.segments;
+			if (!isCommandKeyHeld) {
+				// Normal click: replace selection with just this section
+				if (isCompareMode) {
+					compareActiveColumns = [];
+					compareActiveSections = [sectionId];
+					compareActiveSegments = [];
+				} else {
+					activeColumns = [];
+					activeSections = [sectionId];
+					activeSegments = [];
+				}
 			} else {
-				activeColumns = newState.columns;
-				activeSections = newState.sections;
-				activeSegments = newState.segments;
+				// Cmd/Ctrl held: use hierarchical selection handler (additive/toggle)
+				const newState = handleSelection('section', sectionId);
+				
+				// Update the appropriate state based on compare mode
+				if (isCompareMode) {
+					compareActiveColumns = newState.columns;
+					compareActiveSections = newState.sections;
+					compareActiveSegments = newState.segments;
+				} else {
+					activeColumns = newState.columns;
+					activeSections = newState.sections;
+					activeSegments = newState.segments;
+				}
 			}
 		};
 		
