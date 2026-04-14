@@ -374,7 +374,7 @@
 			bind:value={inputValue}
 			onkeydown={handleInputKeyDown}
 		/>
-	{:else if displayValue}
+	{:else if displayValue && ($toolbarState.headingsVisible || $toolbarState.overviewMode)}
 		<svelte:element 
 			this={config.tag} 
 			class={config.class}

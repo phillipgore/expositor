@@ -33,6 +33,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canFormat - Whether formatting buttons should be enabled (has content/selection)
  * @property {boolean} canToggleComparison - Whether Comparison toggle should be enabled
  * @property {boolean} canToggleConnections - Whether Connections toggle should be enabled
+ * @property {boolean} canToggleHeadings - Whether Headings toggle should be enabled
  * @property {boolean} canToggleNotes - Whether Notes toggle should be enabled (document supports notes)
  * @property {boolean} canToggleComment - Whether Comment toggle should be enabled (document supports comment)
  * @property {boolean} canToggleReferences - Whether References toggle should be enabled
@@ -50,6 +51,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
  * @property {boolean} commentaryPanelOpen - Whether the commentary panel is open
  * @property {boolean} comparisonsVisible - Whether comparisons are visible
+ * @property {boolean} headingsVisible - Whether headings are visible in segments
  * @property {boolean} connectionsVisible - Whether connections are visible
  * @property {boolean} notesVisible - Whether quick notes are visible in segments
  * @property {boolean} referencesVisible - Whether scripture references are visible in headings
@@ -82,6 +84,7 @@ const defaultState = {
 	canFormat: false,
 	canToggleComparison: false,
 	canToggleConnections: false,
+	canToggleHeadings: false,
 	canToggleNotes: false,
 	canToggleComment: false,
 	canToggleReferences: false,
@@ -98,6 +101,7 @@ const defaultState = {
 	canUseColorItems: false,
 	studiesPanelOpen: true,
 	commentaryPanelOpen: false,
+	headingsVisible: true,
 	comparisonsVisible: false,
 	connectionsVisible: false,
 	notesVisible: true,
@@ -156,6 +160,7 @@ export function updateToolbarForRoute(pathname) {
 				...state,
 				canFormat: true,
 				canToggleConnections: true,
+				canToggleHeadings: true,
 				canToggleNotes: true,
 				canToggleComment: isAnalyzeRoute, // Only enable on analyze pages
 				canToggleReferences: true,
@@ -371,6 +376,16 @@ export function toggleComparison() {
 }
 
 /**
+ * Toggle headings visibility
+ */
+export function toggleHeadings() {
+	toolbarStateStore.update(state => ({
+		...state,
+		headingsVisible: !state.headingsVisible
+	}));
+}
+
+/**
  * Toggle connections visibility
  */
 export function toggleConnections() {
@@ -433,7 +448,9 @@ export function toggleOverview() {
 		return {
 			...state,
 			overviewMode: newOverviewMode,
-			commentaryPanelOpen: shouldCloseCommentary ? false : state.commentaryPanelOpen
+			commentaryPanelOpen: shouldCloseCommentary ? false : state.commentaryPanelOpen,
+			// Automatically ensure headings are visible when entering overview mode
+			headingsVisible: newOverviewMode ? true : state.headingsVisible
 		};
 	});
 }

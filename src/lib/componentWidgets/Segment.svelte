@@ -65,10 +65,13 @@
 		anyHeadingInputActive || noteInputMode
 	);
 
-	// Computed: Check if any heading exists or is in input mode
+	// Computed: Whether headings should currently be visible (always true in overview mode)
+	let effectiveHeadingsVisible = $derived($toolbarState.headingsVisible || $toolbarState.overviewMode);
+
+	// Computed: Check if any heading is visible (exists and visible) or is in input mode
 	let hasAnyHeadings = $derived(
-		heading1 || heading2 || heading3 || 
-		headingOneInputMode || headingTwoInputMode || headingThreeInputMode
+		headingOneInputMode || headingTwoInputMode || headingThreeInputMode ||
+		(effectiveHeadingsVisible && !!(heading1 || heading2 || heading3))
 	);
 
 	// In overview mode, if the previous segment has no heading or note (i.e. it has a
@@ -164,10 +167,10 @@
 
 <div class="segment" 
      class:active={isActive} 
-     class:has-heading-one={heading1 || headingOneInputMode}
-     class:has-heading-two={heading2 || headingTwoInputMode}
-     class:has-heading-three={heading3 || headingThreeInputMode}
-	     class:has-segment-ref={!$toolbarState.overviewMode && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
+     class:has-heading-one={(heading1 && effectiveHeadingsVisible) || headingOneInputMode}
+     class:has-heading-two={(heading2 && effectiveHeadingsVisible) || headingTwoInputMode}
+     class:has-heading-three={(heading3 && effectiveHeadingsVisible) || headingThreeInputMode}
+	     class:has-segment-ref={!$toolbarState.overviewMode && segmentRef && $toolbarState.referencesVisible && (!effectiveHeadingsVisible || (!heading2 && !heading3))}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible}
      class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.notesVisible)}
      class:compare-hidden={isCompareHidden}
@@ -220,7 +223,8 @@
 	/>
 	
 	<!-- Segment Reference Placeholder (for segments without headings, non-overview mode only) -->
-	{#if !$toolbarState.overviewMode && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
+	<!-- Also shows for segments with heading2/heading3 when headings are hidden (refs would otherwise be invisible) -->
+	{#if !$toolbarState.overviewMode && segmentRef && $toolbarState.referencesVisible && (!effectiveHeadingsVisible || (!heading2 && !heading3))}
 		<div class="segment-ref-placeholder"
 		     style:border-top={prevSegmentHasHeading ? 'none' : ''}>
 			{segmentRef}

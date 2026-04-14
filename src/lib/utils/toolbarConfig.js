@@ -170,13 +170,13 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'toggle',
-					iconId: 'connect',
-					underLabel: 'Connections',
+					iconId: 'headings',
+					underLabel: 'Headings',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
-					activeStateProp: 'connectionsVisible',
-					toggleHandler: 'toggleConnections',
-					disabledCheck: (state) => !state.canToggleConnections || state.overviewMode
+					activeStateProp: 'headingsVisible',
+					toggleHandler: 'toggleHeadings',
+					disabledCheck: (state) => !state.canToggleHeadings || state.overviewMode
 				},
 				{
 					type: 'toggle',
@@ -187,6 +187,16 @@ export function getAppToolbarConfig() {
 					activeStateProp: 'notesVisible',
 					toggleHandler: 'toggleNotes',
 					disabledStateProp: 'canToggleNotes'
+				},
+				{
+					type: 'toggle',
+					iconId: 'connect',
+					underLabel: 'Connections',
+					classes: 'toolbar-dark hide-at-narrow',
+					underLabelClasses: 'light hide-at-narrow',
+					activeStateProp: 'connectionsVisible',
+					toggleHandler: 'toggleConnections',
+					disabledCheck: (state) => !state.canToggleConnections || state.overviewMode
 				},
 				{
 					type: 'toggle',
