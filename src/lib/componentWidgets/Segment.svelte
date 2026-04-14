@@ -25,7 +25,8 @@
 		prevVisibleSegmentHasBorderBottom = false,
 		prevSegmentHasRef = false,
 		isFirstInSection = false,
-		isFirstVisibleInSection = false
+		isFirstVisibleInSection = false,
+		isVerseSubdivided = false
 	} = $props();
 
 	// Track input mode for each heading type and note
@@ -170,7 +171,7 @@
      class:has-heading-one={(heading1 && effectiveHeadingsVisible) || headingOneInputMode}
      class:has-heading-two={(heading2 && effectiveHeadingsVisible) || headingTwoInputMode}
      class:has-heading-three={(heading3 && effectiveHeadingsVisible) || headingThreeInputMode}
-	     class:has-segment-ref={!$toolbarState.overviewMode && segmentRef && $toolbarState.referencesVisible && (!effectiveHeadingsVisible || (!heading2 && !heading3))}
+	     class:has-segment-ref={!$toolbarState.overviewMode && segmentRef && $toolbarState.referencesVisible && (!effectiveHeadingsVisible || (!heading2 && !heading3) || (isVerseSubdivided && !heading3))}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible}
      class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.notesVisible)}
      class:compare-hidden={isCompareHidden}
@@ -224,9 +225,12 @@
 	
 	<!-- Segment Reference Placeholder (for segments without headings, non-overview mode only) -->
 	<!-- Also shows for segments with heading2/heading3 when headings are hidden (refs would otherwise be invisible) -->
-	{#if !$toolbarState.overviewMode && segmentRef && $toolbarState.referencesVisible && (!effectiveHeadingsVisible || (!heading2 && !heading3))}
+	<!-- Also shows when the starting verse is subdivided across segments (e.g., "Matthew 7:24a") even if a heading is present -->
+	{#if !$toolbarState.overviewMode && segmentRef && $toolbarState.referencesVisible && (!effectiveHeadingsVisible || (!heading2 && !heading3) || (isVerseSubdivided && !heading3))}
 		<div class="segment-ref-placeholder"
-		     style:border-top={prevSegmentHasHeading ? 'none' : ''}>
+		     style:border-top={(prevSegmentHasHeading || (effectiveHeadingsVisible && !!(heading1 || heading2 || heading3))) ? 'none' : ''}
+		     style:border-top-right-radius={(prevSegmentHasHeading || (effectiveHeadingsVisible && !!(heading1 || heading2 || heading3))) ? '0' : ''}
+		     style:border-top-left-radius={(prevSegmentHasHeading || (effectiveHeadingsVisible && !!(heading1 || heading2 || heading3))) ? '0' : ''}>
 			{segmentRef}
 		</div>
 	{/if}

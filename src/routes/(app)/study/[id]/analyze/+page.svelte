@@ -1356,8 +1356,9 @@
 			const nextVerseId = nextParts?.length >= 3 ? nextParts.slice(0, 3).join('-') : null;
 			const sameVerseNext = nextVerseId !== null && nextVerseId === startVerseId;
 
-			// Only show subdivision suffix when the next segment shares this verse
-			const segmentStartSuffix = sameVerseNext ? startSuffix : '';
+			// Show subdivision suffix for ALL segments of a split verse.
+		// startSuffix is already '' for non-subdivided verses, so this is safe unconditionally.
+			const segmentStartSuffix = startSuffix;
 
 			let segEndWordId;
 			if (sameVerseNext && startParts && startParts.length >= 3) {
@@ -2241,6 +2242,8 @@
 																							nextSection?.segments[0]?.startingWordId || 
 																							nextColumn?.sections[0]?.segments[0]?.startingWordId || 
 																							null}
+																		{@const segmentStartVerseId = segment.startingWordId ? segment.startingWordId.split('-').slice(0, 3).join('-') : null}
+																		{@const isVerseSubdivided = segmentStartVerseId ? (verseSectionMap[segmentStartVerseId] || 0) > 1 : false}
 																		{@const segmentHtml = extractSegmentText(
 																			passageText.text,
 																			segment.startingWordId,
@@ -2264,6 +2267,7 @@
 																			segmentId={segment.id}
 																			generation={activeSegments.find(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)?.generation || 0}
 																			isCompareHidden={isCompareMode && !visibleSegmentIds.has(segment.id)}
+																			{isVerseSubdivided}
 																			prevSegmentHasHeading={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree)}
 																			nextSegmentHasHeading={!!(section.segments[segmentIndex + 1]?.headingOne || section.segments[segmentIndex + 1]?.headingTwo || section.segments[segmentIndex + 1]?.headingThree)}
 																			prevVisibleSegmentHasBorderBottom={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree || section.segments[segmentIndex - 1]?.note)}
