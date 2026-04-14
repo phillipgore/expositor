@@ -221,7 +221,7 @@ export function getAppToolbarConfig() {
 				{
 					type: 'toggle',
 					iconId: 'reference',
-					underLabel: 'Verses',
+					underLabel: 'Notation',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
 					activeStateProp: 'versesVisible',

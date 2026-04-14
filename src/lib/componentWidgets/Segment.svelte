@@ -71,22 +71,19 @@
 		headingOneInputMode || headingTwoInputMode || headingThreeInputMode
 	);
 
-	// In overview mode, if there is no visible segment above that provides a border-bottom,
-	// the current heading element needs its own border-top (since its background-color would
-	// otherwise paint over the previous element's border-bottom, making the separator disappear).
+	// In overview mode, if the previous segment has no heading or note (i.e. it has a
+	// no-headings-indicator which has a top border but no bottom border), the current heading
+	// element needs its own border-top to provide visual separation.
 	//
-	// prevVisibleSegmentHasBorderBottom: scans back through consecutive invisible segments to
-	// find the nearest visible one — if it has a heading or note (both have border-bottom),
-	// we must NOT add border-top (it would create a double border at the same Y position).
+	// prevVisibleSegmentHasBorderBottom: scans back through segments to find if any preceding
+	// segment has a heading or note (both have border-bottom). If true, no border-top needed.
 	//
 	// Only applies to non-first segments with heading-two or heading-three (heading-one
 	// already has border-top as part of its full border declaration).
-	// Also excludes the refs-on case (ref-placeholder from previous segment handles borders).
 	let needsFirstHeadingBorderTop = $derived(
 		$toolbarState.overviewMode &&
 		!isFirstInSection &&
 		!prevVisibleSegmentHasBorderBottom &&
-		!(prevSegmentHasRef && $toolbarState.referencesVisible) &&
 		!heading1
 	);
 
@@ -170,8 +167,9 @@
      class:has-heading-one={heading1 || headingOneInputMode}
      class:has-heading-two={heading2 || headingTwoInputMode}
      class:has-heading-three={heading3 || headingThreeInputMode}
-	     class:has-segment-ref={!heading1 && !heading2 && !heading3 && segmentRef && ($toolbarState.referencesVisible || $toolbarState.overviewMode)}
+	     class:has-segment-ref={!$toolbarState.overviewMode && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
      class:has-note={(note || noteInputMode) && $toolbarState.notesVisible}
+     class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.notesVisible)}
      class:compare-hidden={isCompareHidden}
      data-segment-id="{segmentId}">
 	
@@ -221,12 +219,21 @@
 		needsBorderTopRadius={needsHeadingTopBorderRadius}
 	/>
 	
-	<!-- Segment Reference Placeholder (for segments without headings) -->
-	{#if !heading1 && !heading2 && !heading3 && segmentRef && ($toolbarState.referencesVisible || $toolbarState.overviewMode)}
+	<!-- Segment Reference Placeholder (for segments without headings, non-overview mode only) -->
+	{#if !$toolbarState.overviewMode && !heading2 && !heading3 && segmentRef && $toolbarState.referencesVisible}
 		<div class="segment-ref-placeholder"
-		     style:border-top={prevSegmentHasHeading ? 'none' : ''}
-		     style:border-bottom={(nextSegmentHasHeading && $toolbarState.overviewMode) ? '0.1rem solid var(--section-dark)' : ''}>
+		     style:border-top={prevSegmentHasHeading ? 'none' : ''}>
 			{segmentRef}
+		</div>
+	{/if}
+
+	<!-- No Headings Indicator (overview mode only, for segments without headings) -->
+	{#if $toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.notesVisible)}
+		<div class="no-headings-indicator">
+			{#if segmentRef && $toolbarState.referencesVisible}
+				<span class="no-headings-ref">{segmentRef}</span>
+			{/if}
+			<em>No Headings</em>
 		</div>
 	{/if}
 	
@@ -381,28 +388,40 @@
 	}
 
 
-	:global(.analyze-content.overview-mode) :global(.section) .segment.has-segment-ref .segment-ref-placeholder  {
+	/* No Headings Indicator - overview mode only, for segments without headings */
+	.no-headings-indicator {
+		position: inherit;
+		z-index: inherit;
+		font-size: 1.1rem;
+		margin: 0;
 		padding: 0.9rem;
-		border-top: 0.1rem solid;
-		border-top-color: var(--section-dark);
-		border-top-right-radius: 0.0rem;
-		border-top-left-radius: 0.0rem;
+		border-right: 0.1rem solid;
+		border-left: 0.1rem solid;
+		border-color: var(--section-dark);
+		color: var(--gray-400);
 	}
 
-	/* When the previous segment has a heading, its border-bottom already provides separation */
-	/* so we remove the top border from this segment-ref-placeholder to prevent double lines */
-	.segment-ref-placeholder.no-top-border {
-		border-top: none !important;
+	.no-headings-ref {
+		font-size: 1.0rem;
+		font-weight: 500;
+		color: var(--gray-300);
+		margin-right: 0.5rem;
 	}
 
-	:global(.analyze-content.overview-mode) :global(.section) .segment:first-child .segment-ref-placeholder {
+	/* No headings indicator gets top border to separate from previous segment */
+	:global(.analyze-content.overview-mode) :global(.section) .segment .no-headings-indicator {
 		border-top: 0.1rem solid;
 		border-top-color: var(--section-dark);
+	}
+
+	/* First segment: rounded top corners */
+	:global(.analyze-content.overview-mode) :global(.section) .segment:first-child .no-headings-indicator {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
-	:global(.analyze-content.overview-mode) :global(.section) .segment.has-segment-ref:last-child:not(.has-note) .segment-ref-placeholder {
+	/* Last segment: rounded bottom corners + bottom border */
+	:global(.analyze-content.overview-mode) :global(.section) .segment.has-no-headings-indicator:last-child:not(.has-note) .no-headings-indicator {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 		border-bottom: 0.1rem solid;

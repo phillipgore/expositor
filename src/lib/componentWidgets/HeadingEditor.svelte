@@ -387,10 +387,10 @@
 			tabindex={isActive ? 0 : -1}
 		>
 			{displayValue}
-			{#if scriptureRef && $toolbarState.referencesVisible}
-				<br>
-				<span class="scripture-ref">{scriptureRef}</span>
-			{/if}
+		{#if scriptureRef && $toolbarState.referencesVisible}
+			<br>
+			<span class="scripture-ref">{scriptureRef}</span>
+		{/if}
 		</svelte:element>
 	{/if}
 </div>

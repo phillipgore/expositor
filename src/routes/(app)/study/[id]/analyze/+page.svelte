@@ -1199,13 +1199,63 @@
 	}
 
 	/**
-	 * Calculate scripture references for headings in all segments
-	 * Includes support for partial verses (a, b, c) and fixes "one verse too long" bug
+	 * Build a map of segmentId -> sectionEndIdx (index one past the last segment in the section).
+	 * Used to enforce section boundaries when calculating heading references.
+	 * @param {Array} columns - Passage structure columns array
+	 * @returns {Map<string, number>} Map of segmentId to sectionEndIdx
+	 */
+	function buildSegmentSectionEndIdxMap(columns) {
+		const map = new Map();
+		let globalIdx = 0;
+		for (const col of columns) {
+			for (const section of col.sections) {
+				const sectionEndIdx = globalIdx + section.segments.length;
+				for (const seg of section.segments) {
+					map.set(seg.id, sectionEndIdx);
+				}
+				globalIdx = sectionEndIdx;
+			}
+		}
+		return map;
+	}
+
+	/**
+	 * Construct the exclusive end word ID for a passage (used as the boundary when a reference
+	 * extends to the end of the passage and there is no next segment to borrow a word ID from).
+	 * Uses passageData.toChapter and passageData.toVerse + 1 as the exclusive boundary.
+	 * @param {Array} allSegments - All segments in the passage (flat array)
+	 * @param {Object} passageData - Passage DB record with toChapter, toVerse
+	 * @returns {string|null} Exclusive end word ID or null if not computable
+	 */
+	function getPassageEndWordId(allSegments, passageData) {
+		if (!allSegments.length || !passageData) return null;
+		const firstWordId = allSegments[0].startingWordId;
+		if (!firstWordId) return null;
+		const parts = firstWordId.split('-');
+		if (parts.length < 4) return null;
+		const bookAbbr = parts[0];
+		const chapterPadLen = parts[1].length;
+		const versePadLen = parts[2].length;
+		const chapStr = String(passageData.toChapter).padStart(chapterPadLen, '0');
+		// toVerse + 1 is the exclusive boundary; formatScriptureReference will subtract 1 to get toVerse
+		const verseStr = String(passageData.toVerse + 1).padStart(versePadLen, '0');
+		return `${bookAbbr}-${chapStr}-${verseStr}-001`;
+	}
+
+	/**
+	 * Calculate scripture references for headings in all segments.
+	 * Rules:
+	 *   - Heading One   → spans to next H1 within section, or section end
+	 *   - Heading Two   → spans to next H1 within section, or section end (NOT next H2)
+	 *   - Heading Three → spans to next H3 within section, or section end (NOT H1/H2)
+	 *   - Segment ref   → spans only the current segment
 	 * @param {Array} allSegments - Flat array of all segments in document order
 	 * @param {Object} verseSectionMap - Map of verseId -> count of segments containing that verse
+	 * @param {Map<string, number>} segmentSectionEndIdxMap - Map of segmentId -> sectionEndIdx
+	 * @param {string|null} passageEndWordId - Exclusive end word ID for the passage boundary
 	 * @returns {Object} Map of segmentId -> { heading1Ref, heading2Ref, heading3Ref, segmentRef }
 	 */
-	function calculateHeadingReferences(allSegments, verseSectionMap) {
+	function calculateHeadingReferences(allSegments, verseSectionMap, segmentSectionEndIdxMap = null, passageEndWordId = null) {
 		const references = {};
 		
 		// Track verse subdivision occurrences for calculating suffixes
@@ -1219,6 +1269,9 @@
 				heading3Ref: null,
 				segmentRef: null
 			};
+
+			// Section boundary: index one past the last segment of this segment's section
+			const sectionEndIdx = segmentSectionEndIdxMap?.get(segment.id) ?? allSegments.length;
 			
 			// Get verse ID from starting word ID for suffix calculation
 			const startParts = segment.startingWordId?.split('-');
@@ -1236,80 +1289,123 @@
 			}
 			
 			// Calculate Heading One reference (if exists)
+			// Spans to next H1 within section, or section end — whichever is first
 			if (segment.headingOne) {
-				// Find next segment with Heading One
 				let endIdx = i + 1;
-				while (endIdx < allSegments.length && !allSegments[endIdx].headingOne) {
+				while (endIdx < sectionEndIdx && !allSegments[endIdx].headingOne) {
 					endIdx++;
 				}
-				
-				// Get the ending reference (previous segment's last word)
-				const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker);
-				references[segment.id].heading1Ref = formatScriptureReference(segment.startingWordId, endWordId, startSuffix, endSuffix);
+				const { endWordId } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker, passageEndWordId);
+				references[segment.id].heading1Ref = formatScriptureReference(segment.startingWordId, endWordId, '', '');
 			}
 			
 			// Calculate Heading Two reference (if exists)
+			// Spans to next H1 within section, or section end — NOT stopped by H2
 			if (segment.headingTwo) {
-				// Find next segment with Heading Two or Heading One
 				let endIdx = i + 1;
-				while (endIdx < allSegments.length && !allSegments[endIdx].headingTwo && !allSegments[endIdx].headingOne) {
+				while (endIdx < sectionEndIdx && !allSegments[endIdx].headingOne) {
 					endIdx++;
 				}
-				
-				// Get the ending reference (previous segment's last word)
-				const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker);
-				references[segment.id].heading2Ref = formatScriptureReference(segment.startingWordId, endWordId, startSuffix, endSuffix);
+				const { endWordId } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker, passageEndWordId);
+				references[segment.id].heading2Ref = formatScriptureReference(segment.startingWordId, endWordId, '', '');
 			}
 			
 			// Calculate Heading Three reference (if exists)
+			// Spans to next H3 within section, or section end — NOT stopped by H1/H2
 			if (segment.headingThree) {
-				// Find next segment with any heading
 				let endIdx = i + 1;
-				while (endIdx < allSegments.length && !allSegments[endIdx].headingOne && !allSegments[endIdx].headingTwo && !allSegments[endIdx].headingThree) {
+				while (endIdx < sectionEndIdx && !allSegments[endIdx].headingThree) {
 					endIdx++;
 				}
-				
-				// Get the ending reference (previous segment's last word)
-				const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker);
+				const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker, passageEndWordId);
 				references[segment.id].heading3Ref = formatScriptureReference(segment.startingWordId, endWordId, startSuffix, endSuffix);
 			}
 			
-			// Calculate segment reference (for segments without headings in overview mode)
-			const endIdx = i + 1;
-			const { endWordId, endSuffix } = calculateEndReference(allSegments, i, endIdx, verseSectionMap, verseOccurrenceTracker);
-			references[segment.id].segmentRef = formatScriptureReference(segment.startingWordId, endWordId, startSuffix, endSuffix);
+		// Calculate segment reference (spans only this segment).
+		// Special rules vs heading refs:
+		// - Only apply startSuffix when the NEXT segment is in the SAME verse (subdivision context).
+		//   If the next segment is in a different verse, this segment covers "all that remains of
+		//   its starting verse" and no subdivision suffix is needed (e.g. a 26b segment shows
+		//   "Matthew 7:26" not "7:26b").
+		// - When the next segment IS in the same verse, use (startVerse + 1) as the exclusive end
+		//   boundary instead of nextSegment.startingWordId, to avoid a backwards range
+		//   (actualEndVerse = nextVerse − 1 would give the PREVIOUS verse, e.g. "25a-24a").
+		{
+			const nextSeg = allSegments[i + 1];
+			const nextParts = nextSeg?.startingWordId?.split('-');
+			const nextVerseId = nextParts?.length >= 3 ? nextParts.slice(0, 3).join('-') : null;
+			const sameVerseNext = nextVerseId !== null && nextVerseId === startVerseId;
+
+			// Only show subdivision suffix when the next segment shares this verse
+			const segmentStartSuffix = sameVerseNext ? startSuffix : '';
+
+			let segEndWordId;
+			if (sameVerseNext && startParts && startParts.length >= 3) {
+				// Next segment is in same verse → construct (startVerse + 1) as the exclusive end
+				// so actualEndVerse = startVerse (collapses to a single-verse reference)
+				const verse = parseInt(startParts[2], 10);
+				const verseStr = String(verse + 1).padStart(startParts[2].length, '0');
+				segEndWordId = `${startParts[0]}-${startParts[1]}-${verseStr}-001`;
+			} else if (i + 1 < allSegments.length) {
+				segEndWordId = allSegments[i + 1].startingWordId;
+			} else {
+				segEndWordId = passageEndWordId;
+			}
+
+			// No endSuffix for segment refs — just show the verse number(s) covered
+			references[segment.id].segmentRef = formatScriptureReference(segment.startingWordId, segEndWordId, segmentStartSuffix, '');
+		}
 		}
 		
 		return references;
 	}
 	
 	/**
-	 * Calculate the end word ID and suffix for a reference range
-	 * Returns the last word of the segment BEFORE the next heading/segment
+	 * Calculate the end word ID and suffix for a reference range.
+	 * Returns the starting word of the segment at endIdx as an exclusive boundary.
 	 * @param {Array} allSegments - All segments
 	 * @param {number} currentIdx - Current segment index
 	 * @param {number} endIdx - Index of next segment with heading (or end of array)
 	 * @param {Object} verseSectionMap - Map of verse subdivisions
 	 * @param {Object} verseOccurrenceTracker - Tracker for verse occurrences
+	 * @param {string|null} passageEndWordId - Exclusive end word ID for end-of-passage boundary
 	 * @returns {Object} { endWordId, endSuffix }
 	 */
-	function calculateEndReference(allSegments, currentIdx, endIdx, verseSectionMap, verseOccurrenceTracker) {
-		// If there's no next segment, the range goes to the end (null endWordId)
+	function calculateEndReference(allSegments, currentIdx, endIdx, verseSectionMap, verseOccurrenceTracker, passageEndWordId = null) {
+		// If there's no next segment, the range extends to the end of the passage
 		if (endIdx >= allSegments.length) {
-			return { endWordId: null, endSuffix: '' };
+			return { endWordId: passageEndWordId, endSuffix: '' };
 		}
 		
 		// Get the segment just before the next heading (the last segment in our range)
 		const lastSegmentInRange = allSegments[endIdx - 1];
 		
-		// The end word ID is the starting word of the NEXT segment (which is outside our range)
-		// This way formatScriptureReference will format up to but not including this verse
-		const endWordId = allSegments[endIdx].startingWordId;
-		
-		// Calculate the ending verse suffix
-		// We need to know which subdivision the last segment's ending verse is in
-		let endSuffix = '';
-		const endParts = lastSegmentInRange.startingWordId?.split('-');
+	// The end word ID is the starting word of the NEXT segment (exclusive boundary).
+	// Use `let` so we can correct for multi-column verse inversion below.
+	let endWordId = allSegments[endIdx].startingWordId;
+
+	// Guard against multi-column verse inversion: in passages with non-contiguous columns,
+	// the segment immediately after a section boundary can start at an EARLIER verse than the
+	// last segment of the current range (e.g. column 2 covers verses 7–10 while column 1 ends
+	// at verses 11–12). Using that earlier word ID as the exclusive boundary would produce an
+	// inverted/garbled reference. Detect this and substitute (lastVerse + 1) instead.
+	const lastRangeParts = lastSegmentInRange?.startingWordId?.split('-');
+	const nextBoundaryParts = endWordId?.split('-');
+	if (lastRangeParts && nextBoundaryParts && lastRangeParts.length >= 3 && nextBoundaryParts.length >= 3) {
+		const lastChapter = parseInt(lastRangeParts[1], 10);
+		const lastVerse  = parseInt(lastRangeParts[2], 10);
+		const nextChapter = parseInt(nextBoundaryParts[1], 10);
+		const nextVerse  = parseInt(nextBoundaryParts[2], 10);
+		if (nextChapter < lastChapter || (nextChapter === lastChapter && nextVerse <= lastVerse)) {
+			const verseStr = String(lastVerse + 1).padStart(lastRangeParts[2].length, '0');
+			endWordId = `${lastRangeParts[0]}-${lastRangeParts[1]}-${verseStr}-001`;
+		}
+	}
+
+	// Calculate the ending verse suffix
+	// We need to know which subdivision the last segment's ending verse is in
+	let endSuffix = '';
+	const endParts = lastSegmentInRange.startingWordId?.split('-');
 		const endVerseId = endParts?.length >= 3 ? endParts.slice(0, 3).join('-') : null;
 		
 		if (endVerseId && verseSectionMap && verseSectionMap[endVerseId] > 1) {
@@ -2075,9 +2171,11 @@
 											{@const structureKey = `${passageText.structure.passageId}-${segmentCount}`}
 											{#key structureKey}
 											{@const passageSegmentIndexTracker = { current: 0 }}
-											{@const verseSectionMap = buildVerseSectionMap(allSegments)}
-											{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
-											{@const headingReferences = calculateHeadingReferences(allSegments, verseSectionMap)}
+										{@const verseSectionMap = buildVerseSectionMap(allSegments)}
+										{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
+										{@const segmentSectionEndIdxMap = buildSegmentSectionEndIdxMap(passageText.structure.columns)}
+										{@const passageEndWordId = getPassageEndWordId(allSegments, data.passages[passageIndex])}
+										{@const headingReferences = calculateHeadingReferences(allSegments, verseSectionMap, segmentSectionEndIdxMap, passageEndWordId)}
 											{#each passageText.structure.columns as column, columnIndex}
 												<div class="column" data-column-id="{column.id}" class:compare-hidden={isCompareMode && !visibleColumnIds.has(column.id)}>
 													{#if column.sections && column.sections.length > 0}
@@ -2119,10 +2217,10 @@
 																			isCompareHidden={isCompareMode && !visibleSegmentIds.has(segment.id)}
 																			prevSegmentHasHeading={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree)}
 																			nextSegmentHasHeading={!!(section.segments[segmentIndex + 1]?.headingOne || section.segments[segmentIndex + 1]?.headingTwo || section.segments[segmentIndex + 1]?.headingThree)}
-																			prevVisibleSegmentHasBorderBottom={(() => { for (let i = segmentIndex - 1; i >= 0; i--) { const s = section.segments[i]; if (s.headingOne || s.headingTwo || s.headingThree || s.note) return true; } return false; })()}
+																			prevVisibleSegmentHasBorderBottom={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree || section.segments[segmentIndex - 1]?.note)}
 																			prevSegmentHasRef={!!(headingReferences[section.segments[segmentIndex - 1]?.id]?.segmentRef)}
 																			isFirstInSection={segmentIndex === 0}
-																			isFirstVisibleInSection={(() => { for (let i = 0; i < segmentIndex; i++) { const s = section.segments[i]; if (s.headingOne || s.headingTwo || s.headingThree || s.note) return false; } return true; })()}
+																			isFirstVisibleInSection={segmentIndex === 0}
 																		/>
 																	{/each}
 																{/if}
@@ -2450,12 +2548,13 @@
 		border-bottom-left-radius: 0.3rem;
 	}
 
-	/* Remove top border from segment-ref-placeholder when it follows a segment with headings */
-	/* Prevents double line: heading's border-bottom + segment-ref-placeholder's border-top */
+	/* Remove top border from no-headings-indicator when it follows a segment with headings or a note */
+	/* Prevents double line: heading/note border-bottom + indicator's border-top */
 	/* Uses .analyze-content.overview-mode (local scope, 3 classes with hash) for higher specificity than Segment.svelte's general rule */
-	.analyze-content.overview-mode :global(.section .segment.has-heading-one + .segment.has-segment-ref .segment-ref-placeholder),
-	.analyze-content.overview-mode :global(.section .segment.has-heading-two + .segment.has-segment-ref .segment-ref-placeholder),
-	.analyze-content.overview-mode :global(.section .segment.has-heading-three + .segment.has-segment-ref .segment-ref-placeholder) {
+	.analyze-content.overview-mode :global(.section .segment.has-heading-one + .segment .no-headings-indicator),
+	.analyze-content.overview-mode :global(.section .segment.has-heading-two + .segment .no-headings-indicator),
+	.analyze-content.overview-mode :global(.section .segment.has-heading-three + .segment .no-headings-indicator),
+	.analyze-content.overview-mode :global(.section .segment.has-note + .segment .no-headings-indicator) {
 		border-top: none;
 	}
 
