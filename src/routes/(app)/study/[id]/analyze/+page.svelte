@@ -2252,6 +2252,7 @@
 									</div>
 								{/if}
 							</div>
+							<div class="passage-divider"></div>
 						{/each}
 					{:else}
 						<p class="placeholder-text">No passages available for this study.</p>
@@ -2340,6 +2341,19 @@
 		display: flex;
 		flex-direction: column;
 		flex-shrink: 0;
+	}
+
+	.passage-divider {
+		width: 0.1rem;
+		display: flex;
+		flex-direction: column;
+		background-color: var(--gray-700);
+		margin-top: 2.4rem;
+		margin-bottom: 4.4rem;
+	}
+
+	.passage-divider:last-child {
+		display: none;
 	}
 
 	:global(h3.reference) {
