@@ -276,6 +276,32 @@
 	}
 
 	/**
+	 * Auto-focus and initialize input when entering input mode.
+	 * Handles both click-triggered and menu-triggered entry into input mode.
+	 */
+	$effect(() => {
+		if (isInputMode && !hasInitialized) {
+			// Initialize values
+			inputValue = displayValue || '';
+			originalValue = displayValue || '';
+
+			// Focus the textarea after DOM renders
+			tick().then(() => {
+				setTimeout(() => {
+					const inputElement = document.getElementById(inputId);
+					if (inputElement && inputElement instanceof HTMLTextAreaElement) {
+						inputElement.focus();
+						// Attach keydown handler for Enter/Escape
+						inputElement.addEventListener('keydown', handleKeyDown);
+						// Set hasInitialized AFTER focus to prevent reactive effects from interfering
+						hasInitialized = true;
+					}
+				}, 200);
+			});
+		}
+	});
+
+	/**
 	 * Handle note click to enter edit mode
 	 * Activates segment if not already active
 	 */
@@ -292,27 +318,9 @@
 			await tick();
 		}
 		
-		// Enter edit mode
+		// Enter edit mode — initialization and focus handled by $effect above
 		if (!isInputMode) {
-			// Set values and enter input mode
-			inputValue = displayValue || '';
-			originalValue = displayValue || '';
 			isInputMode = true;
-			
-			// Wait for textarea to render, then focus after a small delay
-			await tick();
-			
-			// Use setTimeout to ensure toolbar transitions complete before focusing
-			setTimeout(() => {
-				const inputElement = document.getElementById(inputId);
-				if (inputElement && inputElement instanceof HTMLTextAreaElement) {
-					inputElement.focus();
-					// Attach keydown handler for Enter/Escape
-					inputElement.addEventListener('keydown', handleKeyDown);
-					// Set hasInitialized AFTER focus to prevent reactive effects from interfering
-					hasInitialized = true;
-				}
-			}, 200);
 		}
 	}
 

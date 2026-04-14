@@ -222,7 +222,7 @@ export function getAppToolbarConfig() {
 				{
 					type: 'toggle',
 					iconId: 'bookmark',
-					underLabel: 'References',
+					underLabel: 'Reference',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',
 					activeStateProp: 'referencesVisible',

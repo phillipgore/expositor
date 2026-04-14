@@ -8,7 +8,7 @@
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -2145,6 +2145,35 @@
 		
 		return `width: ${scaledWidth}px; height: ${scaledHeight}px;`;
 	});
+
+	/**
+	 * Derived: whether any segment in any passage has a non-empty quick note.
+	 * Re-evaluates whenever data.passagesWithText changes (e.g. after invalidate).
+	 */
+	let hasAnyNotes = $derived.by(() => {
+		if (!data.passagesWithText) return false;
+		return data.passagesWithText.some(passageText =>
+			passageText.structure?.columns?.some(col =>
+				col.sections?.some(section =>
+					section.segments?.some(seg => seg.note && seg.note.trim().length > 0)
+				)
+			)
+		);
+	});
+
+	/**
+	 * Keep the Notes toggle in sync with whether any notes actually exist.
+	 * - No notes → disable the toggle and ensure it is turned off.
+	 * - Notes exist → ensure the toggle is enabled.
+	 */
+	$effect(() => {
+		if (!hasAnyNotes) {
+			setToolbarState('canToggleNotes', false);
+			setToolbarState('notesVisible', false);
+		} else {
+			setToolbarState('canToggleNotes', true);
+		}
+	});
 </script>
 
 <svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
@@ -2364,10 +2393,10 @@
 	}
 
 	.passage-divider {
-		width: 0.1rem;
+		width: 0.0rem;
 		display: flex;
 		flex-direction: column;
-		background-color: var(--gray-700);
+		border-right: solid 0.1rem var(--gray-700);
 		margin-top: 2.4rem;
 		margin-bottom: 4.4rem;
 	}

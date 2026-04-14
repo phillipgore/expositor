@@ -305,6 +305,30 @@
 	});
 
 	/**
+	 * Auto-focus and initialize input when entering input mode.
+	 * Handles both click-triggered and menu-triggered entry into input mode.
+	 */
+	$effect(() => {
+		if (isInputMode && !hasInitialized) {
+			// Initialize values
+			inputValue = displayValue || '';
+			originalValue = displayValue || '';
+
+			// Focus the input after DOM renders
+			tick().then(() => {
+				setTimeout(() => {
+					const inputElement = document.getElementById(inputId);
+					if (inputElement && inputElement instanceof HTMLInputElement) {
+						inputElement.focus();
+						// Set hasInitialized AFTER focus to prevent reactive effects from interfering
+						hasInitialized = true;
+					}
+				}, 200);
+			});
+		}
+	});
+
+	/**
 	 * Handle heading click to enter edit mode
 	 * Activates segment if not already active
 	 */
@@ -321,25 +345,9 @@
 			await tick();
 		}
 		
-		// Enter edit mode
+		// Enter edit mode — initialization and focus handled by $effect above
 		if (!isInputMode) {
-			// Set values and enter input mode
-			inputValue = displayValue || '';
-			originalValue = displayValue || '';
 			isInputMode = true;
-			
-			// Wait for input to render, then focus after a small delay
-			await tick();
-			
-			// Use setTimeout to ensure toolbar transitions complete before focusing
-			setTimeout(() => {
-				const inputElement = document.getElementById(inputId);
-				if (inputElement && inputElement instanceof HTMLInputElement) {
-					inputElement.focus();
-					// Set hasInitialized AFTER focus to prevent reactive effects from interfering
-					hasInitialized = true;
-				}
-			}, 200);
 		}
 	}
 

@@ -161,7 +161,9 @@ export function updateToolbarForRoute(pathname) {
 				canFormat: true,
 				canToggleConnections: true,
 				canToggleHeadings: true,
-				canToggleNotes: true,
+				// canToggleNotes is intentionally omitted here — it is controlled
+				// entirely by the analyze page's $effect that checks whether any
+				// quick notes actually exist in the study's segment data.
 				canToggleComment: isAnalyzeRoute, // Only enable on analyze pages
 				canToggleReferences: true,
 				canToggleVerses: true,
