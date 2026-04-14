@@ -416,13 +416,13 @@
 		font-size: 1.4rem;
 		font-weight: 700;
 		text-align: center;
-		padding: 0.6rem;
+		padding: 0.8rem 0.6rem;
 		margin: 0.0rem;
 		border: 0.1rem solid;
 		color: var(--white);
 		background-color: var(--section-darker);
 		border-color: var(--section-darker);
-		line-height: 1.5;
+		line-height: 1.2;
 		transition: border 0.2s ease-in-out;
 		cursor: pointer;
 	}
@@ -437,7 +437,7 @@
 		z-index: inherit;
 		font-size: 1.2rem;
 		font-weight: 700;
-		padding: 0.6rem;
+		padding: 0.8rem 0.6rem;
 		margin: 0.0rem;
 		border-bottom: 0.1rem solid;
 		border-right: 0.1rem solid;
@@ -445,7 +445,7 @@
 		background-color: var(--section-lighter);
 		color: var(--section-darker);
 		border-color: var(--section-dark);
-		line-height: 1.5;
+		line-height: 1.3;
 		transition: border 0.2s ease-in-out;
 		cursor: pointer;
 	}
