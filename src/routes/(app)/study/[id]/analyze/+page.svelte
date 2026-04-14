@@ -1052,6 +1052,26 @@
 	}
 
 	/**
+	 * Check if a passage has any visible items in compare mode.
+	 * Returns true if any column, section, or segment in the passage is in the visible sets.
+	 * @param {Object} passageText - Passage data object with structure
+	 * @returns {boolean} True if the passage has at least one visible item
+	 */
+	function passageHasVisibleItems(passageText) {
+		if (!passageText.structure?.columns) return false;
+		for (const column of passageText.structure.columns) {
+			if (visibleColumnIds.has(column.id)) return true;
+			for (const section of column.sections) {
+				if (visibleSectionIds.has(section.id)) return true;
+				for (const segment of section.segments) {
+					if (visibleSegmentIds.has(segment.id)) return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Get all segment IDs in a given column (across all its sections)
 	 * @param {string} columnId - Column ID
 	 * @returns {string[]} Array of segment IDs
@@ -2157,7 +2177,7 @@
 				<div class="passage-wrapper">
 					{#if data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}
-							<div class="passage">
+							<div class="passage" class:compare-hidden={isCompareMode && !passageHasVisibleItems(passageText)}>
 								{#if passageText.error}
 									<div class="error-message">
 										<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
@@ -2252,7 +2272,7 @@
 									</div>
 								{/if}
 							</div>
-							<div class="passage-divider"></div>
+							<div class="passage-divider" class:compare-hidden={isCompareMode && (!passageHasVisibleItems(passageText) || data.passagesWithText.slice(passageIndex + 1).every(p => !passageHasVisibleItems(p)))}></div>
 						{/each}
 					{:else}
 						<p class="placeholder-text">No passages available for this study.</p>
