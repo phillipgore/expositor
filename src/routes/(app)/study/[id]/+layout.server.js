@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { study, passage, passageColumn, passageSection, passageSegment } from '$lib/server/db/schema.js';
+import { study, passage, passageColumn, passageSection, passageSegment, segmentConnection } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, asc } from 'drizzle-orm';
 import { fetchPassagesText } from '$lib/server/bibleApi.js';
@@ -95,10 +95,17 @@ export async function load({ params, request, depends }) {
 			})
 		);
 
+		// Query segment connections for this study
+		const connections = await db
+			.select()
+			.from(segmentConnection)
+			.where(eq(segmentConnection.studyId, studyId));
+
 		return {
 			study: studyData,
 			passages: passagesData,
 			passagesWithText: passagesWithStructure,
+			connections,
 			invalidateStudies: true
 		};
 	} catch (err) {

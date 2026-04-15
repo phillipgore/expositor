@@ -4,11 +4,12 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
+	import ConnectionsOverlay from '$lib/componentWidgets/ConnectionsOverlay.svelte';
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -371,6 +372,81 @@
 		setCanInsertColumn(true);
 	});
 
+	// Update Insert/Remove Connection button states when segment selection changes
+	$effect(() => {
+		const segments = activeSegments;
+		const columns = activeColumns;
+		const sections = activeSections;
+		const connections = data.connections || [];
+
+		const exactlyTwoSegments = segments.length === 2 && columns.length === 0 && sections.length === 0;
+
+		if (!exactlyTwoSegments) {
+			setConnectionButtonStates(false, false);
+			return;
+		}
+
+		const [segA, segB] = segments;
+		const existingConnection = connections.find(c =>
+			(c.fromSegmentId === segA.segmentId && c.toSegmentId === segB.segmentId) ||
+			(c.fromSegmentId === segB.segmentId && c.toSegmentId === segA.segmentId)
+		);
+
+		setConnectionButtonStates(!existingConnection, !!existingConnection);
+	});
+
+	/**
+	 * Handle Insert Connection action
+	 */
+	async function handleInsertConnection() {
+		if (activeSegments.length !== 2 || activeColumns.length > 0 || activeSections.length > 0) return;
+		const [segA, segB] = activeSegments;
+		try {
+			const response = await fetch('/api/segments/connections', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					studyId: data.study.id,
+					fromSegmentId: segA.segmentId,
+					toSegmentId: segB.segmentId
+				})
+			});
+			if (response.ok) {
+				await invalidate('app:studies');
+			} else {
+				const err = await response.json();
+				console.error('Insert connection error:', err);
+			}
+		} catch (error) {
+			console.error('Insert connection network error:', error);
+		}
+	}
+
+	/**
+	 * Handle Remove Connection action
+	 */
+	async function handleRemoveConnection() {
+		if (activeSegments.length !== 2 || activeColumns.length > 0 || activeSections.length > 0) return;
+		const [segA, segB] = activeSegments;
+		const connections = data.connections || [];
+		const existing = connections.find(c =>
+			(c.fromSegmentId === segA.segmentId && c.toSegmentId === segB.segmentId) ||
+			(c.fromSegmentId === segB.segmentId && c.toSegmentId === segA.segmentId)
+		);
+		if (!existing) return;
+		try {
+			const response = await fetch(`/api/segments/connections/${existing.id}`, { method: 'DELETE' });
+			if (response.ok) {
+				await invalidate('app:studies');
+			} else {
+				const err = await response.json();
+				console.error('Remove connection error:', err);
+			}
+		} catch (error) {
+			console.error('Remove connection network error:', error);
+		}
+	}
+
 	// Invalidate studies list when study is accessed
 	onMount(() => {
 		if (data.invalidateStudies) {
@@ -538,6 +614,11 @@
 			}
 		};
 		
+		const handleInsertConnectionEvent = () => handleInsertConnection();
+		const handleRemoveConnectionEvent = () => handleRemoveConnection();
+
+		window.addEventListener('insert-connection', handleInsertConnectionEvent);
+		window.addEventListener('remove-connection', handleRemoveConnectionEvent);
 		window.addEventListener('insert-column', handleInsertColumnEvent);
 		window.addEventListener('insert-section', handleInsertSectionEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
@@ -551,6 +632,8 @@
 		window.addEventListener('deselect-section', handleDeselectSectionEvent);
 		
 		return () => {
+			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
+			window.removeEventListener('remove-connection', handleRemoveConnectionEvent);
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
 			window.removeEventListener('insert-section', handleInsertSectionEvent);
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
@@ -2230,6 +2313,9 @@
 						{/if}
 					</div>
 				{/if}
+				<!-- Connections overlay: SVG arcs between connected segments, drawn in the same coordinate space as the content -->
+				<ConnectionsOverlay connections={data.connections || []} scale={currentScale} />
+
 				<div class="passage-wrapper">
 					{#if data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}

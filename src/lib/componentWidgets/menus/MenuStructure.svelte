@@ -132,13 +132,21 @@
 		iconId="connect"
 		label="Insert Connection"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('insert-connection'));
+		}}
+		isDisabled={!$toolbarState.canInsertConnection}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="connect-remove"
 		label="Remove Connection"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('remove-connection'));
+		}}
+		isDisabled={!$toolbarState.canRemoveConnection}
 	/>
 </Menu>

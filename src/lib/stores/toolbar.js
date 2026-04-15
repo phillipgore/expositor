@@ -72,6 +72,8 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} hasActiveColumn - Whether a column is currently active
  * @property {string|null} activeColumnId - The ID of the currently active column
  * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
+ * @property {boolean} canInsertConnection - Whether Insert Connection button should be enabled
+ * @property {boolean} canRemoveConnection - Whether Remove Connection button should be enabled
  */
 
 /**
@@ -103,7 +105,7 @@ const defaultState = {
 	commentaryPanelOpen: false,
 	headingsVisible: true,
 	comparisonsVisible: false,
-	connectionsVisible: false,
+		connectionsVisible: true,
 	notesVisible: true,
 	referencesVisible: false,
 	versesVisible: false,
@@ -122,7 +124,9 @@ const defaultState = {
 	activeSectionId: null,
 	hasActiveColumn: false,
 	activeColumnId: null,
-	canInsertColumn: false
+	canInsertColumn: false,
+	canInsertConnection: false,
+	canRemoveConnection: false
 };
 
 /**
@@ -588,5 +592,18 @@ export function setMultiSelectMode(isMultiSelect) {
 		...state,
 		// Keep Compare button enabled if already in compare mode OR if multi-selecting
 		canToggleComparison: isMultiSelect || state.comparisonsVisible
+	}));
+}
+
+/**
+ * Set connection button availability states
+ * @param {boolean} canInsert - Whether Insert Connection should be enabled
+ * @param {boolean} canRemove - Whether Remove Connection should be enabled
+ */
+export function setConnectionButtonStates(canInsert, canRemove) {
+	toolbarStateStore.update(state => ({
+		...state,
+		canInsertConnection: canInsert,
+		canRemoveConnection: canRemove
 	}));
 }

@@ -153,6 +153,29 @@ export const passageSection = pgTable('passage_section', {
 	colorCheck: sql`CHECK (color IN ('red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'))`
 }));
 
+export const segmentConnection = pgTable('segment_connection', {
+	id: text('id').primaryKey(),
+	studyId: text('study_id')
+		.notNull()
+		.references(() => study.id, { onDelete: 'cascade' }),
+	fromSegmentId: text('from_segment_id')
+		.notNull()
+		.references(() => passageSegment.id, { onDelete: 'cascade' }),
+	toSegmentId: text('to_segment_id')
+		.notNull()
+		.references(() => passageSegment.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+}, (table) => ({
+	studyIdIdx: index('segment_connection_study_id_idx').on(table.studyId),
+	fromSegmentIdIdx: index('segment_connection_from_segment_id_idx').on(table.fromSegmentId),
+	toSegmentIdIdx: index('segment_connection_to_segment_id_idx').on(table.toSegmentId)
+}));
+
 export const passageSegment = pgTable('passage_segment', {
 	id: text('id').primaryKey(),
 	passageSectionId: text('passage_section_id')
