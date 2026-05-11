@@ -153,29 +153,6 @@ export const passageSection = pgTable('passage_section', {
 	colorCheck: sql`CHECK (color IN ('red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'))`
 }));
 
-export const segmentConnection = pgTable('segment_connection', {
-	id: text('id').primaryKey(),
-	studyId: text('study_id')
-		.notNull()
-		.references(() => study.id, { onDelete: 'cascade' }),
-	fromSegmentId: text('from_segment_id')
-		.notNull()
-		.references(() => passageSegment.id, { onDelete: 'cascade' }),
-	toSegmentId: text('to_segment_id')
-		.notNull()
-		.references(() => passageSegment.id, { onDelete: 'cascade' }),
-	createdAt: timestamp('created_at')
-		.$defaultFn(() => /* @__PURE__ */ new Date())
-		.notNull(),
-	updatedAt: timestamp('updated_at')
-		.$defaultFn(() => /* @__PURE__ */ new Date())
-		.notNull()
-}, (table) => ({
-	studyIdIdx: index('segment_connection_study_id_idx').on(table.studyId),
-	fromSegmentIdIdx: index('segment_connection_from_segment_id_idx').on(table.fromSegmentId),
-	toSegmentIdIdx: index('segment_connection_to_segment_id_idx').on(table.toSegmentId)
-}));
-
 export const passageSegment = pgTable('passage_segment', {
 	id: text('id').primaryKey(),
 	passageSectionId: text('passage_section_id')
@@ -196,4 +173,43 @@ export const passageSegment = pgTable('passage_segment', {
 }, (table) => ({
 	sectionIdIdx: index('passage_segment_section_id_idx').on(table.passageSectionId),
 	startingWordIdx: index('passage_segment_starting_word_idx').on(table.startingWordId)
+}));
+
+export const segmentConnection = pgTable('segment_connection', {
+	id: text('id').primaryKey(),
+	studyId: text('study_id')
+		.notNull()
+		.references(() => study.id, { onDelete: 'cascade' }),
+	/** Per-end type: 'segment' | 'section' | 'column' — independent so cross-type connections are possible */
+	fromType: text('from_type').notNull().default('segment'),
+	toType:   text('to_type').notNull().default('segment'),
+	// Segment connection fields (nullable — only set when fromType/toType = 'segment')
+	fromSegmentId: text('from_segment_id')
+		.references(() => passageSegment.id, { onDelete: 'cascade' }),
+	toSegmentId: text('to_segment_id')
+		.references(() => passageSegment.id, { onDelete: 'cascade' }),
+	// Section connection fields (nullable — only set when connectionType = 'section')
+	fromSectionId: text('from_section_id')
+		.references(() => passageSection.id, { onDelete: 'cascade' }),
+	toSectionId: text('to_section_id')
+		.references(() => passageSection.id, { onDelete: 'cascade' }),
+	// Column connection fields (nullable — only set when connectionType = 'column')
+	fromColumnId: text('from_column_id')
+		.references(() => passageColumn.id, { onDelete: 'cascade' }),
+	toColumnId: text('to_column_id')
+		.references(() => passageColumn.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => new Date())
+		.notNull()
+}, (table) => ({
+	studyIdIdx: index('segment_connection_study_id_idx').on(table.studyId),
+	fromSegmentIdIdx: index('segment_connection_from_segment_id_idx').on(table.fromSegmentId),
+	toSegmentIdIdx: index('segment_connection_to_segment_id_idx').on(table.toSegmentId),
+	fromSectionIdIdx: index('segment_connection_from_section_id_idx').on(table.fromSectionId),
+	toSectionIdIdx: index('segment_connection_to_section_id_idx').on(table.toSectionId),
+	fromColumnIdIdx: index('segment_connection_from_column_id_idx').on(table.fromColumnId),
+	toColumnIdIdx: index('segment_connection_to_column_id_idx').on(table.toColumnId)
 }));

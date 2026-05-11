@@ -372,44 +372,102 @@
 		setCanInsertColumn(true);
 	});
 
-	// Update Insert/Remove Connection button states when segment selection changes
+	// ─── Connection helpers ───────────────────────────────────────────────────
+
+	/**
+	 * Get the element ID for the from-end of a connection based on its fromType.
+	 * @param {object} c - Connection record
+	 * @returns {string|null}
+	 */
+	function getConnectionFromId(c) {
+		if (c.fromType === 'segment') return c.fromSegmentId;
+		if (c.fromType === 'section') return c.fromSectionId;
+		return c.fromColumnId;
+	}
+
+	/**
+	 * Get the element ID for the to-end of a connection based on its toType.
+	 * @param {object} c - Connection record
+	 * @returns {string|null}
+	 */
+	function getConnectionToId(c) {
+		if (c.toType === 'segment') return c.toSegmentId;
+		if (c.toType === 'section') return c.toSectionId;
+		return c.toColumnId;
+	}
+
+	/**
+	 * Collect the current selection as a flat list of { type, id } items.
+	 * @returns {Array<{type: string, id: string}>}
+	 */
+	function getSelectedItems() {
+		return [
+			...activeSegments.map(s => ({ type: 'segment', id: s.segmentId })),
+			...activeSections.map(id => ({ type: 'section', id })),
+			...activeColumns.map(id => ({ type: 'column', id }))
+		];
+	}
+
+	/**
+	 * Find an existing connection between two items (direction-agnostic).
+	 * @param {object[]} connections
+	 * @param {{type:string, id:string}} itemA
+	 * @param {{type:string, id:string}} itemB
+	 * @returns {object|undefined}
+	 */
+	function findExistingConnection(connections, itemA, itemB) {
+		return connections.find(c => {
+			const fromId = getConnectionFromId(c);
+			const toId   = getConnectionToId(c);
+			const forwardMatch  = c.fromType === itemA.type && fromId === itemA.id && c.toType === itemB.type && toId === itemB.id;
+			const reverseMatch  = c.fromType === itemB.type && fromId === itemB.id && c.toType === itemA.type && toId === itemA.id;
+			return forwardMatch || reverseMatch;
+		});
+	}
+
+	// Update Insert/Remove Connection button states when selection changes.
+	// Activates when exactly 2 items total are selected (any combination of types).
 	$effect(() => {
-		const segments = activeSegments;
-		const columns = activeColumns;
-		const sections = activeSections;
 		const connections = data.connections || [];
+		const selected = getSelectedItems();
 
-		const exactlyTwoSegments = segments.length === 2 && columns.length === 0 && sections.length === 0;
-
-		if (!exactlyTwoSegments) {
+		if (selected.length !== 2) {
 			setConnectionButtonStates(false, false);
 			return;
 		}
 
-		const [segA, segB] = segments;
-		const existingConnection = connections.find(c =>
-			(c.fromSegmentId === segA.segmentId && c.toSegmentId === segB.segmentId) ||
-			(c.fromSegmentId === segB.segmentId && c.toSegmentId === segA.segmentId)
-		);
-
-		setConnectionButtonStates(!existingConnection, !!existingConnection);
+		const [itemA, itemB] = selected;
+		const existing = findExistingConnection(connections, itemA, itemB);
+		setConnectionButtonStates(!existing, !!existing);
 	});
 
 	/**
-	 * Handle Insert Connection action
+	 * Handle Insert Connection action.
+	 * fromType/toType are inferred from the selection (any type combination allowed).
 	 */
 	async function handleInsertConnection() {
-		if (activeSegments.length !== 2 || activeColumns.length > 0 || activeSections.length > 0) return;
-		const [segA, segB] = activeSegments;
+		const selected = getSelectedItems();
+		if (selected.length !== 2) return;
+
+		const [itemA, itemB] = selected;
+
+		const body = {
+			studyId: data.study.id,
+			fromType: itemA.type,
+			toType:   itemB.type,
+			fromSegmentId: itemA.type === 'segment' ? itemA.id : undefined,
+			fromSectionId: itemA.type === 'section' ? itemA.id : undefined,
+			fromColumnId:  itemA.type === 'column'  ? itemA.id : undefined,
+			toSegmentId:   itemB.type === 'segment' ? itemB.id : undefined,
+			toSectionId:   itemB.type === 'section' ? itemB.id : undefined,
+			toColumnId:    itemB.type === 'column'  ? itemB.id : undefined,
+		};
+
 		try {
 			const response = await fetch('/api/segments/connections', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					studyId: data.study.id,
-					fromSegmentId: segA.segmentId,
-					toSegmentId: segB.segmentId
-				})
+				body: JSON.stringify(body)
 			});
 			if (response.ok) {
 				await invalidate('app:studies');
@@ -423,17 +481,18 @@
 	}
 
 	/**
-	 * Handle Remove Connection action
+	 * Handle Remove Connection action.
+	 * Finds and deletes the existing connection between the two selected items.
 	 */
 	async function handleRemoveConnection() {
-		if (activeSegments.length !== 2 || activeColumns.length > 0 || activeSections.length > 0) return;
-		const [segA, segB] = activeSegments;
 		const connections = data.connections || [];
-		const existing = connections.find(c =>
-			(c.fromSegmentId === segA.segmentId && c.toSegmentId === segB.segmentId) ||
-			(c.fromSegmentId === segB.segmentId && c.toSegmentId === segA.segmentId)
-		);
+		const selected = getSelectedItems();
+		if (selected.length !== 2) return;
+
+		const [itemA, itemB] = selected;
+		const existing = findExistingConnection(connections, itemA, itemB);
 		if (!existing) return;
+
 		try {
 			const response = await fetch(`/api/segments/connections/${existing.id}`, { method: 'DELETE' });
 			if (response.ok) {

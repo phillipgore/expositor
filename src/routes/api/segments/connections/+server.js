@@ -1,32 +1,70 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { segmentConnection, passageSegment, passage, study } from '$lib/server/db/schema.js';
+import { segmentConnection, study } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, and, or } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Create a new segment connection
+ * Get the relevant ID field for a given type and end.
+ * @param {object} body @param {'from'|'to'} end @param {string} type
+ * @returns {string|null}
+ */
+function getIdForType(body, end, type) {
+	if (type === 'segment') return end === 'from' ? body.fromSegmentId : body.toSegmentId;
+	if (type === 'section') return end === 'from' ? body.fromSectionId : body.toSectionId;
+	if (type === 'column')  return end === 'from' ? body.fromColumnId  : body.toColumnId;
+	return null;
+}
+
+/**
+ * Create a new connection.
+ * Supports same-type AND cross-type connections (e.g. segment ↔ section).
+ *
+ * Body:
+ * {
+ *   studyId:        string,
+ *   fromType:       'segment' | 'section' | 'column'   (default: 'segment')
+ *   toType:         'segment' | 'section' | 'column'   (default: 'segment')
+ *   fromSegmentId?: string,  fromSectionId?: string,  fromColumnId?: string,
+ *   toSegmentId?:   string,  toSectionId?:   string,  toColumnId?:   string,
+ * }
  * @type {import('./$types').RequestHandler}
  */
 export const POST = async ({ request }) => {
 	try {
-		// Get the current user from session
 		const session = await auth.api.getSession({ headers: request.headers });
-
 		if (!session?.user?.id) {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { studyId, fromSegmentId, toSegmentId } = await request.json();
+		const body = await request.json();
+		const {
+			studyId,
+			fromSegmentId, toSegmentId,
+			fromSectionId, toSectionId,
+			fromColumnId,  toColumnId
+		} = body;
 
-		// Validate inputs
-		if (!studyId || !fromSegmentId || !toSegmentId) {
-			return json({ error: 'Missing required fields: studyId, fromSegmentId, toSegmentId' }, { status: 400 });
+		const fromType = body.fromType || 'segment';
+		const toType   = body.toType   || 'segment';
+
+		// Validate types
+		const VALID_TYPES = ['segment', 'section', 'column'];
+		if (!VALID_TYPES.includes(fromType) || !VALID_TYPES.includes(toType)) {
+			return json({ error: 'Invalid fromType or toType. Must be segment, section, or column.' }, { status: 400 });
 		}
 
-		if (fromSegmentId === toSegmentId) {
-			return json({ error: 'Cannot connect a segment to itself' }, { status: 400 });
+		// Resolve the actual IDs for each end
+		const fromId = getIdForType(body, 'from', fromType);
+		const toId   = getIdForType(body, 'to',   toType);
+
+		if (!studyId || !fromId || !toId) {
+			return json({ error: 'Missing required fields: studyId, and IDs matching fromType/toType' }, { status: 400 });
+		}
+
+		if (fromType === toType && fromId === toId) {
+			return json({ error: 'Cannot connect an element to itself' }, { status: 400 });
 		}
 
 		// Verify the study belongs to the current user
@@ -40,37 +78,18 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Study not found or not authorized' }, { status: 403 });
 		}
 
-		// Check for duplicate connection (either direction)
-		const existing = await db
-			.select()
-			.from(segmentConnection)
-			.where(
-				and(
-					eq(segmentConnection.studyId, studyId),
-					or(
-						and(
-							eq(segmentConnection.fromSegmentId, fromSegmentId),
-							eq(segmentConnection.toSegmentId, toSegmentId)
-						),
-						and(
-							eq(segmentConnection.fromSegmentId, toSegmentId),
-							eq(segmentConnection.toSegmentId, fromSegmentId)
-						)
-					)
-				)
-			)
-			.limit(1);
-
-		if (existing.length > 0) {
-			return json({ error: 'A connection between these segments already exists' }, { status: 409 });
-		}
-
-		// Create the connection
+		// Build the new connection record
 		const newConnection = {
 			id: uuidv4(),
 			studyId,
-			fromSegmentId,
-			toSegmentId,
+			fromType,
+			toType,
+			fromSegmentId: fromType === 'segment' ? fromId : null,
+			toSegmentId:   toType   === 'segment' ? toId   : null,
+			fromSectionId: fromType === 'section' ? fromId : null,
+			toSectionId:   toType   === 'section' ? toId   : null,
+			fromColumnId:  fromType === 'column'  ? fromId : null,
+			toColumnId:    toType   === 'column'  ? toId   : null,
 			createdAt: new Date(),
 			updatedAt: new Date()
 		};
@@ -79,7 +98,7 @@ export const POST = async ({ request }) => {
 
 		return json({ success: true, connection: newConnection }, { status: 201 });
 	} catch (error) {
-		console.error('Create segment connection error:', error);
+		console.error('Create connection error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 };
