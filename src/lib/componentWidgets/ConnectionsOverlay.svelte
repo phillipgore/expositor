@@ -80,25 +80,40 @@
 	}
 
 	/**
+	 * Returns the horizontal fraction for a section's anchor point.
+	 * The first section in a column exits at 2/3; subsequent sections at 1/2.
+	 * @param {Element} el
+	 * @returns {number}
+	 */
+	function getSectionFraction(el) {
+		const column = el.closest('[data-column-id]');
+		if (!column) return 2 / 3;
+		const firstSection = column.querySelector('.section[data-section-id]');
+		return firstSection === el ? 2 / 3 : 1 / 2;
+	}
+
+	/**
 	 * Get the SVG anchor point for a bounding rect based on connection type and side.
 	 *   Column  → top edge, 1/3 of the way across horizontally (side ignored)
-	 *   Section → top edge, 2/3 of the way across horizontally (side ignored)
+	 *   Section → top edge, 2/3 across (first section) or 1/2 across (subsequent)
 	 *   Segment → left or right side edge, vertically centred (midpoint)
 	 * @param {DOMRect} rect
 	 * @param {ConnType} type
 	 * @param {DOMRect} svgRect
 	 * @param {'left'|'right'} [side]
+	 * @param {Element|null} [el]
 	 * @returns {{ x: number, y: number }}
 	 */
-	function getAnchorPoint(rect, type, svgRect, side = 'left') {
+	function getAnchorPoint(rect, type, svgRect, side = 'left', el = null) {
 		if (type === 'column') {
 			return {
 				x: (rect.left + rect.width / 3 - svgRect.left) / scale,
 				y: (rect.top - svgRect.top) / scale
 			};
 		} else if (type === 'section') {
+			const fraction = el ? getSectionFraction(el) : 2 / 3;
 			return {
-				x: (rect.left + (rect.width * 2) / 3 - svgRect.left) / scale,
+				x: (rect.left + rect.width * fraction - svgRect.left) / scale,
 				y: (rect.top - svgRect.top) / scale
 			};
 		} else {
@@ -205,8 +220,8 @@
 			const fromSide = /** @type {'left'|'right'} */ (!sameCol && fromCX > toCX ? 'left' : 'right');
 			const toSide   = /** @type {'left'|'right'} */ (!sameCol && toCX > fromCX ? 'left' : 'right');
 
-			const from = getAnchorPoint(fromRect, fromType, svgRect, fromSide);
-			const to   = getAnchorPoint(toRect,   toType,   svgRect, toSide);
+			const from = getAnchorPoint(fromRect, fromType, svgRect, fromSide, fromEl);
+			const to   = getAnchorPoint(toRect,   toType,   svgRect, toSide,   toEl);
 
 			const fromTop = isTopAnchor(fromType);
 			const toTop   = isTopAnchor(toType);
@@ -291,13 +306,13 @@
 			handles.push({ elementId: id, type: 'column', side: 'left', x, y });
 		});
 
-		// Section: single handle at top, 2/3 across — no left/right pair needed
+		// Section: handle at top, 2/3 across (first in column) or 1/2 across (subsequent)
 		document.querySelectorAll('.section[data-section-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.sectionId;
 			if (!id || id === fixedElementId) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			const { x, y } = getAnchorPoint(rect, 'section', svgRect);
+			const { x, y } = getAnchorPoint(rect, 'section', svgRect, 'left', el);
 			handles.push({ elementId: id, type: 'section', side: 'left', x, y });
 		});
 
