@@ -26,7 +26,7 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
-	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, toggleNotes, toggleVerses, toggleWide, toggleOverview } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuView' } = $props();
 
@@ -44,7 +44,7 @@
 		iconId="note"
 		label="Notes"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => { toggleNotes(); closeMenu(); }}
 		isDisabled={!$toolbarState.canToggleNotes}
 	/>
 	<IconButton
@@ -52,7 +52,7 @@
 		iconId="reference"
 		label="Verses"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => { toggleVerses(); closeMenu(); }}
 		isDisabled={!$toolbarState.canToggleVerses}
 	/>
 
@@ -63,7 +63,7 @@
 		iconId="wide"
 		label="Wide"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => { toggleWide(); closeMenu(); }}
 		isDisabled={!$toolbarState.canToggleWide}
 	/>
 	<IconButton
@@ -71,7 +71,7 @@
 		iconId="outline-bulleted"
 		label="Overview"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => { toggleOverview(); closeMenu(); }}
 		isDisabled={!$toolbarState.canToggleOverview}
 	/>
 </Menu>

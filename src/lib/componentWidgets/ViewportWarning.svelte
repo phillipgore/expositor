@@ -1,22 +1,29 @@
 <script>
 	/**
 	 * # ViewportWarning Component
-	 * 
-	 * Full-screen overlay that appears on devices with viewports smaller than 744px.
-	 * Informs users that the app requires a larger screen and suggests using landscape orientation.
-	 * 
+	 *
+	 * Full-screen overlay that blocks the app on unsupported devices.
+	 * Triggers under any of three conditions (CSS media queries — no JS required):
+	 *
+	 *   1. Screen width  < 744px  (phones / very small tablets)
+	 *   2. Screen height < 600px  (landscape phones / short viewports)
+	 *   3. Primary pointer is coarse  (touch-only device — no mouse or trackpad attached)
+	 *
+	 * Condition 3 catches iPads and Android tablets used without a pointing device.
+	 * An iPad with a connected Magic Keyboard + Trackpad reports `pointer: fine`
+	 * and is therefore NOT blocked — those users have a proper pointing device.
+	 *
 	 * ## Features
-	 * - Only visible on screens < 744px width
-	 * - Completely blocks interaction with the app
+	 * - Completely blocks interaction with the app (z-index: 9999)
 	 * - Shows app branding (icon and name)
-	 * - Provides helpful guidance for users
-	 * - Uses app's gray color scheme
-	 * 
+	 * - Informs users why the app isn't available and what to do
+	 * - Pure CSS — zero JavaScript
+	 *
 	 * ## Usage
 	 * ```svelte
 	 * <ViewportWarning />
 	 * ```
-	 * 
+	 *
 	 * @component
 	 */
 
@@ -30,9 +37,9 @@
 			<h1>Expositor App</h1>
 		</div>
 		<div class="message">
-			<p>This app requires a larger screen to function properly.</p>
+			<p>This app is designed for desktop computers.</p>
 			<p>
-				Please use a device with a screen width of at least 744 pixels and a screen height of at least 600 pixels. Try rotating your device to landscape orientation.
+				Please use a desktop or laptop with a mouse or trackpad. The app requires a minimum screen size of 744&times;600 pixels. Touch support is planned for a future update.
 			</p>
 		</div>
 	</div>
@@ -54,8 +61,9 @@
 		overflow: hidden;
 	}
 
-	/* Show overlay on screens smaller than 744px width OR shorter than 600px height */
-	@media (max-width: 743px), (max-height: 599px) {
+	/* Show overlay on screens smaller than 744px width, shorter than 600px height,
+	   OR when the primary pointer is coarse (touch-only device — no mouse/trackpad) */
+	@media (max-width: 743px), (max-height: 599px), (pointer: coarse) {
 		.viewport-warning {
 			display: flex;
 			align-items: center;

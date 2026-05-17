@@ -6,18 +6,22 @@
 	 * Each end of a connection can be a different type (cross-type connections).
 	 *
 	 * Visual language:
+	 *   Column   → ■ square endpoints,  dotted line     · · · ·
+	 *   Section  → ◆ diamond endpoints, dashed line     – – – –
 	 *   Segment  → ● circle endpoints,  solid line      ──────
-	 *   Section  → ■ square endpoints,  dashed line     – – – –
-	 *   Column   → ◆ diamond endpoints, dotted line     · · · ·
 	 *   Mixed    → dash-dot line                        – · – ·
 	 *
-	 * Per-end anchor points:
-	 *   Segment  → vertical middle of the .segment element
-	 *   Section  → top + 12 px of the .section element
-	 *   Column   → very top of the .column element
+	 * Anchor points:
+	 *   Column  → top edge, 1/3 of the way across (horizontally)
+	 *   Section → top edge, 2/3 of the way across (horizontally)
+	 *   Segment → left or right side edge, 1/2 of the way down (vertically)
+	 *
+	 * Column and section anchors exit from the top (bezier control points droop downward).
+	 * Segment anchors exit from the side (bezier control points extend horizontally).
+	 * Mixed connections blend the two control-point directions.
 	 *
 	 * Each end of the arc (from / to) independently uses its own type for:
-	 *   • Anchor position (y-coordinate)
+	 *   • Anchor position
 	 *   • Endpoint node shape
 	 *
 	 * Drag rerouting:
@@ -64,9 +68,6 @@
 	let dropHandles = $state([]);
 
 	const SNAP_RADIUS = 32;
-	const COLUMN_ANCHOR_OFFSET_PX  = 5;   // px from top of column element
-	const SECTION_ANCHOR_OFFSET_PX = 20;  // px from top of section element
-
 	let resizeObserver = /** @type {ResizeObserver | null} */ (null);
 	let scrollContainer = /** @type {HTMLElement | null} */ (null);
 
@@ -79,14 +80,43 @@
 	}
 
 	/**
-	 * Get SVG y-anchor for a bounding rect based on connection type.
-	 * @param {DOMRect} rect @param {ConnType} type @param {number} svgTop
+	 * Get the SVG anchor point for a bounding rect based on connection type and side.
+	 *   Column  → top edge, 1/3 of the way across horizontally (side ignored)
+	 *   Section → top edge, 2/3 of the way across horizontally (side ignored)
+	 *   Segment → left or right side edge, vertically centred (midpoint)
+	 * @param {DOMRect} rect
+	 * @param {ConnType} type
+	 * @param {DOMRect} svgRect
+	 * @param {'left'|'right'} [side]
+	 * @returns {{ x: number, y: number }}
 	 */
-	function getAnchorY(rect, type, svgTop) {
-		if (type === 'segment') return (rect.top + rect.height / 2 - svgTop) / scale;
-		if (type === 'section') return (rect.top + SECTION_ANCHOR_OFFSET_PX - svgTop) / scale;
-		return (rect.top + COLUMN_ANCHOR_OFFSET_PX - svgTop) / scale; // column
+	function getAnchorPoint(rect, type, svgRect, side = 'left') {
+		if (type === 'column') {
+			return {
+				x: (rect.left + rect.width / 3 - svgRect.left) / scale,
+				y: (rect.top - svgRect.top) / scale
+			};
+		} else if (type === 'section') {
+			return {
+				x: (rect.left + (rect.width * 2) / 3 - svgRect.left) / scale,
+				y: (rect.top - svgRect.top) / scale
+			};
+		} else {
+			// segment — side edge, vertical midpoint
+			return {
+				x: side === 'left'
+					? (rect.left  - svgRect.left) / scale
+					: (rect.right - svgRect.left) / scale,
+				y: (rect.top + rect.height / 2 - svgRect.top) / scale
+			};
+		}
 	}
+
+	/**
+	 * Returns true if the connection type anchors on the top edge (column / section).
+	 * @param {ConnType} type
+	 */
+	function isTopAnchor(type) { return type === 'column' || type === 'section'; }
 
 	// ─── Line style determination ─────────────────────────────────────────────
 
@@ -152,50 +182,85 @@
 		const svgRect = svgElement.getBoundingClientRect();
 		if (svgRect.width === 0 && svgRect.height === 0) { paths = []; return; }
 
+		const SAME_COL_PX = 20;
 		/** @type {PathEntry[]} */
 		const newPaths = [];
 
 		for (const connection of connections) {
 			const fromType = /** @type {ConnType} */ (connection.fromType || 'segment');
 			const toType   = /** @type {ConnType} */ (connection.toType   || 'segment');
-
 			const fromEl = getElementForConnection(connection, 'from');
 			const toEl   = getElementForConnection(connection, 'to');
 			if (!fromEl || !toEl) continue;
-
 			const fromRect = fromEl.getBoundingClientRect();
 			const toRect   = toEl.getBoundingClientRect();
 			if (fromRect.width === 0 || toRect.width === 0) continue;
 
-			// Each end uses its OWN type for anchor y
-			const y1 = getAnchorY(fromRect, fromType, svgRect.top);
-			const y2 = getAnchorY(toRect,   toType,   svgRect.top);
+			// Horizontal centre of each element — used to decide left/right side for segments
+			const fromCX = (fromRect.left + fromRect.right) / 2;
+			const toCX   = (toRect.left   + toRect.right)   / 2;
+			const sameCol = Math.abs(fromCX - toCX) < SAME_COL_PX;
 
-			const fromCenterX = (fromRect.left + fromRect.right) / 2;
-			const toCenterX   = (toRect.left   + toRect.right)   / 2;
-			const SAME_COL_PX = 20;
+			// Segment side selection: exit toward the other element, or right when same column
+			const fromSide = /** @type {'left'|'right'} */ (!sameCol && fromCX > toCX ? 'left' : 'right');
+			const toSide   = /** @type {'left'|'right'} */ (!sameCol && toCX > fromCX ? 'left' : 'right');
 
-			let d, ex1, ex2;
-			if (Math.abs(fromCenterX - toCenterX) < SAME_COL_PX) {
-				ex1 = (fromRect.right - svgRect.left) / scale;
-				ex2 = (toRect.right   - svgRect.left) / scale;
-				const curvature = Math.max(48, Math.abs(y2 - y1) * 0.35);
-				d = `M ${ex1},${y1} C ${ex1 + curvature},${y1} ${ex2 + curvature},${y2} ${ex2},${y2}`;
-			} else if (fromCenterX < toCenterX) {
-				ex1 = (fromRect.right - svgRect.left) / scale;
-				ex2 = (toRect.left    - svgRect.left) / scale;
-				const curvature = Math.max(20, (ex2 - ex1) * 0.4);
-				d = `M ${ex1},${y1} C ${ex1 + curvature},${y1} ${ex2 - curvature},${y2} ${ex2},${y2}`;
+			const from = getAnchorPoint(fromRect, fromType, svgRect, fromSide);
+			const to   = getAnchorPoint(toRect,   toType,   svgRect, toSide);
+
+			const fromTop = isTopAnchor(fromType);
+			const toTop   = isTopAnchor(toType);
+
+			const dx = Math.abs(to.x - from.x);
+			const dy = Math.abs(to.y - from.y);
+			let d;
+
+			if (fromTop && toTop) {
+				if (dy < 5) {
+					// Same horizontal plane — gentle shallow arch drooping downward
+					const curvature = Math.max(10, dx * 0.12);
+					d = `M ${from.x},${from.y} C ${from.x},${from.y + curvature} ${to.x},${to.y + curvature} ${to.x},${to.y}`;
+				} else {
+					// Different heights — S-curve: exit toward the other, arrive from the opposite side
+					const vCurve = Math.max(20, dy * 0.4);
+					if (from.y < to.y) {
+						// from is higher on page: exit downward, arrive at to from above
+						d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${to.x},${to.y - vCurve} ${to.x},${to.y}`;
+					} else {
+						// from is lower on page: exit upward, arrive at to from below
+						d = `M ${from.x},${from.y} C ${from.x},${from.y - vCurve} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+					}
+				}
+			} else if (!fromTop && !toTop) {
+				// Both segment — very shallow horizontal bezier from side edges
+				if (sameCol) {
+					// Same column: loop out to the right
+					const loopOut = Math.max(16, dy * 0.1);
+					d = `M ${from.x},${from.y} C ${from.x + loopOut},${from.y} ${to.x + loopOut},${to.y} ${to.x},${to.y}`;
+				} else {
+					const curvature = Math.max(30, dx * 0.4);
+					d = fromCX < toCX
+						? `M ${from.x},${from.y} C ${from.x + curvature},${from.y} ${to.x - curvature},${to.y} ${to.x},${to.y}`
+						: `M ${from.x},${from.y} C ${from.x - curvature},${from.y} ${to.x + curvature},${to.y} ${to.x},${to.y}`;
+				}
 			} else {
-				ex1 = (fromRect.left  - svgRect.left) / scale;
-				ex2 = (toRect.right   - svgRect.left) / scale;
-				const curvature = Math.max(20, (ex1 - ex2) * 0.4);
-				d = `M ${ex1},${y1} C ${ex1 - curvature},${y1} ${ex2 + curvature},${y2} ${ex2},${y2}`;
+				// Mixed: one top-anchored, one side-anchored — blend control-point directions
+				const vCurve = Math.max(30, dy * 0.4);
+				const hCurve = Math.max(30, dx * 0.4);
+				if (fromTop) {
+					// from exits upward; to exits horizontally
+					const cp2x = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
+					d = `M ${from.x},${from.y} C ${from.x},${from.y - vCurve} ${cp2x},${to.y} ${to.x},${to.y}`;
+				} else {
+					// from exits horizontally; to exits upward
+					const cp1x = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
+					d = `M ${from.x},${from.y} C ${cp1x},${from.y} ${to.x},${to.y - vCurve} ${to.x},${to.y}`;
+				}
 			}
 
 			newPaths.push({
 				id: connection.id,
-				d, x1: ex1, y1, x2: ex2, y2,
+				d, x1: from.x, y1: from.y, x2: to.x, y2: to.y,
 				fromType, toType,
 				lineStyle: getLineStyle(fromType, toType)
 			});
@@ -216,34 +281,36 @@
 		/** @type {Handle[]} */
 		const handles = [];
 
+		// Column: single handle at top, 1/3 across — no left/right pair needed
 		document.querySelectorAll('.column[data-column-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.columnId;
 			if (!id || id === fixedElementId) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			const y = getAnchorY(rect, 'column', svgRect.top);
-			handles.push({ elementId: id, type: 'column', side: 'left',  x: (rect.left  - svgRect.left) / scale, y });
-			handles.push({ elementId: id, type: 'column', side: 'right', x: (rect.right - svgRect.left) / scale, y });
+			const { x, y } = getAnchorPoint(rect, 'column', svgRect);
+			handles.push({ elementId: id, type: 'column', side: 'left', x, y });
 		});
 
+		// Section: single handle at top, 2/3 across — no left/right pair needed
 		document.querySelectorAll('.section[data-section-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.sectionId;
 			if (!id || id === fixedElementId) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			const y = getAnchorY(rect, 'section', svgRect.top);
-			handles.push({ elementId: id, type: 'section', side: 'left',  x: (rect.left  - svgRect.left) / scale, y });
-			handles.push({ elementId: id, type: 'section', side: 'right', x: (rect.right - svgRect.left) / scale, y });
+			const { x, y } = getAnchorPoint(rect, 'section', svgRect);
+			handles.push({ elementId: id, type: 'section', side: 'left', x, y });
 		});
 
+		// Segment: two handles — left midpoint and right midpoint
 		document.querySelectorAll('[data-segment-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.segmentId;
 			if (!id || id === fixedElementId) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			const y = getAnchorY(rect, 'segment', svgRect.top);
-			handles.push({ elementId: id, type: 'segment', side: 'left',  x: (rect.left  - svgRect.left) / scale, y });
-			handles.push({ elementId: id, type: 'segment', side: 'right', x: (rect.right - svgRect.left) / scale, y });
+			const left  = getAnchorPoint(rect, 'segment', svgRect, 'left');
+			const right = getAnchorPoint(rect, 'segment', svgRect, 'right');
+			handles.push({ elementId: id, type: 'segment', side: 'left',  x: left.x,  y: left.y  });
+			handles.push({ elementId: id, type: 'segment', side: 'right', x: right.x, y: right.y });
 		});
 
 		return handles;
@@ -438,41 +505,41 @@
 			fill="none"
 		/>
 
-		<!-- From-end endpoint shape (driven by fromType) -->
-		{#if path.fromType === 'segment'}
-			<circle class="connection-node" cx={path.x1} cy={path.y1} r="4"
-				onpointerdown={(e) => startDrag(e, path, 'from')}
-				onclick={(e) => e.stopPropagation()}
-			/>
-		{:else if path.fromType === 'section'}
+		<!-- From-end endpoint shape: column=■ square, section=◆ diamond, segment=● circle -->
+		{#if path.fromType === 'column'}
 			<rect class="connection-node connection-node--square"
 				x={path.x1 - 4} y={path.y1 - 4} width="8" height="8"
 				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
 			/>
-		{:else if path.fromType === 'column'}
+		{:else if path.fromType === 'section'}
 			<polygon class="connection-node connection-node--diamond"
 				points={diamondPoints(path.x1, path.y1)}
 				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
 			/>
-		{/if}
-
-		<!-- To-end endpoint shape (driven by toType) -->
-		{#if path.toType === 'segment'}
-			<circle class="connection-node" cx={path.x2} cy={path.y2} r="4"
-				onpointerdown={(e) => startDrag(e, path, 'to')}
+		{:else if path.fromType === 'segment'}
+			<circle class="connection-node" cx={path.x1} cy={path.y1} r="4"
+				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
 			/>
-		{:else if path.toType === 'section'}
+		{/if}
+
+		<!-- To-end endpoint shape: column=■ square, section=◆ diamond, segment=● circle -->
+		{#if path.toType === 'column'}
 			<rect class="connection-node connection-node--square"
 				x={path.x2 - 4} y={path.y2 - 4} width="8" height="8"
 				onpointerdown={(e) => startDrag(e, path, 'to')}
 				onclick={(e) => e.stopPropagation()}
 			/>
-		{:else if path.toType === 'column'}
+		{:else if path.toType === 'section'}
 			<polygon class="connection-node connection-node--diamond"
 				points={diamondPoints(path.x2, path.y2)}
+				onpointerdown={(e) => startDrag(e, path, 'to')}
+				onclick={(e) => e.stopPropagation()}
+			/>
+		{:else if path.toType === 'segment'}
+			<circle class="connection-node" cx={path.x2} cy={path.y2} r="4"
 				onpointerdown={(e) => startDrag(e, path, 'to')}
 				onclick={(e) => e.stopPropagation()}
 			/>
@@ -486,20 +553,21 @@
 				drag.activeHandle.elementId === handle.elementId &&
 				drag.activeHandle.side === handle.side}
 
-			{#if handle.type === 'segment'}
-				<circle class="drop-handle drop-handle--circle"
-					class:drop-handle--active={isActive}
-					cx={handle.x} cy={handle.y} r="5"
-				/>
-			{:else if handle.type === 'section'}
+			<!-- Drop handles: column=■ square, section=◆ diamond, segment=● circle -->
+			{#if handle.type === 'column'}
 				<rect class="drop-handle drop-handle--square"
 					class:drop-handle--active={isActive}
 					x={handle.x - 5} y={handle.y - 5} width="10" height="10"
 				/>
-			{:else if handle.type === 'column'}
+			{:else if handle.type === 'section'}
 				<polygon class="drop-handle drop-handle--diamond"
 					class:drop-handle--active={isActive}
 					points={diamondPoints(handle.x, handle.y, 6)}
+				/>
+			{:else if handle.type === 'segment'}
+				<circle class="drop-handle drop-handle--circle"
+					class:drop-handle--active={isActive}
+					cx={handle.x} cy={handle.y} r="5"
 				/>
 			{/if}
 		{/each}
@@ -510,15 +578,15 @@
 		{@const ghostType = drag.activeHandle?.type ?? drag.dragEndType}
 		<line class="connection-ghost" x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY} />
 
-		<!-- Ghost endpoint node (shape matches hovered handle type or dragged-end type) -->
-		{#if ghostType === 'segment'}
-			<circle class="connection-node connection-node--ghost" cx={ghostX} cy={ghostY} r="5" />
-		{:else if ghostType === 'section'}
+		<!-- Ghost endpoint node: column=■ square, section=◆ diamond, segment=● circle -->
+		{#if ghostType === 'column'}
 			<rect class="connection-node connection-node--ghost connection-node--square"
 				x={ghostX - 5} y={ghostY - 5} width="10" height="10" />
-		{:else if ghostType === 'column'}
+		{:else if ghostType === 'section'}
 			<polygon class="connection-node connection-node--ghost connection-node--diamond"
 				points={diamondPoints(ghostX, ghostY, 6)} />
+		{:else if ghostType === 'segment'}
+			<circle class="connection-node connection-node--ghost" cx={ghostX} cy={ghostY} r="5" />
 		{/if}
 	{/if}
 </svg>

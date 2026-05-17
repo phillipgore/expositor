@@ -155,14 +155,16 @@
 		setMultiSelectMode(isInMultiSelectMode);
 	});
 
-	// Clear active segments and word selection when overview mode is enabled
+	// Clear active segments and word selection when overview mode is enabled.
+	// Guards prevent unnecessary reactive assignments (which would create new array
+	// references and trigger a sync-effect → store-update → clear-effect cycle).
 	$effect(() => {
 		if ($toolbarState.overviewMode) {
-			activeSegments = [];
-			activeColumns = [];
-			activeSections = [];
-			selectedWord = null;
-			suppressHoverCaret = null;
+			if (activeSegments.length > 0) activeSegments = [];
+			if (activeColumns.length > 0) activeColumns = [];
+			if (activeSections.length > 0) activeSections = [];
+			if (selectedWord !== null) selectedWord = null;
+			if (suppressHoverCaret !== null) suppressHoverCaret = null;
 		}
 	});
 
