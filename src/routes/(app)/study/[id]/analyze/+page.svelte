@@ -1729,6 +1729,10 @@
 						if (chapterVerseSpan) {
 							// Extract chapter and verse numbers
 							const chapterVerseText = chapterVerseSpan.textContent || '';
+
+							// Capture paragraph-break-marker if this verse starts a new paragraph
+							const paragraphMarkerEl = verseSpan.querySelector('.paragraph-break-marker');
+							const paragraphMarkerHtml = paragraphMarkerEl ? paragraphMarkerEl.outerHTML : '';
 							
 							// Determine if we need a suffix
 							const isSection = verseSectionMap && verseSectionMap[verseId] > 1;
@@ -1748,10 +1752,11 @@
 								// Increment counter for next occurrence
 								verseOccurrences[verseId] = currentIndex + 1;
 								
-								verseBuffer.push(`<span class="chapter-verse">${chapterVerseText}${suffix}</span>`);
+								verseBuffer.push(`${paragraphMarkerHtml}<span class="chapter-verse">${chapterVerseText}${suffix}</span>`);
 							} else {
 								// Verse not section - use original without suffix
-								verseBuffer.push(chapterVerseSpan.outerHTML);
+								// Prepend paragraph marker (empty string if none)
+								verseBuffer.push(`${paragraphMarkerHtml}${chapterVerseSpan.outerHTML}`);
 							}
 						}
 					}
@@ -2345,6 +2350,32 @@
 			setToolbarState('canToggleNotes', true);
 		}
 	});
+
+	/**
+	 * Derived: whether any passage text contains a paragraph break marker.
+	 * Re-evaluates whenever data.passagesWithText changes.
+	 */
+	let hasAnyParagraphBreaks = $derived.by(() => {
+		if (!data.passagesWithText) return false;
+		return data.passagesWithText.some(passageText =>
+			typeof passageText.text === 'string' &&
+			passageText.text.includes('paragraph-break-marker')
+		);
+	});
+
+	/**
+	 * Keep the Paragraphs toggle in sync with whether any paragraph break markers exist.
+	 * - No markers → disable the toggle and ensure it is turned off.
+	 * - Markers exist → ensure the toggle is enabled.
+	 */
+	$effect(() => {
+		if (!hasAnyParagraphBreaks) {
+			setToolbarState('canToggleParagraphBreaks', false);
+			setToolbarState('paragraphBreaksVisible', false);
+		} else {
+			setToolbarState('canToggleParagraphBreaks', true);
+		}
+	});
 </script>
 
 <svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
@@ -2354,7 +2385,8 @@
 	<div 
 		class="analyze-content" 
 		class:hide-notes={!$toolbarState.notesVisible}
-		class:hide-verses={!$toolbarState.versesVisible} 
+		class:hide-verses={!$toolbarState.versesVisible}
+		class:hide-paragraph-breaks={!$toolbarState.paragraphBreaksVisible}
 		class:wide-layout={$toolbarState.wideLayout} 
 		class:overview-mode={$toolbarState.overviewMode}
 		onmousedown={handleMouseDown}
@@ -2374,8 +2406,12 @@
 						{/if}
 					</div>
 				{/if}
-				<!-- Connections overlay: SVG arcs between connected segments, drawn in the same coordinate space as the content -->
-				<ConnectionsOverlay connections={data.connections || []} scale={currentScale} />
+				<!-- Connections overlay: SVG arcs between connected segments, drawn in the same coordinate space as the content.
+				     Wrapped in a zero-height absolutely-positioned div to keep it fully out of the flex column flow,
+				     preventing it from contributing to gap calculations between study-header and passage-wrapper. -->
+				<div class="connections-container">
+					<ConnectionsOverlay connections={data.connections || []} scale={currentScale} />
+				</div>
 
 				<div class="passage-wrapper">
 					{#if data.passagesWithText && data.passagesWithText.length > 0}
@@ -2546,12 +2582,28 @@
 	}
 
 	.analyze-content-inner {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 2.6rem;
 		padding: 2.6rem 4.4rem;
 		transition: transform 0.2s ease-out;
 		width: fit-content;
+	}
+
+	/* Absolutely-positioned wrapper for the connections SVG overlay.
+	   Stretches to fill .analyze-content-inner via inset: 0 so the SVG inside
+	   gets correct getBoundingClientRect() dimensions for path calculations.
+	   Because it is position: absolute it is removed from the flex flow entirely,
+	   so it never contributes a gap slot between study-header and passage-wrapper. */
+	.connections-container {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		overflow: visible;
+		pointer-events: none;
 	}
 
 	/* ============================================================ */
@@ -2844,6 +2896,29 @@
 
 	.hide-notes :global(.note),
 	.hide-notes :global(.note-input) {
+		display: none;
+	}
+
+	/* ============================================================ */
+	/* Paragraph Break Markers */
+	/* ============================================================ */
+
+	:global(.paragraph-break-marker) {
+		display: block;
+		width: 100%;
+		height: 0;
+		margin-top: 0.8em;
+		-webkit-user-select: none;
+		user-select: none;
+		pointer-events: none;
+	}
+
+	/* The very first paragraph in a segment needs no top spacing */
+	:global(.text > .paragraph-break-marker:first-child) {
+		margin-top: 0;
+	}
+
+	.hide-paragraph-breaks :global(.paragraph-break-marker) {
 		display: none;
 	}
 

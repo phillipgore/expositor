@@ -67,6 +67,16 @@ function normalizeESVFormatting(text, passage, bookAbbr) {
 	// Get the range of chapters in this passage
 	const fromChapter = passage.fromChapter;
 
+	// Detect which verse numbers start new paragraphs BEFORE stripping whitespace.
+	// The ESV API uses double newlines (\n\n) before the first verse of a new paragraph.
+	const paragraphStartVerses = new Set();
+	// Match a double-newline followed by optional spaces and then a verse marker [n]
+	const paragraphPattern = /\n\s*\n\s*\[(\d+)\]/g;
+	let paragraphMatch;
+	while ((paragraphMatch = paragraphPattern.exec(text)) !== null) {
+		paragraphStartVerses.add(paragraphMatch[1]);
+	}
+
 	// Remove all paragraph breaks and extra whitespace
 	// Replace multiple spaces/newlines with single space
 	let normalized = text.replace(/\s+/g, ' ').trim();
@@ -89,11 +99,16 @@ function normalizeESVFormatting(text, passage, bookAbbr) {
 		const versePadded = verseNum.padStart(3, '0');
 		const verseId = `${bookAbbr}-${chapterPadded}-${versePadded}`;
 		
+		// Inject a paragraph break marker if this verse starts a new paragraph
+		const paragraphMarker = paragraphStartVerses.has(verseNum)
+			? '<span class="paragraph-break-marker"></span>'
+			: '';
+		
 		// Clean up verse text and wrap words
 		const cleanText = verseText.trim();
 		const wrappedWords = wrapWords(cleanText, bookAbbr, currentChapter, parseInt(verseNum));
 		
-		return `<span class="verse" data-verse-id="${verseId}"><span class="chapter-verse">${currentChapter}:${verseNum}</span> ${wrappedWords}</span> `;
+		return `<span class="verse" data-verse-id="${verseId}">${paragraphMarker}<span class="chapter-verse">${currentChapter}:${verseNum}</span> ${wrappedWords}</span> `;
 	});
 
 	return normalized.trim();
@@ -171,7 +186,9 @@ async function fetchNETPassage(reference) {
 		const url = new URL(baseUrl);
 		url.searchParams.set('passage', reference);
 		url.searchParams.set('type', 'json');
-		url.searchParams.set('formatting', 'plain');
+		// Use 'para' formatting so paragraph-opening verses include a <p> tag,
+		// which we can detect to add paragraph break markers.
+		url.searchParams.set('formatting', 'para');
 
 		const response = await fetch(url.toString());
 
@@ -192,18 +209,30 @@ async function fetchNETPassage(reference) {
 
 		// Format JSON verses to match the current display format
 		// Each verse object has: { bookname, chapter, verse, text }
+		// With formatting=para, paragraph-opening verses have text starting with <p> or <P>.
 		const formattedText = data
 			.map((verse) => {
 				// Format chapter and verse with zero-padding
 				const chapterPadded = verse.chapter.toString().padStart(3, '0');
 				const versePadded = verse.verse.toString().padStart(3, '0');
 				const verseId = `${bookAbbr}-${chapterPadded}-${versePadded}`;
+
+				// Detect paragraph start: verse text begins with a <p> tag (any variant: <p>, <p class="...">, etc.)
+				const isParagraphStart = /^<p[\s>]/i.test(verse.text.trim());
+
+				// Strip all HTML tags (bold, paragraph, etc.) from verse text
+				const cleanText = verse.text.replace(/<[^>]+>/g, '').trim();
+
+				// Inject paragraph marker if this verse opens a new paragraph
+				const paragraphMarker = isParagraphStart
+					? '<span class="paragraph-break-marker"></span>'
+					: '';
 				
 				// Wrap words in the verse text
-				const wrappedWords = wrapWords(verse.text, bookAbbr, parseInt(verse.chapter), parseInt(verse.verse));
+				const wrappedWords = wrapWords(cleanText, bookAbbr, parseInt(verse.chapter), parseInt(verse.verse));
 				
 				// Format as verse with data-verse-id wrapper
-				return `<span class="verse" data-verse-id="${verseId}"><span class="chapter-verse">${verse.chapter}:${verse.verse}</span> ${wrappedWords}</span>`;
+				return `<span class="verse" data-verse-id="${verseId}">${paragraphMarker}<span class="chapter-verse">${verse.chapter}:${verse.verse}</span> ${wrappedWords}</span>`;
 			})
 			.join(' ');
 

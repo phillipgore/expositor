@@ -228,19 +228,29 @@ export function getAppToolbarConfig() {
 					activeStateProp: 'referencesVisible',
 					toggleHandler: 'toggleReferences',
 				},
-				{
-					type: 'toggle',
-					iconId: 'reference',
-					underLabel: 'Notation',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
-					activeStateProp: 'versesVisible',
-					toggleHandler: 'toggleVerses',
-					disabledCheck: (state) => !state.canToggleVerses || state.overviewMode
-				},
-				{
-					type: 'toggle',
-					iconId: 'wide',
+			{
+				type: 'toggle',
+				iconId: 'reference',
+				underLabel: 'Notation',
+				classes: 'toolbar-dark hide-at-narrow',
+				underLabelClasses: 'light hide-at-narrow',
+				activeStateProp: 'versesVisible',
+				toggleHandler: 'toggleVerses',
+				disabledCheck: (state) => !state.canToggleVerses || state.overviewMode
+			},
+			{
+				type: 'toggle',
+				iconId: 'paragraph',
+				underLabel: 'Paragraphs',
+				classes: 'toolbar-dark hide-at-narrow',
+				underLabelClasses: 'light hide-at-narrow',
+				activeStateProp: 'paragraphBreaksVisible',
+				toggleHandler: 'toggleParagraphBreaks',
+				disabledCheck: (state) => !state.canToggleParagraphBreaks || state.overviewMode
+			},
+			{
+				type: 'toggle',
+				iconId: 'wide',
 					underLabel: 'Wide',
 					classes: 'toolbar-dark hide-at-narrow',
 					underLabelClasses: 'light hide-at-narrow',

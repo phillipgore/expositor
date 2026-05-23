@@ -515,13 +515,14 @@
 	// ─── Reactivity ──────────────────────────────────────────────────────────
 
 	$effect(() => {
-		const _conn     = connections;
-		const _scale    = scale;
-		const _visible  = $toolbarState.connectionsVisible;
-		const _studies  = $toolbarState.studiesPanelOpen;
-		const _comment  = $toolbarState.commentaryPanelOpen;
-		const _wide     = $toolbarState.wideLayout;
-		const _overview = $toolbarState.overviewMode;
+		const _conn       = connections;
+		const _scale      = scale;
+		const _visible    = $toolbarState.connectionsVisible;
+		const _studies    = $toolbarState.studiesPanelOpen;
+		const _comment    = $toolbarState.commentaryPanelOpen;
+		const _wide       = $toolbarState.wideLayout;
+		const _overview   = $toolbarState.overviewMode;
+		const _paragraphs = $toolbarState.paragraphBreaksVisible;
 		requestAnimationFrame(calculatePaths);
 	});
 

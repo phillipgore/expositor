@@ -26,7 +26,7 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
-	import { toolbarState, toggleNotes, toggleVerses, toggleWide, toggleOverview } from '$lib/stores/toolbar.js';
+	import { toolbarState, toggleNotes, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuView' } = $props();
 
@@ -54,6 +54,14 @@
 		role="menuitem"
 		handleClick={() => { toggleVerses(); closeMenu(); }}
 		isDisabled={!$toolbarState.canToggleVerses}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="paragraph"
+		label="Paragraphs"
+		role="menuitem"
+		handleClick={() => { toggleParagraphBreaks(); closeMenu(); }}
+		isDisabled={!$toolbarState.canToggleParagraphBreaks}
 	/>
 
 	<DividerHorizontal />

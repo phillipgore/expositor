@@ -38,6 +38,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canToggleComment - Whether Comment toggle should be enabled (document supports comment)
  * @property {boolean} canToggleReferences - Whether References toggle should be enabled
  * @property {boolean} canToggleVerses - Whether Verses toggle should be enabled (document has verses)
+ * @property {boolean} canToggleParagraphBreaks - Whether Paragraph Breaks toggle should be enabled
  * @property {boolean} canToggleWide - Whether Wide layout toggle should be enabled
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
  * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
@@ -56,6 +57,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} notesVisible - Whether quick notes are visible in segments
  * @property {boolean} referencesVisible - Whether scripture references are visible in headings
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
+ * @property {boolean} paragraphBreaksVisible - Whether translator paragraph break markers are visible
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
  * @property {number} zoomLevel - Current zoom level as percentage (25-400, or 0 for fit)
@@ -93,6 +95,7 @@ const defaultState = {
 	canToggleComment: false,
 	canToggleReferences: false,
 	canToggleVerses: false,
+	canToggleParagraphBreaks: false,
 	canToggleWide: false,
 	canToggleOverview: false,
 	canSwitchMode: false,
@@ -111,6 +114,7 @@ const defaultState = {
 	notesVisible: true,
 	referencesVisible: false,
 	versesVisible: false,
+	paragraphBreaksVisible: false,
 	wideLayout: false,
 	overviewMode: false,
 	zoomLevel: 100,
@@ -432,6 +436,16 @@ export function toggleVerses() {
 	toolbarStateStore.update(state => ({
 		...state,
 		versesVisible: !state.versesVisible
+	}));
+}
+
+/**
+ * Toggle paragraph breaks visibility
+ */
+export function toggleParagraphBreaks() {
+	toolbarStateStore.update(state => ({
+		...state,
+		paragraphBreaksVisible: !state.paragraphBreaksVisible
 	}));
 }
 
