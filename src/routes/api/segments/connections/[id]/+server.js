@@ -7,7 +7,53 @@ import { eq, and } from 'drizzle-orm';
 const VALID_TYPES = ['segment', 'section', 'column'];
 
 /**
- * Reroute one end of a connection (drag-and-drop).
+ * Get a single connection record (including commentary).
+ * @type {import('./$types').RequestHandler}
+ */
+export const GET = async ({ params, request }) => {
+	try {
+		const session = await auth.api.getSession({ headers: request.headers });
+		if (!session?.user?.id) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		const connectionId = params.id;
+		if (!connectionId) {
+			return json({ error: 'Missing connection ID' }, { status: 400 });
+		}
+
+		const connectionResult = await db
+			.select()
+			.from(segmentConnection)
+			.where(eq(segmentConnection.id, connectionId))
+			.limit(1);
+
+		if (connectionResult.length === 0) {
+			return json({ error: 'Connection not found' }, { status: 404 });
+		}
+
+		const connection = connectionResult[0];
+
+		// Verify ownership
+		const studyResult = await db
+			.select()
+			.from(study)
+			.where(and(eq(study.id, connection.studyId), eq(study.userId, session.user.id)))
+			.limit(1);
+
+		if (studyResult.length === 0) {
+			return json({ error: 'Not authorized to view this connection' }, { status: 403 });
+		}
+
+		return json(connection, { status: 200 });
+	} catch (error) {
+		console.error('Get connection error:', error);
+		return json({ error: 'Internal server error' }, { status: 500 });
+	}
+};
+
+/**
+ * Reroute one end of a connection (drag-and-drop) and/or update commentary.
  *
  * Each end (from / to) is updated independently.
  * Only the fields for the updated end change — the other end is preserved exactly.
@@ -39,11 +85,12 @@ export const PATCH = async ({ params, request }) => {
 		const body = await request.json();
 
 		// Check what the caller wants to update
-		const updatingFrom = 'fromType' in body || 'fromSegmentId' in body || 'fromSectionId' in body || 'fromColumnId' in body;
-		const updatingTo   = 'toType'   in body || 'toSegmentId'   in body || 'toSectionId'   in body || 'toColumnId'   in body;
+		const updatingFrom      = 'fromType' in body || 'fromSegmentId' in body || 'fromSectionId' in body || 'fromColumnId' in body;
+		const updatingTo        = 'toType'   in body || 'toSegmentId'   in body || 'toSectionId'   in body || 'toColumnId'   in body;
+		const updatingCommentary = 'commentary' in body;
 
-		if (!updatingFrom && !updatingTo) {
-			return json({ error: 'Must provide at least one from* or to* field to update' }, { status: 400 });
+		if (!updatingFrom && !updatingTo && !updatingCommentary) {
+			return json({ error: 'Must provide at least one field to update (from*, to*, or commentary)' }, { status: 400 });
 		}
 
 		// Validate types if provided
@@ -82,6 +129,14 @@ export const PATCH = async ({ params, request }) => {
 		// Strategy: start from the current connection values, then apply only
 		// the fields the caller provided.  Each end is handled independently.
 		const updates = { updatedAt: new Date() };
+
+		// Commentary update (independent of rerouting)
+		if (updatingCommentary) {
+			if (body.commentary !== null && typeof body.commentary !== 'string') {
+				return json({ error: 'Invalid commentary: must be a string or null' }, { status: 400 });
+			}
+			updates.commentary = body.commentary ?? null;
+		}
 
 		if (updatingFrom) {
 			const newFromType = body.fromType ?? connection.fromType;

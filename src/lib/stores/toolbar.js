@@ -74,6 +74,8 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
  * @property {boolean} canInsertConnection - Whether Insert Connection button should be enabled
  * @property {boolean} canRemoveConnection - Whether Remove Connection button should be enabled
+ * @property {boolean} hasActiveConnection - Whether a connection line is currently selected
+ * @property {string|null} activeConnectionId - The ID of the currently selected connection
  */
 
 /**
@@ -126,7 +128,9 @@ const defaultState = {
 	activeColumnId: null,
 	canInsertColumn: false,
 	canInsertConnection: false,
-	canRemoveConnection: false
+	canRemoveConnection: false,
+	hasActiveConnection: false,
+	activeConnectionId: null
 };
 
 /**
@@ -542,7 +546,10 @@ export function setActiveSegment(hasSegment, segmentId = null, options) {
 		activeSegmentHasHeadingOne: options?.hasHeadingOne || false,
 		activeSegmentHasHeadingTwo: options?.hasHeadingTwo || false,
 		activeSegmentHasHeadingThree: options?.hasHeadingThree || false,
-		activeSegmentHasNote: options?.hasNote || false
+		activeSegmentHasNote: options?.hasNote || false,
+		// Deselect any connection when a segment becomes active
+		hasActiveConnection: hasSegment ? false : state.hasActiveConnection,
+		activeConnectionId: hasSegment ? null : state.activeConnectionId
 	}));
 }
 
@@ -605,5 +612,22 @@ export function setConnectionButtonStates(canInsert, canRemove) {
 		...state,
 		canInsertConnection: canInsert,
 		canRemoveConnection: canRemove
+	}));
+}
+
+/**
+ * Set the active connection (selected connection line).
+ * Clears the active segment so the commentary panel switches context.
+ * @param {boolean} hasConnection - Whether a connection is currently selected
+ * @param {string|null} connectionId - The ID of the selected connection (optional)
+ */
+export function setActiveConnection(hasConnection, connectionId = null) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasActiveConnection: hasConnection,
+		activeConnectionId: connectionId,
+		// Deselect segment when a connection is selected, and vice versa
+		hasActiveSegment: hasConnection ? false : state.hasActiveSegment,
+		activeSegmentId: hasConnection ? null : state.activeSegmentId
 	}));
 }

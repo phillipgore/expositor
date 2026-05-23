@@ -33,7 +33,7 @@
 
 	import { onMount, onDestroy } from 'svelte';
 	import { invalidate } from '$app/navigation';
-	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveConnection } from '$lib/stores/toolbar.js';
 
 	let { connections = [], scale = 1 } = $props();
 
@@ -66,6 +66,12 @@
 
 	/** Drop-target handles computed at drag start. @type {Handle[]} */
 	let dropHandles = $state([]);
+
+	/** ID of the path currently under the pointer (for hover highlight). */
+	let hoveredPathId = $state(/** @type {string|null} */ (null));
+
+	/** ID of the currently selected connection path. */
+	let selectedPathId = $state(/** @type {string|null} */ (null));
 
 	const SNAP_RADIUS = 32;
 	let resizeObserver = /** @type {ResizeObserver | null} */ (null);
@@ -456,6 +462,56 @@
 		}
 	}
 
+	// ─── Connection selection ─────────────────────────────────────────────────
+
+	/**
+	 * Select a connection line (click on a path).
+	 * Stops the event from bubbling so the document-level deselect doesn't fire.
+	 * @param {MouseEvent} event
+	 * @param {PathEntry} path
+	 */
+	function handlePathClick(event, path) {
+		event.stopPropagation();
+		selectedPathId = path.id;
+		setActiveConnection(true, path.id);
+	}
+
+	/**
+	 * Deselect the current connection when clicking within the passage content area
+	 * but not on a connection path.  Clicks on the toolbar, commentary panel, or
+	 * other UI chrome are ignored so the selection is preserved.
+	 * @param {MouseEvent} event
+	 */
+	function handleDocumentClick(event) {
+		if (selectedPathId === null) return;
+		const target = /** @type {Element} */ (event.target);
+		// Only deselect if the click landed inside the analyze content wrapper
+		// (i.e. the passage area), not on toolbar buttons or the commentary panel.
+		const contentWrapper =
+			svgElement?.closest('.analyze-content-wrapper') ??
+			svgElement?.closest('.analyze-content');
+		if (contentWrapper && contentWrapper.contains(target)) {
+			selectedPathId = null;
+			setActiveConnection(false, null);
+		}
+	}
+
+	// Clear local selected state if an external action deselects the connection
+	// (e.g. user clicks a segment, which calls setActiveSegment and clears the connection)
+	$effect(() => {
+		if (!$toolbarState.hasActiveConnection && selectedPathId !== null) {
+			selectedPathId = null;
+		}
+	});
+
+	// Deselect when the user hides all connections via the toolbar button
+	$effect(() => {
+		if (!$toolbarState.connectionsVisible && selectedPathId !== null) {
+			selectedPathId = null;
+			setActiveConnection(false, null);
+		}
+	});
+
 	// ─── Reactivity ──────────────────────────────────────────────────────────
 
 	$effect(() => {
@@ -487,6 +543,7 @@
 
 		window.addEventListener('pointermove', handlePointerMove, { passive: false });
 		window.addEventListener('pointerup', handlePointerUp);
+		document.addEventListener('click', handleDocumentClick);
 
 		requestAnimationFrame(calculatePaths);
 	});
@@ -496,6 +553,7 @@
 		scrollContainer?.removeEventListener('scroll', calculatePaths);
 		window.removeEventListener('pointermove', handlePointerMove);
 		window.removeEventListener('pointerup', handlePointerUp);
+		document.removeEventListener('click', handleDocumentClick);
 		document.querySelectorAll('.connection-drop-target').forEach(el => el.classList.remove('connection-drop-target'));
 	});
 </script>
@@ -508,63 +566,104 @@
 	aria-hidden="true"
 	focusable="false"
 >
-	<!-- ── Existing connections ── -->
-	{#each paths as path (path.id)}
-		<!-- White outline rendered beneath the colored stroke (always solid) -->
-		<path
-			class="connection-path-outline"
-			class:connection-path--dimmed={!!drag && drag.connectionId === path.id}
-			d={path.d}
-			fill="none"
-		/>
-		<path
-			class="connection-path"
-			class:connection-path--dashed={path.lineStyle === 'dashed'}
-			class:connection-path--dotted={path.lineStyle === 'dotted'}
-			class:connection-path--dashdot={path.lineStyle === 'dashdot'}
-			class:connection-path--dimmed={!!drag && drag.connectionId === path.id}
-			d={path.d}
-			fill="none"
-		/>
+	<!--
+		Rendering is split into three passes so that active (hovered/selected)
+		nodes always paint last — i.e. on top of all other nodes in SVG z-order.
 
-		<!-- From-end endpoint shape: column=■ square, section=◆ diamond, segment=● circle -->
+		Pass 1 — lines + invisible hit-targets for ALL connections
+		Pass 2 — endpoint nodes for NON-active connections
+		Pass 3 — endpoint nodes for the ACTIVE connection (on top)
+	-->
+
+	{#snippet endpointNodes(path, isActive)}
+		<!-- From-end: column=■ square, section=◆ diamond, segment=● circle -->
 		{#if path.fromType === 'column'}
 			<rect class="connection-node connection-node--square"
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
+				class:connection-node--selected={isActive && selectedPathId === path.id}
 				x={path.x1 - 4} y={path.y1 - 4} width="8" height="8"
 				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{:else if path.fromType === 'section'}
 			<polygon class="connection-node connection-node--diamond"
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
+				class:connection-node--selected={isActive && selectedPathId === path.id}
 				points={diamondPoints(path.x1, path.y1)}
 				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{:else if path.fromType === 'segment'}
-			<circle class="connection-node" cx={path.x1} cy={path.y1} r="4"
+			<circle class="connection-node"
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
+				class:connection-node--selected={isActive && selectedPathId === path.id}
+				cx={path.x1} cy={path.y1} r="4"
 				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{/if}
-
-		<!-- To-end endpoint shape: column=■ square, section=◆ diamond, segment=● circle -->
+		<!-- To-end: column=■ square, section=◆ diamond, segment=● circle -->
 		{#if path.toType === 'column'}
 			<rect class="connection-node connection-node--square"
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
+				class:connection-node--selected={isActive && selectedPathId === path.id}
 				x={path.x2 - 4} y={path.y2 - 4} width="8" height="8"
 				onpointerdown={(e) => startDrag(e, path, 'to')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{:else if path.toType === 'section'}
 			<polygon class="connection-node connection-node--diamond"
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
+				class:connection-node--selected={isActive && selectedPathId === path.id}
 				points={diamondPoints(path.x2, path.y2)}
 				onpointerdown={(e) => startDrag(e, path, 'to')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{:else if path.toType === 'segment'}
-			<circle class="connection-node" cx={path.x2} cy={path.y2} r="4"
+			<circle class="connection-node"
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
+				class:connection-node--selected={isActive && selectedPathId === path.id}
+				cx={path.x2} cy={path.y2} r="4"
 				onpointerdown={(e) => startDrag(e, path, 'to')}
 				onclick={(e) => e.stopPropagation()}
 			/>
+		{/if}
+	{/snippet}
+
+	<!-- Pass 1: lines + hit-targets -->
+	{#each paths as path (path.id)}
+		<path
+			class="connection-path"
+			class:connection-path--dashed={path.lineStyle === 'dashed'}
+			class:connection-path--dotted={path.lineStyle === 'dotted'}
+			class:connection-path--dashdot={path.lineStyle === 'dashdot'}
+			class:connection-path--dimmed={!!drag && drag.connectionId === path.id}
+			class:connection-path--hovered={hoveredPathId === path.id && selectedPathId !== path.id}
+			class:connection-path--selected={selectedPathId === path.id}
+			d={path.d}
+			fill="none"
+		/>
+		<path
+			class="connection-hit-target"
+			d={path.d}
+			fill="none"
+			onpointerenter={() => { hoveredPathId = path.id; }}
+			onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
+			onclick={(e) => handlePathClick(e, path)}
+		/>
+	{/each}
+
+	<!-- Pass 2: non-active nodes -->
+	{#each paths as path (path.id)}
+		{#if path.id !== hoveredPathId && path.id !== selectedPathId}
+			{@render endpointNodes(path, false)}
+		{/if}
+	{/each}
+
+	<!-- Pass 3: active nodes — rendered last so always on top -->
+	{#each paths as path (path.id)}
+		{#if path.id === hoveredPathId || path.id === selectedPathId}
+			{@render endpointNodes(path, true)}
 		{/if}
 	{/each}
 
@@ -598,8 +697,6 @@
 		{@const ghostX    = drag.activeHandle?.x    ?? drag.cursorX}
 		{@const ghostY    = drag.activeHandle?.y    ?? drag.cursorY}
 		{@const ghostType = drag.activeHandle?.type ?? drag.dragEndType}
-		<!-- Ghost outline is always solid -->
-		<line class="connection-ghost-outline" x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY} />
 		<line class="connection-ghost" x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY} />
 
 		<!-- Ghost endpoint node: column=■ square, section=◆ diamond, segment=● circle -->
@@ -630,22 +727,13 @@
 
 	/* ── Connection lines ── */
 
-	.connection-path-outline {
-		stroke: var(--white);
-		stroke-width: 3;
+	.connection-path {
+		stroke: var(--gray-300);
+		stroke-width: 2;
 		fill: none;
 		pointer-events: none;
 		stroke-linecap: round;
-		transition: opacity 0.1s;
-	}
-
-	.connection-path {
-		stroke: var(--gray-300);
-		stroke-width: 1.5;
-		fill: none;
-		pointer-events: stroke;
-		stroke-linecap: round;
-		transition: opacity 0.1s;
+		transition: opacity 0.1s, stroke 0.15s;
 		/* segment-segment: solid (default) */
 	}
 
@@ -653,6 +741,18 @@
 	.connection-path--dotted  { stroke-dasharray: 2 4; }      /* column-column   */
 	.connection-path--dashdot { stroke-dasharray: 6 3 1 3; }  /* cross-type      */
 	.connection-path--dimmed  { opacity: 0.3; }
+
+	.connection-path--hovered  { stroke: var(--blue); }
+	.connection-path--selected { stroke: var(--blue); stroke-width: 2.5; }
+
+	/* Wide transparent hit-target for easy hover/click on thin lines */
+	.connection-hit-target {
+		stroke: transparent;
+		stroke-width: 12;
+		fill: none;
+		pointer-events: stroke;
+		cursor: pointer;
+	}
 
 	/* ── Endpoint nodes ── */
 
@@ -662,6 +762,12 @@
 		stroke-width: 1.5;
 		pointer-events: all;
 		cursor: grab;
+	}
+
+	.connection-node--hovered,
+	.connection-node--selected {
+		fill: var(--blue);
+		stroke: var(--blue);
 	}
 
 	.connection-node--ghost {
@@ -690,16 +796,9 @@
 
 	/* ── Ghost line ── */
 
-	.connection-ghost-outline {
-		stroke: var(--white);
-		stroke-width: 3;
-		stroke-linecap: round;
-		pointer-events: none;
-	}
-
 	.connection-ghost {
 		stroke: var(--gray-300);
-		stroke-width: 1.5;
+		stroke-width: 2;
 		stroke-dasharray: 6 4;
 		stroke-linecap: round;
 		pointer-events: none;

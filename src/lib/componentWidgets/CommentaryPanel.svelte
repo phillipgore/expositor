@@ -19,8 +19,11 @@
 
 	let { isOpen = false, initialWidth = 300 } = $props();
 
-	// State for current segment and its commentary
-	let currentSegmentId = $state(null);
+	/**
+	 * The currently active "subject" being commented on.
+	 * @type {{ type: 'segment'|'connection', id: string } | null}
+	 */
+	let currentSubject = $state(null);
 	let commentaryContent = $state('');
 	let saveTimeout = $state(null);
 
@@ -47,22 +50,25 @@
 	});
 
 	/**
-	 * Load commentary from database for a segment
+	 * Resolve the URL for loading/saving commentary based on subject type.
+	 * @param {{ type: 'segment'|'connection', id: string }} subject
 	 */
-	async function loadCommentary(segmentId) {
-		if (!segmentId) {
-			commentaryContent = '';
-			return;
-		}
+	function getApiUrl(subject) {
+		return subject.type === 'connection'
+			? `/api/segments/connections/${subject.id}`
+			: `/api/segments/${subject.id}`;
+	}
 
-		console.log('[LOAD] Starting API call for segment:', segmentId);
+	/**
+	 * Load commentary from the database for the given subject.
+	 * @param {{ type: 'segment'|'connection', id: string }} subject
+	 */
+	async function loadCommentary(subject) {
 		try {
-			const response = await fetch(`/api/segments/${segmentId}`);
+			const response = await fetch(getApiUrl(subject));
 			if (response.ok) {
 				const data = await response.json();
-				console.log('[LOAD] API returned data for segment:', segmentId, 'commentary length:', data.commentary?.length || 0);
 				commentaryContent = data.commentary || '';
-				console.log('[LOAD] Set commentaryContent, length:', commentaryContent.length);
 			} else {
 				console.error('[LOAD] Failed to load commentary, status:', response.status);
 				commentaryContent = '';
@@ -74,18 +80,17 @@
 	}
 
 	/**
-	 * Save commentary to database (debounced)
+	 * Save commentary to the database for the given subject.
+	 * @param {{ type: 'segment'|'connection', id: string }} subject
+	 * @param {string} html
 	 */
-	async function saveCommentary(segmentId, html) {
-		if (!segmentId) return;
-
+	async function saveCommentary(subject, html) {
 		try {
-			const response = await fetch(`/api/segments/${segmentId}`, {
+			const response = await fetch(getApiUrl(subject), {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ commentary: html })
 			});
-
 			if (!response.ok) {
 				console.error('Failed to save commentary');
 			}
@@ -95,67 +100,70 @@
 	}
 
 	/**
-	 * Handle commentary updates with debouncing
+	 * Handle commentary updates with debouncing.
 	 */
 	function handleCommentaryUpdate(html) {
-		// Update local state immediately
 		commentaryContent = html;
 
-		// Clear existing timeout
-		if (saveTimeout) {
-			clearTimeout(saveTimeout);
-		}
+		if (saveTimeout) clearTimeout(saveTimeout);
 
-		// Capture segment ID NOW (not when timeout fires)
-		// This prevents race condition if user switches segments before save completes
-		const segmentIdToSave = currentSegmentId;
+		// Capture subject NOW to avoid race conditions if the user switches subjects
+		const subjectToSave = untrack(() => currentSubject);
 
-		// Save after 1 second of inactivity
 		saveTimeout = setTimeout(() => {
-			saveCommentary(segmentIdToSave, html);
+			if (subjectToSave) saveCommentary(subjectToSave, html);
 		}, 1000);
 	}
 
 	/**
-	 * Watch for segment changes and load commentary
-	 * Uses untrack() to prevent effect from re-running when currentSegmentId changes internally
+	 * Watch for segment or connection changes and load commentary.
+	 * Uses untrack() to prevent infinite loops.
 	 */
 	$effect(() => {
-		const segmentId = $toolbarState.activeSegmentId;
-		console.log('[COMMENTARY PANEL] Received segment ID from store:', segmentId);
-		
-		// Use untrack to read currentSegmentId without creating a dependency
-		// This prevents the effect from re-running when we update currentSegmentId internally
-		const currentId = untrack(() => currentSegmentId);
-		
-		// If segment changed, load its commentary
-		if (segmentId !== currentId) {
-			// Save any pending changes from previous segment
-			if (saveTimeout) {
-				clearTimeout(saveTimeout);
-				saveTimeout = null;
-			}
-			
-			// Save and load sequentially, CRITICAL: update currentSegmentId AFTER loading
-			(async () => {
-				// First, save current segment (if exists)
-				const prevId = untrack(() => currentSegmentId);
-				const prevContent = untrack(() => commentaryContent);
-				if (prevId && prevContent) {
-					await saveCommentary(prevId, prevContent);
-				}
-				
-				// Second, load new segment's commentary
-				if (segmentId) {
-					await loadCommentary(segmentId);
-				} else {
-					commentaryContent = '';
-				}
-				
-				// FINALLY, update current segment (triggers #key remount with correct content)
-				currentSegmentId = segmentId;
-			})();
+		const segmentId    = $toolbarState.activeSegmentId;
+		const connectionId = $toolbarState.activeConnectionId;
+
+		// Determine the new subject
+		/** @type {{ type: 'segment'|'connection', id: string } | null} */
+		const newSubject = connectionId
+			? { type: 'connection', id: connectionId }
+			: segmentId
+				? { type: 'segment', id: segmentId }
+				: null;
+
+		const prevSubject = untrack(() => currentSubject);
+
+		// Only act if the subject actually changed
+		const subjectChanged =
+			newSubject?.type !== prevSubject?.type ||
+			newSubject?.id   !== prevSubject?.id;
+
+		if (!subjectChanged) return;
+
+		// Cancel any pending save
+		if (saveTimeout) {
+			clearTimeout(saveTimeout);
+			saveTimeout = null;
 		}
+
+		(async () => {
+			// Save current subject's commentary before switching
+			const prev    = untrack(() => currentSubject);
+			const content = untrack(() => commentaryContent);
+			if (prev && content) {
+				await saveCommentary(prev, content);
+			}
+
+			// Load the new subject's commentary
+			if (newSubject) {
+				await loadCommentary(newSubject);
+			} else {
+				commentaryContent = '';
+			}
+
+			// Update subject AFTER loading to trigger #key remount with correct content
+			currentSubject = newSubject;
+		})();
 	});
 
 	/**
@@ -187,8 +195,8 @@
 		></div>
 	{/if}
 	<div class="panel-content" style:width="{panelWidth}px">
-		{#if $toolbarState.hasActiveSegment}
-			{#key currentSegmentId}
+		{#if $toolbarState.hasActiveSegment || $toolbarState.hasActiveConnection}
+			{#key currentSubject?.id}
 				<CommentaryEditor 
 					content={commentaryContent}
 					onUpdate={handleCommentaryUpdate}
@@ -196,7 +204,7 @@
 			{/key}
 		{:else}
 			<div class="empty-state">
-				<p>Select a segment to add commentary</p>
+				<p>Select a segment or connection to add commentary</p>
 			</div>
 		{/if}
 	</div>
