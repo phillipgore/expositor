@@ -510,6 +510,13 @@
 >
 	<!-- ── Existing connections ── -->
 	{#each paths as path (path.id)}
+		<!-- White outline rendered beneath the colored stroke (always solid) -->
+		<path
+			class="connection-path-outline"
+			class:connection-path--dimmed={!!drag && drag.connectionId === path.id}
+			d={path.d}
+			fill="none"
+		/>
 		<path
 			class="connection-path"
 			class:connection-path--dashed={path.lineStyle === 'dashed'}
@@ -591,6 +598,8 @@
 		{@const ghostX    = drag.activeHandle?.x    ?? drag.cursorX}
 		{@const ghostY    = drag.activeHandle?.y    ?? drag.cursorY}
 		{@const ghostType = drag.activeHandle?.type ?? drag.dragEndType}
+		<!-- Ghost outline is always solid -->
+		<line class="connection-ghost-outline" x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY} />
 		<line class="connection-ghost" x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY} />
 
 		<!-- Ghost endpoint node: column=■ square, section=◆ diamond, segment=● circle -->
@@ -620,6 +629,15 @@
 	.connections-overlay--dragging { cursor: grabbing; }
 
 	/* ── Connection lines ── */
+
+	.connection-path-outline {
+		stroke: var(--white);
+		stroke-width: 3;
+		fill: none;
+		pointer-events: none;
+		stroke-linecap: round;
+		transition: opacity 0.1s;
+	}
 
 	.connection-path {
 		stroke: var(--gray-300);
@@ -671,6 +689,13 @@
 	}
 
 	/* ── Ghost line ── */
+
+	.connection-ghost-outline {
+		stroke: var(--white);
+		stroke-width: 3;
+		stroke-linecap: round;
+		pointer-events: none;
+	}
 
 	.connection-ghost {
 		stroke: var(--gray-300);
