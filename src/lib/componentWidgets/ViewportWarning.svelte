@@ -39,7 +39,7 @@
 		<div class="message">
 			<p>This app is designed for desktop computers.</p>
 			<p>
-				Please use a desktop or laptop with a mouse or trackpad. The app requires a minimum screen size of 744&times;600 pixels. Touch support is planned for a future update.
+				Please use a desktop or laptop with a mouse or trackpad. The app requires a minimum screen size of 744&times;600 pixels.
 			</p>
 		</div>
 	</div>

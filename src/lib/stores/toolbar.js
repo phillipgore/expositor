@@ -605,14 +605,17 @@ export function setActiveSection(hasSection, sectionId = null) {
 }
 
 /**
- * Set multi-select mode state (enables Compare button when multiple items selected)
+ * Set multi-select mode state (enables Compare button when multiple items selected).
+ * The Compare button also stays active when connection lines are selected
+ * (handled via state.hasActiveConnection so the analyze page never needs to read the
+ * store reactively, which would cause a reactive loop).
  * @param {boolean} isMultiSelect - Whether multiple items are currently selected
  */
 export function setMultiSelectMode(isMultiSelect) {
 	toolbarStateStore.update(state => ({
 		...state,
-		// Keep Compare button enabled if already in compare mode OR if multi-selecting
-		canToggleComparison: isMultiSelect || state.comparisonsVisible
+		// Keep Compare button enabled if: multi-selecting, a connection is selected, or already in compare mode
+		canToggleComparison: isMultiSelect || state.hasActiveConnection || state.comparisonsVisible
 	}));
 }
 
@@ -632,6 +635,8 @@ export function setConnectionButtonStates(canInsert, canRemove) {
 /**
  * Set the active connection(s) (selected connection lines).
  * Clears the active segment so the commentary panel switches context.
+ * Also enables the Compare button when connections are selected so the user can
+ * enter compare mode to view the connected elements side-by-side.
  * @param {boolean} hasConnection - Whether one or more connections are currently selected
  * @param {string[]} connectionIds - The IDs of the selected connections
  */
@@ -642,6 +647,8 @@ export function setActiveConnection(hasConnection, connectionIds = []) {
 		activeConnectionIds: connectionIds,
 		// Deselect segment when a connection is selected, and vice versa
 		hasActiveSegment: hasConnection ? false : state.hasActiveSegment,
-		activeSegmentId: hasConnection ? null : state.activeSegmentId
+		activeSegmentId: hasConnection ? null : state.activeSegmentId,
+		// Enable Compare button when connections are selected; keep it enabled if already in compare mode
+		canToggleComparison: hasConnection ? true : state.comparisonsVisible
 	}));
 }

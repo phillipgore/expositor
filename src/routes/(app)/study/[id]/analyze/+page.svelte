@@ -61,6 +61,7 @@
 
 	// Compare mode state
 	let isCompareMode = $state(false);
+	let compareModeEnteredViaConnections = $state(false); // true when compare mode was entered by selecting a connection line
 	let originalComparisonSelection = $state({ columns: [], sections: [], segments: [] });
 	let compareActiveColumns = $state([]);
 	let compareActiveSections = $state([]);
@@ -150,7 +151,10 @@
 		}
 	});
 
-	// Sync multi-select mode to toolbar store (enables Compare button when 2+ items selected)
+	// Sync multi-select mode to toolbar store (enables Compare button when 2+ items selected).
+	// The store's setMultiSelectMode also incorporates hasActiveConnection internally,
+	// so the Compare button also activates when connection lines are selected — without
+	// introducing reactive reads of the toolbar store here (which would cause loops).
 	$effect(() => {
 		setMultiSelectMode(isInMultiSelectMode);
 	});
@@ -175,19 +179,29 @@
 		if ($toolbarState.comparisonsVisible && !isCompareMode) {
 			// ENTERING COMPARE MODE
 			console.log('🔄 ENTERING COMPARE MODE');
-			console.log('📦 Active state before saving:', {
-				columns: activeColumns,
-				sections: activeSections,
-				segments: activeSegments.map(s => s.segmentId)
-			});
-			
-			// 1. Save original selection
-			originalComparisonSelection = {
-				columns: [...activeColumns],
-				sections: [...activeSections],
-				segments: [...activeSegments]
-			};
-			
+
+			// 1. Save original selection.
+			// When connection lines are selected, derive the comparison items from their
+			// endpoints rather than from the structural selection (segments/sections/columns).
+			// Connections and structural selections are mutually exclusive, so only one
+			// path will ever have data at a time.
+			if ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length > 0) {
+				console.log('🔗 Entering compare mode via connections:', $toolbarState.activeConnectionIds);
+				originalComparisonSelection = buildSelectionFromConnections();
+				compareModeEnteredViaConnections = true;
+			} else {
+				console.log('📦 Entering compare mode via structural selection:', {
+					columns: activeColumns,
+					sections: activeSections,
+					segments: activeSegments.map(s => s.segmentId)
+				});
+				originalComparisonSelection = {
+					columns: [...activeColumns],
+					sections: [...activeSections],
+					segments: [...activeSegments]
+				};
+			}
+
 			console.log('💾 Saved originalComparisonSelection:', {
 				columns: originalComparisonSelection.columns,
 				sections: originalComparisonSelection.sections,
@@ -232,7 +246,7 @@
 			
 		} else if (!$toolbarState.comparisonsVisible && isCompareMode) {
 			// EXITING COMPARE MODE
-			console.log('🔄 EXITING COMPARE MODE');
+			console.log('🔄 EXITING COMPARE MODE (via connections:', compareModeEnteredViaConnections, ')');
 			
 			// 1. Clear compare-mode selections
 			compareActiveColumns = [];
@@ -244,13 +258,24 @@
 			visibleSectionIds = new Set();
 			visibleSegmentIds = new Set();
 			
-			// 3. Restore original selection
-			activeColumns = [...originalComparisonSelection.columns];
-			activeSections = [...originalComparisonSelection.sections];
-			activeSegments = [...originalComparisonSelection.segments];
+			// 3. Restore original selection — but only for structural selections.
+			// When compare mode was entered via a connection selection, the connections
+			// remain selected in the toolbar store; we must NOT restore the derived
+			// structural endpoint items, so structural selections stay empty.
+			if (compareModeEnteredViaConnections) {
+				// Connections are already selected in the store; just clear structural state.
+				activeColumns = [];
+				activeSections = [];
+				activeSegments = [];
+			} else {
+				activeColumns = [...originalComparisonSelection.columns];
+				activeSections = [...originalComparisonSelection.sections];
+				activeSegments = [...originalComparisonSelection.segments];
+			}
 			
-			// 4. Clear original selection storage
+			// 4. Clear original selection storage and the entry-via-connections flag
 			originalComparisonSelection = { columns: [], sections: [], segments: [] };
+			compareModeEnteredViaConnections = false;
 			
 			// 5. Mark we're out of compare mode
 			isCompareMode = false;
@@ -375,6 +400,46 @@
 	});
 
 	// ─── Connection helpers ───────────────────────────────────────────────────
+
+	/**
+	 * Build a { columns, sections, segments } selection from the endpoints of all
+	 * currently-selected connection lines.  This is used when entering compare mode
+	 * via a connection selection rather than a structural selection.
+	 * @returns {{ columns: string[], sections: string[], segments: Array }}
+	 */
+	function buildSelectionFromConnections() {
+		const allConnections = data.connections || [];
+		const selectedIds = $toolbarState.activeConnectionIds;
+		const selectedConns = allConnections.filter(c => selectedIds.includes(c.id));
+
+		/** @type {string[]} */
+		const columns = [];
+		/** @type {string[]} */
+		const sections = [];
+		/** @type {Array<{segmentId:string,passageIndex:number,segmentIndex:number,activateSection:boolean,generation:number}>} */
+		const segments = [];
+
+		for (const conn of selectedConns) {
+			// from-end
+			if (conn.fromType === 'column' && conn.fromColumnId && !columns.includes(conn.fromColumnId)) {
+				columns.push(conn.fromColumnId);
+			} else if (conn.fromType === 'section' && conn.fromSectionId && !sections.includes(conn.fromSectionId)) {
+				sections.push(conn.fromSectionId);
+			} else if (conn.fromType === 'segment' && conn.fromSegmentId && !segments.some(s => s.segmentId === conn.fromSegmentId)) {
+				segments.push({ segmentId: conn.fromSegmentId, passageIndex: 0, segmentIndex: 0, activateSection: false, generation: 0 });
+			}
+			// to-end
+			if (conn.toType === 'column' && conn.toColumnId && !columns.includes(conn.toColumnId)) {
+				columns.push(conn.toColumnId);
+			} else if (conn.toType === 'section' && conn.toSectionId && !sections.includes(conn.toSectionId)) {
+				sections.push(conn.toSectionId);
+			} else if (conn.toType === 'segment' && conn.toSegmentId && !segments.some(s => s.segmentId === conn.toSegmentId)) {
+				segments.push({ segmentId: conn.toSegmentId, passageIndex: 0, segmentIndex: 0, activateSection: false, generation: 0 });
+			}
+		}
+
+		return { columns, sections, segments };
+	}
 
 	/**
 	 * Get the element ID for the from-end of a connection based on its fromType.
@@ -2595,7 +2660,10 @@
 	   Stretches to fill .analyze-content-inner via inset: 0 so the SVG inside
 	   gets correct getBoundingClientRect() dimensions for path calculations.
 	   Because it is position: absolute it is removed from the flex flow entirely,
-	   so it never contributes a gap slot between study-header and passage-wrapper. */
+	   so it never contributes a gap slot between study-header and passage-wrapper.
+	   z-index: 20 keeps connection lines and anchor points visually above active
+	   segments/sections/columns (which use z-index: 10). pointer-events: none
+	   lets clicks pass through to content underneath. */
 	.connections-container {
 		position: absolute;
 		top: 0;
@@ -2604,6 +2672,7 @@
 		bottom: 0;
 		overflow: visible;
 		pointer-events: none;
+		z-index: 20;
 	}
 
 	/* ============================================================ */
