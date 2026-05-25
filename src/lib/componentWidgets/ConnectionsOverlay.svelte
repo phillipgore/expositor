@@ -70,8 +70,8 @@
 	/** ID of the path currently under the pointer (for hover highlight). */
 	let hoveredPathId = $state(/** @type {string|null} */ (null));
 
-	/** ID of the currently selected connection path. */
-	let selectedPathId = $state(/** @type {string|null} */ (null));
+	/** IDs of the currently selected connection paths (supports multi-select). */
+	let selectedPathIds = $state(/** @type {Set<string>} */ (new Set()));
 
 	const SNAP_RADIUS = 32;
 	let resizeObserver = /** @type {ResizeObserver | null} */ (null);
@@ -465,25 +465,43 @@
 	// ─── Connection selection ─────────────────────────────────────────────────
 
 	/**
-	 * Select a connection line (click on a path).
+	 * Select or toggle a connection line (click on a path).
+	 * - Plain click → select only this connection (replace selection).
+	 * - Cmd/Ctrl+Click → toggle this connection in/out of the multi-selection.
 	 * Stops the event from bubbling so the document-level deselect doesn't fire.
 	 * @param {MouseEvent} event
 	 * @param {PathEntry} path
 	 */
 	function handlePathClick(event, path) {
 		event.stopPropagation();
-		selectedPathId = path.id;
-		setActiveConnection(true, path.id);
+		const isMulti = event.metaKey || event.ctrlKey;
+
+		if (isMulti) {
+			// Toggle: add if absent, remove if present
+			const next = new Set(selectedPathIds);
+			if (next.has(path.id)) {
+				next.delete(path.id);
+			} else {
+				next.add(path.id);
+			}
+			selectedPathIds = next;
+		} else {
+			// Plain click: replace with just this connection
+			selectedPathIds = new Set([path.id]);
+		}
+
+		const ids = [...selectedPathIds];
+		setActiveConnection(ids.length > 0, ids);
 	}
 
 	/**
-	 * Deselect the current connection when clicking within the passage content area
+	 * Deselect all connections when clicking within the passage content area
 	 * but not on a connection path.  Clicks on the toolbar, commentary panel, or
 	 * other UI chrome are ignored so the selection is preserved.
 	 * @param {MouseEvent} event
 	 */
 	function handleDocumentClick(event) {
-		if (selectedPathId === null) return;
+		if (selectedPathIds.size === 0) return;
 		const target = /** @type {Element} */ (event.target);
 		// Only deselect if the click landed inside the analyze content wrapper
 		// (i.e. the passage area), not on toolbar buttons or the commentary panel.
@@ -491,24 +509,24 @@
 			svgElement?.closest('.analyze-content-wrapper') ??
 			svgElement?.closest('.analyze-content');
 		if (contentWrapper && contentWrapper.contains(target)) {
-			selectedPathId = null;
-			setActiveConnection(false, null);
+			selectedPathIds = new Set();
+			setActiveConnection(false, []);
 		}
 	}
 
 	// Clear local selected state if an external action deselects the connection
 	// (e.g. user clicks a segment, which calls setActiveSegment and clears the connection)
 	$effect(() => {
-		if (!$toolbarState.hasActiveConnection && selectedPathId !== null) {
-			selectedPathId = null;
+		if (!$toolbarState.hasActiveConnection && selectedPathIds.size > 0) {
+			selectedPathIds = new Set();
 		}
 	});
 
 	// Deselect when the user hides all connections via the toolbar button
 	$effect(() => {
-		if (!$toolbarState.connectionsVisible && selectedPathId !== null) {
-			selectedPathId = null;
-			setActiveConnection(false, null);
+		if (!$toolbarState.connectionsVisible && selectedPathIds.size > 0) {
+			selectedPathIds = new Set();
+			setActiveConnection(false, []);
 		}
 	});
 
@@ -580,24 +598,24 @@
 		<!-- From-end: column=■ square, section=◆ diamond, segment=● circle -->
 		{#if path.fromType === 'column'}
 			<rect class="connection-node connection-node--square"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
-				class:connection-node--selected={isActive && selectedPathId === path.id}
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
 				x={path.x1 - 4} y={path.y1 - 4} width="8" height="8"
 				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{:else if path.fromType === 'section'}
 			<polygon class="connection-node connection-node--diamond"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
-				class:connection-node--selected={isActive && selectedPathId === path.id}
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
 				points={diamondPoints(path.x1, path.y1)}
 				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{:else if path.fromType === 'segment'}
 			<circle class="connection-node"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
-				class:connection-node--selected={isActive && selectedPathId === path.id}
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
 				cx={path.x1} cy={path.y1} r="4"
 				onpointerdown={(e) => startDrag(e, path, 'from')}
 				onclick={(e) => e.stopPropagation()}
@@ -606,24 +624,24 @@
 		<!-- To-end: column=■ square, section=◆ diamond, segment=● circle -->
 		{#if path.toType === 'column'}
 			<rect class="connection-node connection-node--square"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
-				class:connection-node--selected={isActive && selectedPathId === path.id}
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
 				x={path.x2 - 4} y={path.y2 - 4} width="8" height="8"
 				onpointerdown={(e) => startDrag(e, path, 'to')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{:else if path.toType === 'section'}
 			<polygon class="connection-node connection-node--diamond"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
-				class:connection-node--selected={isActive && selectedPathId === path.id}
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
 				points={diamondPoints(path.x2, path.y2)}
 				onpointerdown={(e) => startDrag(e, path, 'to')}
 				onclick={(e) => e.stopPropagation()}
 			/>
 		{:else if path.toType === 'segment'}
 			<circle class="connection-node"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && selectedPathId !== path.id}
-				class:connection-node--selected={isActive && selectedPathId === path.id}
+				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
 				cx={path.x2} cy={path.y2} r="4"
 				onpointerdown={(e) => startDrag(e, path, 'to')}
 				onclick={(e) => e.stopPropagation()}
@@ -639,8 +657,8 @@
 			class:connection-path--dotted={path.lineStyle === 'dotted'}
 			class:connection-path--dashdot={path.lineStyle === 'dashdot'}
 			class:connection-path--dimmed={!!drag && drag.connectionId === path.id}
-			class:connection-path--hovered={hoveredPathId === path.id && selectedPathId !== path.id}
-			class:connection-path--selected={selectedPathId === path.id}
+			class:connection-path--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+			class:connection-path--selected={selectedPathIds.has(path.id)}
 			d={path.d}
 			fill="none"
 		/>
@@ -656,14 +674,14 @@
 
 	<!-- Pass 2: non-active nodes -->
 	{#each paths as path (path.id)}
-		{#if path.id !== hoveredPathId && path.id !== selectedPathId}
+		{#if path.id !== hoveredPathId && !selectedPathIds.has(path.id)}
 			{@render endpointNodes(path, false)}
 		{/if}
 	{/each}
 
 	<!-- Pass 3: active nodes — rendered last so always on top -->
 	{#each paths as path (path.id)}
-		{#if path.id === hoveredPathId || path.id === selectedPathId}
+		{#if path.id === hoveredPathId || selectedPathIds.has(path.id)}
 			{@render endpointNodes(path, true)}
 		{/if}
 	{/each}

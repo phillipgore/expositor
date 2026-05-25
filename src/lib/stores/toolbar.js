@@ -76,8 +76,8 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
  * @property {boolean} canInsertConnection - Whether Insert Connection button should be enabled
  * @property {boolean} canRemoveConnection - Whether Remove Connection button should be enabled
- * @property {boolean} hasActiveConnection - Whether a connection line is currently selected
- * @property {string|null} activeConnectionId - The ID of the currently selected connection
+ * @property {boolean} hasActiveConnection - Whether one or more connection lines are currently selected
+ * @property {string[]} activeConnectionIds - The IDs of the currently selected connections
  */
 
 /**
@@ -134,7 +134,7 @@ const defaultState = {
 	canInsertConnection: false,
 	canRemoveConnection: false,
 	hasActiveConnection: false,
-	activeConnectionId: null
+	activeConnectionIds: []
 };
 
 /**
@@ -563,7 +563,7 @@ export function setActiveSegment(hasSegment, segmentId = null, options) {
 		activeSegmentHasNote: options?.hasNote || false,
 		// Deselect any connection when a segment becomes active
 		hasActiveConnection: hasSegment ? false : state.hasActiveConnection,
-		activeConnectionId: hasSegment ? null : state.activeConnectionId
+		activeConnectionIds: hasSegment ? [] : state.activeConnectionIds
 	}));
 }
 
@@ -630,16 +630,16 @@ export function setConnectionButtonStates(canInsert, canRemove) {
 }
 
 /**
- * Set the active connection (selected connection line).
+ * Set the active connection(s) (selected connection lines).
  * Clears the active segment so the commentary panel switches context.
- * @param {boolean} hasConnection - Whether a connection is currently selected
- * @param {string|null} connectionId - The ID of the selected connection (optional)
+ * @param {boolean} hasConnection - Whether one or more connections are currently selected
+ * @param {string[]} connectionIds - The IDs of the selected connections
  */
-export function setActiveConnection(hasConnection, connectionId = null) {
+export function setActiveConnection(hasConnection, connectionIds = []) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveConnection: hasConnection,
-		activeConnectionId: connectionId,
+		activeConnectionIds: connectionIds,
 		// Deselect segment when a connection is selected, and vice versa
 		hasActiveSegment: hasConnection ? false : state.hasActiveSegment,
 		activeSegmentId: hasConnection ? null : state.activeSegmentId

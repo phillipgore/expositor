@@ -121,7 +121,11 @@
 	 */
 	$effect(() => {
 		const segmentId    = $toolbarState.activeSegmentId;
-		const connectionId = $toolbarState.activeConnectionId;
+		// Only show commentary when exactly one connection is selected.
+		// Multi-selection (Cmd+Click) clears the panel so the user sees the empty state.
+		const connectionId = $toolbarState.activeConnectionIds.length === 1
+			? $toolbarState.activeConnectionIds[0]
+			: null;
 
 		// Determine the new subject
 		/** @type {{ type: 'segment'|'connection', id: string } | null} */
@@ -195,7 +199,7 @@
 		></div>
 	{/if}
 	<div class="panel-content" style:width="{panelWidth}px">
-		{#if $toolbarState.hasActiveSegment || $toolbarState.hasActiveConnection}
+		{#if $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1)}
 			{#key currentSubject?.id}
 				<CommentaryEditor 
 					content={commentaryContent}
