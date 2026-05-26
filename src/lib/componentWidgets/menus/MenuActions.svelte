@@ -268,16 +268,6 @@
 		isDisabled={!hasGroupedItems}
 	/>
 	
-	<DividerHorizontal />
-	
-	<IconButton
-		iconId="trashcan"
-		label="Delete Selected"
-		classes="menu-light justify-content-left"
-		role="menuitem"
-		handleClick={handleDeleteClick}
-		isDisabled={!hasSelection}
-	/>
 </Menu>
 
 <MoveToGroupModal

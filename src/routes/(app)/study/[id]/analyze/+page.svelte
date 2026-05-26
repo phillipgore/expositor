@@ -9,7 +9,7 @@
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates, setActiveConnection } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -552,6 +552,24 @@
 	 * Finds and deletes the existing connection between the two selected items.
 	 */
 	async function handleRemoveConnection() {
+		// Fast-path: connection lines selected directly via the overlay — IDs are known
+		if ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length > 0) {
+			try {
+				await Promise.all(
+					$toolbarState.activeConnectionIds.map(id =>
+						fetch(`/api/segments/connections/${id}`, { method: 'DELETE' })
+					)
+				);
+				// Clear connection selection so the Delete button disables immediately
+				setActiveConnection(false, []);
+				await invalidate('app:studies');
+			} catch (error) {
+				console.error('Remove connection network error:', error);
+			}
+			return;
+		}
+
+		// Legacy path: two segments selected via the Structure menu flow
 		const connections = data.connections || [];
 		const selected = getSelectedItems();
 		if (selected.length !== 2) return;

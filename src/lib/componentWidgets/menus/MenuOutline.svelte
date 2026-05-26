@@ -28,78 +28,12 @@
 
 	let { menuId = 'MenuOutline' } = $props();
 
-	// Track deletion loading states
-	let deletingHeadingOne = $state(false);
-	let deletingHeadingTwo = $state(false);
-	let deletingHeadingThree = $state(false);
-	let deletingNote = $state(false);
-
 	function closeMenu() {
 		const menuElement = document.getElementById(menuId);
 		if (menuElement) {
 			menuElement.hidePopover();
 		}
 	}
-
-	/**
-	 * Handle deletion success/failure events
-	 */
-	function handleHeadingOneSuccess() {
-		deletingHeadingOne = false;
-	}
-
-	function handleHeadingOneFailure() {
-		deletingHeadingOne = false;
-	}
-
-	function handleHeadingTwoSuccess() {
-		deletingHeadingTwo = false;
-	}
-
-	function handleHeadingTwoFailure() {
-		deletingHeadingTwo = false;
-	}
-
-	function handleHeadingThreeSuccess() {
-		deletingHeadingThree = false;
-	}
-
-	function handleHeadingThreeFailure() {
-		deletingHeadingThree = false;
-	}
-
-	function handleNoteSuccess() {
-		deletingNote = false;
-	}
-
-	function handleNoteFailure() {
-		deletingNote = false;
-	}
-
-	/**
-	 * Listen for deletion result events
-	 */
-	$effect(() => {
-		window.addEventListener('remove-heading-one-success', handleHeadingOneSuccess);
-		window.addEventListener('remove-heading-one-failure', handleHeadingOneFailure);
-		window.addEventListener('remove-heading-two-success', handleHeadingTwoSuccess);
-		window.addEventListener('remove-heading-two-failure', handleHeadingTwoFailure);
-		window.addEventListener('remove-heading-three-success', handleHeadingThreeSuccess);
-		window.addEventListener('remove-heading-three-failure', handleHeadingThreeFailure);
-		window.addEventListener('remove-note-success', handleNoteSuccess);
-		window.addEventListener('remove-note-failure', handleNoteFailure);
-		
-		return () => {
-			window.removeEventListener('remove-heading-one-success', handleHeadingOneSuccess);
-			window.removeEventListener('remove-heading-one-failure', handleHeadingOneFailure);
-			window.removeEventListener('remove-heading-two-success', handleHeadingTwoSuccess);
-			window.removeEventListener('remove-heading-two-failure', handleHeadingTwoFailure);
-			window.removeEventListener('remove-heading-three-success', handleHeadingThreeSuccess);
-			window.removeEventListener('remove-heading-three-failure', handleHeadingThreeFailure);
-			window.removeEventListener('remove-note-success', handleNoteSuccess);
-			window.removeEventListener('remove-note-failure', handleNoteFailure);
-		};
-	});
 </script>
 
 <Menu {menuId} ariaLabel="Outline menu">
@@ -141,55 +75,19 @@
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingThree}
 	/>
-	
+
 	<DividerHorizontal />
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="heading-one-remove"
-		label="Remove Heading One"
+		iconId="connect"
+		label="Insert Connection"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			deletingHeadingOne = true;
-			// Trigger remove heading one event via custom event
-			window.dispatchEvent(new CustomEvent('remove-heading-one', {
-				detail: { segmentId: $toolbarState.activeSegmentId }
-			}));
+			window.dispatchEvent(new CustomEvent('insert-connection'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasHeadingOne || deletingHeadingOne}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="heading-two-remove"
-		label="Remove Heading Two"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			deletingHeadingTwo = true;
-			// Trigger remove heading two event via custom event
-			window.dispatchEvent(new CustomEvent('remove-heading-two', {
-				detail: { segmentId: $toolbarState.activeSegmentId }
-			}));
-		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasHeadingTwo || deletingHeadingTwo}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="heading-three-remove"
-		label="Remove Heading Three"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			deletingHeadingThree = true;
-			// Trigger remove heading three event via custom event
-			window.dispatchEvent(new CustomEvent('remove-heading-three', {
-				detail: { segmentId: $toolbarState.activeSegmentId }
-			}));
-		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasHeadingThree || deletingHeadingThree}
+		isDisabled={!$toolbarState.canInsertConnection}
 	/>
 
 	<DividerHorizontal />
@@ -211,19 +109,4 @@
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasNote}
 	/>
 
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-remove"
-		label="Remove Quick Note"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			deletingNote = true;
-			// Trigger remove note event via custom event
-			window.dispatchEvent(new CustomEvent('remove-note', {
-				detail: { segmentId: $toolbarState.activeSegmentId }
-			}));
-		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || !$toolbarState.activeSegmentHasNote || deletingNote}
-	/>
 </Menu>

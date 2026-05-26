@@ -94,6 +94,7 @@
 		class:selection-last={isSelected && selectionPosition === 'last'}
 		class:selection-isolated={isSelected && selectionPosition === 'isolated'}
 		class:active={isActive && isSelected}
+		class:active-only={isActive && !isSelected}
 		style:padding-left={paddingLeft}
 		{tabindex}
 		data-study-id={study.id}
@@ -173,6 +174,7 @@
 		border-radius: 0.3rem;
 	}
 
+	/* Active + selected: solid blue (current study AND selected in Finder) */
 	.study-item.active,
 	.study-item.selected.active {
 		background-color: var(--blue);
@@ -187,6 +189,11 @@
 	.study-item.active .study-references,
 	.study-item.selected.active .study-references {
 		color: var(--white);
+	}
+
+	/* Active only: muted gray (current study but NOT selected in Finder) */
+	.study-item.active-only {
+		background-color: var(--gray-light);
 	}
 
 	.study-item :global(.book-icon) {

@@ -4,7 +4,7 @@
 	import { slide } from 'svelte/transition';
 	import Textarea from '$lib/componentElements/Textarea.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
-	import { toolbarState, setActiveSegment } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveSegment, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
 
 	let { 
 		noteValue = null,
@@ -212,6 +212,14 @@
 		}
 	}
 
+
+	/**
+	 * Sync isInputMode → toolbar so the Delete button enables only while editing
+	 */
+	$effect(() => {
+		setHeadingOrNoteEditorActive(isInputMode, 'note');
+		return () => setHeadingOrNoteEditorActive(false, null);
+	});
 
 	/**
 	 * Reset hasInitialized when exiting input mode

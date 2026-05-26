@@ -20,7 +20,7 @@
 	import { usePanelResize } from "$lib/composables/usePanelResize.svelte.js";
 	import { formatPassageReference } from "$lib/utils/passageFormatting.js";
 	import { getFlattenedItemsList } from "$lib/utils/groupFlattening.js";
-	import { setStudiesPanelOpen } from "$lib/stores/toolbar.js";
+	import { toolbarState, setActiveSegment, setActiveConnection } from '$lib/stores/toolbar.js';
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { flip } from 'svelte/animate';
@@ -139,7 +139,7 @@
 	/**
 	 * Handle study click
 	 */
-	async function handleStudyClick(event, study) {
+	function handleStudyClick(event, study) {
 		event.preventDefault();
 		
 		// Check for modifier keys
@@ -148,10 +148,12 @@
 		// Always select the study
 		multiSelect.handleItemClick(event, 'study', study.id, study, getFlattenedItemsList(sortedGroupsAndStudies));
 		
+		// Selecting a study deselects any active connection or segment inside the study
+		setActiveSegment(false, null);
+		setActiveConnection(false, []);
+		
 		// Only navigate if no modifier keys are pressed
 		if (!hasModifier) {
-			// Wait for panel state to be persisted before navigating
-			await setStudiesPanelOpen(false);
 			goto(`/study/${study.id}/analyze`);
 		}
 	}
@@ -261,7 +263,20 @@
 	});
 
 	/**
-	 * Auto-select active group or study on page load, or clear selection on dashboard
+	 * Track the last study ID that was auto-selected, so we only auto-select
+	 * on initial navigation to a study — not on every $effect re-run.
+	 * This is a plain (non-reactive) variable so reading/writing it inside
+	 * the $effect doesn't create reactive dependencies or trigger re-run loops.
+	 */
+	let previousActiveStudyId = null;
+
+	/**
+	 * Auto-select active group or study on page load, or clear selection on dashboard.
+	 * 
+	 * For studies: only auto-selects when navigating to a NEW study (ID changed).
+	 * If the user then interacts with content inside the study, handleDocumentClick
+	 * clears the selection — and since the study ID hasn't changed, the $effect
+	 * re-runs but skips the auto-select, leaving the study in "active only" (gray) state.
 	 */
 	$effect(() => {
 		if (activeGroupId) {
@@ -281,26 +296,45 @@
 				multiSelect.updateToolbarSelection();
 			}
 		} else if (activeStudyId) {
-			// Find the study in the flattened list
-			const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-			const studyItem = flatList.find(item => item.type === 'study' && item.id === activeStudyId);
-			
-			if (studyItem && !multiSelect.isItemSelected('study', activeStudyId)) {
-				// Select the active study
-				multiSelect.selectedItems = [{
-					type: 'study',
-					id: activeStudyId,
-					data: studyItem.data,
-					index: studyItem.index
-				}];
-				multiSelect.lastSelectedIndex = studyItem.index;
-				multiSelect.updateToolbarSelection();
+			// Only auto-select when first arriving at this study (ID changed).
+			// If it's the same study and selection was cleared by user interaction,
+			// do nothing — let the study remain in "active only" (unselected) state.
+			if (activeStudyId !== previousActiveStudyId) {
+				previousActiveStudyId = activeStudyId;
+				const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
+				const studyItem = flatList.find(item => item.type === 'study' && item.id === activeStudyId);
+				
+				if (studyItem) {
+					// Select the active study
+					multiSelect.selectedItems = [{
+						type: 'study',
+						id: activeStudyId,
+						data: studyItem.data,
+						index: studyItem.index
+					}];
+					multiSelect.lastSelectedIndex = studyItem.index;
+					multiSelect.updateToolbarSelection();
+				}
 			}
 		} else {
 			// Clear selection when no active item (e.g., on dashboard)
+			previousActiveStudyId = null;
 			if (multiSelect.selectedItems.length > 0) {
 				multiSelect.clearSelection();
 			}
+		}
+	});
+
+	/**
+	 * Clear Finder study selection when the user activates a connection or segment
+	 * inside the study content. This transitions the study from "selected" (blue)
+	 * to "active only" (gray) so the Delete button targets the connection/heading/note
+	 * rather than the study itself.
+	 */
+	$effect(() => {
+		if (($toolbarState.hasActiveSegment || $toolbarState.hasActiveConnection)
+			&& multiSelect.selectedItems.length > 0) {
+			multiSelect.clearSelection();
 		}
 	});
 
@@ -390,7 +424,6 @@
 								href="/study/{study.id}/analyze"
 								isActive={study.id === activeStudyId}
 								{formatPassageReference}
-								onClick={() => setStudiesPanelOpen(false)}
 							/>
 						</li>
 					{/each}

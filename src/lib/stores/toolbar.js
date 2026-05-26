@@ -78,6 +78,8 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canRemoveConnection - Whether Remove Connection button should be enabled
  * @property {boolean} hasActiveConnection - Whether one or more connection lines are currently selected
  * @property {string[]} activeConnectionIds - The IDs of the currently selected connections
+ * @property {boolean} hasActiveHeadingOrNoteEditor - Whether a heading or note editor is in input mode
+ * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
  */
 
 /**
@@ -134,7 +136,9 @@ const defaultState = {
 	canInsertConnection: false,
 	canRemoveConnection: false,
 	hasActiveConnection: false,
-	activeConnectionIds: []
+	activeConnectionIds: [],
+	hasActiveHeadingOrNoteEditor: false,
+	activeHeadingOrNoteType: null
 };
 
 /**
@@ -629,6 +633,21 @@ export function setConnectionButtonStates(canInsert, canRemove) {
 		...state,
 		canInsertConnection: canInsert,
 		canRemoveConnection: canRemove
+	}));
+}
+
+/**
+ * Set whether a heading or note editor is currently in input mode.
+ * Used to enable the Delete button only when the user is actively editing a specific
+ * heading or note. Also tracks which type is active so only that one is deleted.
+ * @param {boolean} isActive - Whether a heading/note editor is in edit mode
+ * @param {string|null} type - Which type is active: 'one', 'two', 'three', 'note', or null
+ */
+export function setHeadingOrNoteEditorActive(isActive, type = null) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasActiveHeadingOrNoteEditor: isActive,
+		activeHeadingOrNoteType: isActive ? type : null
 	}));
 }
 

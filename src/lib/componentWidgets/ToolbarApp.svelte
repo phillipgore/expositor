@@ -148,6 +148,10 @@
 	// Modal state
 	let showDeleteModal = $state(false);
 	let deleteOpenedViaKeyboard = $state(false);
+	// Snapshot of selected items captured at click time, so the document-level
+	// click-outside handler in StudiesPanel can't nullify selectedItem before the
+	// modal renders (Svelte batches both reactive updates in the same tick).
+	let pendingDeleteItem = $state(null);
 
 	// Get toolbar configuration
 	const toolbarConfig = getAppToolbarConfig();
@@ -164,7 +168,8 @@
 		toggleParagraphBreaks,
 		toggleWide,
 		toggleOverview,
-		toggleCommentary
+		toggleCommentary,
+		handleDelete: handleDeleteAction
 	};
 
 	/**
@@ -262,22 +267,56 @@
 	}
 
 	/**
-	 * Handle delete button click
+	 * Handle delete button click from MenuActions (legacy, kept for menu compatibility)
 	 */
 	function handleDeleteClick(viaKeyboard) {
 		if (!$toolbarState.canDelete || !$toolbarState.selectedItem) return;
 		
+		pendingDeleteItem = $toolbarState.selectedItem;
 		deleteOpenedViaKeyboard = viaKeyboard;
 		showDeleteModal = true;
+	}
+
+	/**
+	 * Unified Delete toolbar button handler.
+	 * Determines what is currently active/selected and performs the appropriate deletion:
+	 * 1. Studies selected in panel → show confirmation modal
+	 * 2. Connection selected → dispatch remove-connection event
+	 * 3. Active segment with headings/note → dispatch all applicable remove events
+	 */
+	function handleDeleteAction() {
+		// Priority 1: Studies/groups selected in the panel
+		if ($toolbarState.canDelete && $toolbarState.selectedItem) {
+			// Snapshot selectedItem NOW before the document-level click-outside handler
+			// in StudiesPanel can clear it (both updates are batched in the same Svelte tick).
+			pendingDeleteItem = $toolbarState.selectedItem;
+			deleteOpenedViaKeyboard = false;
+			showDeleteModal = true;
+			return;
+		}
+
+		// Priority 2: Connection is currently selected
+		if ($toolbarState.hasActiveConnection) {
+			window.dispatchEvent(new CustomEvent('remove-connection'));
+			return;
+		}
+
+		// Priority 3: A specific heading or note editor is in input mode — delete only that one
+		if ($toolbarState.hasActiveHeadingOrNoteEditor && $toolbarState.activeHeadingOrNoteType) {
+			const segmentId = $toolbarState.activeSegmentId;
+			const type = $toolbarState.activeHeadingOrNoteType;
+			const eventName = type === 'note' ? 'remove-note' : `remove-heading-${type}`;
+			window.dispatchEvent(new CustomEvent(eventName, { detail: { segmentId } }));
+		}
 	}
 
 	/**
 	 * Handle delete confirmation from modal
 	 */
 	async function handleDeleteConfirm() {
-		if (!$toolbarState.selectedItem) return;
+		if (!pendingDeleteItem) return;
 
-		const { items, count } = $toolbarState.selectedItem;
+		const { items, count } = pendingDeleteItem;
 		
 		// Collect all selected IDs by type
 		const selectedGroupIds = items.filter(i => i.type === 'group').map(i => i.id);
@@ -309,24 +348,10 @@
 			}
 		}
 
-		// Success - close modal and refresh data
+		// Success - close modal, refresh data, and navigate to dashboard
 		showDeleteModal = false;
 		await invalidate('app:studies');
-		
-		// Navigate away if we're on a deleted item's page
-		const currentPath = $page.url.pathname;
-		const deletedIds = items.map(i => i.id);
-		
-		if (currentPath.includes('/study/') || currentPath.includes('/study-group/')) {
-			// Extract the item ID, handling both view and edit pages
-			const pathParts = currentPath.split('/');
-			const lastPart = pathParts[pathParts.length - 1];
-			const currentId = lastPart === 'edit' ? pathParts[pathParts.length - 2] : lastPart;
-			
-			if (deletedIds.includes(currentId)) {
-				goto('/dashboard');
-			}
-		}
+		goto('/dashboard');
 	}
 
 	/**
@@ -334,6 +359,7 @@
 	 */
 	function handleDeleteModalClose() {
 		showDeleteModal = false;
+		pendingDeleteItem = null;
 	}
 
 	// Update toolbar state when route changes
@@ -434,6 +460,19 @@
 								: false
 						}
 					/>
+				{:else if button.type === 'action'}
+					<IconButton
+						iconId={button.iconId}
+						underLabel={button.underLabel}
+						classes={button.classes}
+						underLabelClasses={button.underLabelClasses}
+						handleClick={button.actionHandler ? handlers[button.actionHandler] : undefined}
+						isDisabled={
+							button.disabledCheck
+								? button.disabledCheck($toolbarState)
+								: false
+						}
+					/>
 				{/if}
 			{/each}
 		{/if}
@@ -457,7 +496,7 @@
 <!-- Delete Confirmation Modal -->
 <DeleteConfirmationModal
 	isOpen={showDeleteModal}
-	selectedItem={$toolbarState.selectedItem}
+	selectedItem={pendingDeleteItem}
 	onConfirm={handleDeleteConfirm}
 	onClose={handleDeleteModalClose}
 	openedViaKeyboard={deleteOpenedViaKeyboard}
