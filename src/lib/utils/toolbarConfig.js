@@ -53,13 +53,7 @@ export function getAppToolbarConfig() {
 					underLabelClasses: 'light',
 					activeStateProp: 'studiesPanelOpen',
 					toggleHandler: 'toggleStudiesPanel'
-				}
-			]
-		},
-		{
-			type: 'section',
-			id: 'actions',
-			items: [
+				},
 				{
 					type: 'menu',
 					iconId: 'book',
@@ -67,7 +61,17 @@ export function getAppToolbarConfig() {
 					underLabel: 'Studies',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
-				},
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
+			id: 'actions',
+			items: [
 				{
 					type: 'action',
 					iconId: 'pencil',
@@ -76,36 +80,7 @@ export function getAppToolbarConfig() {
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledStateProp: 'canEdit'
-				}
-			]
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
-		},
-		{
-			type: 'section',
-			id: 'zoom',
-			items: [
-				{
-					type: 'menu',
-					menuId: 'MenuZoom',
-					underLabel: 'Zoom',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					dynamicLabel: true, // Indicates label comes from state
-					disabledStateProp: 'canZoom'
-				}
-			]
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
-		},
-		{
-			type: 'section',
-			id: 'delete',
-			items: [
+				},
 				{
 					type: 'action',
 					iconId: 'trashcan',
@@ -178,7 +153,7 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'menu',
-					iconId: 'glasses',
+					iconId: 'eye',
 					menuId: 'MenuView',
 					underLabel: 'View',
 					classes: 'toolbar-dark',
@@ -198,6 +173,25 @@ export function getAppToolbarConfig() {
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledCheck: (state) => !state.canToggleWide
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
+			id: 'zoom',
+			items: [
+				{
+					type: 'menu',
+					menuId: 'MenuZoom',
+					underLabel: 'Zoom',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					dynamicLabel: true, // Indicates label comes from state
+					disabledStateProp: 'canZoom'
 				}
 			]
 		},
