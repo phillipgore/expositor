@@ -149,30 +149,27 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'section',
-			id: 'view',
+			id: 'reading-aids',
 			items: [
 				{
-					type: 'menu',
-					iconId: 'eye',
-					menuId: 'MenuView',
-					underLabel: 'View',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light'
-				}
-			]
-		},
-		{
-			type: 'section',
-			id: 'text',
-			items: [
-				{
-					type: 'menu',
-					iconId: 'text',
-					menuId: 'MenuText',
-					underLabel: 'Text',
+					type: 'toggle',
+					iconId: 'compare',
+					underLabel: 'Compare',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledCheck: (state) => !state.canToggleWide
+					activeStateProp: 'comparisonsVisible',
+					toggleHandler: 'toggleComparison',
+					disabledStateProp: 'canToggleComparison'
+				},
+				{
+					type: 'toggle',
+					iconId: 'commentary',
+					underLabel: 'Comment',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					activeStateProp: 'commentaryPanelOpen',
+					toggleHandler: 'toggleCommentary',
+					disabledStateProp: 'canToggleComment'
 				}
 			]
 		},
@@ -182,8 +179,16 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'section',
-			id: 'zoom',
+			id: 'view',
 			items: [
+				{
+					type: 'menu',
+					iconId: 'eye',
+					menuId: 'MenuView',
+					underLabel: 'View',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light'
+				},
 				{
 					type: 'menu',
 					menuId: 'MenuZoom',

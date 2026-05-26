@@ -64,7 +64,6 @@
 	import MenuOutline from '$lib/componentWidgets/menus/MenuOutline.svelte';
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
-	import MenuText from '$lib/componentWidgets/menus/MenuText.svelte';
 	import MenuView from '$lib/componentWidgets/menus/MenuView.svelte';
 	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
@@ -461,7 +460,6 @@
 <MenuStructure menuId="MenuStructure" />
 <MenuOutline menuId="MenuOutline" />
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
-<MenuText menuId="MenuText" />
 <MenuView menuId="MenuView" />
 <MenuSettings menuId="MenuSettings" alignment="end" />
 <MenuActions 

@@ -80,20 +80,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="connect"
-		label="Insert Connection"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('insert-connection'));
-		}}
-		isDisabled={!$toolbarState.canInsertConnection}
-	/>
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
 		iconId="note"
 		label="Insert Quick Note"
 		role="menuitem"
@@ -107,6 +93,20 @@
 			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasNote}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect"
+		label="Insert Connection"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('insert-connection'));
+		}}
+		isDisabled={!$toolbarState.canInsertConnection}
 	/>
 
 </Menu>

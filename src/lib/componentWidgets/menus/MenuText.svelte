@@ -15,7 +15,7 @@
 	 * 
 	 * Usage:
 	 * ```svelte
-	 * <MenuButton menuId="MenuText" iconId="text" underLabel="Text" classes="toolbar-dark" />
+	 * <MenuButton menuId="MenuText" iconId="scroll" underLabel="Passage" classes="toolbar-dark" />
 	 * <MenuText menuId="MenuText" />
 	 * ```
 	 * 
