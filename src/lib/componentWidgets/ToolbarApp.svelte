@@ -169,7 +169,8 @@
 		toggleWide,
 		toggleOverview,
 		toggleCommentary,
-		handleDelete: handleDeleteAction
+		handleDelete: handleDeleteAction,
+		handleEdit: handleEditClick
 	};
 
 	/**
@@ -444,7 +445,9 @@
 						isDisabled={
 							button.disabledCheck
 								? button.disabledCheck($toolbarState)
-								: false
+								: button.disabledStateProp
+									? !$toolbarState[button.disabledStateProp]
+									: false
 						}
 					/>
 				{/if}
@@ -463,7 +466,6 @@
 	menuId="MenuActions" 
 	{groups}
 	onMoveToGroup={handleMoveToGroup}
-	onEdit={handleEditClick}
 	onDelete={handleDeleteClick}
 />
 

@@ -67,6 +67,15 @@ export function getAppToolbarConfig() {
 					underLabel: 'Studies',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
+				},
+				{
+					type: 'action',
+					iconId: 'pencil',
+					actionHandler: 'handleEdit',
+					underLabel: 'Edit',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledStateProp: 'canEdit'
 				}
 			]
 		},
@@ -91,7 +100,40 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
+			id: 'delete',
+			items: [
+				{
+					type: 'action',
+					iconId: 'trashcan',
+					actionHandler: 'handleDelete',
+					underLabel: 'Delete',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledCheck: (state) => {
+						// Enabled only when something that CAN be deleted is active:
+						// 1. Studies or groups selected in the Finder
+						const hasStudiesDelete = state.canDelete && state.selectedItem !== null;
+						// 2. A connection line is actively selected (not just canRemoveConnection)
+						const hasConnectionDelete = state.hasActiveConnection;
+						// 3. The user has clicked inside a heading or note to edit it
+						//    (segment/column/section being active alone is not enough)
+						const hasSegmentDelete = state.hasActiveHeadingOrNoteEditor;
+						return !hasStudiesDelete && !hasConnectionDelete && !hasSegmentDelete;
+					}
+				}
+			]
+		},
+		{
+			type: 'spacer',
 			variant: 'flex',
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
 		},
 		{
 			type: 'section',
@@ -123,35 +165,6 @@ export function getAppToolbarConfig() {
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledCheck: (state) => !state.canColor || state.overviewMode
-				}
-			]
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
-		},
-		{
-			type: 'section',
-			id: 'delete',
-			items: [
-				{
-					type: 'action',
-					iconId: 'trashcan',
-					actionHandler: 'handleDelete',
-					underLabel: 'Delete',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					disabledCheck: (state) => {
-						// Enabled only when something that CAN be deleted is active:
-						// 1. Studies or groups selected in the Finder
-						const hasStudiesDelete = state.canDelete && state.selectedItem !== null;
-						// 2. A connection line is actively selected (not just canRemoveConnection)
-						const hasConnectionDelete = state.hasActiveConnection;
-						// 3. The user has clicked inside a heading or note to edit it
-						//    (segment/column/section being active alone is not enough)
-						const hasSegmentDelete = state.hasActiveHeadingOrNoteEditor;
-						return !hasStudiesDelete && !hasConnectionDelete && !hasSegmentDelete;
-					}
 				}
 			]
 		},

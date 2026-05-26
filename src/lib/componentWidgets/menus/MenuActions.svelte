@@ -40,8 +40,8 @@
 	import { wouldCreateCircularNesting } from '$lib/utils/groupHierarchy.js';
 	import { flattenGroupsForMenu } from '$lib/utils/groupFlattening.js';
 
-	/** @type {{ menuId: string, groups: Array, onMoveToGroup: Function, onEdit: Function, onDelete: Function }} Props */
-	let { menuId, groups = [], onMoveToGroup, onEdit, onDelete } = $props();
+	/** @type {{ menuId: string, groups: Array, onMoveToGroup: Function, onDelete: Function }} Props */
+	let { menuId, groups = [], onMoveToGroup, onDelete } = $props();
 
 	let showMoveToModal = $state(false);
 
@@ -104,21 +104,6 @@
 			goto('/new-study-group');
 		}
 	};
-
-	/**
-	 * Handle edit click
-	 */
-	function handleEditClick() {
-		// Close the menu
-		const menu = document.getElementById(menuId);
-		if (menu && menu.matches(':popover-open')) {
-			menu.hidePopover();
-		}
-		
-		if (onEdit) {
-			onEdit();
-		}
-	}
 
 	/**
 	 * Handle move to group click
@@ -235,17 +220,6 @@
 		role="menuitem"
 		handleClick={() => handleNewGroup(selectedGroup.id)}
 		isDisabled={!selectedGroup}
-	/>
-	
-	<DividerHorizontal />
-	
-	<IconButton
-		iconId="pencil"
-		label="Edit Selected"
-		classes="menu-light justify-content-left"
-		role="menuitem"
-		handleClick={handleEditClick}
-		isDisabled={!$toolbarState.canEdit}
 	/>
 	
 	<DividerHorizontal />
