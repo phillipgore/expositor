@@ -42,6 +42,7 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} canToggleWide - Whether Wide layout toggle should be enabled
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
  * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
+ * @property {boolean} isStudyRoute - Whether the current route is a study/document route
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
  * @property {boolean} canStructure - Whether Structure menu should be enabled
  * @property {boolean} canHeading - Whether Headings menu should be enabled
@@ -101,6 +102,7 @@ const defaultState = {
 	canToggleWide: false,
 	canToggleOverview: false,
 	canSwitchMode: false,
+	isStudyRoute: false,
 	canZoom: false,
 	canStructure: false,
 	canHeading: false,
@@ -174,6 +176,7 @@ export function updateToolbarForRoute(pathname) {
 		if (isDocumentRoute) {
 			return {
 				...state,
+				isStudyRoute: true,
 				canFormat: true,
 				canToggleConnections: true,
 				canToggleHeadings: true,
@@ -201,6 +204,7 @@ export function updateToolbarForRoute(pathname) {
 	if (isStudyGroupRoute) {
 		return {
 			...state,
+			isStudyRoute: false,
 			canFormat: false,
 			canToggleComparison: false,
 			canToggleConnections: false,
@@ -227,6 +231,7 @@ export function updateToolbarForRoute(pathname) {
 	if (isSettingsRoute || isNewRoute) {
 		return {
 			...state,
+			isStudyRoute: false,
 			canFormat: false,
 			canToggleComparison: false,
 			canToggleConnections: false,
@@ -518,7 +523,8 @@ export function setSelectedItem(selection) {
 		selectedItem: selection,
 		canEdit: selection !== null && selection.count > 0,
 		canDelete: selection !== null && selection.count > 0,
-		canSwitchMode: selection !== null && selection.hasStudies
+		// Enabled if a study is selected OR if a study route is currently active
+		canSwitchMode: state.isStudyRoute || (selection !== null && selection.hasStudies)
 	}));
 }
 
@@ -531,7 +537,8 @@ export function clearSelectedItem() {
 		selectedItem: null,
 		canEdit: false,
 		canDelete: false,
-		canSwitchMode: false
+		// Keep enabled if a study route is currently active (study open but nothing selected)
+		canSwitchMode: state.isStudyRoute
 	}));
 }
 
