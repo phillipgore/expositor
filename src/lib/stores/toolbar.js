@@ -54,7 +54,10 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} commentaryPanelOpen - Whether the commentary panel is open
  * @property {boolean} comparisonsVisible - Whether comparisons are visible
  * @property {boolean} headingsVisible - Whether headings are visible in segments
- * @property {boolean} connectionsVisible - Whether connections are visible
+ * @property {boolean} connectionsVisible - Whether connections are visible (master toggle)
+ * @property {boolean} columnConnectionsVisible - Whether column connections are visible
+ * @property {boolean} sectionConnectionsVisible - Whether section connections are visible
+ * @property {boolean} segmentConnectionsVisible - Whether segment connections are visible
  * @property {boolean} notesVisible - Whether quick notes are visible in segments
  * @property {boolean} referencesVisible - Whether scripture references are visible in headings
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
@@ -114,7 +117,10 @@ const defaultState = {
 	commentaryPanelOpen: false,
 	headingsVisible: true,
 	comparisonsVisible: false,
-		connectionsVisible: true,
+	columnConnectionsVisible: true,
+	sectionConnectionsVisible: true,
+	segmentConnectionsVisible: true,
+	connectionsVisible: true,
 	notesVisible: true,
 	referencesVisible: false,
 	versesVisible: false,
@@ -409,13 +415,68 @@ export function toggleHeadings() {
 }
 
 /**
- * Toggle connections visibility
+ * Toggle all connections visibility (master toggle).
+ * When turning off: unchecks all three individual types.
+ * When turning on: checks all three individual types.
+ * connectionsVisible is true only when ALL three individual types are on.
  */
 export function toggleConnections() {
-	toolbarStateStore.update(state => ({
-		...state,
-		connectionsVisible: !state.connectionsVisible
-	}));
+	toolbarStateStore.update(state => {
+		// If all three are on, turn everything off; otherwise turn everything on
+		const newValue = !state.connectionsVisible;
+		return {
+			...state,
+			connectionsVisible: newValue,
+			columnConnectionsVisible: newValue,
+			sectionConnectionsVisible: newValue,
+			segmentConnectionsVisible: newValue
+		};
+	});
+}
+
+/**
+ * Toggle column connections visibility.
+ * Auto-updates the master connectionsVisible based on whether all three are now on.
+ */
+export function toggleColumnConnections() {
+	toolbarStateStore.update(state => {
+		const newCol = !state.columnConnectionsVisible;
+		return {
+			...state,
+			columnConnectionsVisible: newCol,
+			connectionsVisible: newCol && state.sectionConnectionsVisible && state.segmentConnectionsVisible
+		};
+	});
+}
+
+/**
+ * Toggle section connections visibility.
+ * Auto-updates the master connectionsVisible based on whether all three are now on.
+ */
+export function toggleSectionConnections() {
+	toolbarStateStore.update(state => {
+		const newSec = !state.sectionConnectionsVisible;
+		return {
+			...state,
+			sectionConnectionsVisible: newSec,
+			connectionsVisible: state.columnConnectionsVisible && newSec && state.segmentConnectionsVisible
+		};
+	});
+}
+
+/**
+ * Toggle segment connections visibility.
+ * Auto-updates the master connectionsVisible based on whether all three are now on.
+ */
+export function toggleSegmentConnections() {
+	toolbarStateStore.update(state => {
+		const newSeg = !state.segmentConnectionsVisible;
+		return {
+			...state,
+			segmentConnectionsVisible: newSeg,
+			connectionsVisible: state.columnConnectionsVisible && state.sectionConnectionsVisible && newSeg
+		};
+	});
 }
 
 /**

@@ -52,6 +52,20 @@
 	let paths = $state([]);
 
 	/**
+	 * Paths filtered by individual connection type visibility.
+	 * Cross-type connections (dashdot) are always shown when the master toggle is on.
+	 * @type {PathEntry[]}
+	 */
+	let visiblePaths = $derived(
+		paths.filter(path => {
+			if (path.lineStyle === 'solid')  return $toolbarState.segmentConnectionsVisible;
+			if (path.lineStyle === 'dashed') return $toolbarState.sectionConnectionsVisible;
+			if (path.lineStyle === 'dotted') return $toolbarState.columnConnectionsVisible;
+			return true; // dashdot (cross-type) always shown when master is on
+		})
+	);
+
+	/**
 	 * Active drag state.
 	 * @type {{
 	 *   connectionId: string,
@@ -552,9 +566,19 @@
 		}
 	});
 
-	// Deselect when the user hides all connections via the toolbar button
+	// Deselect when the user hides connections via the toolbar (master or individual type)
 	$effect(() => {
-		if (!$toolbarState.connectionsVisible && selectedPathIds.size > 0) {
+		if (selectedPathIds.size === 0) return;
+		// Deselect if any selected paths are now hidden by a type toggle
+		const hasHiddenSelected = [...selectedPathIds].some(id => {
+			const path = paths.find(p => p.id === id);
+			if (!path) return false;
+			if (path.lineStyle === 'solid')  return !$toolbarState.segmentConnectionsVisible;
+			if (path.lineStyle === 'dashed') return !$toolbarState.sectionConnectionsVisible;
+			if (path.lineStyle === 'dotted') return !$toolbarState.columnConnectionsVisible;
+			return false;
+		});
+		if (hasHiddenSelected) {
 			selectedPathIds = new Set();
 			setActiveConnection(false, []);
 		}
@@ -566,6 +590,9 @@
 		const _conn       = connections;
 		const _scale      = scale;
 		const _visible    = $toolbarState.connectionsVisible;
+		const _colVis     = $toolbarState.columnConnectionsVisible;
+		const _secVis     = $toolbarState.sectionConnectionsVisible;
+		const _segVis     = $toolbarState.segmentConnectionsVisible;
 		const _studies    = $toolbarState.studiesPanelOpen;
 		const _comment    = $toolbarState.commentaryPanelOpen;
 		const _wide       = $toolbarState.wideLayout;
@@ -610,7 +637,7 @@
 <svg
 	bind:this={svgElement}
 	class="connections-overlay"
-	class:connections-overlay--hidden={!$toolbarState.connectionsVisible}
+	class:connections-overlay--hidden={!$toolbarState.columnConnectionsVisible && !$toolbarState.sectionConnectionsVisible && !$toolbarState.segmentConnectionsVisible}
 	class:connections-overlay--dragging={!!drag}
 	aria-hidden="true"
 	focusable="false"
@@ -680,7 +707,7 @@
 	{/snippet}
 
 	<!-- Pass 1: lines + hit-targets -->
-	{#each paths as path (path.id)}
+	{#each visiblePaths as path (path.id)}
 		<path
 			class="connection-path"
 			class:connection-path--dashed={path.lineStyle === 'dashed'}
@@ -703,14 +730,14 @@
 	{/each}
 
 	<!-- Pass 2: non-active nodes -->
-	{#each paths as path (path.id)}
+	{#each visiblePaths as path (path.id)}
 		{#if path.id !== hoveredPathId && !selectedPathIds.has(path.id)}
 			{@render endpointNodes(path, false)}
 		{/if}
 	{/each}
 
 	<!-- Pass 3: active nodes — rendered last so always on top -->
-	{#each paths as path (path.id)}
+	{#each visiblePaths as path (path.id)}
 		{#if path.id === hoveredPathId || selectedPathIds.has(path.id)}
 			{@render endpointNodes(path, true)}
 		{/if}

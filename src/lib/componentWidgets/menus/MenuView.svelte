@@ -30,6 +30,9 @@
 		toggleHeadings,
 		toggleNotes,
 		toggleConnections,
+		toggleColumnConnections,
+		toggleSectionConnections,
+		toggleSegmentConnections,
 		toggleReferences,
 		toggleVerses,
 		toggleParagraphBreaks,
@@ -53,10 +56,31 @@
 		onToggle={toggleNotes}
 		isDisabled={!$toolbarState.canToggleNotes}
 	/>
+
+	<DividerHorizontal />
+
 	<MenuToggleItem
-		label="Connections"
+		label="All Connections"
 		isActive={$toolbarState.connectionsVisible}
 		onToggle={toggleConnections}
+		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Column Connections"
+		isActive={$toolbarState.columnConnectionsVisible}
+		onToggle={toggleColumnConnections}
+		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Section Connections"
+		isActive={$toolbarState.sectionConnectionsVisible}
+		onToggle={toggleSectionConnections}
+		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Segment Connections"
+		isActive={$toolbarState.segmentConnectionsVisible}
+		onToggle={toggleSegmentConnections}
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 
