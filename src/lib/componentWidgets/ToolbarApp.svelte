@@ -64,7 +64,7 @@
 	import MenuOutline from '$lib/componentWidgets/menus/MenuOutline.svelte';
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
-	import MenuView from '$lib/componentWidgets/menus/MenuView.svelte';
+	import MenuText from '$lib/componentWidgets/menus/MenuText.svelte';
 	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
@@ -367,32 +367,6 @@
 		updateToolbarForRoute($page.url.pathname);
 	});
 
-	// Close MenuView when screen becomes wider than 99.0rem
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-
-		const mediaQuery = window.matchMedia('(min-width: 99.1rem)');
-		
-		const handleResize = (e) => {
-			if (e.matches) {
-				// Screen is wider than 99.0rem - close MenuView if open
-				const menuView = document.getElementById('MenuView');
-				if (menuView && menuView.matches(':popover-open')) {
-					menuView.hidePopover();
-				}
-			}
-		};
-
-		// Check initial state
-		handleResize(mediaQuery);
-
-		// Listen for changes
-		mediaQuery.addEventListener('change', handleResize);
-
-		return () => {
-			mediaQuery.removeEventListener('change', handleResize);
-		};
-	});
 </script>
 
 <Toolbar classes="dark" position="sticky" zIndex="1000">
@@ -483,8 +457,8 @@
 <MenuStructure menuId="MenuStructure" />
 <MenuOutline menuId="MenuOutline" />
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
+<MenuText menuId="MenuText" />
 <MenuSettings menuId="MenuSettings" alignment="end" />
-<MenuView menuId="MenuView" />
 <MenuActions 
 	menuId="MenuActions" 
 	{groups}

@@ -23,12 +23,12 @@
 	let itemFocused = $state(false);
 
 	/**
-	 * Get all focusable menu items (buttons with role="menuitem")
+	 * Get all focusable menu items (buttons with role="menuitem" or role="menuitemcheckbox")
 	 * Excludes dividers and other non-interactive elements
 	 */
 	function getMenuItems() {
 		if (!menuElement) return [];
-		return Array.from(menuElement.querySelectorAll('[role="menuitem"]'));
+		return Array.from(menuElement.querySelectorAll('[role="menuitem"], [role="menuitemcheckbox"]'));
 	}
 
 	/**

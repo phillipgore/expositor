@@ -78,6 +78,7 @@
 	 * @property {string} [ariaLabel] - Accessible label for screen readers. Required if no visible label
 	 * @property {'true' | 'false' | 'mixed'} [ariaPressed] - ARIA pressed state for toggle buttons
 	 * @property {'true' | 'false'} [ariaExpanded] - ARIA expanded state for disclosure buttons
+	 * @property {'true' | 'false' | 'mixed'} [ariaChecked] - ARIA checked state for checkbox/menuitemcheckbox roles
 	 * @property {'true' | 'false' | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'} [ariaHaspopup] - ARIA haspopup indicator for buttons that open popups
 	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API). Only used for buttons
 	 * @property {string} [style] - Inline CSS styles for the element
@@ -107,6 +108,7 @@
 		ariaLabel,
 		ariaPressed,
 		ariaExpanded,
+		ariaChecked,
 		ariaHaspopup,
 		popovertarget,
 		style,
@@ -278,7 +280,7 @@
 	<button
 		bind:this={buttonElement}
 		use:tooltip
-		tabindex={role === 'menuitem' ? -1 : 0}
+		tabindex={role === 'menuitem' || role === 'menuitemcheckbox' ? -1 : 0}
 		{id}
 		{type}
 		{style}
@@ -295,6 +297,7 @@
 		aria-label={ariaLabel}
 		aria-pressed={ariaPressed}
 		aria-expanded={ariaExpanded}
+		aria-checked={ariaChecked}
 		aria-haspopup={ariaHaspopup}
 		popovertarget={popovertarget}
 	>

@@ -68,30 +68,3 @@ body {
 	border: 0;
 }
 
-/* Responsive toolbar utilities */
-/* Hide buttons at narrow widths (≤99.0rem) */
-@media (max-width: 960px) {
-	.hide-at-narrower {
-		display: none !important;
-	}
-}
-
-/* Show buttons only at narrow widths (≤99.0rem) */
-@media (min-width: 961px) {
-	.show-at-narrower {
-		display: none !important;
-	}
-}
-
-@media (max-width: 1024px) {
-	.hide-at-narrow {
-		display: none !important;
-	}
-}
-
-/* Show buttons only at narrow widths (≤99.0rem) */
-@media (min-width: 1025px) {
-	.show-at-narrow {
-		display: none !important;
-	}
-}

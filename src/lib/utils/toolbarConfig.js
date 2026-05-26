@@ -91,21 +91,7 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'fixed',
-			classes: 'hide-at-narrower'
-		},
-		{
-			type: 'spacer',
 			variant: 'flex',
-			classes: 'show-at-narrower'
-		},
-		{
-			type: 'spacer',
-			variant: 'flex'
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
 		},
 		{
 			type: 'section',
@@ -175,24 +161,14 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'section',
-			id: 'toggles',
+			id: 'toggles-annotations',
 			items: [
-				{
-					type: 'toggle',
-					iconId: 'compare',
-					underLabel: 'Compare',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
-					activeStateProp: 'comparisonsVisible',
-					toggleHandler: 'toggleComparison',
-					disabledStateProp: 'canToggleComparison'
-				},
 				{
 					type: 'toggle',
 					iconId: 'headings',
 					underLabel: 'Headings',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
 					activeStateProp: 'headingsVisible',
 					toggleHandler: 'toggleHeadings',
 					disabledCheck: (state) => !state.canToggleHeadings || state.overviewMode
@@ -201,8 +177,8 @@ export function getAppToolbarConfig() {
 					type: 'toggle',
 					iconId: 'note',
 					underLabel: 'Notes',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
 					activeStateProp: 'notesVisible',
 					toggleHandler: 'toggleNotes',
 					disabledStateProp: 'canToggleNotes'
@@ -211,18 +187,38 @@ export function getAppToolbarConfig() {
 					type: 'toggle',
 					iconId: 'connect',
 					underLabel: 'Connections',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
 					activeStateProp: 'connectionsVisible',
 					toggleHandler: 'toggleConnections',
 					disabledCheck: (state) => !state.canToggleConnections || state.overviewMode
+				}
+			]
+		},
+		{
+			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
+			id: 'toggles-view',
+			items: [
+				{
+					type: 'toggle',
+					iconId: 'compare',
+					underLabel: 'Compare',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					activeStateProp: 'comparisonsVisible',
+					toggleHandler: 'toggleComparison',
+					disabledStateProp: 'canToggleComparison'
 				},
 				{
 					type: 'toggle',
 					iconId: 'commentary',
 					underLabel: 'Commentary',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
 					activeStateProp: 'commentaryPanelOpen',
 					toggleHandler: 'toggleCommentary',
 					disabledCheck: (state) => !state.canToggleComment || state.overviewMode
@@ -231,68 +227,22 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'flex',
-			classes: 'hide-at-narrow'
+			variant: 'fixed',
 		},
 		{
 			type: 'section',
-			id: 'toggles',
+			id: 'text',
 			items: [
 				{
-					type: 'toggle',
-					iconId: 'bookmark',
-					underLabel: 'Reference',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
-					activeStateProp: 'referencesVisible',
-					toggleHandler: 'toggleReferences',
-				},
-			{
-				type: 'toggle',
-				iconId: 'reference',
-				underLabel: 'Notation',
-				classes: 'toolbar-dark hide-at-narrow',
-				underLabelClasses: 'light hide-at-narrow',
-				activeStateProp: 'versesVisible',
-				toggleHandler: 'toggleVerses',
-				disabledCheck: (state) => !state.canToggleVerses || state.overviewMode
-			},
-			{
-				type: 'toggle',
-				iconId: 'paragraph',
-				underLabel: 'Paragraphs',
-				classes: 'toolbar-dark hide-at-narrow',
-				underLabelClasses: 'light hide-at-narrow',
-				activeStateProp: 'paragraphBreaksVisible',
-				toggleHandler: 'toggleParagraphBreaks',
-				disabledCheck: (state) => !state.canToggleParagraphBreaks || state.overviewMode
-			},
-			{
-				type: 'toggle',
-				iconId: 'wide',
-					underLabel: 'Wide',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
-					activeStateProp: 'wideLayout',
-					toggleHandler: 'toggleWide',
-					disabledStateProp: 'canToggleWide'
-				},
-				{
-					type: 'toggle',
-					iconId: 'binoculars',
-					underLabel: 'Overview',
-					classes: 'toolbar-dark hide-at-narrow',
-					underLabelClasses: 'light hide-at-narrow',
-					activeStateProp: 'overviewMode',
-					toggleHandler: 'toggleOverview',
-					disabledStateProp: 'canToggleOverview'
+					type: 'menu',
+					iconId: 'text',
+					menuId: 'MenuText',
+					underLabel: 'Text',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledCheck: (state) => !state.canToggleWide
 				}
 			]
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
-			classes: 'hide-at-narrow'
 		},
 		{
 			type: 'spacer',
