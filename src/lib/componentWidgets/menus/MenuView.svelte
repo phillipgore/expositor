@@ -2,84 +2,67 @@
 	/**
 	 * MenuView Component
 	 * 
-	 * View management menu for controlling document display options.
-	 * Provides toggles for Notes, Verses, Wide layout, and Overview modes.
-	 * This menu appears on narrow screens (≤99.0rem) as a consolidated
-	 * alternative to individual toolbar buttons.
+	 * View overlay toggles for controlling which annotations and panels are visible
+	 * on the passage. Provides persistent toggle items that keep the menu open so
+	 * the user can enable or disable multiple options in a single session.
+	 * 
+	 * Items:
+	 * - Headings    — shows heading annotations on segments
+	 * - Notes       — shows note annotations on segments
+	 * - Connections — shows connection lines between segments
+	 * - Compare     — shows translation comparison alongside the passage
+	 * - Commentary  — opens the commentary side panel
 	 * 
 	 * Usage:
-	 * ```
-	 * <MenuButton menuId="MenuView" iconId="outline-bulleted" label="View" />
+	 * ```svelte
+	 * <MenuButton menuId="MenuView" iconId="glasses" underLabel="View" classes="toolbar-dark" />
 	 * <MenuView menuId="MenuView" />
 	 * ```
 	 * 
 	 * Props:
 	 * - menuId (string, default: 'MenuView') - Unique identifier for the menu
-	 * 
-	 * Features:
-	 * - Toggle Notes display
-	 * - Toggle Verses display
-	 * - Toggle Wide layout
-	 * - Toggle Overview mode
 	 */
 
-	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
-	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
-	import { toolbarState, toggleNotes, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview } from '$lib/stores/toolbar.js';
+	import MenuToggleItem from '$lib/componentElements/buttons/MenuToggleItem.svelte';
+	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
+	import { toolbarState, toggleHeadings, toggleNotes, toggleConnections, toggleComparison, toggleCommentary } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuView' } = $props();
-
-	function closeMenu() {
-		const menuElement = document.getElementById(menuId);
-		if (menuElement) {
-			menuElement.hidePopover();
-		}
-	}
 </script>
 
-<Menu {menuId} ariaLabel="View options menu">
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note"
-		label="Notes"
-		role="menuitem"
-		handleClick={() => { toggleNotes(); closeMenu(); }}
+<Menu {menuId} ariaLabel="View options">
+	<MenuToggleItem
+		label="Headings"
+		isActive={$toolbarState.headingsVisible}
+		onToggle={toggleHeadings}
+		isDisabled={!$toolbarState.canToggleHeadings || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Quick Notes"
+		isActive={$toolbarState.notesVisible}
+		onToggle={toggleNotes}
 		isDisabled={!$toolbarState.canToggleNotes}
 	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="reference"
-		label="Verses"
-		role="menuitem"
-		handleClick={() => { toggleVerses(); closeMenu(); }}
-		isDisabled={!$toolbarState.canToggleVerses}
-	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="paragraph"
-		label="Paragraphs"
-		role="menuitem"
-		handleClick={() => { toggleParagraphBreaks(); closeMenu(); }}
-		isDisabled={!$toolbarState.canToggleParagraphBreaks}
+	<MenuToggleItem
+		label="Connections"
+		isActive={$toolbarState.connectionsVisible}
+		onToggle={toggleConnections}
+		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 
 	<DividerHorizontal />
 
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="wide"
-		label="Wide"
-		role="menuitem"
-		handleClick={() => { toggleWide(); closeMenu(); }}
-		isDisabled={!$toolbarState.canToggleWide}
+	<MenuToggleItem
+		label="Compare"
+		isActive={$toolbarState.comparisonsVisible}
+		onToggle={toggleComparison}
+		isDisabled={!$toolbarState.canToggleComparison}
 	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="outline-bulleted"
-		label="Overview"
-		role="menuitem"
-		handleClick={() => { toggleOverview(); closeMenu(); }}
-		isDisabled={!$toolbarState.canToggleOverview}
+	<MenuToggleItem
+		label="Commentary"
+		isActive={$toolbarState.commentaryPanelOpen}
+		onToggle={toggleCommentary}
+		isDisabled={!$toolbarState.canToggleComment || $toolbarState.overviewMode}
 	/>
 </Menu>

@@ -170,77 +170,21 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'flex',
-		},
-		{
-			type: 'section',
-			id: 'toggles-annotations',
-			items: [
-				{
-					type: 'toggle',
-					iconId: 'headings',
-					underLabel: 'Headings',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					activeStateProp: 'headingsVisible',
-					toggleHandler: 'toggleHeadings',
-					disabledCheck: (state) => !state.canToggleHeadings || state.overviewMode
-				},
-				{
-					type: 'toggle',
-					iconId: 'note',
-					underLabel: 'Notes',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					activeStateProp: 'notesVisible',
-					toggleHandler: 'toggleNotes',
-					disabledStateProp: 'canToggleNotes'
-				},
-				{
-					type: 'toggle',
-					iconId: 'connect',
-					underLabel: 'Connections',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					activeStateProp: 'connectionsVisible',
-					toggleHandler: 'toggleConnections',
-					disabledCheck: (state) => !state.canToggleConnections || state.overviewMode
-				}
-			]
-		},
-		{
-			type: 'spacer',
 			variant: 'fixed',
 		},
 		{
 			type: 'section',
-			id: 'toggles-view',
+			id: 'view',
 			items: [
 				{
-					type: 'toggle',
-					iconId: 'compare',
-					underLabel: 'Compare',
+					type: 'menu',
+					iconId: 'glasses',
+					menuId: 'MenuView',
+					underLabel: 'View',
 					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					activeStateProp: 'comparisonsVisible',
-					toggleHandler: 'toggleComparison',
-					disabledStateProp: 'canToggleComparison'
-				},
-				{
-					type: 'toggle',
-					iconId: 'commentary',
-					underLabel: 'Commentary',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					activeStateProp: 'commentaryPanelOpen',
-					toggleHandler: 'toggleCommentary',
-					disabledCheck: (state) => !state.canToggleComment || state.overviewMode
+					underLabelClasses: 'light'
 				}
 			]
-		},
-		{
-			type: 'spacer',
-			variant: 'fixed',
 		},
 		{
 			type: 'section',
@@ -280,7 +224,7 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'spacer',
-			variant: 'flex'
+			variant: 'fixed'
 		},
 		{
 			type: 'section',
