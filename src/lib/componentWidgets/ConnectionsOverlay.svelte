@@ -12,11 +12,12 @@
 	 *   Mixed    → dash-dot line                        – · – ·
 	 *
 	 * Anchor points:
-	 *   Column  → top edge, 1/3 of the way across (horizontally)
-	 *   Section → top edge, 2/3 of the way across (horizontally)
+	 *   Column  → top edge, centered horizontally (1/2 across)
+	 *   Section → bottom edge, centered horizontally (1/2 across)
 	 *   Segment → left or right side edge, 1/2 of the way down (vertically)
 	 *
-	 * Column and section anchors exit from the top (bezier control points droop downward).
+	 * Column anchors exit from the top (bezier control points droop downward).
+	 * Section anchors exit from the bottom (bezier control points extend downward).
 	 * Segment anchors exit from the side (bezier control points extend horizontally).
 	 * Mixed connections blend the two control-point directions.
 	 *
@@ -86,41 +87,26 @@
 	}
 
 	/**
-	 * Returns the horizontal fraction for a section's anchor point.
-	 * The first section in a column exits at 2/3; subsequent sections at 1/2.
-	 * @param {Element} el
-	 * @returns {number}
-	 */
-	function getSectionFraction(el) {
-		const column = el.closest('[data-column-id]');
-		if (!column) return 2 / 3;
-		const firstSection = column.querySelector('.section[data-section-id]');
-		return firstSection === el ? 2 / 3 : 1 / 2;
-	}
-
-	/**
 	 * Get the SVG anchor point for a bounding rect based on connection type and side.
-	 *   Column  → top edge, 1/3 of the way across horizontally (side ignored)
-	 *   Section → top edge, 2/3 across (first section) or 1/2 across (subsequent)
+	 *   Column  → top edge, centered horizontally (side ignored)
+	 *   Section → bottom edge, centered horizontally (side ignored)
 	 *   Segment → left or right side edge, vertically centred (midpoint)
 	 * @param {DOMRect} rect
 	 * @param {ConnType} type
 	 * @param {DOMRect} svgRect
 	 * @param {'left'|'right'} [side]
-	 * @param {Element|null} [el]
 	 * @returns {{ x: number, y: number }}
 	 */
-	function getAnchorPoint(rect, type, svgRect, side = 'left', el = null) {
+	function getAnchorPoint(rect, type, svgRect, side = 'left') {
 		if (type === 'column') {
 			return {
-				x: (rect.left + rect.width / 3 - svgRect.left) / scale,
+				x: (rect.left + rect.width / 2 - svgRect.left) / scale,
 				y: (rect.top - svgRect.top) / scale
 			};
 		} else if (type === 'section') {
-			const fraction = el ? getSectionFraction(el) : 2 / 3;
 			return {
-				x: (rect.left + rect.width * fraction - svgRect.left) / scale,
-				y: (rect.top - svgRect.top) / scale
+				x: (rect.left + rect.width / 2 - svgRect.left) / scale,
+				y: (rect.bottom - svgRect.top) / scale
 			};
 		} else {
 			// segment — side edge, vertical midpoint
@@ -134,10 +120,16 @@
 	}
 
 	/**
-	 * Returns true if the connection type anchors on the top edge (column / section).
+	 * Returns true if the connection type anchors on the top edge (column only).
 	 * @param {ConnType} type
 	 */
-	function isTopAnchor(type) { return type === 'column' || type === 'section'; }
+	function isTopAnchor(type) { return type === 'column'; }
+
+	/**
+	 * Returns true if the connection type anchors on the bottom edge (section only).
+	 * @param {ConnType} type
+	 */
+	function isBottomAnchor(type) { return type === 'section'; }
 
 	// ─── Line style determination ─────────────────────────────────────────────
 
@@ -226,23 +218,28 @@
 			const fromSide = /** @type {'left'|'right'} */ (!sameCol && fromCX > toCX ? 'left' : 'right');
 			const toSide   = /** @type {'left'|'right'} */ (!sameCol && toCX > fromCX ? 'left' : 'right');
 
-			const from = getAnchorPoint(fromRect, fromType, svgRect, fromSide, fromEl);
-			const to   = getAnchorPoint(toRect,   toType,   svgRect, toSide,   toEl);
+			const from = getAnchorPoint(fromRect, fromType, svgRect, fromSide);
+			const to   = getAnchorPoint(toRect,   toType,   svgRect, toSide);
 
-			const fromTop = isTopAnchor(fromType);
-			const toTop   = isTopAnchor(toType);
+			const fromTop    = isTopAnchor(fromType);
+			const toTop      = isTopAnchor(toType);
+			const fromBottom = isBottomAnchor(fromType);
+			const toBottom   = isBottomAnchor(toType);
+			const fromSide2  = !fromTop && !fromBottom;  // segment
+			const toSide2    = !toTop   && !toBottom;    // segment
 
 			const dx = Math.abs(to.x - from.x);
 			const dy = Math.abs(to.y - from.y);
 			let d;
 
 			if (fromTop && toTop) {
+				// Column ↔ Column — both top anchors, arch droops downward
 				if (dy < 5) {
 					// Same horizontal plane — gentle shallow arch drooping downward
 					const curvature = Math.max(10, dx * 0.12);
 					d = `M ${from.x},${from.y} C ${from.x},${from.y + curvature} ${to.x},${to.y + curvature} ${to.x},${to.y}`;
 				} else {
-					// Different heights — S-curve: exit toward the other, arrive from the opposite side
+					// Different heights — S-curve
 					const vCurve = Math.max(20, dy * 0.4);
 					if (from.y < to.y) {
 						// from is higher on page: exit downward, arrive at to from above
@@ -252,8 +249,30 @@
 						d = `M ${from.x},${from.y} C ${from.x},${from.y - vCurve} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
 					}
 				}
-			} else if (!fromTop && !toTop) {
-				// Both segment — very shallow horizontal bezier from side edges
+			} else if (fromBottom && toBottom) {
+				// Section ↔ Section — both bottom anchors, arch extends downward
+				if (dy < 5) {
+					// Same horizontal plane — gentle arch drooping below both bottom edges
+					const curvature = Math.max(10, dx * 0.12);
+					d = `M ${from.x},${from.y} C ${from.x},${from.y + curvature} ${to.x},${to.y + curvature} ${to.x},${to.y}`;
+				} else {
+					// Different heights — S-curve between bottom edges
+					const vCurve = Math.max(20, dy * 0.4);
+					if (from.y < to.y) {
+						// from bottom is higher on page: exit downward, arrive at to from above
+						d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${to.x},${to.y - vCurve} ${to.x},${to.y}`;
+					} else {
+						// from bottom is lower on page: exit upward, arrive at to from below
+						d = `M ${from.x},${from.y} C ${from.x},${from.y - vCurve} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+					}
+				}
+			} else if ((fromTop && toBottom) || (fromBottom && toTop)) {
+				// Column ↔ Section — top anchor to bottom anchor (or vice versa)
+				// Both control points extend downward, creating a flowing arch
+				const vCurve = Math.max(20, Math.max(dy, dx) * 0.35);
+				d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+			} else if (fromSide2 && toSide2) {
+				// Segment ↔ Segment — both side anchors, horizontal bezier
 				if (sameCol) {
 					// Same column: loop out to the right
 					const loopOut = Math.max(16, dy * 0.1);
@@ -264,19 +283,30 @@
 						? `M ${from.x},${from.y} C ${from.x + curvature},${from.y} ${to.x - curvature},${to.y} ${to.x},${to.y}`
 						: `M ${from.x},${from.y} C ${from.x - curvature},${from.y} ${to.x + curvature},${to.y} ${to.x},${to.y}`;
 				}
-			} else {
-				// Mixed: one top-anchored, one side-anchored — blend control-point directions
+			} else if (fromTop && toSide2) {
+				// Column → Segment: top anchor exits downward, segment exits horizontally
 				const vCurve = Math.max(30, dy * 0.4);
 				const hCurve = Math.max(30, dx * 0.4);
-				if (fromTop) {
-					// from exits upward; to exits horizontally
-					const cp2x = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
-					d = `M ${from.x},${from.y} C ${from.x},${from.y - vCurve} ${cp2x},${to.y} ${to.x},${to.y}`;
-				} else {
-					// from exits horizontally; to exits upward
-					const cp1x = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
-					d = `M ${from.x},${from.y} C ${cp1x},${from.y} ${to.x},${to.y - vCurve} ${to.x},${to.y}`;
-				}
+				const cp2x = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
+				d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${cp2x},${to.y} ${to.x},${to.y}`;
+			} else if (fromSide2 && toTop) {
+				// Segment → Column: segment exits horizontally, column arrives from below
+				const vCurve = Math.max(30, dy * 0.4);
+				const hCurve = Math.max(30, dx * 0.4);
+				const cp1x = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
+				d = `M ${from.x},${from.y} C ${cp1x},${from.y} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+			} else if (fromBottom && toSide2) {
+				// Section → Segment: bottom anchor exits downward, segment exits horizontally
+				const vCurve = Math.max(30, dy * 0.4);
+				const hCurve = Math.max(30, dx * 0.4);
+				const cp2x = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
+				d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${cp2x},${to.y} ${to.x},${to.y}`;
+			} else {
+				// Segment → Section: segment exits horizontally, section arrives from below
+				const vCurve = Math.max(30, dy * 0.4);
+				const hCurve = Math.max(30, dx * 0.4);
+				const cp1x = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
+				d = `M ${from.x},${from.y} C ${cp1x},${from.y} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
 			}
 
 			newPaths.push({
@@ -302,7 +332,7 @@
 		/** @type {Handle[]} */
 		const handles = [];
 
-		// Column: single handle at top, 1/3 across — no left/right pair needed
+		// Column: single handle at top-center — no left/right pair needed
 		document.querySelectorAll('.column[data-column-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.columnId;
 			if (!id || id === fixedElementId) return;
@@ -312,13 +342,13 @@
 			handles.push({ elementId: id, type: 'column', side: 'left', x, y });
 		});
 
-		// Section: handle at top, 2/3 across (first in column) or 1/2 across (subsequent)
+		// Section: single handle at bottom-center — no left/right pair needed
 		document.querySelectorAll('.section[data-section-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.sectionId;
 			if (!id || id === fixedElementId) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			const { x, y } = getAnchorPoint(rect, 'section', svgRect, 'left', el);
+			const { x, y } = getAnchorPoint(rect, 'section', svgRect);
 			handles.push({ elementId: id, type: 'section', side: 'left', x, y });
 		});
 
