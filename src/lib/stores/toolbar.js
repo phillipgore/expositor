@@ -202,7 +202,7 @@ export function updateToolbarForRoute(pathname) {
 				canUseStructureItems: true,
 				canUseHeadingItems: true,
 				canUseColorItems: true,
-				commentaryPanelOpen: isAnalyzeRoute ? state.commentaryPanelOpen : false // Close if leaving analyze
+				commentaryPanelOpen: state.commentaryPanelOpen // Preserve across all study routes; only close on non-study pages
 			};
 		}
 
@@ -550,13 +550,43 @@ export function toggleOverview() {
 }
 
 /**
- * Toggle the commentary panel open/closed
+ * Set the commentary panel to a specific open/closed state
+ * @param {boolean} newState - Whether the panel should be open
+ * @returns {Promise<void>}
  */
-export function toggleCommentary() {
+export async function setCommentaryPanelOpen(newState) {
+	const currentState = get(toolbarStateStore);
+
+	// Update local state immediately
 	toolbarStateStore.update(state => ({
 		...state,
-		commentaryPanelOpen: !state.commentaryPanelOpen
+		commentaryPanelOpen: newState
 	}));
+
+	// Persist to database
+	try {
+		await fetch('/api/user/preferences', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ commentaryPanelOpen: newState })
+		});
+	} catch (error) {
+		console.error('Error persisting commentary panel state:', error);
+		// Revert on error
+		toolbarStateStore.update(state => ({
+			...state,
+			commentaryPanelOpen: currentState.commentaryPanelOpen
+		}));
+	}
+}
+
+/**
+ * Toggle the commentary panel open/closed
+ */
+export async function toggleCommentary() {
+	const currentState = get(toolbarStateStore);
+	const newState = !currentState.commentaryPanelOpen;
+	await setCommentaryPanelOpen(newState);
 }
 
 /**
