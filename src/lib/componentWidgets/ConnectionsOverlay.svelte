@@ -91,6 +91,10 @@
 	const SNAP_RADIUS = 32;
 	let resizeObserver = /** @type {ResizeObserver | null} */ (null);
 	let scrollContainer = /** @type {HTMLElement | null} */ (null);
+	let contentInner = /** @type {HTMLElement | null} */ (null);
+
+	/** Re-calculate paths once the zoom CSS transition finishes. */
+	const handleTransitionEnd = () => requestAnimationFrame(calculatePaths);
 
 	// ─── Coordinate helpers ────────────────────────────────────────────────────
 
@@ -617,6 +621,14 @@
 			scrollContainer.addEventListener('scroll', calculatePaths, { passive: true });
 		}
 
+		// Re-calculate paths after the zoom CSS transition finishes so anchor points
+		// and connection lines land at their correct positions rather than staying at
+		// the intermediate mid-transition coordinates.
+		contentInner = /** @type {HTMLElement|null} */ (svgElement.closest('.analyze-content-inner'));
+		if (contentInner) {
+			contentInner.addEventListener('transitionend', handleTransitionEnd, { passive: true });
+		}
+
 		window.addEventListener('pointermove', handlePointerMove, { passive: false });
 		window.addEventListener('pointerup', handlePointerUp);
 		document.addEventListener('click', handleDocumentClick);
@@ -627,6 +639,7 @@
 	onDestroy(() => {
 		resizeObserver?.disconnect();
 		scrollContainer?.removeEventListener('scroll', calculatePaths);
+		contentInner?.removeEventListener('transitionend', handleTransitionEnd);
 		window.removeEventListener('pointermove', handlePointerMove);
 		window.removeEventListener('pointerup', handlePointerUp);
 		document.removeEventListener('click', handleDocumentClick);
