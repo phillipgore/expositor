@@ -2904,7 +2904,7 @@
 	$effect(() => {
 		if (!hasAnyNotes) {
 			setToolbarState('canToggleNotes', false);
-			setToolbarState('notesVisible', false);
+			setToolbarState('passageNotesVisible', false);
 		} else {
 			setToolbarState('canToggleNotes', true);
 		}
@@ -2944,7 +2944,7 @@
 	<div
 		bind:this={analyzeContentRef}
 		class="analyze-content"
-		class:hide-notes={!$toolbarState.notesVisible}
+		class:hide-notes={!$toolbarState.passageNotesVisible}
 		class:hide-verses={!$toolbarState.versesVisible}
 		class:hide-paragraph-breaks={!$toolbarState.paragraphBreaksVisible}
 		class:wide-layout={$toolbarState.wideLayout} 

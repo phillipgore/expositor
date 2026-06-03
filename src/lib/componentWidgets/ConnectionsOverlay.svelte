@@ -1042,7 +1042,7 @@
 	</svg>
 
 	<!-- ── Connection Quick Notes ────────────────────────────────────────────── -->
-	{#if $toolbarState.notesVisible}
+	{#if $toolbarState.connectionNotesVisible}
 		{#each visiblePaths as path (path.id)}
 			{#if path.note || noteEditingId === path.id}
 				<!-- Note positioned at the bezier midpoint (SVG units → CSS pixels via scale) -->

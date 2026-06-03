@@ -17,6 +17,8 @@ export const user = pgTable('user', {
 	commentaryPanelOpen: boolean('commentary_panel_open').default(false),
 	headingsVisible: boolean('headings_visible').default(true),
 	notesVisible: boolean('notes_visible').default(true),
+	passageNotesVisible: boolean('passage_notes_visible').default(true),
+	connectionNotesVisible: boolean('connection_notes_visible').default(true),
 	connectionsVisible: boolean('connections_visible').default(true),
 	columnConnectionsVisible: boolean('column_connections_visible').default(true),
 	sectionConnectionsVisible: boolean('section_connections_visible').default(true),

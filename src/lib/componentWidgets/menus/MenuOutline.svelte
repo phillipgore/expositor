@@ -85,14 +85,18 @@
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			// Auto-show notes if they're hidden
-			if (!$toolbarState.notesVisible) {
-				setToolbarState('notesVisible', true);
-			}
 			if ($toolbarState.hasActiveConnection) {
+				// Auto-show connection notes if they're hidden
+				if (!$toolbarState.connectionNotesVisible) {
+					setToolbarState('connectionNotesVisible', true);
+				}
 				// Trigger insert connection note event
 				window.dispatchEvent(new CustomEvent('connection-insert-note'));
 			} else {
+				// Auto-show passage notes if they're hidden
+				if (!$toolbarState.passageNotesVisible) {
+					setToolbarState('passageNotesVisible', true);
+				}
 				// Trigger insert segment note event via custom event
 				window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 			}

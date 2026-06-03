@@ -8,7 +8,7 @@
 	 * disable multiple options in a single session.
 	 * 
 	 * Groups:
-	 * - Annotations  — Headings, Quick Notes, Connections
+	 * - Annotations  — Headings, Quick Notes (All / Passage / Connection), Connections
 	 * - Text Display — References, Notations, Paragraphs
 	 * - Layout       — Wide View, Overview
 	 * 
@@ -29,6 +29,8 @@
 		toolbarState,
 		toggleHeadings,
 		toggleNotes,
+		togglePassageNotes,
+		toggleConnectionNotes,
 		toggleConnections,
 		toggleColumnConnections,
 		toggleSectionConnections,
@@ -50,10 +52,24 @@
 		onToggle={toggleHeadings}
 		isDisabled={!$toolbarState.canToggleHeadings || $toolbarState.overviewMode}
 	/>
+	<DividerHorizontal />
+
 	<MenuToggleItem
-		label="Quick Notes"
+		label="All Quick Notes"
 		isActive={$toolbarState.notesVisible}
 		onToggle={toggleNotes}
+		isDisabled={!$toolbarState.canToggleNotes}
+	/>
+	<MenuToggleItem
+		label="Passage Quick Notes"
+		isActive={$toolbarState.passageNotesVisible}
+		onToggle={togglePassageNotes}
+		isDisabled={!$toolbarState.canToggleNotes}
+	/>
+	<MenuToggleItem
+		label="Connection Quick Notes"
+		isActive={$toolbarState.connectionNotesVisible}
+		onToggle={toggleConnectionNotes}
 		isDisabled={!$toolbarState.canToggleNotes}
 	/>
 

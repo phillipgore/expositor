@@ -76,7 +76,9 @@ async function persistPreference(updates) {
  * @property {boolean} columnConnectionsVisible - Whether column connections are visible
  * @property {boolean} sectionConnectionsVisible - Whether section connections are visible
  * @property {boolean} segmentConnectionsVisible - Whether segment connections are visible
- * @property {boolean} notesVisible - Whether quick notes are visible in segments
+ * @property {boolean} notesVisible - Whether all quick notes are visible (master toggle; true when both passage and connection notes are on)
+ * @property {boolean} passageNotesVisible - Whether passage (inline segment) quick notes are visible
+ * @property {boolean} connectionNotesVisible - Whether connection quick notes are visible
  * @property {boolean} referencesVisible - Whether scripture references are visible in headings
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
  * @property {boolean} paragraphBreaksVisible - Whether translator paragraph break markers are visible
@@ -150,6 +152,8 @@ const defaultState = {
 	segmentConnectionsVisible: true,
 	connectionsVisible: true,
 	notesVisible: true,
+	passageNotesVisible: true,
+	connectionNotesVisible: true,
 	referencesVisible: false,
 	versesVisible: false,
 	paragraphBreaksVisible: false,
@@ -521,12 +525,56 @@ export function toggleSegmentConnections() {
 }
 
 /**
- * Toggle notes visibility
+ * Toggle all quick notes visibility (master toggle).
+ * When turning off: hides both passage and connection notes.
+ * When turning on: shows both passage and connection notes.
+ * notesVisible is true only when BOTH individual types are on.
  */
 export function toggleNotes() {
 	const newValue = !get(toolbarStateStore).notesVisible;
-	toolbarStateStore.update(state => ({ ...state, notesVisible: newValue }));
-	persistPreference({ notesVisible: newValue });
+	toolbarStateStore.update(state => ({
+		...state,
+		notesVisible: newValue,
+		passageNotesVisible: newValue,
+		connectionNotesVisible: newValue
+	}));
+	persistPreference({
+		notesVisible: newValue,
+		passageNotesVisible: newValue,
+		connectionNotesVisible: newValue
+	});
+}
+
+/**
+ * Toggle passage (inline segment) quick notes visibility.
+ * Auto-updates the master notesVisible based on whether both types are now on.
+ */
+export function togglePassageNotes() {
+	const state = get(toolbarStateStore);
+	const newPassage = !state.passageNotesVisible;
+	const newNotesVisible = newPassage && state.connectionNotesVisible;
+	toolbarStateStore.update(s => ({
+		...s,
+		passageNotesVisible: newPassage,
+		notesVisible: newNotesVisible
+	}));
+	persistPreference({ passageNotesVisible: newPassage, notesVisible: newNotesVisible });
+}
+
+/**
+ * Toggle connection quick notes visibility.
+ * Auto-updates the master notesVisible based on whether both types are now on.
+ */
+export function toggleConnectionNotes() {
+	const state = get(toolbarStateStore);
+	const newConnection = !state.connectionNotesVisible;
+	const newNotesVisible = state.passageNotesVisible && newConnection;
+	toolbarStateStore.update(s => ({
+		...s,
+		connectionNotesVisible: newConnection,
+		notesVisible: newNotesVisible
+	}));
+	persistPreference({ connectionNotesVisible: newConnection, notesVisible: newNotesVisible });
 }
 
 /**

@@ -22,6 +22,8 @@ export async function PATCH({ request }) {
 			commentaryPanelOpen,
 			headingsVisible,
 			notesVisible,
+			passageNotesVisible,
+			connectionNotesVisible,
 			connectionsVisible,
 			columnConnectionsVisible,
 			sectionConnectionsVisible,
@@ -72,6 +74,8 @@ export async function PATCH({ request }) {
 		const booleanViewPrefs = {
 			headingsVisible,
 			notesVisible,
+			passageNotesVisible,
+			connectionNotesVisible,
 			connectionsVisible,
 			columnConnectionsVisible,
 			sectionConnectionsVisible,

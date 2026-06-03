@@ -172,8 +172,8 @@
      class:has-heading-two={(heading2 && effectiveHeadingsVisible) || headingTwoInputMode}
      class:has-heading-three={(heading3 && effectiveHeadingsVisible) || headingThreeInputMode}
 	     class:has-segment-ref={!$toolbarState.overviewMode && segmentRef && $toolbarState.referencesVisible && (!effectiveHeadingsVisible || (!heading2 && !heading3) || (isVerseSubdivided && !heading3))}
-     class:has-note={(note || noteInputMode) && $toolbarState.notesVisible}
-     class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.notesVisible)}
+     class:has-note={(note || noteInputMode) && $toolbarState.passageNotesVisible}
+     class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.passageNotesVisible)}
      class:compare-hidden={isCompareHidden}
      data-segment-id="{segmentId}">
 	
@@ -236,7 +236,7 @@
 	{/if}
 
 	<!-- No Headings Indicator (overview mode only, for segments without headings) -->
-	{#if $toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.notesVisible)}
+	{#if $toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.passageNotesVisible)}
 		<div class="no-headings-indicator">
 			{#if segmentRef && $toolbarState.referencesVisible}
 				<span class="no-headings-ref">{segmentRef}</span>

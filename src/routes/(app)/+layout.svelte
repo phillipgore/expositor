@@ -25,6 +25,12 @@
 		if (data.notesVisible !== undefined) {
 			setToolbarState('notesVisible', data.notesVisible);
 		}
+		if (data.passageNotesVisible !== undefined) {
+			setToolbarState('passageNotesVisible', data.passageNotesVisible);
+		}
+		if (data.connectionNotesVisible !== undefined) {
+			setToolbarState('connectionNotesVisible', data.connectionNotesVisible);
+		}
 		if (data.connectionsVisible !== undefined) {
 			setToolbarState('connectionsVisible', data.connectionsVisible);
 		}

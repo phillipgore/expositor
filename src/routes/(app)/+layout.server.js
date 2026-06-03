@@ -25,6 +25,8 @@ export async function load({ request, depends }) {
 				commentaryPanelOpen: user.commentaryPanelOpen,
 				headingsVisible: user.headingsVisible,
 				notesVisible: user.notesVisible,
+				passageNotesVisible: user.passageNotesVisible,
+				connectionNotesVisible: user.connectionNotesVisible,
 				connectionsVisible: user.connectionsVisible,
 				columnConnectionsVisible: user.columnConnectionsVisible,
 				sectionConnectionsVisible: user.sectionConnectionsVisible,
@@ -45,6 +47,8 @@ export async function load({ request, depends }) {
 		const commentaryPanelOpen = userData[0]?.commentaryPanelOpen ?? false;
 		const headingsVisible = userData[0]?.headingsVisible ?? true;
 		const notesVisible = userData[0]?.notesVisible ?? true;
+		const passageNotesVisible = userData[0]?.passageNotesVisible ?? true;
+		const connectionNotesVisible = userData[0]?.connectionNotesVisible ?? true;
 		const connectionsVisible = userData[0]?.connectionsVisible ?? true;
 		const columnConnectionsVisible = userData[0]?.columnConnectionsVisible ?? true;
 		const sectionConnectionsVisible = userData[0]?.sectionConnectionsVisible ?? true;
@@ -124,6 +128,8 @@ export async function load({ request, depends }) {
 			commentaryPanelOpen,
 			headingsVisible,
 			notesVisible,
+			passageNotesVisible,
+			connectionNotesVisible,
 			connectionsVisible,
 			columnConnectionsVisible,
 			sectionConnectionsVisible,
