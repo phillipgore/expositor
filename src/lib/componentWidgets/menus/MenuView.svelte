@@ -66,9 +66,9 @@
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 	<MenuToggleItem
-		label="Column Connections"
-		isActive={$toolbarState.columnConnectionsVisible}
-		onToggle={toggleColumnConnections}
+		label="Segment Connections"
+		isActive={$toolbarState.segmentConnectionsVisible}
+		onToggle={toggleSegmentConnections}
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 	<MenuToggleItem
@@ -78,9 +78,9 @@
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 	<MenuToggleItem
-		label="Segment Connections"
-		isActive={$toolbarState.segmentConnectionsVisible}
-		onToggle={toggleSegmentConnections}
+		label="Column Connections"
+		isActive={$toolbarState.columnConnectionsVisible}
+		onToggle={toggleColumnConnections}
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 
