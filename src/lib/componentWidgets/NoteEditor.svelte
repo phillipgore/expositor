@@ -17,6 +17,9 @@
 		hasNote = false
 	} = $props();
 
+	// Character limit
+	const MAX_CHARS = 140;
+
 	// Input state
 	let inputValue = $state('');
 	let originalValue = $state(''); // Track original value for Escape key
@@ -37,6 +40,10 @@
 
 	// Computed display value
 	let displayValue = $derived(optimisticValue !== undefined ? optimisticValue : noteValue);
+
+	// Character count
+	let charCount = $derived(inputValue.length);
+	let isAtLimit = $derived(charCount >= MAX_CHARS);
 
 	const inputId = $derived(`note-input-${segmentId}`);
 
@@ -362,7 +369,11 @@
 				bind:value={inputValue}
 				rows={1}
 				autoGrow={true}
+				maxlength={MAX_CHARS}
 			/>
+			<div class="char-counter" class:at-limit={isAtLimit}>
+				{charCount} / {MAX_CHARS}
+			</div>
 		</div>
 	{:else if displayValue}
 		<div 
@@ -418,6 +429,23 @@
 		margin: 0.0rem;
 	}
 
+	/* Character Counter */
+	.char-counter {
+		position: absolute;
+		bottom: 0.4rem;
+		right: 0.6rem;
+		font-size: 1.0rem;
+		font-style: normal;
+		font-weight: 400;
+		color: var(--gray-dark);
+		pointer-events: none;
+		line-height: 1;
+	}
+
+	.char-counter.at-limit {
+		font-weight: 700;
+	}
+
 	.note-input :global(textarea) {
 		font-size: 1.2rem;
 		font-style: italic;
@@ -440,6 +468,7 @@
 		resize: none;
 		min-height: 3.1rem;
 		border-top: 0.1rem dashed var(--gray);
+		padding-bottom: 2.0rem;
 	}
 
 	.note-input :global(textarea:focus) {
