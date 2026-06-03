@@ -64,7 +64,8 @@ import { writable, get } from 'svelte/store';
  * @property {boolean} paragraphBreaksVisible - Whether translator paragraph break markers are visible
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
- * @property {number} zoomLevel - Current zoom level as percentage (25-400, or 0 for fit)
+ * @property {number} zoomLevel - Current zoom level as percentage (25-400)
+ * @property {'percentage'|'fit-width'|'fit-study'} zoomMode - Zoom mode: percentage-based or a fit mode
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
@@ -107,6 +108,7 @@ const defaultState = {
 	canSwitchMode: false,
 	isStudyRoute: false,
 	canZoom: false,
+	zoomMode: 'percentage',
 	canStructure: false,
 	canHeading: false,
 	canColor: false,
@@ -590,13 +592,25 @@ export async function toggleCommentary() {
 }
 
 /**
- * Set zoom level
- * @param {number} level - Zoom level as percentage (25-400) or 0 for fit
+ * Set zoom level (also resets zoomMode to 'percentage')
+ * @param {number} level - Zoom level as percentage (25-400)
  */
 export function setZoomLevel(level) {
 	toolbarStateStore.update(state => ({
 		...state,
-		zoomLevel: level
+		zoomLevel: level,
+		zoomMode: 'percentage'
+	}));
+}
+
+/**
+ * Set the zoom mode without changing the numeric zoom level
+ * @param {'percentage'|'fit-width'|'fit-study'} mode - The zoom mode to activate
+ */
+export function setZoomMode(mode) {
+	toolbarStateStore.update(state => ({
+		...state,
+		zoomMode: mode
 	}));
 }
 

@@ -775,6 +775,16 @@
 		window.addEventListener('select-section', handleSelectSectionEvent);
 		window.addEventListener('deselect-section', handleDeselectSectionEvent);
 		
+		// Set up ResizeObserver to recompute fit scale when the viewport dimensions change
+		// (e.g. user resizes the window or toggles the studies/commentary panels)
+		let resizeObserver = null;
+		if (analyzeContentRef) {
+			resizeObserver = new ResizeObserver(() => {
+				computeFitScale();
+			});
+			resizeObserver.observe(analyzeContentRef);
+		}
+
 		return () => {
 			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
 			window.removeEventListener('remove-connection', handleRemoveConnectionEvent);
@@ -789,6 +799,7 @@
 			window.removeEventListener('deselect-column', handleDeselectColumnEvent);
 			window.removeEventListener('select-section', handleSelectSectionEvent);
 			window.removeEventListener('deselect-section', handleDeselectSectionEvent);
+			resizeObserver?.disconnect();
 		};
 	});
 
@@ -2295,16 +2306,30 @@
 
 	// Ref to inner content wrapper for measuring dimensions
 	let contentInnerRef = $state(null);
-	
+
+	/** Reference to the scrollable .analyze-content container (used for fit-scale calculations) */
+	let analyzeContentRef = $state(null);
+
+	/** Dynamically computed scale factor for fit-width and fit-study zoom modes */
+	let fitScale = $state(1);
+
 	// Track previous zoom level to detect actual changes
 	let previousZoomLevel = $state($toolbarState.zoomLevel);
 
 	/**
-	 * Maintain center point when zoom level changes
+	 * Maintain center point when zoom level changes.
+	 * Only runs for percentage-to-percentage transitions; fit modes manage their own scroll.
 	 */
 	$effect(() => {
 		const currentZoomLevel = $toolbarState.zoomLevel;
-		
+		const zoomMode = $toolbarState.zoomMode;
+
+		// Skip scroll centering when in or transitioning from a fit mode
+		if (zoomMode !== 'percentage') {
+			previousZoomLevel = currentZoomLevel;
+			return;
+		}
+
 		// Only adjust if zoom level actually changed and we have a previous zoom level
 		if (currentZoomLevel !== previousZoomLevel && previousZoomLevel !== null) {
 			// Get the actual scroll container (.analyze-content)
@@ -2358,18 +2383,24 @@
 	});
 
 	/**
-	 * Determine if header should be visible based on zoom level
-	 * @returns {boolean} True if zoom >= 100%
+	 * Determine if header should be visible based on zoom level or fit scale
+	 * @returns {boolean} True if zoom >= 100% or fit scale >= 1
 	 */
 	let showHeader = $derived.by(() => {
+		if ($toolbarState.zoomMode !== 'percentage') {
+			return fitScale >= 1;
+		}
 		return $toolbarState.zoomLevel >= 100;
 	});
 
 	/**
-	 * Get current scale factor
+	 * Get current scale factor — uses fitScale when in a fit mode
 	 * @returns {number} Current scale
 	 */
 	let currentScale = $derived.by(() => {
+		if ($toolbarState.zoomMode === 'fit-width' || $toolbarState.zoomMode === 'fit-study') {
+			return fitScale;
+		}
 		// Convert percentage to decimal (e.g., 150% = 1.5)
 		return $toolbarState.zoomLevel / 100;
 	});
@@ -2403,6 +2434,63 @@
 		const scaledHeight = height * currentScale;
 		
 		return `width: ${scaledWidth}px; height: ${scaledHeight}px;`;
+	});
+
+	/**
+	 * Compute the scale factor for fit-width and fit-study modes.
+	 * Temporarily removes the CSS transform to measure natural content dimensions.
+	 *
+	 * Viewport height is derived from the element's position in the browser window
+	 * (window.innerHeight - rect.top) rather than clientHeight, which can be unreliable
+	 * inside nested scroll containers with percentage heights.
+	 */
+	function computeFitScale() {
+		if (!contentInnerRef || !analyzeContentRef) return;
+
+		// Use getBoundingClientRect for reliable viewport dimensions.
+		// viewportHeight = space from the element's top edge to the bottom of the browser window.
+		const rect = analyzeContentRef.getBoundingClientRect();
+		const viewportWidth = rect.width;
+		const viewportHeight = window.innerHeight - rect.top;
+
+		if (viewportWidth === 0 || viewportHeight === 0) return;
+
+		// scrollWidth/scrollHeight reflect the CSS layout dimensions and are NOT affected
+		// by CSS transforms, so we can measure them without touching the transform.
+		const naturalWidth = contentInnerRef.scrollWidth;
+		const naturalHeight = contentInnerRef.scrollHeight;
+
+		if (naturalWidth === 0 || naturalHeight === 0) return;
+
+		const mode = $toolbarState.zoomMode;
+		if (mode === 'fit-width') {
+			fitScale = viewportWidth / naturalWidth;
+		} else if (mode === 'fit-study') {
+			// Scale so that BOTH dimensions fit within the available viewport.
+			fitScale = Math.min(
+				viewportWidth / naturalWidth,
+				viewportHeight / naturalHeight
+			);
+		}
+	}
+
+	/**
+	 * Recompute fit scale whenever zoomMode changes to a fit mode or passage data changes.
+	 * For fit-study, also scrolls to the top-left corner so the full study is visible.
+	 */
+	$effect(() => {
+		const mode = $toolbarState.zoomMode;
+		if (mode !== 'fit-width' && mode !== 'fit-study') return;
+
+		// Access passagesWithText to re-run this effect when content changes
+		const _dep = data.passagesWithText;
+
+		tick().then(() => {
+			computeFitScale();
+			if (mode === 'fit-study' && analyzeContentRef) {
+				analyzeContentRef.scrollTo(0, 0);
+			}
+		});
 	});
 
 	/**
@@ -2465,8 +2553,9 @@
 
 <div class="container">
 	<!-- Analyze View Content -->
-	<div 
-		class="analyze-content" 
+	<div
+		bind:this={analyzeContentRef}
+		class="analyze-content"
 		class:hide-notes={!$toolbarState.notesVisible}
 		class:hide-verses={!$toolbarState.versesVisible}
 		class:hide-paragraph-breaks={!$toolbarState.paragraphBreaksVisible}

@@ -68,7 +68,7 @@
 	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
-	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleComparison, toggleHeadings, toggleConnections, toggleNotes, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview, toggleCommentary, setZoomLevel } from '$lib/stores/toolbar.js';
+	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleComparison, toggleHeadings, toggleConnections, toggleNotes, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview, toggleCommentary, setZoomLevel, setZoomMode } from '$lib/stores/toolbar.js';
 	import { invalidate } from '$app/navigation';
 
 	// Props to receive data from layout
@@ -79,15 +79,17 @@
 
 	/**
 	 * Handle zoom level change from MenuZoom
-	 * @param {string} label - Zoom label (e.g., "100%", "Fit Study")
+	 * @param {string} label - Zoom label (e.g., "100%", "Fit Width", "Fit Study")
 	 */
 	function handleZoomChange(label) {
 		zoomLabel = label;
 		
-		// Convert label to zoom level number
-		if (label === 'Fit Study') {
-			setZoomLevel(0); // 0 indicates fit mode
+		if (label === 'Fit Width') {
+			setZoomMode('fit-width');
+		} else if (label === 'Fit Study') {
+			setZoomMode('fit-study');
 		} else {
+			// Percentage zoom — setZoomLevel also resets zoomMode to 'percentage'
 			const percentage = parseInt(label.replace('%', ''));
 			setZoomLevel(percentage);
 		}

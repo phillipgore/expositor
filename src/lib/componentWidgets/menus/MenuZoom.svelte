@@ -2,8 +2,8 @@
 	/**
 	 * MenuZoom Component
 	 * 
-	 * Zoom level selection menu with predefined percentage options.
-	 * Allows users to adjust document zoom from 25% to 200% or set to full width.
+	 * Zoom level selection menu with predefined percentage options plus fit modes.
+	 * Allows users to adjust document zoom from 25% to 200%, or use Fit Width / Fit Study.
 	 * 
 	 * Usage:
 	 * ```
@@ -18,7 +18,8 @@
 	 * 
 	 * Features:
 	 * - 8 predefined zoom levels (25% - 200%)
-	 * - Full width option
+	 * - Fit Width option — scales content to fill the viewport width
+	 * - Fit Study option — scales content to be fully visible in the viewport
 	 * - Visual checkmark indicator for active zoom level
 	 * - Callback support for parent component updates
 	 */
@@ -37,7 +38,10 @@
 		{ id: '110', type: 'button', label: '110%', iconId: 'blank', isActive: false },
 		{ id: '125', type: 'button', label: '125%', iconId: 'blank', isActive: false },
 		{ id: '150', type: 'button', label: '150%', iconId: 'blank', isActive: false },
-		{ id: '200', type: 'button', label: '200%', iconId: 'blank', isActive: false }
+		{ id: '200', type: 'button', label: '200%', iconId: 'blank', isActive: false },
+		{ id: 'divider-fit', type: 'divider' },
+		{ id: 'fit-width', type: 'button', label: 'Fit Width', iconId: 'blank', isActive: false },
+		{ id: 'fit-study', type: 'button', label: 'Fit Study', iconId: 'blank', isActive: false }
 	]);
 
 	const handleSelect = (item) => {
