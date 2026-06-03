@@ -87,6 +87,8 @@ import { writable, get } from 'svelte/store';
  * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
  * @property {boolean} isWordInFirstSegment - Whether the selected word is in the first segment of its passage
  * @property {boolean} isWordInLastSegment - Whether the selected word is in the last segment of its passage
+ * @property {boolean} isCaretAtSegmentStart - Whether the caret is before the first word of its segment (nothing to move up)
+ * @property {boolean} isCaretAtSegmentEnd - Whether the caret is after the last word of its segment (nothing to move down)
  */
 
 /**
@@ -152,7 +154,9 @@ const defaultState = {
 	hasActiveHeadingOrNoteEditor: false,
 	activeHeadingOrNoteType: null,
 	isWordInFirstSegment: false,
-	isWordInLastSegment: false
+	isWordInLastSegment: false,
+	isCaretAtSegmentStart: false,
+	isCaretAtSegmentEnd: false
 };
 
 /**
@@ -779,6 +783,22 @@ export function setWordSegmentPosition(isFirst, isLast) {
 		...state,
 		isWordInFirstSegment: isFirst,
 		isWordInLastSegment: isLast
+	}));
+}
+
+/**
+ * Set whether the caret is at the start or end of its segment.
+ * Used to disable "Move Text Up" when the caret is before the first word of the segment
+ * (nothing to move up) and "Move Text Down" when the caret is after the last word
+ * (nothing to move down).
+ * @param {boolean} atStart - Whether the caret is before the segment's first word
+ * @param {boolean} atEnd - Whether the caret is after the segment's last word
+ */
+export function setCaretSegmentBoundary(atStart, atEnd) {
+	toolbarStateStore.update(state => ({
+		...state,
+		isCaretAtSegmentStart: atStart,
+		isCaretAtSegmentEnd: atEnd
 	}));
 }
 

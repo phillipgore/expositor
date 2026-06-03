@@ -113,16 +113,22 @@
 		iconId="arrow-up"
 		label="Move Text Up"
 		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInFirstSegment}
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('move-text-up'));
+		}}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInFirstSegment || $toolbarState.isCaretAtSegmentStart}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="arrow-down"
 		label="Move Text Down"
 		role="menuitem"
-		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInLastSegment}
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('move-text-down'));
+		}}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInLastSegment || $toolbarState.isCaretAtSegmentEnd}
 	/>
 
 </Menu>

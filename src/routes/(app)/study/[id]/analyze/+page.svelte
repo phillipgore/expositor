@@ -9,7 +9,7 @@
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -454,6 +454,60 @@
 		);
 	});
 
+	// Determine whether the caret is at the very start or end of its segment.
+	// Move Text Up is disabled when the caret is before the segment's first word
+	// (there is nothing before the caret to move up).
+	// Move Text Down is disabled when the caret is after the segment's last word
+	// (there is nothing after the caret to move down).
+	$effect(() => {
+		if (!selectedWord) {
+			setCaretSegmentBoundary(false, false);
+			return;
+		}
+
+		const wordElement = document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+		);
+
+		if (!wordElement) {
+			setCaretSegmentBoundary(false, false);
+			return;
+		}
+
+		const currentSegmentEl = wordElement.closest('.segment');
+		if (!currentSegmentEl) {
+			setCaretSegmentBoundary(false, false);
+			return;
+		}
+
+		// Caret at segment start: position='before' and this word is the first in the segment
+		let isAtStart = false;
+		if (selectedWord.position === 'before') {
+			const firstWordInSegment = currentSegmentEl.querySelector('.selectable-word');
+			isAtStart = /** @type {HTMLElement|null} */ (firstWordInSegment)?.dataset?.wordId === selectedWord.wordId;
+		}
+
+		// Caret at segment end: position='after' and the next selectable-word is in a different segment
+		let isAtEnd = false;
+		if (selectedWord.position === 'after') {
+			let nextEl = wordElement.nextElementSibling;
+			while (nextEl) {
+				if (nextEl.classList.contains('selectable-word')) break;
+				nextEl = nextEl.nextElementSibling;
+			}
+
+			if (!nextEl) {
+				// No next word at all — at the very end of the passage
+				isAtEnd = true;
+			} else {
+				const nextSegmentEl = nextEl.closest('.segment');
+				isAtEnd = nextSegmentEl !== currentSegmentEl;
+			}
+		}
+
+		setCaretSegmentBoundary(isAtStart, isAtEnd);
+	});
+
 	// ─── Connection helpers ───────────────────────────────────────────────────
 
 	/**
@@ -813,6 +867,16 @@
 			}
 		};
 		
+		// Listen for move-text-up event from MenuStructure
+		const handleMoveTextUpEvent = () => {
+			handleMoveTextUp();
+		};
+
+		// Listen for move-text-down event from MenuStructure
+		const handleMoveTextDownEvent = () => {
+			handleMoveTextDown();
+		};
+
 		const handleInsertConnectionEvent = () => handleInsertConnection();
 		const handleRemoveConnectionEvent = () => handleRemoveConnection();
 
@@ -821,6 +885,8 @@
 		window.addEventListener('insert-column', handleInsertColumnEvent);
 		window.addEventListener('insert-section', handleInsertSectionEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
+		window.addEventListener('move-text-up', handleMoveTextUpEvent);
+		window.addEventListener('move-text-down', handleMoveTextDownEvent);
 		window.addEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
 		window.addEventListener('insert-heading-two-from-menu', handleInsertHeadingTwoFromMenuEvent);
 		window.addEventListener('insert-heading-three-from-menu', handleInsertHeadingThreeFromMenuEvent);
@@ -846,6 +912,8 @@
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
 			window.removeEventListener('insert-section', handleInsertSectionEvent);
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
+			window.removeEventListener('move-text-up', handleMoveTextUpEvent);
+			window.removeEventListener('move-text-down', handleMoveTextDownEvent);
 			window.removeEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
 			window.removeEventListener('insert-heading-two-from-menu', handleInsertHeadingTwoFromMenuEvent);
 			window.removeEventListener('insert-heading-three-from-menu', handleInsertHeadingThreeFromMenuEvent);
@@ -1171,6 +1239,212 @@
 		} catch (error) {
 			console.error('Insert segment network error:', error);
 			alert(`Error: ${error.message || 'Failed to insert segment'}`);
+		}
+	}
+
+	/**
+	 * Handle Move Text Up button click.
+	 * Moves all text in the active segment before the caret up into the preceding segment
+	 * by updating the current segment's startingWordId to the caret position.
+	 */
+	async function handleMoveTextUp() {
+		console.log('handleMoveTextUp called');
+
+		if (!selectedWord || !data.passagesWithText) {
+			console.log('No selected word or passages');
+			return;
+		}
+
+		const passageText = data.passagesWithText[selectedWord.passageIndex];
+		if (!passageText || !('structure' in passageText) || !passageText.structure) {
+			console.log('No passage text or structure');
+			return;
+		}
+
+		// Find the selected word element in the DOM
+		const wordElement = document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+		);
+
+		if (!wordElement) {
+			console.log('Word element not found');
+			return;
+		}
+
+		// Find the parent segment element to get the segmentId
+		const segmentElement = wordElement.closest('.segment');
+		if (!segmentElement) {
+			console.log('No parent segment found');
+			return;
+		}
+
+		const segmentId = segmentElement.dataset.segmentId;
+		if (!segmentId) {
+			console.log('No segment ID found on element');
+			return;
+		}
+
+		// Determine the insertion word ID based on caret position
+		// insertionWordId = the first word that stays in the current segment after the move
+		let insertionWordId = null;
+		if (selectedWord.position === 'before') {
+			// Caret is before the selected word — that word stays in the current segment
+			insertionWordId = selectedWord.wordId;
+		} else {
+			// Caret is after the selected word — next word stays in the current segment
+			let nextElement = wordElement.nextElementSibling;
+			while (nextElement) {
+				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
+					insertionWordId = nextElement.dataset?.wordId || null;
+					break;
+				}
+				nextElement = nextElement.nextElementSibling;
+			}
+		}
+
+		if (!insertionWordId) {
+			console.log('No insertion word ID found (caret may be at end of passage)');
+			return;
+		}
+
+		console.log('Moving text up: segment', segmentId, 'new start', insertionWordId);
+
+		try {
+			const response = await fetch('/api/passages/segments/move-text', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					passageId: passageText.structure.passageId,
+					segmentId: segmentId,
+					insertionWordId: insertionWordId,
+					direction: 'up'
+				})
+			});
+
+			console.log('Response status:', response.status);
+
+			if (response.ok) {
+				console.log('Text moved up successfully');
+				// Clear selection
+				selectedWord = null;
+				activeSegments = [];
+				activeColumns = [];
+				activeSections = [];
+				suppressHoverCaret = null;
+
+				// Refresh data
+				await invalidate('app:studies');
+			} else {
+				const error = await response.json();
+				console.error('Move text up error response:', error);
+				alert(`Error: ${error.error || 'Failed to move text up'}`);
+			}
+		} catch (error) {
+			console.error('Move text up network error:', error);
+			alert(`Error: ${error.message || 'Failed to move text up'}`);
+		}
+	}
+
+	/**
+	 * Handle Move Text Down button click.
+	 * Moves all text in the active segment after the caret down into the next segment
+	 * by updating the next segment's startingWordId to the caret position.
+	 */
+	async function handleMoveTextDown() {
+		console.log('handleMoveTextDown called');
+
+		if (!selectedWord || !data.passagesWithText) {
+			console.log('No selected word or passages');
+			return;
+		}
+
+		const passageText = data.passagesWithText[selectedWord.passageIndex];
+		if (!passageText || !('structure' in passageText) || !passageText.structure) {
+			console.log('No passage text or structure');
+			return;
+		}
+
+		// Find the selected word element in the DOM
+		const wordElement = document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+		);
+
+		if (!wordElement) {
+			console.log('Word element not found');
+			return;
+		}
+
+		// Find the parent segment element to get the segmentId
+		const segmentElement = wordElement.closest('.segment');
+		if (!segmentElement) {
+			console.log('No parent segment found');
+			return;
+		}
+
+		const segmentId = segmentElement.dataset.segmentId;
+		if (!segmentId) {
+			console.log('No segment ID found on element');
+			return;
+		}
+
+		// Determine the insertion word ID based on caret position
+		// insertionWordId = the first word that moves down into the next segment
+		let insertionWordId = null;
+		if (selectedWord.position === 'before') {
+			// Caret is before the selected word — that word moves down
+			insertionWordId = selectedWord.wordId;
+		} else {
+			// Caret is after the selected word — next word moves down
+			let nextElement = wordElement.nextElementSibling;
+			while (nextElement) {
+				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
+					insertionWordId = nextElement.dataset?.wordId || null;
+					break;
+				}
+				nextElement = nextElement.nextElementSibling;
+			}
+		}
+
+		if (!insertionWordId) {
+			console.log('No insertion word ID found (caret may be at end of passage)');
+			return;
+		}
+
+		console.log('Moving text down: next segment new start', insertionWordId, 'in segment', segmentId);
+
+		try {
+			const response = await fetch('/api/passages/segments/move-text', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					passageId: passageText.structure.passageId,
+					segmentId: segmentId,
+					insertionWordId: insertionWordId,
+					direction: 'down'
+				})
+			});
+
+			console.log('Response status:', response.status);
+
+			if (response.ok) {
+				console.log('Text moved down successfully');
+				// Clear selection
+				selectedWord = null;
+				activeSegments = [];
+				activeColumns = [];
+				activeSections = [];
+				suppressHoverCaret = null;
+
+				// Refresh data
+				await invalidate('app:studies');
+			} else {
+				const error = await response.json();
+				console.error('Move text down error response:', error);
+				alert(`Error: ${error.error || 'Failed to move text down'}`);
+			}
+		} catch (error) {
+			console.error('Move text down network error:', error);
+			alert(`Error: ${error.message || 'Failed to move text down'}`);
 		}
 	}
 

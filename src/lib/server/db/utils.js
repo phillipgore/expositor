@@ -635,6 +635,138 @@ export async function insertSegment(dbInstance, userId, passageId, sectionId, in
 }
 
 /**
+ * Move text from the current segment up into the preceding segment.
+ * Updates the current segment's startingWordId to insertionWordId,
+ * so words before the caret automatically fall to the preceding segment.
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string} passageId - Passage ID
+ * @param {string} segmentId - ID of the segment containing the caret
+ * @param {string} insertionWordId - The word at the caret position (becomes the new segment start)
+ * @returns {Promise<void>}
+ */
+export async function moveSegmentTextUp(dbInstance, userId, passageId, segmentId, insertionWordId) {
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+
+	// 1. Verify ownership
+	const passageData = await dbInstance
+		.select({ passageId: passage.id, userId: studyTable.userId })
+		.from(passage)
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(eq(passage.id, passageId))
+		.limit(1);
+
+	if (passageData.length === 0 || passageData[0].userId !== userId) {
+		throw new Error('Unauthorized');
+	}
+
+	// 2. Fetch the current segment
+	const segmentRows = await dbInstance
+		.select()
+		.from(passageSegment)
+		.where(eq(passageSegment.id, segmentId))
+		.limit(1);
+
+	if (segmentRows.length === 0) {
+		throw new Error('Segment not found');
+	}
+
+	const segment = segmentRows[0];
+
+	// 3. Validate: the caret must be after the segment's current start
+	if (compareWordIds(insertionWordId, segment.startingWordId) <= 0) {
+		throw new Error('Cannot move text up: caret is at or before the segment start');
+	}
+
+	// 4. Update the current segment's startingWordId
+	const now = new Date();
+	await dbInstance
+		.update(passageSegment)
+		.set({ startingWordId: insertionWordId, updatedAt: now })
+		.where(eq(passageSegment.id, segmentId));
+}
+
+/**
+ * Move text from the current segment down into the next segment.
+ * Updates the next segment's startingWordId to insertionWordId,
+ * so words at and after the caret move into the next segment.
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string} passageId - Passage ID
+ * @param {string} segmentId - ID of the segment containing the caret
+ * @param {string} insertionWordId - The word at the caret position (becomes the next segment's new start)
+ * @returns {Promise<void>}
+ */
+export async function moveSegmentTextDown(dbInstance, userId, passageId, segmentId, insertionWordId) {
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+
+	// 1. Verify ownership
+	const passageData = await dbInstance
+		.select({ passageId: passage.id, userId: studyTable.userId })
+		.from(passage)
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(eq(passage.id, passageId))
+		.limit(1);
+
+	if (passageData.length === 0 || passageData[0].userId !== userId) {
+		throw new Error('Unauthorized');
+	}
+
+	// 2. Fetch the current segment to get its startingWordId
+	const segmentRows = await dbInstance
+		.select()
+		.from(passageSegment)
+		.where(eq(passageSegment.id, segmentId))
+		.limit(1);
+
+	if (segmentRows.length === 0) {
+		throw new Error('Segment not found');
+	}
+
+	const currentSegment = segmentRows[0];
+
+	// 3. Get all segments for this passage across all sections, ordered by startingWordId
+	const structure = await loadPassageStructure(dbInstance, passageId);
+	const allSegments = [];
+	for (const column of structure.columns) {
+		for (const section of column.sections) {
+			for (const seg of section.segments) {
+				allSegments.push(seg);
+			}
+		}
+	}
+	allSegments.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
+
+	// 4. Find the next segment after the current one
+	const currentIndex = allSegments.findIndex(s => s.id === segmentId);
+	if (currentIndex === -1) {
+		throw new Error('Segment not found in passage structure');
+	}
+	if (currentIndex === allSegments.length - 1) {
+		throw new Error('Cannot move text down: no next segment exists');
+	}
+
+	const nextSegment = allSegments[currentIndex + 1];
+
+	// 5. Validate: the caret must be before the next segment's current start
+	if (compareWordIds(insertionWordId, nextSegment.startingWordId) >= 0) {
+		throw new Error('Cannot move text down: caret is at or after the next segment start');
+	}
+
+	// 6. Validate: the caret must be after the current segment's start (there's content remaining)
+	if (compareWordIds(insertionWordId, currentSegment.startingWordId) <= 0) {
+		throw new Error('Cannot move text down: caret is at or before the current segment start');
+	}
+
+	// 7. Update the next segment's startingWordId
+	const now = new Date();
+	await dbInstance
+		.update(passageSegment)
+		.set({ startingWordId: insertionWordId, updatedAt: now })
+		.where(eq(passageSegment.id, nextSegment.id));
+}
+
+/**
  * Update a segment's heading
  * @param {Object} dbInstance - Database instance
  * @param {string} userId - User ID for authorization
