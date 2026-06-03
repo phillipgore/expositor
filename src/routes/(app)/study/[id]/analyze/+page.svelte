@@ -109,11 +109,26 @@
 				hasNote = !!segmentElement.querySelector('.note, .note-input');
 			}
 			
+			// Determine whether this segment is the first segment in its passage
+			let isFirstSegment = false;
+			if (data.passagesWithText) {
+				for (const passage of data.passagesWithText) {
+					if (!passage.structure?.columns?.length) continue;
+					const allPassageSegments = passage.structure.columns.flatMap(col => col.sections.flatMap(sec => sec.segments));
+					if (allPassageSegments.length > 0 && allPassageSegments[0].id === firstSegment.segmentId) {
+						isFirstSegment = true;
+					}
+					// Stop looking once we've found which passage contains the segment
+					if (allPassageSegments.some(seg => seg.id === firstSegment.segmentId)) break;
+				}
+			}
+
 			setActiveSegment(true, firstSegment.segmentId, {
 				hasHeadingOne,
 				hasHeadingTwo,
 				hasHeadingThree,
-				hasNote
+				hasNote,
+				isFirst: isFirstSegment
 			});
 		} else {
 			setActiveSegment(false, null);
@@ -123,8 +138,23 @@
 	// Sync active column state to toolbar store
 	$effect(() => {
 		if (activeColumns.length > 0) {
-			// Use the first active column for toolbar state
-			setActiveColumn(true, activeColumns[0]);
+			const activeColumnId = activeColumns[0];
+
+			// Determine whether this column is the first column in its passage
+			let isFirstColumn = false;
+			if (data.passagesWithText) {
+				for (const passage of data.passagesWithText) {
+					if (passage.structure?.columns?.length > 0) {
+						const colIndex = passage.structure.columns.findIndex(c => c.id === activeColumnId);
+						if (colIndex !== -1) {
+							isFirstColumn = colIndex === 0;
+							break;
+						}
+					}
+				}
+			}
+
+			setActiveColumn(true, activeColumnId, isFirstColumn);
 		} else {
 			setActiveColumn(false, null);
 		}
@@ -145,7 +175,31 @@
 				const sectionElement = columnElement?.querySelector('.section');
 				sectionId = sectionElement?.dataset?.sectionId || null;
 			}
-			setActiveSection(true, sectionId);
+
+			// Determine whether this section is the first section in its passage.
+			// Only meaningful when a section is explicitly selected (not when a column activates one).
+			let isFirstSection = false;
+			if (activeSections.length > 0 && sectionId && data.passagesWithText) {
+				for (const passage of data.passagesWithText) {
+					if (!passage.structure?.columns?.length) continue;
+					let found = false;
+					let isFirst = true;
+					for (const column of passage.structure.columns) {
+						for (const section of column.sections) {
+							if (section.id === sectionId) {
+								isFirstSection = isFirst;
+								found = true;
+								break;
+							}
+							isFirst = false;
+						}
+						if (found) break;
+					}
+					if (found) break;
+				}
+			}
+
+			setActiveSection(true, sectionId, isFirstSection);
 		} else {
 			setActiveSection(false, null);
 		}

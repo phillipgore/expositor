@@ -92,10 +92,13 @@ async function persistPreference(updates) {
  * @property {boolean} activeSegmentHasHeadingTwo - Whether active segment has a heading two
  * @property {boolean} activeSegmentHasHeadingThree - Whether active segment has a heading three
  * @property {boolean} activeSegmentHasNote - Whether active segment has a note
+ * @property {boolean} isActiveSegmentFirstInPassage - Whether the active segment is the first segment in its passage
  * @property {boolean} hasActiveSection - Whether a section is currently active (for color mode)
  * @property {string|null} activeSectionId - The ID of the currently active section
+ * @property {boolean} isActiveSectionFirstInPassage - Whether the active section is the first section in its passage
  * @property {boolean} hasActiveColumn - Whether a column is currently active
  * @property {string|null} activeColumnId - The ID of the currently active column
+ * @property {boolean} isActiveColumnFirstInPassage - Whether the active column is the first column in its passage
  * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
  * @property {boolean} canInsertConnection - Whether Insert Connection button should be enabled
  * @property {boolean} canRemoveConnection - Whether Remove Connection button should be enabled
@@ -160,10 +163,13 @@ const defaultState = {
 	activeSegmentHasHeadingTwo: false,
 	activeSegmentHasHeadingThree: false,
 	activeSegmentHasNote: false,
+	isActiveSegmentFirstInPassage: false,
 	hasActiveSection: false,
 	activeSectionId: null,
+	isActiveSectionFirstInPassage: false,
 	hasActiveColumn: false,
 	activeColumnId: null,
+	isActiveColumnFirstInPassage: false,
 	canInsertColumn: false,
 	canInsertConnection: false,
 	canRemoveConnection: false,
@@ -698,6 +704,7 @@ export function setWordSelection(hasSelection) {
  * @param {boolean} [options.hasHeadingTwo] - Whether segment has heading two
  * @param {boolean} [options.hasHeadingThree] - Whether segment has heading three
  * @param {boolean} [options.hasNote] - Whether segment has a note
+ * @param {boolean} [options.isFirst] - Whether the segment is the first segment in its passage
  */
 export function setActiveSegment(hasSegment, segmentId = null, options) {
 	toolbarStateStore.update(state => ({
@@ -708,6 +715,7 @@ export function setActiveSegment(hasSegment, segmentId = null, options) {
 		activeSegmentHasHeadingTwo: options?.hasHeadingTwo || false,
 		activeSegmentHasHeadingThree: options?.hasHeadingThree || false,
 		activeSegmentHasNote: options?.hasNote || false,
+		isActiveSegmentFirstInPassage: hasSegment ? (options?.isFirst || false) : false,
 		// Deselect any connection when a segment becomes active
 		hasActiveConnection: hasSegment ? false : state.hasActiveConnection,
 		activeConnectionIds: hasSegment ? [] : state.activeConnectionIds
@@ -729,12 +737,14 @@ export function setCanInsertColumn(canInsert) {
  * Set active column state
  * @param {boolean} hasColumn - Whether a column is currently active
  * @param {string|null} columnId - The ID of the active column (optional)
+ * @param {boolean} isFirst - Whether the active column is the first column in its passage
  */
-export function setActiveColumn(hasColumn, columnId = null) {
+export function setActiveColumn(hasColumn, columnId = null, isFirst = false) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveColumn: hasColumn,
-		activeColumnId: columnId
+		activeColumnId: columnId,
+		isActiveColumnFirstInPassage: hasColumn ? isFirst : false
 	}));
 }
 
@@ -742,12 +752,14 @@ export function setActiveColumn(hasColumn, columnId = null) {
  * Set active section state
  * @param {boolean} hasSection - Whether a section is currently active
  * @param {string|null} sectionId - The ID of the active section (optional)
+ * @param {boolean} isFirst - Whether the active section is the first section in its passage
  */
-export function setActiveSection(hasSection, sectionId = null) {
+export function setActiveSection(hasSection, sectionId = null, isFirst = false) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveSection: hasSection,
-		activeSectionId: sectionId
+		activeSectionId: sectionId,
+		isActiveSectionFirstInPassage: hasSection ? isFirst : false
 	}));
 }
 

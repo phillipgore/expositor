@@ -56,7 +56,7 @@
 		label="Join Segment"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.isActiveSegmentFirstInPassage}
 	/>
 
 	<DividerHorizontal />
@@ -80,7 +80,7 @@
 		label="Join Section"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.isActiveSectionFirstInPassage}
 	/>
 
 	<DividerHorizontal />
@@ -103,7 +103,7 @@
 		label="Join Column"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.isActiveColumnFirstInPassage}
 	/>
 
 	<DividerHorizontal />
