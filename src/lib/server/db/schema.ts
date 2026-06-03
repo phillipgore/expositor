@@ -15,6 +15,17 @@ export const user = pgTable('user', {
 	studiesPanelOpen: boolean('studies_panel_open').default(true),
 	commentaryPanelWidth: integer('commentary_panel_width').default(300),
 	commentaryPanelOpen: boolean('commentary_panel_open').default(false),
+	headingsVisible: boolean('headings_visible').default(true),
+	notesVisible: boolean('notes_visible').default(true),
+	connectionsVisible: boolean('connections_visible').default(true),
+	columnConnectionsVisible: boolean('column_connections_visible').default(true),
+	sectionConnectionsVisible: boolean('section_connections_visible').default(true),
+	segmentConnectionsVisible: boolean('segment_connections_visible').default(true),
+	referencesVisible: boolean('references_visible').default(false),
+	versesVisible: boolean('verses_visible').default(false),
+	paragraphBreaksVisible: boolean('paragraph_breaks_visible').default(false),
+	wideLayout: boolean('wide_layout').default(false),
+	overviewMode: boolean('overview_mode').default(false),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

@@ -15,7 +15,23 @@ export async function PATCH({ request }) {
 
 	try {
 		const body = await request.json();
-		const { studiesPanelWidth, studiesPanelOpen, commentaryPanelWidth, commentaryPanelOpen } = body;
+		const {
+			studiesPanelWidth,
+			studiesPanelOpen,
+			commentaryPanelWidth,
+			commentaryPanelOpen,
+			headingsVisible,
+			notesVisible,
+			connectionsVisible,
+			columnConnectionsVisible,
+			sectionConnectionsVisible,
+			segmentConnectionsVisible,
+			referencesVisible,
+			versesVisible,
+			paragraphBreaksVisible,
+			wideLayout,
+			overviewMode
+		} = body;
 		
 		// Build update object with only provided fields
 		const updates = {};
@@ -50,6 +66,30 @@ export async function PATCH({ request }) {
 				return json({ error: 'Invalid commentary panel open state' }, { status: 400 });
 			}
 			updates.commentaryPanelOpen = commentaryPanelOpen;
+		}
+
+		// Validate and add view toggle preferences if provided
+		const booleanViewPrefs = {
+			headingsVisible,
+			notesVisible,
+			connectionsVisible,
+			columnConnectionsVisible,
+			sectionConnectionsVisible,
+			segmentConnectionsVisible,
+			referencesVisible,
+			versesVisible,
+			paragraphBreaksVisible,
+			wideLayout,
+			overviewMode
+		};
+
+		for (const [key, value] of Object.entries(booleanViewPrefs)) {
+			if (value !== undefined) {
+				if (typeof value !== 'boolean') {
+					return json({ error: `Invalid value for ${key}` }, { status: 400 });
+				}
+				updates[key] = value;
+			}
 		}
 		
 		// Only update if there are changes

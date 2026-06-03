@@ -10,13 +10,47 @@
 
 	let { data, children } = $props();
 
-	// Initialize toolbar state with persisted panel open state
+	// Initialize toolbar state with persisted preferences
 	$effect(() => {
 		if (data.studiesPanelOpen !== undefined) {
 			setToolbarState('studiesPanelOpen', data.studiesPanelOpen);
 		}
 		if (data.commentaryPanelOpen !== undefined) {
 			setToolbarState('commentaryPanelOpen', data.commentaryPanelOpen);
+		}
+		// View menu toggle preferences
+		if (data.headingsVisible !== undefined) {
+			setToolbarState('headingsVisible', data.headingsVisible);
+		}
+		if (data.notesVisible !== undefined) {
+			setToolbarState('notesVisible', data.notesVisible);
+		}
+		if (data.connectionsVisible !== undefined) {
+			setToolbarState('connectionsVisible', data.connectionsVisible);
+		}
+		if (data.columnConnectionsVisible !== undefined) {
+			setToolbarState('columnConnectionsVisible', data.columnConnectionsVisible);
+		}
+		if (data.sectionConnectionsVisible !== undefined) {
+			setToolbarState('sectionConnectionsVisible', data.sectionConnectionsVisible);
+		}
+		if (data.segmentConnectionsVisible !== undefined) {
+			setToolbarState('segmentConnectionsVisible', data.segmentConnectionsVisible);
+		}
+		if (data.referencesVisible !== undefined) {
+			setToolbarState('referencesVisible', data.referencesVisible);
+		}
+		if (data.versesVisible !== undefined) {
+			setToolbarState('versesVisible', data.versesVisible);
+		}
+		if (data.paragraphBreaksVisible !== undefined) {
+			setToolbarState('paragraphBreaksVisible', data.paragraphBreaksVisible);
+		}
+		if (data.wideLayout !== undefined) {
+			setToolbarState('wideLayout', data.wideLayout);
+		}
+		if (data.overviewMode !== undefined) {
+			setToolbarState('overviewMode', data.overviewMode);
 		}
 	});
 

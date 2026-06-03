@@ -1,0 +1,11 @@
+ALTER TABLE "user" ADD COLUMN "headings_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "notes_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "column_connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "section_connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "segment_connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "references_visible" boolean DEFAULT false;
+ALTER TABLE "user" ADD COLUMN "verses_visible" boolean DEFAULT false;
+ALTER TABLE "user" ADD COLUMN "paragraph_breaks_visible" boolean DEFAULT false;
+ALTER TABLE "user" ADD COLUMN "wide_layout" boolean DEFAULT false;
+ALTER TABLE "user" ADD COLUMN "overview_mode" boolean DEFAULT false;

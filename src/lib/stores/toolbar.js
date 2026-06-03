@@ -12,6 +12,24 @@
 import { writable, get } from 'svelte/store';
 
 /**
+ * Persist one or more preference key/value pairs to the database.
+ * Fire-and-forget: errors are logged but the store is not reverted,
+ * since view toggle preferences are low-stakes and easily re-toggled.
+ * @param {Record<string, boolean|number>} updates - Key/value pairs to persist
+ */
+async function persistPreference(updates) {
+	try {
+		await fetch('/api/user/preferences', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(updates)
+		});
+	} catch (error) {
+		console.error('Error persisting view preference:', error);
+	}
+}
+
+/**
  * @typedef {Object} SelectedItem
  * @property {string} type - Type of selected item ('group' or 'study')
  * @property {string} id - ID of selected item
@@ -418,10 +436,9 @@ export function toggleComparison() {
  * Toggle headings visibility
  */
 export function toggleHeadings() {
-	toolbarStateStore.update(state => ({
-		...state,
-		headingsVisible: !state.headingsVisible
-	}));
+	const newValue = !get(toolbarStateStore).headingsVisible;
+	toolbarStateStore.update(state => ({ ...state, headingsVisible: newValue }));
+	persistPreference({ headingsVisible: newValue });
 }
 
 /**
@@ -431,16 +448,19 @@ export function toggleHeadings() {
  * connectionsVisible is true only when ALL three individual types are on.
  */
 export function toggleConnections() {
-	toolbarStateStore.update(state => {
-		// If all three are on, turn everything off; otherwise turn everything on
-		const newValue = !state.connectionsVisible;
-		return {
-			...state,
-			connectionsVisible: newValue,
-			columnConnectionsVisible: newValue,
-			sectionConnectionsVisible: newValue,
-			segmentConnectionsVisible: newValue
-		};
+	const newValue = !get(toolbarStateStore).connectionsVisible;
+	toolbarStateStore.update(state => ({
+		...state,
+		connectionsVisible: newValue,
+		columnConnectionsVisible: newValue,
+		sectionConnectionsVisible: newValue,
+		segmentConnectionsVisible: newValue
+	}));
+	persistPreference({
+		connectionsVisible: newValue,
+		columnConnectionsVisible: newValue,
+		sectionConnectionsVisible: newValue,
+		segmentConnectionsVisible: newValue
 	});
 }
 
@@ -449,14 +469,15 @@ export function toggleConnections() {
  * Auto-updates the master connectionsVisible based on whether all three are now on.
  */
 export function toggleColumnConnections() {
-	toolbarStateStore.update(state => {
-		const newCol = !state.columnConnectionsVisible;
-		return {
-			...state,
-			columnConnectionsVisible: newCol,
-			connectionsVisible: newCol && state.sectionConnectionsVisible && state.segmentConnectionsVisible
-		};
-	});
+	const state = get(toolbarStateStore);
+	const newCol = !state.columnConnectionsVisible;
+	const newConnectionsVisible = newCol && state.sectionConnectionsVisible && state.segmentConnectionsVisible;
+	toolbarStateStore.update(s => ({
+		...s,
+		columnConnectionsVisible: newCol,
+		connectionsVisible: newConnectionsVisible
+	}));
+	persistPreference({ columnConnectionsVisible: newCol, connectionsVisible: newConnectionsVisible });
 }
 
 /**
@@ -464,14 +485,15 @@ export function toggleColumnConnections() {
  * Auto-updates the master connectionsVisible based on whether all three are now on.
  */
 export function toggleSectionConnections() {
-	toolbarStateStore.update(state => {
-		const newSec = !state.sectionConnectionsVisible;
-		return {
-			...state,
-			sectionConnectionsVisible: newSec,
-			connectionsVisible: state.columnConnectionsVisible && newSec && state.segmentConnectionsVisible
-		};
-	});
+	const state = get(toolbarStateStore);
+	const newSec = !state.sectionConnectionsVisible;
+	const newConnectionsVisible = state.columnConnectionsVisible && newSec && state.segmentConnectionsVisible;
+	toolbarStateStore.update(s => ({
+		...s,
+		sectionConnectionsVisible: newSec,
+		connectionsVisible: newConnectionsVisible
+	}));
+	persistPreference({ sectionConnectionsVisible: newSec, connectionsVisible: newConnectionsVisible });
 }
 
 /**
@@ -479,84 +501,85 @@ export function toggleSectionConnections() {
  * Auto-updates the master connectionsVisible based on whether all three are now on.
  */
 export function toggleSegmentConnections() {
-	toolbarStateStore.update(state => {
-		const newSeg = !state.segmentConnectionsVisible;
-		return {
-			...state,
-			segmentConnectionsVisible: newSeg,
-			connectionsVisible: state.columnConnectionsVisible && state.sectionConnectionsVisible && newSeg
-		};
-	});
+	const state = get(toolbarStateStore);
+	const newSeg = !state.segmentConnectionsVisible;
+	const newConnectionsVisible = state.columnConnectionsVisible && state.sectionConnectionsVisible && newSeg;
+	toolbarStateStore.update(s => ({
+		...s,
+		segmentConnectionsVisible: newSeg,
+		connectionsVisible: newConnectionsVisible
+	}));
+	persistPreference({ segmentConnectionsVisible: newSeg, connectionsVisible: newConnectionsVisible });
 }
 
 /**
  * Toggle notes visibility
  */
 export function toggleNotes() {
-	toolbarStateStore.update(state => ({
-		...state,
-		notesVisible: !state.notesVisible
-	}));
+	const newValue = !get(toolbarStateStore).notesVisible;
+	toolbarStateStore.update(state => ({ ...state, notesVisible: newValue }));
+	persistPreference({ notesVisible: newValue });
 }
 
 /**
  * Toggle references visibility
  */
 export function toggleReferences() {
-	toolbarStateStore.update(state => ({
-		...state,
-		referencesVisible: !state.referencesVisible
-	}));
+	const newValue = !get(toolbarStateStore).referencesVisible;
+	toolbarStateStore.update(state => ({ ...state, referencesVisible: newValue }));
+	persistPreference({ referencesVisible: newValue });
 }
 
 /**
  * Toggle verses visibility
  */
 export function toggleVerses() {
-	toolbarStateStore.update(state => ({
-		...state,
-		versesVisible: !state.versesVisible
-	}));
+	const newValue = !get(toolbarStateStore).versesVisible;
+	toolbarStateStore.update(state => ({ ...state, versesVisible: newValue }));
+	persistPreference({ versesVisible: newValue });
 }
 
 /**
  * Toggle paragraph breaks visibility
  */
 export function toggleParagraphBreaks() {
-	toolbarStateStore.update(state => ({
-		...state,
-		paragraphBreaksVisible: !state.paragraphBreaksVisible
-	}));
+	const newValue = !get(toolbarStateStore).paragraphBreaksVisible;
+	toolbarStateStore.update(state => ({ ...state, paragraphBreaksVisible: newValue }));
+	persistPreference({ paragraphBreaksVisible: newValue });
 }
 
 /**
  * Toggle wide layout
  */
 export function toggleWide() {
-	toolbarStateStore.update(state => ({
-		...state,
-		wideLayout: !state.wideLayout
-	}));
+	const newValue = !get(toolbarStateStore).wideLayout;
+	toolbarStateStore.update(state => ({ ...state, wideLayout: newValue }));
+	persistPreference({ wideLayout: newValue });
 }
 
 /**
- * Toggle overview mode
- * Automatically closes commentary panel when enabling overview mode
+ * Toggle overview mode.
+ * Automatically closes the commentary panel and forces headings visible when enabling.
+ * Persists all affected preferences to the database.
  */
 export function toggleOverview() {
-	toolbarStateStore.update(state => {
-		// If turning overview ON and commentary is open, close commentary first
-		const newOverviewMode = !state.overviewMode;
-		const shouldCloseCommentary = newOverviewMode && state.commentaryPanelOpen;
-		
-		return {
-			...state,
-			overviewMode: newOverviewMode,
-			commentaryPanelOpen: shouldCloseCommentary ? false : state.commentaryPanelOpen,
-			// Automatically ensure headings are visible when entering overview mode
-			headingsVisible: newOverviewMode ? true : state.headingsVisible
-		};
-	});
+	const state = get(toolbarStateStore);
+	const newOverviewMode = !state.overviewMode;
+	const shouldCloseCommentary = newOverviewMode && state.commentaryPanelOpen;
+	const newHeadingsVisible = newOverviewMode ? true : state.headingsVisible;
+
+	toolbarStateStore.update(s => ({
+		...s,
+		overviewMode: newOverviewMode,
+		commentaryPanelOpen: shouldCloseCommentary ? false : s.commentaryPanelOpen,
+		headingsVisible: newHeadingsVisible
+	}));
+
+	// Persist all values that may have changed
+	const updates = { overviewMode: newOverviewMode };
+	if (shouldCloseCommentary) updates.commentaryPanelOpen = false;
+	if (newOverviewMode) updates.headingsVisible = true;
+	persistPreference(updates);
 }
 
 /**

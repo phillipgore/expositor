@@ -22,7 +22,18 @@ export async function load({ request, depends }) {
 				studiesPanelWidth: user.studiesPanelWidth,
 				studiesPanelOpen: user.studiesPanelOpen,
 				commentaryPanelWidth: user.commentaryPanelWidth,
-				commentaryPanelOpen: user.commentaryPanelOpen
+				commentaryPanelOpen: user.commentaryPanelOpen,
+				headingsVisible: user.headingsVisible,
+				notesVisible: user.notesVisible,
+				connectionsVisible: user.connectionsVisible,
+				columnConnectionsVisible: user.columnConnectionsVisible,
+				sectionConnectionsVisible: user.sectionConnectionsVisible,
+				segmentConnectionsVisible: user.segmentConnectionsVisible,
+				referencesVisible: user.referencesVisible,
+				versesVisible: user.versesVisible,
+				paragraphBreaksVisible: user.paragraphBreaksVisible,
+				wideLayout: user.wideLayout,
+				overviewMode: user.overviewMode
 			})
 			.from(user)
 			.where(eq(user.id, session.user.id))
@@ -32,6 +43,17 @@ export async function load({ request, depends }) {
 		const studiesPanelOpen = userData[0]?.studiesPanelOpen ?? true;
 		const commentaryPanelWidth = userData[0]?.commentaryPanelWidth || 300;
 		const commentaryPanelOpen = userData[0]?.commentaryPanelOpen ?? false;
+		const headingsVisible = userData[0]?.headingsVisible ?? true;
+		const notesVisible = userData[0]?.notesVisible ?? true;
+		const connectionsVisible = userData[0]?.connectionsVisible ?? true;
+		const columnConnectionsVisible = userData[0]?.columnConnectionsVisible ?? true;
+		const sectionConnectionsVisible = userData[0]?.sectionConnectionsVisible ?? true;
+		const segmentConnectionsVisible = userData[0]?.segmentConnectionsVisible ?? true;
+		const referencesVisible = userData[0]?.referencesVisible ?? false;
+		const versesVisible = userData[0]?.versesVisible ?? false;
+		const paragraphBreaksVisible = userData[0]?.paragraphBreaksVisible ?? false;
+		const wideLayout = userData[0]?.wideLayout ?? false;
+		const overviewMode = userData[0]?.overviewMode ?? false;
 		
 		// Query all groups for the logged-in user
 		const groupsData = await db
@@ -99,7 +121,18 @@ export async function load({ request, depends }) {
 			studiesPanelWidth,
 			studiesPanelOpen,
 			commentaryPanelWidth,
-			commentaryPanelOpen
+			commentaryPanelOpen,
+			headingsVisible,
+			notesVisible,
+			connectionsVisible,
+			columnConnectionsVisible,
+			sectionConnectionsVisible,
+			segmentConnectionsVisible,
+			referencesVisible,
+			versesVisible,
+			paragraphBreaksVisible,
+			wideLayout,
+			overviewMode
 		};
 	} catch (error) {
 		console.error('Error loading studies:', error);
