@@ -5,7 +5,37 @@ import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
 
 /**
- * Update section color
+ * Get a section record (including commentary)
+ * @type {import('./$types').RequestHandler}
+ */
+export const GET = async ({ request, params }) => {
+	try {
+		const session = await auth.api.getSession({ headers: request.headers });
+
+		if (!session?.user?.id) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		const sectionId = params.id;
+
+		const sections = await db.select()
+			.from(passageSection)
+			.where(eq(passageSection.id, sectionId))
+			.limit(1);
+
+		if (sections.length === 0) {
+			return json({ error: 'Section not found' }, { status: 404 });
+		}
+
+		return json(sections[0]);
+	} catch (error) {
+		console.error('Get section error:', error);
+		return json({ error: 'Internal server error' }, { status: 500 });
+	}
+};
+
+/**
+ * Update section color and/or commentary
  * @type {import('./$types').RequestHandler}
  */
 export const PATCH = async ({ request, params }) => {
@@ -17,10 +47,30 @@ export const PATCH = async ({ request, params }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { color } = await request.json();
+		const body = await request.json();
 		const sectionId = params.id;
 
-		// Validate color
+		// Handle commentary update
+		if ('commentary' in body) {
+			const { commentary } = body;
+
+			if (commentary !== undefined && typeof commentary !== 'string' && commentary !== null) {
+				return json({ error: 'Invalid commentary' }, { status: 400 });
+			}
+
+			await db.update(passageSection)
+				.set({
+					commentary: commentary ?? null,
+					updatedAt: new Date()
+				})
+				.where(eq(passageSection.id, sectionId));
+
+			return json({ success: true }, { status: 200 });
+		}
+
+		// Handle color update (original behaviour)
+		const { color } = body;
+
 		const validColors = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'];
 		if (!color || !validColors.includes(color)) {
 			return json({ error: 'Invalid color. Must be one of: ' + validColors.join(', ') }, { status: 400 });
@@ -36,9 +86,8 @@ export const PATCH = async ({ request, params }) => {
 
 		return json({ success: true }, { status: 200 });
 	} catch (error) {
-		console.error('Update section color error:', error);
+		console.error('Update section error:', error);
 		
-		// Return specific error messages for known validation errors
 		if (error.message === 'Unauthorized') {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}

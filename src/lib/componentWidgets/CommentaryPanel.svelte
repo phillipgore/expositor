@@ -21,7 +21,7 @@
 
 	/**
 	 * The currently active "subject" being commented on.
-	 * @type {{ type: 'segment'|'connection', id: string } | null}
+	 * @type {{ type: 'segment'|'section'|'column'|'connection', id: string } | null}
 	 */
 	let currentSubject = $state(null);
 	let commentaryContent = $state('');
@@ -51,17 +51,18 @@
 
 	/**
 	 * Resolve the URL for loading/saving commentary based on subject type.
-	 * @param {{ type: 'segment'|'connection', id: string }} subject
+	 * @param {{ type: 'segment'|'section'|'column'|'connection', id: string }} subject
 	 */
 	function getApiUrl(subject) {
-		return subject.type === 'connection'
-			? `/api/segments/connections/${subject.id}`
-			: `/api/segments/${subject.id}`;
+		if (subject.type === 'connection') return `/api/segments/connections/${subject.id}`;
+		if (subject.type === 'column')     return `/api/passages/columns/${subject.id}`;
+		if (subject.type === 'section')    return `/api/passages/sections/${subject.id}`;
+		return `/api/segments/${subject.id}`;
 	}
 
 	/**
 	 * Load commentary from the database for the given subject.
-	 * @param {{ type: 'segment'|'connection', id: string }} subject
+	 * @param {{ type: 'segment'|'section'|'column'|'connection', id: string }} subject
 	 */
 	async function loadCommentary(subject) {
 		try {
@@ -81,7 +82,7 @@
 
 	/**
 	 * Save commentary to the database for the given subject.
-	 * @param {{ type: 'segment'|'connection', id: string }} subject
+	 * @param {{ type: 'segment'|'section'|'column'|'connection', id: string }} subject
 	 * @param {string} html
 	 */
 	async function saveCommentary(subject, html) {
@@ -116,7 +117,8 @@
 	}
 
 	/**
-	 * Watch for segment or connection changes and load commentary.
+	 * Watch for segment, section, column, or connection changes and load commentary.
+	 * Priority: connection → column → section → segment.
 	 * Uses untrack() to prevent infinite loops.
 	 */
 	$effect(() => {
@@ -126,14 +128,24 @@
 		const connectionId = $toolbarState.activeConnectionIds.length === 1
 			? $toolbarState.activeConnectionIds[0]
 			: null;
+		const columnId     = $toolbarState.activeColumnId;
+		// Section is the subject only when a section (not a column) is explicitly selected.
+		// When a column is active, hasActiveSection is also true; we use the column in that case.
+		const sectionId    = $toolbarState.hasActiveSection && !$toolbarState.hasActiveColumn
+			? $toolbarState.activeSectionId
+			: null;
 
 		// Determine the new subject
-		/** @type {{ type: 'segment'|'connection', id: string } | null} */
+		/** @type {{ type: 'segment'|'section'|'column'|'connection', id: string } | null} */
 		const newSubject = connectionId
 			? { type: 'connection', id: connectionId }
-			: segmentId
-				? { type: 'segment', id: segmentId }
-				: null;
+			: columnId
+				? { type: 'column', id: columnId }
+				: sectionId
+					? { type: 'section', id: sectionId }
+					: segmentId
+						? { type: 'segment', id: segmentId }
+						: null;
 
 		const prevSubject = untrack(() => currentSubject);
 
@@ -199,7 +211,7 @@
 		></div>
 	{/if}
 	<div class="panel-content" style:width="{panelWidth}px">
-		{#if $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1)}
+		{#if $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1) || $toolbarState.hasActiveSection}
 			{#key currentSubject?.id}
 				<CommentaryEditor 
 					content={commentaryContent}
@@ -208,7 +220,7 @@
 			{/key}
 		{:else}
 			<div class="empty-state">
-				<p>Select a segment or connection to add commentary</p>
+				<p>Select a segment, section, column, or connection to add commentary</p>
 			</div>
 		{/if}
 	</div>

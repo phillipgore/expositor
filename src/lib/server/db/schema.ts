@@ -134,6 +134,7 @@ export const passageColumn = pgTable('passage_column', {
 		.notNull()
 		.references(() => passage.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
+	commentary: text('commentary'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
@@ -152,6 +153,7 @@ export const passageSection = pgTable('passage_section', {
 		.references(() => passageColumn.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
 	color: text('color').notNull().default('blue'),
+	commentary: text('commentary'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
