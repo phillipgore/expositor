@@ -211,6 +211,8 @@ export const segmentConnection = pgTable('segment_connection', {
 		.references(() => passageColumn.id, { onDelete: 'cascade' }),
 	toColumnId: text('to_column_id')
 		.references(() => passageColumn.id, { onDelete: 'cascade' }),
+	// Short plain-text quick note for this connection (mirrors passage_segment.note)
+	note: text('note'),
 	// Rich text commentary for this connection (mirrors passage_segment.commentary)
 	commentary: text('commentary'),
 	createdAt: timestamp('created_at')

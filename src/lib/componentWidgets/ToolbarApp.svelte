@@ -298,13 +298,19 @@
 			return;
 		}
 
-		// Priority 2: Connection is currently selected
+		// Priority 2: Connection note is in edit mode — delete the note only (not the connection)
+		if ($toolbarState.hasActiveHeadingOrNoteEditor && $toolbarState.activeHeadingOrNoteType === 'connection-note') {
+			window.dispatchEvent(new CustomEvent('connection-remove-note'));
+			return;
+		}
+
+		// Priority 3: Connection is currently selected
 		if ($toolbarState.hasActiveConnection) {
 			window.dispatchEvent(new CustomEvent('remove-connection'));
 			return;
 		}
 
-		// Priority 3: A specific heading or note editor is in input mode — delete only that one
+		// Priority 4: A specific heading or note editor is in input mode — delete only that one
 		if ($toolbarState.hasActiveHeadingOrNoteEditor && $toolbarState.activeHeadingOrNoteType) {
 			const segmentId = $toolbarState.activeSegmentId;
 			const type = $toolbarState.activeHeadingOrNoteType;

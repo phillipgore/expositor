@@ -89,10 +89,21 @@
 			if (!$toolbarState.notesVisible) {
 				setToolbarState('notesVisible', true);
 			}
-			// Trigger insert note event via custom event
-			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
+			if ($toolbarState.hasActiveConnection) {
+				// Trigger insert connection note event
+				window.dispatchEvent(new CustomEvent('connection-insert-note'));
+			} else {
+				// Trigger insert segment note event via custom event
+				window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
+			}
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasNote}
+		isDisabled={
+			!(
+				($toolbarState.hasActiveSegment && !$toolbarState.hasActiveColumn && !$toolbarState.hasActiveSection && !$toolbarState.activeSegmentHasNote)
+				||
+				($toolbarState.hasActiveConnection && !$toolbarState.activeConnectionHasNote)
+			)
+		}
 	/>
 
 	<DividerHorizontal />

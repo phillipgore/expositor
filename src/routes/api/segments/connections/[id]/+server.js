@@ -88,9 +88,10 @@ export const PATCH = async ({ params, request }) => {
 		const updatingFrom      = 'fromType' in body || 'fromSegmentId' in body || 'fromSectionId' in body || 'fromColumnId' in body;
 		const updatingTo        = 'toType'   in body || 'toSegmentId'   in body || 'toSectionId'   in body || 'toColumnId'   in body;
 		const updatingCommentary = 'commentary' in body;
+		const updatingNote       = 'note' in body;
 
-		if (!updatingFrom && !updatingTo && !updatingCommentary) {
-			return json({ error: 'Must provide at least one field to update (from*, to*, or commentary)' }, { status: 400 });
+		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote) {
+			return json({ error: 'Must provide at least one field to update (from*, to*, note, or commentary)' }, { status: 400 });
 		}
 
 		// Validate types if provided
@@ -129,6 +130,14 @@ export const PATCH = async ({ params, request }) => {
 		// Strategy: start from the current connection values, then apply only
 		// the fields the caller provided.  Each end is handled independently.
 		const updates = { updatedAt: new Date() };
+
+		// Note update (independent of rerouting)
+		if (updatingNote) {
+			if (body.note !== null && typeof body.note !== 'string') {
+				return json({ error: 'Invalid note: must be a string or null' }, { status: 400 });
+			}
+			updates.note = body.note ?? null;
+		}
 
 		// Commentary update (independent of rerouting)
 		if (updatingCommentary) {

@@ -104,6 +104,7 @@ async function persistPreference(updates) {
  * @property {boolean} canRemoveConnection - Whether Remove Connection button should be enabled
  * @property {boolean} hasActiveConnection - Whether one or more connection lines are currently selected
  * @property {string[]} activeConnectionIds - The IDs of the currently selected connections
+ * @property {boolean} activeConnectionHasNote - Whether the currently selected connection has a quick note
  * @property {boolean} hasActiveHeadingOrNoteEditor - Whether a heading or note editor is in input mode
  * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
  * @property {boolean} isWordInFirstSegment - Whether the selected word is in the first segment of its passage
@@ -175,6 +176,7 @@ const defaultState = {
 	canRemoveConnection: false,
 	hasActiveConnection: false,
 	activeConnectionIds: [],
+	activeConnectionHasNote: false,
 	hasActiveHeadingOrNoteEditor: false,
 	activeHeadingOrNoteType: null,
 	isWordInFirstSegment: false,
@@ -844,12 +846,14 @@ export function setCaretSegmentBoundary(atStart, atEnd) {
  * enter compare mode to view the connected elements side-by-side.
  * @param {boolean} hasConnection - Whether one or more connections are currently selected
  * @param {string[]} connectionIds - The IDs of the selected connections
+ * @param {boolean} [hasNote] - Whether the selected connection(s) have a quick note
  */
-export function setActiveConnection(hasConnection, connectionIds = []) {
+export function setActiveConnection(hasConnection, connectionIds = [], hasNote = false) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveConnection: hasConnection,
 		activeConnectionIds: connectionIds,
+		activeConnectionHasNote: hasConnection ? hasNote : false,
 		// Deselect segment when a connection is selected, and vice versa
 		hasActiveSegment: hasConnection ? false : state.hasActiveSegment,
 		activeSegmentId: hasConnection ? null : state.activeSegmentId,

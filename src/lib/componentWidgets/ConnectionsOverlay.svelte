@@ -30,11 +30,17 @@
 	 *   Proximity detection (≤ SNAP_RADIUS SVG units) snaps the ghost line to the
 	 *   nearest handle.  Dropping changes only the dragged end's type and ID —
 	 *   the fixed end is preserved exactly, enabling or changing cross-type connections.
+	 *
+	 * Quick Notes:
+	 *   Each connection can have a short plain-text note displayed at the midpoint
+	 *   of its bezier curve.  Notes are shown when notesVisible is on AND the
+	 *   connection's type toggle is on.  Click the note to edit; Enter/blur to save;
+	 *   Escape to cancel; Delete toolbar button to remove the note entirely.
 	 */
 
 	import { onMount, onDestroy } from 'svelte';
 	import { invalidate } from '$app/navigation';
-	import { toolbarState, setActiveConnection } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveConnection, setHeadingOrNoteEditorActive, setToolbarState } from '$lib/stores/toolbar.js';
 
 	let { connections = [], scale = 1 } = $props();
 
@@ -44,7 +50,7 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle }} PathEntry
+	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle, note: string|null }} PathEntry
 	 * @typedef {{ elementId: string, type: ConnType, side: 'left'|'right', x: number, y: number }} Handle
 	 */
 
@@ -87,6 +93,26 @@
 
 	/** IDs of the currently selected connection paths (supports multi-select). */
 	let selectedPathIds = $state(/** @type {Set<string>} */ (new Set()));
+
+	// ─── Note editing state ───────────────────────────────────────────────────
+
+	/** ID of the connection whose note is currently being edited. */
+	let noteEditingId = $state(/** @type {string|null} */ (null));
+
+	/** Current value in the note textarea. */
+	let noteInputValue = $state('');
+
+	/** Original note value before editing began (for Escape revert). */
+	let noteOriginalValue = $state('');
+
+	/** Debounce timer for auto-save while typing. @type {ReturnType<typeof setTimeout>|null} */
+	let noteSaveTimeout = null;
+
+	/** Maximum characters allowed in a connection note. */
+	const MAX_NOTE_CHARS = 140;
+
+	/** Reference to the note textarea for auto-grow. @type {HTMLTextAreaElement|null} */
+	let noteTextareaRef = $state(null);
 
 	const SNAP_RADIUS = 32;
 	let resizeObserver = /** @type {ResizeObserver | null} */ (null);
@@ -148,6 +174,24 @@
 	 * @param {ConnType} type
 	 */
 	function isBottomAnchor(type) { return type === 'section'; }
+
+	// ─── Bezier midpoint helper ───────────────────────────────────────────────
+
+	/**
+	 * Compute the midpoint (t=0.5) of a cubic bezier curve.
+	 * Formula: B(0.5) = (P0 + 3·C1 + 3·C2 + P3) / 8
+	 * @param {number} x0 @param {number} y0  — start point (P0)
+	 * @param {number} cx1 @param {number} cy1 — control point 1 (C1)
+	 * @param {number} cx2 @param {number} cy2 — control point 2 (C2)
+	 * @param {number} x1 @param {number} y1   — end point (P3)
+	 * @returns {{ mx: number, my: number }}
+	 */
+	function cubicBezierMidpoint(x0, y0, cx1, cy1, cx2, cy2, x1, y1) {
+		return {
+			mx: (x0 + 3 * cx1 + 3 * cx2 + x1) / 8,
+			my: (y0 + 3 * cy1 + 3 * cy2 + y1) / 8
+		};
+	}
 
 	// ─── Line style determination ─────────────────────────────────────────────
 
@@ -248,90 +292,108 @@
 
 			const dx = Math.abs(to.x - from.x);
 			const dy = Math.abs(to.y - from.y);
+
+			// Control points for the cubic bezier (used both for `d` and midpoint)
+			let cx1, cy1, cx2, cy2;
 			let d;
 
 			if (fromTop && toTop) {
 				// Column ↔ Column — both top anchors, arch droops downward
 				if (dy < 5) {
-					// Same horizontal plane — gentle shallow arch drooping downward
 					const curvature = Math.max(10, dx * 0.12);
-					d = `M ${from.x},${from.y} C ${from.x},${from.y + curvature} ${to.x},${to.y + curvature} ${to.x},${to.y}`;
+					cx1 = from.x; cy1 = from.y + curvature;
+					cx2 = to.x;   cy2 = to.y + curvature;
 				} else {
-					// Different heights — S-curve
 					const vCurve = Math.max(20, dy * 0.4);
 					if (from.y < to.y) {
-						// from is higher on page: exit downward, arrive at to from above
-						d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${to.x},${to.y - vCurve} ${to.x},${to.y}`;
+						cx1 = from.x; cy1 = from.y + vCurve;
+						cx2 = to.x;   cy2 = to.y - vCurve;
 					} else {
-						// from is lower on page: exit upward, arrive at to from below
-						d = `M ${from.x},${from.y} C ${from.x},${from.y - vCurve} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+						cx1 = from.x; cy1 = from.y - vCurve;
+						cx2 = to.x;   cy2 = to.y + vCurve;
 					}
 				}
 			} else if (fromBottom && toBottom) {
 				// Section ↔ Section — both bottom anchors, arch extends downward
 				if (dy < 5) {
-					// Same horizontal plane — gentle arch drooping below both bottom edges
 					const curvature = Math.max(10, dx * 0.12);
-					d = `M ${from.x},${from.y} C ${from.x},${from.y + curvature} ${to.x},${to.y + curvature} ${to.x},${to.y}`;
+					cx1 = from.x; cy1 = from.y + curvature;
+					cx2 = to.x;   cy2 = to.y + curvature;
 				} else {
-					// Different heights — S-curve between bottom edges
 					const vCurve = Math.max(20, dy * 0.4);
 					if (from.y < to.y) {
-						// from bottom is higher on page: exit downward, arrive at to from above
-						d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${to.x},${to.y - vCurve} ${to.x},${to.y}`;
+						cx1 = from.x; cy1 = from.y + vCurve;
+						cx2 = to.x;   cy2 = to.y - vCurve;
 					} else {
-						// from bottom is lower on page: exit upward, arrive at to from below
-						d = `M ${from.x},${from.y} C ${from.x},${from.y - vCurve} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+						cx1 = from.x; cy1 = from.y - vCurve;
+						cx2 = to.x;   cy2 = to.y + vCurve;
 					}
 				}
 			} else if ((fromTop && toBottom) || (fromBottom && toTop)) {
 				// Column ↔ Section — top anchor to bottom anchor (or vice versa)
-				// Both control points extend downward, creating a flowing arch
 				const vCurve = Math.max(20, Math.max(dy, dx) * 0.35);
-				d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+				cx1 = from.x; cy1 = from.y + vCurve;
+				cx2 = to.x;   cy2 = to.y + vCurve;
 			} else if (fromSide2 && toSide2) {
 				// Segment ↔ Segment — both side anchors, horizontal bezier
 				if (sameCol) {
-					// Same column: loop out to the right
 					const loopOut = Math.max(16, dy * 0.1);
-					d = `M ${from.x},${from.y} C ${from.x + loopOut},${from.y} ${to.x + loopOut},${to.y} ${to.x},${to.y}`;
+					cx1 = from.x + loopOut; cy1 = from.y;
+					cx2 = to.x   + loopOut; cy2 = to.y;
 				} else {
 					const curvature = Math.max(30, dx * 0.4);
-					d = fromCX < toCX
-						? `M ${from.x},${from.y} C ${from.x + curvature},${from.y} ${to.x - curvature},${to.y} ${to.x},${to.y}`
-						: `M ${from.x},${from.y} C ${from.x - curvature},${from.y} ${to.x + curvature},${to.y} ${to.x},${to.y}`;
+					if (fromCX < toCX) {
+						cx1 = from.x + curvature; cy1 = from.y;
+						cx2 = to.x   - curvature; cy2 = to.y;
+					} else {
+						cx1 = from.x - curvature; cy1 = from.y;
+						cx2 = to.x   + curvature; cy2 = to.y;
+					}
 				}
 			} else if (fromTop && toSide2) {
-				// Column → Segment: top anchor exits downward, segment exits horizontally
+				// Column → Segment
 				const vCurve = Math.max(30, dy * 0.4);
 				const hCurve = Math.max(30, dx * 0.4);
-				const cp2x = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
-				d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${cp2x},${to.y} ${to.x},${to.y}`;
+				cx1 = from.x;
+				cy1 = from.y + vCurve;
+				cx2 = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
+				cy2 = to.y;
 			} else if (fromSide2 && toTop) {
-				// Segment → Column: segment exits horizontally, column arrives from below
+				// Segment → Column
 				const vCurve = Math.max(30, dy * 0.4);
 				const hCurve = Math.max(30, dx * 0.4);
-				const cp1x = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
-				d = `M ${from.x},${from.y} C ${cp1x},${from.y} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+				cx1 = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
+				cy1 = from.y;
+				cx2 = to.x;
+				cy2 = to.y + vCurve;
 			} else if (fromBottom && toSide2) {
-				// Section → Segment: bottom anchor exits downward, segment exits horizontally
+				// Section → Segment
 				const vCurve = Math.max(30, dy * 0.4);
 				const hCurve = Math.max(30, dx * 0.4);
-				const cp2x = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
-				d = `M ${from.x},${from.y} C ${from.x},${from.y + vCurve} ${cp2x},${to.y} ${to.x},${to.y}`;
+				cx1 = from.x;
+				cy1 = from.y + vCurve;
+				cx2 = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
+				cy2 = to.y;
 			} else {
-				// Segment → Section: segment exits horizontally, section arrives from below
+				// Segment → Section
 				const vCurve = Math.max(30, dy * 0.4);
 				const hCurve = Math.max(30, dx * 0.4);
-				const cp1x = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
-				d = `M ${from.x},${from.y} C ${cp1x},${from.y} ${to.x},${to.y + vCurve} ${to.x},${to.y}`;
+				cx1 = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
+				cy1 = from.y;
+				cx2 = to.x;
+				cy2 = to.y + vCurve;
 			}
+
+			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
+			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
 
 			newPaths.push({
 				id: connection.id,
 				d, x1: from.x, y1: from.y, x2: to.x, y2: to.y,
+				mx, my,
 				fromType, toType,
-				lineStyle: getLineStyle(fromType, toType)
+				lineStyle: getLineStyle(fromType, toType),
+				note: connection.note ?? null
 			});
 		}
 
@@ -539,7 +601,11 @@
 		}
 
 		const ids = [...selectedPathIds];
-		setActiveConnection(ids.length > 0, ids);
+		// Pass hasNote for single-selection so the toolbar knows if the note button should be enabled
+		const hasNote = ids.length === 1
+			? !!(connections.find(c => c.id === ids[0])?.note)
+			: false;
+		setActiveConnection(ids.length > 0, ids, hasNote);
 	}
 
 	/**
@@ -588,6 +654,167 @@
 		}
 	});
 
+	// Update activeConnectionHasNote when connections data refreshes (e.g. after note save)
+	$effect(() => {
+		if ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1) {
+			const connId = $toolbarState.activeConnectionIds[0];
+			const conn = connections.find(c => c.id === connId);
+			const hasNote = !!(conn?.note);
+			if (hasNote !== $toolbarState.activeConnectionHasNote) {
+				setToolbarState('activeConnectionHasNote', hasNote);
+			}
+		}
+	});
+
+	// ─── Note editing ─────────────────────────────────────────────────────────
+
+	/**
+	 * Save a note value to the API (empty string → null, clears the note).
+	 * @param {string} connectionId
+	 * @param {string} noteText
+	 */
+	async function saveNote(connectionId, noteText) {
+		try {
+			const response = await fetch(`/api/segments/connections/${connectionId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ note: noteText.trim() || null })
+			});
+			if (response.ok) {
+				await invalidate('app:studies');
+			} else {
+				const err = await response.json();
+				console.error('Connection note save error:', err);
+			}
+		} catch (err) {
+			console.error('Connection note save network error:', err);
+		}
+	}
+
+	/**
+	 * Schedule an auto-save after 1 second of inactivity.
+	 * @param {string} connectionId
+	 * @param {string} noteText
+	 */
+	function scheduleNoteSave(connectionId, noteText) {
+		if (noteSaveTimeout) clearTimeout(noteSaveTimeout);
+		noteSaveTimeout = setTimeout(() => {
+			noteSaveTimeout = null;
+			saveNote(connectionId, noteText);
+		}, 1000);
+	}
+
+	/**
+	 * Enter edit mode for a connection's note.
+	 * @param {string} connectionId
+	 */
+	function startNoteEdit(connectionId) {
+		const conn = connections.find(c => c.id === connectionId);
+		if (!conn) return;
+		noteOriginalValue = conn.note ?? '';
+		noteInputValue = conn.note ?? '';
+		noteEditingId = connectionId;
+		setHeadingOrNoteEditorActive(true, 'connection-note');
+	}
+
+	/**
+	 * Commit the current note value and exit edit mode.
+	 */
+	function commitNoteEdit() {
+		if (!noteEditingId) return;
+		const id = noteEditingId;
+		const text = noteInputValue;
+		noteEditingId = null;
+		setHeadingOrNoteEditorActive(false, null);
+		if (noteSaveTimeout) { clearTimeout(noteSaveTimeout); noteSaveTimeout = null; }
+		saveNote(id, text);
+	}
+
+	/**
+	 * Revert to the original value and exit edit mode.
+	 */
+	function cancelNoteEdit() {
+		if (!noteEditingId) return;
+		noteEditingId = null;
+		noteInputValue = '';
+		noteOriginalValue = '';
+		setHeadingOrNoteEditorActive(false, null);
+		if (noteSaveTimeout) { clearTimeout(noteSaveTimeout); noteSaveTimeout = null; }
+		// No API call — just discard local edits (note display reverts to conn.note from props)
+	}
+
+	/**
+	 * Handle keyboard shortcuts inside the note textarea.
+	 * @param {KeyboardEvent} event
+	 */
+	function handleNoteKeydown(event) {
+		if (event.key === 'Enter' && !event.shiftKey) {
+			event.preventDefault();
+			commitNoteEdit();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			cancelNoteEdit();
+		}
+		// Prevent the global keyboard handler from treating Delete/Backspace as a connection delete
+		event.stopPropagation();
+	}
+
+	/**
+	 * Svelte action: focus and select-all the element when it mounts.
+	 * @param {HTMLTextAreaElement} node
+	 */
+	function focusOnMount(node) {
+		requestAnimationFrame(() => {
+			node.focus();
+			node.select();
+		});
+		return {};
+	}
+
+	// ─── Window event handlers ────────────────────────────────────────────────
+
+	/**
+	 * Handle "connection-insert-note" from the Outline menu or toolbar.
+	 * Activates the note editor for the currently selected (single) connection.
+	 */
+	function handleInsertConnectionNote() {
+		const ids = [...selectedPathIds];
+		if (ids.length !== 1) return;
+		startNoteEdit(ids[0]);
+	}
+
+	/**
+	 * Handle "connection-remove-note" from the Delete toolbar button.
+	 * Deletes the note of the connection currently in edit mode.
+	 */
+	async function handleRemoveConnectionNote() {
+		if (!noteEditingId) {
+			// Fallback: delete note of the single selected connection
+			const ids = [...selectedPathIds];
+			if (ids.length !== 1) return;
+			if (noteSaveTimeout) { clearTimeout(noteSaveTimeout); noteSaveTimeout = null; }
+			await saveNote(ids[0], '');
+			return;
+		}
+		const id = noteEditingId;
+		noteEditingId = null;
+		noteInputValue = '';
+		noteOriginalValue = '';
+		setHeadingOrNoteEditorActive(false, null);
+		if (noteSaveTimeout) { clearTimeout(noteSaveTimeout); noteSaveTimeout = null; }
+		await saveNote(id, '');
+	}
+
+	// ─── Note textarea auto-grow ──────────────────────────────────────────────
+
+	$effect(() => {
+		if (noteTextareaRef) {
+			noteInputValue; // track reactively
+			noteTextareaRef.style.height = 'auto';
+			noteTextareaRef.style.height = `${noteTextareaRef.scrollHeight}px`;
+		}
+	});
+
 	// ─── Reactivity ──────────────────────────────────────────────────────────
 
 	$effect(() => {
@@ -632,6 +859,8 @@
 		window.addEventListener('pointermove', handlePointerMove, { passive: false });
 		window.addEventListener('pointerup', handlePointerUp);
 		document.addEventListener('click', handleDocumentClick);
+		window.addEventListener('connection-insert-note', handleInsertConnectionNote);
+		window.addEventListener('connection-remove-note', handleRemoveConnectionNote);
 
 		requestAnimationFrame(calculatePaths);
 	});
@@ -643,166 +872,233 @@
 		window.removeEventListener('pointermove', handlePointerMove);
 		window.removeEventListener('pointerup', handlePointerUp);
 		document.removeEventListener('click', handleDocumentClick);
+		window.removeEventListener('connection-insert-note', handleInsertConnectionNote);
+		window.removeEventListener('connection-remove-note', handleRemoveConnectionNote);
+		if (noteSaveTimeout) clearTimeout(noteSaveTimeout);
 		document.querySelectorAll('.connection-drop-target').forEach(el => el.classList.remove('connection-drop-target'));
 	});
 </script>
 
-<svg
-	bind:this={svgElement}
-	class="connections-overlay"
-	class:connections-overlay--hidden={!$toolbarState.columnConnectionsVisible && !$toolbarState.sectionConnectionsVisible && !$toolbarState.segmentConnectionsVisible}
-	class:connections-overlay--dragging={!!drag}
-	aria-hidden="true"
-	focusable="false"
+<!--
+	Wrapper div so that HTML note elements can be positioned alongside the SVG.
+	The SVG handles all pointer events for lines and endpoints.
+	Note wrappers have pointer-events: auto to allow interaction.
+-->
+<div
+	class="connections-layer"
+	class:connections-layer--hidden={!$toolbarState.columnConnectionsVisible && !$toolbarState.sectionConnectionsVisible && !$toolbarState.segmentConnectionsVisible}
+	class:connections-layer--dragging={!!drag}
 >
-	<!--
-		Rendering is split into three passes so that active (hovered/selected)
-		nodes always paint last — i.e. on top of all other nodes in SVG z-order.
+	<svg
+		bind:this={svgElement}
+		class="connections-overlay"
+		aria-hidden="true"
+		focusable="false"
+	>
+		<!--
+			Rendering is split into three passes so that active (hovered/selected)
+			nodes always paint last — i.e. on top of all other nodes in SVG z-order.
 
-		Pass 1 — lines + invisible hit-targets for ALL connections
-		Pass 2 — endpoint nodes for NON-active connections
-		Pass 3 — endpoint nodes for the ACTIVE connection (on top)
-	-->
+			Pass 1 — lines + invisible hit-targets for ALL connections
+			Pass 2 — endpoint nodes for NON-active connections
+			Pass 3 — endpoint nodes for the ACTIVE connection (on top)
+		-->
 
-	{#snippet endpointNodes(path, isActive)}
-		<!-- From-end: column=■ square, section=◆ diamond, segment=● circle -->
-		{#if path.fromType === 'column'}
-			<rect class="connection-node connection-node--square"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
-				x={path.x1 - 4} y={path.y1 - 4} width="8" height="8"
-				onpointerdown={(e) => startDrag(e, path, 'from')}
-				onclick={(e) => e.stopPropagation()}
-			/>
-		{:else if path.fromType === 'section'}
-			<polygon class="connection-node connection-node--diamond"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
-				points={diamondPoints(path.x1, path.y1)}
-				onpointerdown={(e) => startDrag(e, path, 'from')}
-				onclick={(e) => e.stopPropagation()}
-			/>
-		{:else if path.fromType === 'segment'}
-			<circle class="connection-node"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
-				cx={path.x1} cy={path.y1} r="4"
-				onpointerdown={(e) => startDrag(e, path, 'from')}
-				onclick={(e) => e.stopPropagation()}
-			/>
-		{/if}
-		<!-- To-end: column=■ square, section=◆ diamond, segment=● circle -->
-		{#if path.toType === 'column'}
-			<rect class="connection-node connection-node--square"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
-				x={path.x2 - 4} y={path.y2 - 4} width="8" height="8"
-				onpointerdown={(e) => startDrag(e, path, 'to')}
-				onclick={(e) => e.stopPropagation()}
-			/>
-		{:else if path.toType === 'section'}
-			<polygon class="connection-node connection-node--diamond"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
-				points={diamondPoints(path.x2, path.y2)}
-				onpointerdown={(e) => startDrag(e, path, 'to')}
-				onclick={(e) => e.stopPropagation()}
-			/>
-		{:else if path.toType === 'segment'}
-			<circle class="connection-node"
-				class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-				class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
-				cx={path.x2} cy={path.y2} r="4"
-				onpointerdown={(e) => startDrag(e, path, 'to')}
-				onclick={(e) => e.stopPropagation()}
-			/>
-		{/if}
-	{/snippet}
-
-	<!-- Pass 1: lines + hit-targets -->
-	{#each visiblePaths as path (path.id)}
-		<path
-			class="connection-path"
-			class:connection-path--dashed={path.lineStyle === 'dashed'}
-			class:connection-path--dotted={path.lineStyle === 'dotted'}
-			class:connection-path--dashdot={path.lineStyle === 'dashdot'}
-			class:connection-path--dimmed={!!drag && drag.connectionId === path.id}
-			class:connection-path--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-			class:connection-path--selected={selectedPathIds.has(path.id)}
-			d={path.d}
-			fill="none"
-		/>
-		<path
-			class="connection-hit-target"
-			d={path.d}
-			fill="none"
-			onpointerenter={() => { hoveredPathId = path.id; }}
-			onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
-			onclick={(e) => handlePathClick(e, path)}
-		/>
-	{/each}
-
-	<!-- Pass 2: non-active nodes -->
-	{#each visiblePaths as path (path.id)}
-		{#if path.id !== hoveredPathId && !selectedPathIds.has(path.id)}
-			{@render endpointNodes(path, false)}
-		{/if}
-	{/each}
-
-	<!-- Pass 3: active nodes — rendered last so always on top -->
-	{#each visiblePaths as path (path.id)}
-		{#if path.id === hoveredPathId || selectedPathIds.has(path.id)}
-			{@render endpointNodes(path, true)}
-		{/if}
-	{/each}
-
-	<!-- ── Drop handles (shown only while dragging) ── -->
-	{#if drag}
-		{#each dropHandles as handle (`${handle.elementId}-${handle.side}`)}
-			{@const isActive = !!drag.activeHandle &&
-				drag.activeHandle.elementId === handle.elementId &&
-				drag.activeHandle.side === handle.side}
-
-			<!-- Drop handles: column=■ square, section=◆ diamond, segment=● circle -->
-			{#if handle.type === 'column'}
-				<rect class="drop-handle drop-handle--square"
-					class:drop-handle--active={isActive}
-					x={handle.x - 5} y={handle.y - 5} width="10" height="10"
+		{#snippet endpointNodes(path, isActive)}
+			<!-- From-end: column=■ square, section=◆ diamond, segment=● circle -->
+			{#if path.fromType === 'column'}
+				<rect class="connection-node connection-node--square"
+					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					x={path.x1 - 4} y={path.y1 - 4} width="8" height="8"
+					onpointerdown={(e) => startDrag(e, path, 'from')}
+					onclick={(e) => e.stopPropagation()}
 				/>
-			{:else if handle.type === 'section'}
-				<polygon class="drop-handle drop-handle--diamond"
-					class:drop-handle--active={isActive}
-					points={diamondPoints(handle.x, handle.y, 6)}
+			{:else if path.fromType === 'section'}
+				<polygon class="connection-node connection-node--diamond"
+					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					points={diamondPoints(path.x1, path.y1)}
+					onpointerdown={(e) => startDrag(e, path, 'from')}
+					onclick={(e) => e.stopPropagation()}
 				/>
-			{:else if handle.type === 'segment'}
-				<circle class="drop-handle drop-handle--circle"
-					class:drop-handle--active={isActive}
-					cx={handle.x} cy={handle.y} r="5"
+			{:else if path.fromType === 'segment'}
+				<circle class="connection-node"
+					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					cx={path.x1} cy={path.y1} r="4"
+					onpointerdown={(e) => startDrag(e, path, 'from')}
+					onclick={(e) => e.stopPropagation()}
 				/>
+			{/if}
+			<!-- To-end: column=■ square, section=◆ diamond, segment=● circle -->
+			{#if path.toType === 'column'}
+				<rect class="connection-node connection-node--square"
+					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					x={path.x2 - 4} y={path.y2 - 4} width="8" height="8"
+					onpointerdown={(e) => startDrag(e, path, 'to')}
+					onclick={(e) => e.stopPropagation()}
+				/>
+			{:else if path.toType === 'section'}
+				<polygon class="connection-node connection-node--diamond"
+					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					points={diamondPoints(path.x2, path.y2)}
+					onpointerdown={(e) => startDrag(e, path, 'to')}
+					onclick={(e) => e.stopPropagation()}
+				/>
+			{:else if path.toType === 'segment'}
+				<circle class="connection-node"
+					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					cx={path.x2} cy={path.y2} r="4"
+					onpointerdown={(e) => startDrag(e, path, 'to')}
+					onclick={(e) => e.stopPropagation()}
+				/>
+			{/if}
+		{/snippet}
+
+		<!-- Pass 1: lines + hit-targets -->
+		{#each visiblePaths as path (path.id)}
+			<path
+				class="connection-path"
+				class:connection-path--dashed={path.lineStyle === 'dashed'}
+				class:connection-path--dotted={path.lineStyle === 'dotted'}
+				class:connection-path--dashdot={path.lineStyle === 'dashdot'}
+				class:connection-path--dimmed={!!drag && drag.connectionId === path.id}
+				class:connection-path--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+				class:connection-path--selected={selectedPathIds.has(path.id)}
+				d={path.d}
+				fill="none"
+			/>
+			<path
+				class="connection-hit-target"
+				d={path.d}
+				fill="none"
+				onpointerenter={() => { hoveredPathId = path.id; }}
+				onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
+				onclick={(e) => handlePathClick(e, path)}
+			/>
+		{/each}
+
+		<!-- Pass 2: non-active nodes -->
+		{#each visiblePaths as path (path.id)}
+			{#if path.id !== hoveredPathId && !selectedPathIds.has(path.id)}
+				{@render endpointNodes(path, false)}
 			{/if}
 		{/each}
 
-		<!-- Ghost line from fixed point to active handle or cursor -->
-		{@const ghostX    = drag.activeHandle?.x    ?? drag.cursorX}
-		{@const ghostY    = drag.activeHandle?.y    ?? drag.cursorY}
-		{@const ghostType = drag.activeHandle?.type ?? drag.dragEndType}
-		<line class="connection-ghost" x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY} />
+		<!-- Pass 3: active nodes — rendered last so always on top -->
+		{#each visiblePaths as path (path.id)}
+			{#if path.id === hoveredPathId || selectedPathIds.has(path.id)}
+				{@render endpointNodes(path, true)}
+			{/if}
+		{/each}
 
-		<!-- Ghost endpoint node: column=■ square, section=◆ diamond, segment=● circle -->
-		{#if ghostType === 'column'}
-			<rect class="connection-node connection-node--ghost connection-node--square"
-				x={ghostX - 5} y={ghostY - 5} width="10" height="10" />
-		{:else if ghostType === 'section'}
-			<polygon class="connection-node connection-node--ghost connection-node--diamond"
-				points={diamondPoints(ghostX, ghostY, 6)} />
-		{:else if ghostType === 'segment'}
-			<circle class="connection-node connection-node--ghost" cx={ghostX} cy={ghostY} r="5" />
+		<!-- ── Drop handles (shown only while dragging) ── -->
+		{#if drag}
+			{#each dropHandles as handle (`${handle.elementId}-${handle.side}`)}
+				{@const isActive = !!drag.activeHandle &&
+					drag.activeHandle.elementId === handle.elementId &&
+					drag.activeHandle.side === handle.side}
+
+				<!-- Drop handles: column=■ square, section=◆ diamond, segment=● circle -->
+				{#if handle.type === 'column'}
+					<rect class="drop-handle drop-handle--square"
+						class:drop-handle--active={isActive}
+						x={handle.x - 5} y={handle.y - 5} width="10" height="10"
+					/>
+				{:else if handle.type === 'section'}
+					<polygon class="drop-handle drop-handle--diamond"
+						class:drop-handle--active={isActive}
+						points={diamondPoints(handle.x, handle.y, 6)}
+					/>
+				{:else if handle.type === 'segment'}
+					<circle class="drop-handle drop-handle--circle"
+						class:drop-handle--active={isActive}
+						cx={handle.x} cy={handle.y} r="5"
+					/>
+				{/if}
+			{/each}
+
+			<!-- Ghost line from fixed point to active handle or cursor -->
+			{@const ghostX    = drag.activeHandle?.x    ?? drag.cursorX}
+			{@const ghostY    = drag.activeHandle?.y    ?? drag.cursorY}
+			{@const ghostType = drag.activeHandle?.type ?? drag.dragEndType}
+			<line class="connection-ghost" x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY} />
+
+			<!-- Ghost endpoint node: column=■ square, section=◆ diamond, segment=● circle -->
+			{#if ghostType === 'column'}
+				<rect class="connection-node connection-node--ghost connection-node--square"
+					x={ghostX - 5} y={ghostY - 5} width="10" height="10" />
+			{:else if ghostType === 'section'}
+				<polygon class="connection-node connection-node--ghost connection-node--diamond"
+					points={diamondPoints(ghostX, ghostY, 6)} />
+			{:else if ghostType === 'segment'}
+				<circle class="connection-node connection-node--ghost" cx={ghostX} cy={ghostY} r="5" />
+			{/if}
 		{/if}
+	</svg>
+
+	<!-- ── Connection Quick Notes ────────────────────────────────────────────── -->
+	{#if $toolbarState.notesVisible}
+		{#each visiblePaths as path (path.id)}
+			{#if path.note || noteEditingId === path.id}
+				<!-- Note positioned at the bezier midpoint (SVG units → CSS pixels via scale) -->
+				<div
+					class="connection-note-wrapper"
+					class:connection-note-wrapper--editing={noteEditingId === path.id}
+					class:connection-note-wrapper--selected={selectedPathIds.has(path.id)}
+					style="left: {path.mx * scale}px; top: {path.my * scale}px;"
+					onclick={(e) => e.stopPropagation()}
+					onkeydown={(e) => e.stopPropagation()}
+					role="none"
+				>
+					{#if noteEditingId === path.id}
+						<div class="connection-note-edit">
+							<textarea
+								class="connection-note-input"
+								bind:this={noteTextareaRef}
+								value={noteInputValue}
+								maxlength={MAX_NOTE_CHARS}
+								oninput={(e) => {
+									noteInputValue = /** @type {HTMLTextAreaElement} */ (e.target).value;
+									scheduleNoteSave(noteEditingId, noteInputValue);
+								}}
+								onblur={commitNoteEdit}
+								onkeydown={handleNoteKeydown}
+								use:focusOnMount
+								rows="1"
+							></textarea>
+							<div class="connection-note-char-counter" class:at-limit={noteInputValue.length >= MAX_NOTE_CHARS}>
+								{noteInputValue.length} / {MAX_NOTE_CHARS}
+							</div>
+						</div>
+					{:else}
+						<!-- Display mode: click to edit (only while connection is selected/hovered) -->
+						<div
+							class="connection-note-display"
+							class:connection-note-display--interactive={hoveredPathId === path.id || selectedPathIds.has(path.id)}
+							onclick={() => startNoteEdit(path.id)}
+							onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startNoteEdit(path.id); }}
+							role="button"
+							tabindex="0"
+							aria-label="Edit connection note"
+						>
+							{path.note}
+						</div>
+					{/if}
+				</div>
+			{/if}
+		{/each}
 	{/if}
-</svg>
+</div>
 
 <style>
-	.connections-overlay {
+	/* ── Layer wrapper ── */
+
+	.connections-layer {
 		position: absolute;
 		top: 0; left: 0;
 		width: 100%; height: 100%;
@@ -811,8 +1107,18 @@
 		z-index: 5;
 	}
 
-	.connections-overlay--hidden { display: none; }
-	.connections-overlay--dragging { cursor: grabbing; }
+	.connections-layer--hidden { display: none; }
+	.connections-layer--dragging { cursor: grabbing; }
+
+	/* ── SVG overlay ── */
+
+	.connections-overlay {
+		position: absolute;
+		top: 0; left: 0;
+		width: 100%; height: 100%;
+		pointer-events: none;
+		overflow: visible;
+	}
 
 	/* ── Connection lines ── */
 
@@ -891,6 +1197,88 @@
 		stroke-dasharray: 6 4;
 		stroke-linecap: round;
 		pointer-events: none;
+	}
+
+	/* ── Quick Note ── */
+
+	.connection-note-wrapper {
+		position: absolute;
+		transform: translateX(-50%);
+		pointer-events: auto;
+		z-index: 10;
+	}
+
+	.connection-note-display {
+		background-color: var(--gray-light);
+		border: 0.1rem solid var(--section-dark, var(--gray-600));
+		border-radius: 0.3rem;
+		padding: 0.6rem;
+		font-size: 1.2rem;
+		font-style: italic;
+		font-weight: 700;
+		line-height: 1.6;
+		color: var(--gray-dark);
+		white-space: pre-wrap;
+		word-break: break-word;
+		max-width: 27.4rem;
+		cursor: default;
+		user-select: none;
+	}
+
+	.connection-note-display--interactive {
+		cursor: pointer;
+	}
+
+	.connection-note-display--interactive:hover {
+		border-top: 0.1rem dashed var(--gray);
+		margin-top: -0.1rem;
+	}
+
+	/* Selected connection note gets a slightly more prominent border */
+	.connection-note-wrapper--selected .connection-note-display {
+		border-color: var(--blue-300, #93c5fd);
+	}
+
+	.connection-note-edit {
+		position: relative;
+	}
+
+	.connection-note-input {
+		display: block;
+		width: 27.4rem;
+		background-color: var(--gray-light);
+		border: 0.1rem solid var(--section-dark, var(--gray-600));
+		border-radius: 0.3rem;
+		padding: 0.6rem;
+		padding-bottom: 2.0rem;
+		font-size: 1.2rem;
+		font-style: italic;
+		font-weight: 700;
+		line-height: 1.5;
+		color: var(--gray-dark);
+		font-family: inherit;
+		caret-color: var(--gray-darker);
+		resize: none;
+		overflow: hidden;
+		box-sizing: border-box;
+		box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+		outline: none;
+	}
+
+	.connection-note-char-counter {
+		position: absolute;
+		bottom: 0.4rem;
+		right: 0.6rem;
+		font-size: 1.0rem;
+		font-style: normal;
+		font-weight: 400;
+		color: var(--gray-dark);
+		pointer-events: none;
+		line-height: 1;
+	}
+
+	.connection-note-char-counter.at-limit {
+		font-weight: 700;
 	}
 
 	/* ── Drop-target outline (applied to DOM elements via JS) ── */

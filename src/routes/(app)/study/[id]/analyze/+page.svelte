@@ -2881,14 +2881,19 @@
 	 * Re-evaluates whenever data.passagesWithText changes (e.g. after invalidate).
 	 */
 	let hasAnyNotes = $derived.by(() => {
-		if (!data.passagesWithText) return false;
-		return data.passagesWithText.some(passageText =>
+		// Check segment notes in passage structure
+		const hasSegmentNotes = (data.passagesWithText ?? []).some(passageText =>
 			passageText.structure?.columns?.some(col =>
 				col.sections?.some(section =>
 					section.segments?.some(seg => seg.note && seg.note.trim().length > 0)
 				)
 			)
 		);
+		if (hasSegmentNotes) return true;
+
+		// Also check connection notes
+		const hasConnectionNotes = (data.connections ?? []).some(conn => conn.note && conn.note.trim().length > 0);
+		return hasConnectionNotes;
 	});
 
 	/**
