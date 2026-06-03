@@ -85,6 +85,8 @@ import { writable, get } from 'svelte/store';
  * @property {string[]} activeConnectionIds - The IDs of the currently selected connections
  * @property {boolean} hasActiveHeadingOrNoteEditor - Whether a heading or note editor is in input mode
  * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
+ * @property {boolean} isWordInFirstSegment - Whether the selected word is in the first segment of its passage
+ * @property {boolean} isWordInLastSegment - Whether the selected word is in the last segment of its passage
  */
 
 /**
@@ -148,7 +150,9 @@ const defaultState = {
 	hasActiveConnection: false,
 	activeConnectionIds: [],
 	hasActiveHeadingOrNoteEditor: false,
-	activeHeadingOrNoteType: null
+	activeHeadingOrNoteType: null,
+	isWordInFirstSegment: false,
+	isWordInLastSegment: false
 };
 
 /**
@@ -760,6 +764,21 @@ export function setHeadingOrNoteEditorActive(isActive, type = null) {
 		...state,
 		hasActiveHeadingOrNoteEditor: isActive,
 		activeHeadingOrNoteType: isActive ? type : null
+	}));
+}
+
+/**
+ * Set whether the selected word is in the first or last segment of its passage.
+ * Used to disable "Move Text Up" when in the first segment and
+ * "Move Text Down" when in the last segment.
+ * @param {boolean} isFirst - Whether the word is in the first segment
+ * @param {boolean} isLast - Whether the word is in the last segment
+ */
+export function setWordSegmentPosition(isFirst, isLast) {
+	toolbarStateStore.update(state => ({
+		...state,
+		isWordInFirstSegment: isFirst,
+		isWordInLastSegment: isLast
 	}));
 }
 

@@ -9,7 +9,7 @@
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates, setActiveConnection } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -397,6 +397,61 @@
 
 		// Valid insertion point
 		setCanInsertColumn(true);
+	});
+
+	// Determine whether the selected word is in the first or last segment of its passage.
+	// Used to disable "Move Text Up" (first segment) and "Move Text Down" (last segment).
+	$effect(() => {
+		if (!selectedWord || !data.passagesWithText || data.passagesWithText.length === 0) {
+			setWordSegmentPosition(false, false);
+			return;
+		}
+
+		const passageText = data.passagesWithText[selectedWord.passageIndex];
+		if (!passageText || !passageText.structure?.columns) {
+			setWordSegmentPosition(false, false);
+			return;
+		}
+
+		// Flatten all segments across all columns/sections in document order
+		const allSegments = [];
+		for (const column of passageText.structure.columns) {
+			for (const section of column.sections) {
+				for (const segment of section.segments) {
+					allSegments.push(segment);
+				}
+			}
+		}
+
+		if (allSegments.length === 0) {
+			setWordSegmentPosition(false, false);
+			return;
+		}
+
+		// Find which segment contains the selected word.
+		// A segment owns the word if: wordId >= segment.startingWordId AND
+		// wordId < nextSegment.startingWordId (or it's the last segment).
+		let wordSegmentIndex = -1;
+		for (let i = 0; i < allSegments.length; i++) {
+			const afterStart = compareWordIds(selectedWord.wordId, allSegments[i].startingWordId) >= 0;
+			const isLast = i === allSegments.length - 1;
+			const beforeNext = isLast || compareWordIds(selectedWord.wordId, allSegments[i + 1].startingWordId) < 0;
+
+			if (afterStart && beforeNext) {
+				wordSegmentIndex = i;
+				break;
+			}
+		}
+
+		if (wordSegmentIndex === -1) {
+			setWordSegmentPosition(false, false);
+			return;
+		}
+
+		setWordSegmentPosition(
+			wordSegmentIndex === 0,
+			wordSegmentIndex === allSegments.length - 1
+		);
 	});
 
 	// ─── Connection helpers ───────────────────────────────────────────────────

@@ -114,7 +114,7 @@
 		label="Move Text Up"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInFirstSegment}
 	/>
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -122,7 +122,7 @@
 		label="Move Text Down"
 		role="menuitem"
 		handleClick={closeMenu}
-		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
+		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInLastSegment}
 	/>
 
 </Menu>
