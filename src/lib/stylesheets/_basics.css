@@ -36,6 +36,17 @@ body {
 	display: flex;
 	flex-direction: column;
 	flex-grow: 1;
+	/* min-height: 0 overrides the flex-item default of min-height: auto.
+	   Without it, body (a flex child of the 100dvh, overflow:hidden html element)
+	   refuses to shrink below its content's intrinsic height and instead grows to
+	   fit. When a page's content is taller than the viewport (e.g. the Analyze view
+	   at zoom > 100%), that unbounded body height cascades down the entire flex
+	   chain (.app-container → .content-wrapper → .container → .analyze-content),
+	   so every nested overflow:auto container is sized to the full content height
+	   and has nothing to scroll vertically. Empirically, no descendant-level fix
+	   resolves this — only bounding body itself does. Horizontal scrolling was
+	   unaffected because widths stay definite in the flex-row layout. */
+	min-height: 0;
 	font-size: 1.6rem;
 	background-color: var(--white);
 }

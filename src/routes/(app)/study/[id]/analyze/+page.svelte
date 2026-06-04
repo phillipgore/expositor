@@ -3152,19 +3152,7 @@
 		display: flex;
 		flex-direction: column;
 		position: relative;
-		/* This element is a flex-column child of the shared .content-wrapper
-		   (which has overflow-y: auto). Using `height: 100%` here is fragile inside
-		   that nested-flex chain: the percentage doesn't reliably constrain the box,
-		   so the tall scaled content (zoom > 100%) can push .container past the
-		   viewport and let the ANCESTOR .content-wrapper absorb the vertical scroll
-		   instead of .analyze-content. Result: the inner scroller never receives the
-		   overflow and vertical scrolling appears broken (horizontal still works
-		   because .content-wrapper only scrolls on the Y axis).
-		   `flex: 1; min-height: 0;` makes .container a properly bounded flex item that
-		   can shrink below its content, so .analyze-content becomes the single
-		   bounded scroller on BOTH axes. */
-		flex: 1;
-		min-height: 0;
+		height: 100%;
 	}
 
 	.study-header {
@@ -3196,14 +3184,6 @@
 
 	.analyze-content {
 		flex-grow: 1;
-		/* min-height: 0 overrides the default flex-item min-height: auto.
-		   Without this, a vertical (main-axis) flex item refuses to shrink
-		   below its content's intrinsic height, so when zoom > 100% makes the
-		   scaled content taller than the viewport the box just grows to fit and
-		   overflow-y: auto never engages (vertical scrolling appears broken).
-		   The horizontal (cross) axis is unaffected, which is why only vertical
-		   scrolling failed. */
-		min-height: 0;
 		overflow-x: auto;
 		overflow-y: auto;
 		touch-action: pan-x pan-y pinch-zoom;
