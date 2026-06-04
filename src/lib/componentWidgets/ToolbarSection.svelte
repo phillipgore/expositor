@@ -53,7 +53,7 @@
 
 <div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
 	<IconButton
-		iconId="outline-section"
+		iconId="section"
 		classes="passage-toolbar"
 		title="Section Select"
 		isSquare

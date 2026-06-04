@@ -7,10 +7,13 @@
 	 * persistent toggle items that keep the menu open so the user can enable or
 	 * disable multiple options in a single session.
 	 * 
-	 * Groups:
-	 * - Annotations  — Headings, Quick Notes (All / Passage / Connection), Connections
-	 * - Text Display — References, Notations, Paragraphs
-	 * - Layout       — Wide View, Overview
+	 * Order flows from what is printed on the text → annotations layered on top →
+	 * how the whole view is laid out:
+	 * - Structure labels — Headings, References (refs render within headings)
+	 * - Text markers     — Notations, Paragraphs
+	 * - Quick Notes      — All / Passage / Connection
+	 * - Connections      — All / Column / Section / Segment (largest container first)
+	 * - Layout / mode    — Wide View, Overview
 	 * 
 	 * Usage:
 	 * ```svelte
@@ -52,6 +55,27 @@
 		onToggle={toggleHeadings}
 		isDisabled={!$toolbarState.canToggleHeadings || $toolbarState.overviewMode}
 	/>
+	<MenuToggleItem
+		label="References"
+		isActive={$toolbarState.referencesVisible}
+		onToggle={toggleReferences}
+	/>
+
+	<DividerHorizontal />
+
+	<MenuToggleItem
+		label="Notations"
+		isActive={$toolbarState.versesVisible}
+		onToggle={toggleVerses}
+		isDisabled={!$toolbarState.canToggleVerses || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Paragraphs"
+		isActive={$toolbarState.paragraphBreaksVisible}
+		onToggle={toggleParagraphBreaks}
+		isDisabled={!$toolbarState.canToggleParagraphBreaks || $toolbarState.overviewMode}
+	/>
+
 	<DividerHorizontal />
 
 	<MenuToggleItem
@@ -82,9 +106,9 @@
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 	<MenuToggleItem
-		label="Segment Connections"
-		isActive={$toolbarState.segmentConnectionsVisible}
-		onToggle={toggleSegmentConnections}
+		label="Column Connections"
+		isActive={$toolbarState.columnConnectionsVisible}
+		onToggle={toggleColumnConnections}
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 	<MenuToggleItem
@@ -94,30 +118,10 @@
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 	<MenuToggleItem
-		label="Column Connections"
-		isActive={$toolbarState.columnConnectionsVisible}
-		onToggle={toggleColumnConnections}
+		label="Segment Connections"
+		isActive={$toolbarState.segmentConnectionsVisible}
+		onToggle={toggleSegmentConnections}
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
-	/>
-
-	<DividerHorizontal />
-
-	<MenuToggleItem
-		label="References"
-		isActive={$toolbarState.referencesVisible}
-		onToggle={toggleReferences}
-	/>
-	<MenuToggleItem
-		label="Notations"
-		isActive={$toolbarState.versesVisible}
-		onToggle={toggleVerses}
-		isDisabled={!$toolbarState.canToggleVerses || $toolbarState.overviewMode}
-	/>
-	<MenuToggleItem
-		label="Paragraphs"
-		isActive={$toolbarState.paragraphBreaksVisible}
-		onToggle={toggleParagraphBreaks}
-		isDisabled={!$toolbarState.canToggleParagraphBreaks || $toolbarState.overviewMode}
 	/>
 
 	<DividerHorizontal />

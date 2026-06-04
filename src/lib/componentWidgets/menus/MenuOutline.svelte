@@ -2,23 +2,24 @@
 	/**
 	 * MenuOutline Component
 	 * 
-	 * Outline menu for adding heading and note elements to segments.
-	 * Provides operations for inserting segment headings at different levels and notes.
+	 * Outline menu for adding heading and note annotations to the active segment.
+	 * Items add a new element to the current selection; removal is handled elsewhere
+	 * (the Delete toolbar action while editing a heading or note).
+	 * 
+	 * Items:
+	 * - Heading One / Two / Three — add a heading at the given level to the active segment
+	 * - Quick Note — add a note. Context-aware: adds a connection note when a connection
+	 *   is selected, otherwise a passage (segment) note. Auto-reveals the relevant notes
+	 *   if they are currently hidden.
 	 * 
 	 * Usage:
 	 * ```
-	 * <MenuButton menuId="MenuOutline" iconId="outline-bulleted" label="Outline" />
+	 * <MenuButton menuId="MenuOutline" iconId="outline" underLabel="Markup" />
 	 * <MenuOutline menuId="MenuOutline" />
 	 * ```
 	 * 
 	 * Props:
 	 * - menuId (string, default: 'MenuOutline') - Unique identifier for the menu
-	 * 
-	 * Features:
-	 * - Insert heading one
-	 * - Insert heading two
-	 * - Insert heading three
-	 * - Insert note (auto-shows notes if hidden)
 	 */
 
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
@@ -40,7 +41,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one"
-		label="Insert Heading One"
+		label="Heading One"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -53,7 +54,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-two"
-		label="Insert Heading Two"
+		label="Heading Two"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -66,7 +67,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-three"
-		label="Insert Heading Three"
+		label="Heading Three"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -81,7 +82,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note"
-		label="Insert Quick Note"
+		label="Quick Note"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -108,20 +109,6 @@
 				($toolbarState.hasActiveConnection && !$toolbarState.activeConnectionHasNote)
 			)
 		}
-	/>
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="connect"
-		label="Insert Connection"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('insert-connection'));
-		}}
-		isDisabled={!$toolbarState.canInsertConnection}
 	/>
 
 </Menu>

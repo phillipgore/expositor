@@ -1129,7 +1129,7 @@
 	}
 
 	/**
-	 * Handle Insert Section button click (formerly Split)
+	 * Handle Split Section button click (splits a section at the selected word)
 	 */
 	async function handleInsertSection() {
 		console.log('handleInsertSection called');

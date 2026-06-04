@@ -99,7 +99,7 @@
 {#if isActive}
 	<div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
 		<IconButton
-			iconId="outline-column"
+			iconId="column"
 			classes="passage-toolbar"
 			title="Column Select"
 			isSquare
@@ -107,7 +107,7 @@
 			handleClick={handleColumnSelect}
 		/>
 		<IconButton
-			iconId="outline-section"
+			iconId="section"
 			classes="passage-toolbar"
 			title="Section Select"
 			isSquare

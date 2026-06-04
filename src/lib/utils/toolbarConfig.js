@@ -116,7 +116,7 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'menu',
-					iconId: 'outline-section',
+					iconId: 'segment',
 					menuId: 'MenuStructure',
 					underLabel: 'Structure',
 					classes: 'toolbar-dark',
@@ -127,7 +127,7 @@ export function getAppToolbarConfig() {
 					type: 'menu',
 					iconId: 'outline',
 					menuId: 'MenuOutline',
-					underLabel: 'Outline',
+					underLabel: 'Markup',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledCheck: (state) => !state.canStructure || state.overviewMode
@@ -324,7 +324,7 @@ export function getPassageToolbarConfig() {
 				buttons: [
 					{
 						iconId: 'split',
-						title: 'Insert Segment',
+						title: 'Split Segment',
 						disabledCheck: (state) => !state.hasWordSelection
 					},
 					{
@@ -339,22 +339,22 @@ export function getPassageToolbarConfig() {
 				buttons: [
 					{
 						iconId: 'heading-one',
-						title: 'Insert Heading One',
+						title: 'Heading One',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
 					{
 						iconId: 'heading-two',
-						title: 'Insert Heading Two',
+						title: 'Heading Two',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
 					{
 						iconId: 'heading-three',
-						title: 'Insert Heading Three',
+						title: 'Heading Three',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
 					{
 						iconId: 'note',
-						title: 'Insert Note',
+						title: 'Quick Note',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
 				]
@@ -378,12 +378,12 @@ export function getPassageToolbarConfig() {
 				id: 'connections',
 				buttons: [
 					{
-						iconId: 'outline-disconnect',
-						title: 'Insert Section',
+						iconId: 'section-split',
+						title: 'Split Section',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
 					{
-						iconId: 'outline-connect',
+						iconId: 'section-join',
 						title: 'Join Section',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
@@ -393,12 +393,12 @@ export function getPassageToolbarConfig() {
 				id: 'columns',
 				buttons: [
 					{
-						iconId: 'column-insert',
-						title: 'Insert Column',
+						iconId: 'column-split',
+						title: 'Split Column',
 						disabledCheck: (state) => !state.canInsertColumn
 					},
 					{
-						iconId: 'column-remove',
+						iconId: 'column-join',
 						title: 'Join Column',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
