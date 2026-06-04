@@ -105,7 +105,7 @@
 			type="text"
 			bind:this={inputElement}
 			bind:value={query}
-			placeholder="Search glossary…"
+			placeholder="Search"
 			onkeydown={handleKeydown}
 			aria-label="Search glossary terms"
 		/>
@@ -192,9 +192,9 @@
 		appearance: none;
 		width: 100%;
 		height: 2.8rem;
-		padding: 0rem 0.9rem;
+		padding: 0rem 1.2rem;
 		border: 0.1rem solid var(--gray-700);
-		border-radius: 0.3rem;
+		border-radius: 2.5vh;
 		font-size: 1.4rem;
 		font-family: inherit;
 		color: var(--black);

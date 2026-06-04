@@ -48,7 +48,7 @@
 		<input
 			type="text"
 			bind:value={query}
-			placeholder="Search terms, definitions, or categories…"
+			placeholder="Search"
 			aria-label="Search glossary terms"
 		/>
 	</div>
@@ -138,7 +138,7 @@
 		height: 3.6rem;
 		padding: 0 1.2rem;
 		border: 0.1rem solid var(--gray-700);
-		border-radius: 0.4rem;
+		border-radius: 2.5vh;
 		font-size: 1.5rem;
 		font-family: inherit;
 		color: var(--black);
