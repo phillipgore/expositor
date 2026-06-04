@@ -213,10 +213,13 @@
 	<div class="panel-content" style:width="{panelWidth}px">
 		{#if $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1) || $toolbarState.hasActiveSection}
 			{#key currentSubject?.id}
-				<CommentaryEditor 
+				<CommentaryEditor
 					content={commentaryContent}
 					onUpdate={handleCommentaryUpdate}
+					subjectType={currentSubject?.type ?? null}
+					subjectId={currentSubject?.id ?? null}
 				/>
+
 			{/key}
 		{:else}
 			<div class="empty-state">

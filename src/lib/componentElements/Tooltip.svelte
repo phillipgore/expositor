@@ -1,6 +1,8 @@
 <script>
 	import { fade } from 'svelte/transition';
-	import tooltipState from '$lib/stores/tooltipStore.svelte.js';
+	import tooltipState, { unpin } from '$lib/stores/tooltipStore.svelte.js';
+
+
 
 	/**
 	 * # Tooltip Component
@@ -123,16 +125,46 @@
 			};
 		}
 	});
+
+	// When pinned, the tooltip is interactive (text selectable). Close it when
+	// the user clicks anywhere outside the tooltip. The badge's own click handler
+	// stops propagation so this listener won't immediately re-close on open.
+	$effect(() => {
+		if (!$tooltipState.isPinned) return;
+
+		const handlePointerDown = (event) => {
+			if (tooltipElement && !tooltipElement.contains(event.target)) {
+				unpin();
+			}
+		};
+		const handleKeydown = (event) => {
+			if (event.key === 'Escape') unpin();
+		};
+
+		// Defer attaching so the opening click doesn't trigger an immediate close.
+		const id = setTimeout(() => {
+			window.addEventListener('pointerdown', handlePointerDown, true);
+			window.addEventListener('keydown', handleKeydown);
+		}, 0);
+
+		return () => {
+			clearTimeout(id);
+			window.removeEventListener('pointerdown', handlePointerDown, true);
+			window.removeEventListener('keydown', handleKeydown);
+		};
+	});
 </script>
 
 {#if $tooltipState.isVisible && $tooltipState.content}
 	<div
 		bind:this={tooltipElement}
 		class="tooltip {position.placement}"
+		class:pinned={$tooltipState.isPinned}
 		style="left: {position.x}px; top: {position.y}px;"
 		transition:fade={{ duration: 200 }}
 		role="tooltip"
 	>
+
 		<div class="tooltip-cover">
 			{#if $tooltipState.allowHtml}
 				{@html $tooltipState.content}
@@ -160,6 +192,47 @@
 		word-wrap: break-word;
 		font-weight: 400;
 	}
+
+	/* Pinned tooltips are interactive so the user can select & copy the text */
+	.tooltip.pinned {
+		pointer-events: auto;
+		user-select: text;
+		cursor: text;
+	}
+
+	/* ------------------------------------------------------------------ */
+	/* Glossary tooltip content (injected via {@html}, so styled :global) */
+	/* ------------------------------------------------------------------ */
+	:global(.tooltip .glossary-tooltip-term) {
+		display: block;
+		font-weight: 700;
+		margin-bottom: 0.4rem;
+	}
+
+	:global(.tooltip .glossary-tooltip-def) {
+		display: block;
+		font-weight: 400;
+	}
+
+	:global(.tooltip .glossary-tooltip-divider) {
+		border: none;
+		border-top: 0.1rem solid var(--gray-600);
+		margin: 0.6rem 0;
+	}
+
+	:global(.tooltip .glossary-tooltip-example) {
+		display: block;
+	}
+
+	:global(.tooltip .glossary-tooltip-example-label) {
+		font-weight: 700;
+	}
+
+	:global(.tooltip .glossary-tooltip-example em) {
+		font-style: italic;
+	}
+
+
 
 	.tooltip-cover {
 		position: relative;

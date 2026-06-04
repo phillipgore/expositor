@@ -10,12 +10,26 @@
 	import StarterKit from '@tiptap/starter-kit';
 	import Link from '@tiptap/extension-link';
 	import { Footnote } from '$lib/utils/tiptapFootnote.js';
+	import { GlossaryTerm } from '$lib/utils/tiptapGlossaryTerm.js';
 	import { getMarkRange, isValidUrl } from '$lib/utils/tiptapUtils.js';
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import LinkPopover from './LinkPopover.svelte';
+	import GlossaryPicker from './GlossaryPicker.svelte';
+	import GlossaryBadge from '$lib/componentElements/GlossaryBadge.svelte';
 	import { tooltip } from '$lib/composables/useTooltip.svelte.js';
+	import * as tooltipStore from '$lib/stores/tooltipStore.svelte.js';
+	import { getTooltipHtml, getTermById } from '$lib/data/glossaryIndex.js';
 
-	let { content = '', onUpdate = () => {} } = $props();
+
+	let {
+		content = '',
+		onUpdate = () => {},
+		/** @type {'segment'|'section'|'column'|'connection'|null} */
+		subjectType = null,
+		/** @type {string|null} */
+		subjectId = null
+	} = $props();
+
 
 	let editor;
 	let editorElement;
@@ -26,6 +40,24 @@
 	let linkPopoverPosition = $state({ top: 0, left: 0, arrowPosition: 'bottom' });
 	let isEditingExistingLink = $state(false);
 	let editingFootnoteId = $state(null);
+
+	// Glossary picker state. `glossaryMode` distinguishes the two entry points:
+	//  - 'inline' → insert a badge into the prose at the cursor
+	//  - 'tag'    → add a bottom tag for the whole subject
+	let showGlossaryPicker = $state(false);
+	let glossaryMode = $state('inline');
+	let glossaryPickerPosition = $state({ top: 0, left: 0, arrowPosition: 'bottom', arrowOffset: 0, maxHeight: 0 });
+
+
+	let glossaryPickerElement = $state(null);
+	// Remember the element that opened the picker so we can reposition it when
+	// the window is resized while the picker is open.
+	let glossaryTriggerEl = null;
+
+
+	// Bottom "tags" for the whole subject (loaded from /api/commentary-tags).
+	let tags = $state([]);
+
 
 	// Zoom state
 	let commentaryZoom = $state(
@@ -56,9 +88,11 @@
 						rel: 'noopener noreferrer'
 					}
 				}),
-				Footnote
+				Footnote,
+				GlossaryTerm
 			],
 			content: content || '<p></p>',
+
 			editorProps: {
 				attributes: {
 					class: 'tiptap-editor',
@@ -505,6 +539,261 @@
 		return editor?.isActive(type, attrs) ?? false;
 	}
 
+	/* ----------------------------------------------------------------------
+	 * Glossary: inline insertion + bottom tags
+	 * -------------------------------------------------------------------- */
+
+	/**
+	 * Position the glossary picker relative to a trigger element (toolbar button
+	 * or "Add tag" button), with simple vertical collision handling.
+	 * @param {HTMLElement} triggerEl
+	 */
+	function positionPickerFor(triggerEl) {
+		const rect = triggerEl.getBoundingClientRect();
+		const GAP = 8;
+		const MARGIN = 16; // breathing room from the viewport edges
+		const PREFERRED_HEIGHT = 360; // ideal picker height when space allows
+		const centerLeft = rect.left + rect.width / 2;
+
+		// Space available on each side of the trigger (minus gap + margin).
+		const spaceAbove = rect.top - GAP - MARGIN;
+		const spaceBelow = window.innerHeight - rect.bottom - GAP - MARGIN;
+
+		let top;
+		let arrowPosition;
+		let maxHeight;
+		// Prefer above when it can fit a useful amount; otherwise pick the side
+		// with the most room. The picker grows upward (arrow bottom) or downward
+		// (arrow top) from `top`, so clamp maxHeight to that side's free space.
+		if (spaceAbove >= PREFERRED_HEIGHT || spaceAbove >= spaceBelow) {
+			top = rect.top - GAP;
+			arrowPosition = 'bottom';
+			maxHeight = spaceAbove;
+		} else {
+			top = rect.bottom + GAP;
+			arrowPosition = 'top';
+			maxHeight = spaceBelow;
+		}
+
+		// Keep horizontally within viewport (picker is 34rem ≈ 340px, half = 170)
+		let left = centerLeft;
+		const half = 170;
+		if (left - half < MARGIN) left = half + MARGIN;
+		else if (left + half > window.innerWidth - MARGIN) left = window.innerWidth - half - MARGIN;
+
+		// The picker may be clamped away from the trigger's center, so tell the
+		// picker how far (in px) to shift its arrow to keep pointing at the button.
+		const arrowOffset = centerLeft - left;
+
+		glossaryPickerPosition = { top, left, arrowPosition, arrowOffset, maxHeight };
+	}
+
+
+
+	/**
+	 * Open the picker to insert an inline glossary badge at the cursor.
+	 */
+	function openGlossaryInline(event) {
+		glossaryMode = 'inline';
+		glossaryTriggerEl = event.currentTarget;
+		positionPickerFor(event.currentTarget);
+		showGlossaryPicker = true;
+	}
+
+
+	/**
+	 * Open the picker to add a bottom tag for the whole subject.
+	 */
+	function openGlossaryTag(event) {
+		glossaryMode = 'tag';
+		glossaryTriggerEl = event.currentTarget;
+		positionPickerFor(event.currentTarget);
+		showGlossaryPicker = true;
+	}
+
+
+	function closeGlossaryPicker() {
+		showGlossaryPicker = false;
+	}
+
+	/**
+	 * Handle a term chosen from the picker, routing to the active mode.
+	 * @param {string} termId
+	 */
+	function handleGlossarySelect(termId) {
+		if (glossaryMode === 'inline') {
+			insertInlineTerm(termId);
+		} else {
+			addTag(termId);
+		}
+		closeGlossaryPicker();
+	}
+
+	/**
+	 * Insert an inline glossary badge node at the current cursor position.
+	 * @param {string} termId
+	 */
+	function insertInlineTerm(termId) {
+		const entry = getTermById(termId);
+		editor
+			?.chain()
+			.focus()
+			.setGlossaryTerm({ termId, label: entry?.term || '' })
+			.run();
+	}
+
+	/* ---- Bottom tags (persisted via /api/commentary-tags) ---- */
+
+	let hasSubject = $derived(!!subjectType && !!subjectId);
+
+	async function loadTags() {
+		if (!subjectType || !subjectId) {
+			tags = [];
+			return;
+		}
+		try {
+			const res = await fetch(
+				`/api/commentary-tags?subjectType=${encodeURIComponent(subjectType)}&subjectId=${encodeURIComponent(subjectId)}`
+			);
+			if (res.ok) {
+				const data = await res.json();
+				tags = data.tags || [];
+			} else {
+				tags = [];
+			}
+		} catch (error) {
+			console.error('[TAGS] Failed to load tags:', error);
+			tags = [];
+		}
+	}
+
+	async function addTag(termId) {
+		if (!subjectType || !subjectId) return;
+		// Optimistic: skip if already present
+		if (tags.some((t) => t.termId === termId)) return;
+		try {
+			const res = await fetch('/api/commentary-tags', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ subjectType, subjectId, termId })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				if (data.tag) tags = [...tags, data.tag];
+			}
+		} catch (error) {
+			console.error('[TAGS] Failed to add tag:', error);
+		}
+	}
+
+	async function removeTag(tag) {
+		try {
+			const res = await fetch(`/api/commentary-tags?id=${encodeURIComponent(tag.id)}`, {
+				method: 'DELETE'
+			});
+			if (res.ok) {
+				tags = tags.filter((t) => t.id !== tag.id);
+			}
+		} catch (error) {
+			console.error('[TAGS] Failed to remove tag:', error);
+		}
+	}
+
+	// Load tags whenever the subject changes
+	$effect(() => {
+		// Reference reactive deps explicitly
+		const _type = subjectType;
+		const _id = subjectId;
+		loadTags();
+	});
+
+	// Wire hover tooltips for inline glossary badges rendered inside Tiptap.
+	// Delegated listeners on the editor element (the `use:tooltip` action can't
+	// attach to raw ProseMirror DOM).
+	$effect(() => {
+		if (!editorElement) return;
+
+		const handleEnter = (event) => {
+			const badge = event.target.closest?.('.glossary-term');
+			if (!badge) return;
+			const termId = badge.getAttribute('data-term-id');
+			if (!termId) return;
+			tooltipStore.show({
+				content: getTooltipHtml(termId),
+				targetElement: badge,
+				placement: 'top',
+				offset: 2,
+				allowHtml: true
+			});
+		};
+		const handleLeave = (event) => {
+			if (event.target.closest?.('.glossary-term')) {
+				tooltipStore.hide();
+			}
+		};
+		// Clicking an inline badge pins its tooltip open (selectable for copying)
+		// until the user clicks elsewhere. Stop propagation so the tooltip's own
+		// click-outside handler doesn't immediately close it.
+		const handleClick = (event) => {
+			const badge = event.target.closest?.('.glossary-term');
+			if (!badge) return;
+			const termId = badge.getAttribute('data-term-id');
+			if (!termId) return;
+			event.stopPropagation();
+			tooltipStore.pin({
+				content: getTooltipHtml(termId),
+				targetElement: badge,
+				placement: 'top',
+				offset: 2,
+				allowHtml: true
+			});
+		};
+
+		editorElement.addEventListener('mouseover', handleEnter);
+		editorElement.addEventListener('mouseout', handleLeave);
+		editorElement.addEventListener('click', handleClick);
+
+		return () => {
+			editorElement.removeEventListener('mouseover', handleEnter);
+			editorElement.removeEventListener('mouseout', handleLeave);
+			editorElement.removeEventListener('click', handleClick);
+		};
+	});
+
+
+	// Click-outside detection for the glossary picker
+	$effect(() => {
+		if (showGlossaryPicker) {
+			const handleClickOutside = (event) => {
+				if (glossaryPickerElement && !glossaryPickerElement.contains(event.target)) {
+					closeGlossaryPicker();
+				}
+			};
+			setTimeout(() => {
+				window.addEventListener('click', handleClickOutside);
+			}, 0);
+			return () => {
+				window.removeEventListener('click', handleClickOutside);
+			};
+		}
+	});
+
+	// Recompute the picker's position/size when the viewport is resized while the
+	// picker is open, so it grows or shrinks to the available vertical space.
+	$effect(() => {
+		if (showGlossaryPicker && glossaryTriggerEl) {
+			const handleResize = () => {
+				if (glossaryTriggerEl) positionPickerFor(glossaryTriggerEl);
+			};
+			window.addEventListener('resize', handleResize);
+			return () => {
+				window.removeEventListener('resize', handleResize);
+			};
+		}
+	});
+
+
+
 	/**
 	 * Handle clicks on editor content area
 	 * Focus at end when clicking empty space (not on text or footnotes)
@@ -632,7 +921,26 @@
 			>
 				<Icon iconId="footnote" />
 			</button>
+
+			<button
+				use:tooltip
+				type="button"
+				class="toolbar-button"
+				onmousedown={(e) => e.preventDefault()}
+				onclick={openGlossaryInline}
+				title="Insert Glossary Term"
+				aria-label="Insert Glossary Term"
+			>
+				<Icon iconId="glossary" />
+			</button>
+
+
+
+
+
+
 		</div>
+
 
 		<!-- <div class="toolbar-divider"></div> -->
 
@@ -696,6 +1004,37 @@
 	<div class="editor-content" style="transform: scale({zoomScale}); transform-origin: top left;" onclick={handleEditorContentClick}>
 		<div bind:this={editorElement}></div>
 		
+		{#if hasSubject}
+			<div class="tags-section">
+				<hr class="tags-divider" />
+				<div class="tags-row">
+					<div class="tags-list">
+						{#each tags as tag (tag.id)}
+							<GlossaryBadge
+								termId={tag.termId}
+								removable={true}
+								onRemove={() => removeTag(tag)}
+							/>
+						{/each}
+					</div>
+					<div class="tags-actions">
+						<button
+							type="button"
+							class="tag-add-button"
+							onmousedown={(e) => e.preventDefault()}
+							onclick={openGlossaryTag}
+							aria-label="Add Glossary Term"
+						>
+							Add Glossary Term
+						</button>
+
+					</div>
+				</div>
+
+
+			</div>
+		{/if}
+
 		{#if footnotes.length > 0}
 			<div class="footnotes-section">
 				<hr class="footnotes-divider" />
@@ -729,7 +1068,18 @@
 			</div>
 		{/if}
 	</div>
+
 </div>
+
+{#if showGlossaryPicker}
+	<GlossaryPicker
+		position={glossaryPickerPosition}
+		onSelect={handleGlossarySelect}
+		onClose={closeGlossaryPicker}
+		bind:popoverElement={glossaryPickerElement}
+	/>
+{/if}
+
 
 <style>
 	.commentary-editor {
@@ -798,6 +1148,8 @@
 	.toolbar-button :global(.icon path) {
 		fill: var(--gray-darker);
 	}
+
+
 
 	.toolbar-button:hover {
 		background-color: var(--gray-light);
@@ -1040,9 +1392,9 @@
 
 	/* Footnotes Section at Bottom */
 	.footnotes-section {
-		margin-top: 3rem;
-		padding: 1.8rem;
+		padding: 0 1.8rem 1.8rem;
 	}
+
 
 	.footnotes-divider {
 		border: none;
@@ -1108,4 +1460,106 @@
 		height: 0;
 		float: left;
 	}
+
+	/* Inline Glossary Term badges (rendered by the Tiptap GlossaryTerm node) */
+	:global(.tiptap-editor .glossary-term) {
+		display: inline-block;
+		padding: 0.1rem 0.6rem;
+		border-radius: 999em;
+		font-size: 0.9em;
+		font-weight: 500;
+		line-height: 1.4;
+		white-space: nowrap;
+		cursor: default;
+		vertical-align: baseline;
+	}
+
+	:global(.tiptap-editor .glossary-term.gray) { background-color: var(--gray-lighter); color: var(--gray-darker); }
+	:global(.tiptap-editor .glossary-term.red) { background-color: var(--red-lighter); color: var(--red-darker); }
+	:global(.tiptap-editor .glossary-term.orange) { background-color: var(--orange-lighter); color: var(--orange-darker); }
+	:global(.tiptap-editor .glossary-term.yellow) { background-color: var(--yellow-lighter); color: var(--yellow-darker); }
+	:global(.tiptap-editor .glossary-term.green) { background-color: var(--green-lighter); color: var(--green-darker); }
+	:global(.tiptap-editor .glossary-term.aqua) { background-color: var(--aqua-lighter); color: var(--aqua-darker); }
+	:global(.tiptap-editor .glossary-term.blue) { background-color: var(--blue-lighter); color: var(--blue-darker); }
+	:global(.tiptap-editor .glossary-term.purple) { background-color: var(--purple-lighter); color: var(--purple-darker); }
+	:global(.tiptap-editor .glossary-term.pink) { background-color: var(--pink-lighter); color: var(--pink-darker); }
+
+	:global(.tiptap-editor .ProseMirror-selectednode.glossary-term) {
+		outline: 0.2rem solid var(--blue);
+		outline-offset: 0.1rem;
+	}
+
+	/* Bottom Tags strip */
+	.tags-section {
+		margin-top: 1.8rem;
+		padding: 1.8rem;
+	}
+
+	.tags-divider {
+		border: none;
+		border-top: 1px solid var(--gray-700);
+		margin: 0 0 1.2rem 0;
+	}
+
+	.tags-row {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 0.9rem;
+	}
+
+	.tags-actions {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+
+	.tags-label {
+		flex-shrink: 0;
+		font-size: 1.1rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--gray-400);
+		padding-top: 0.4rem;
+	}
+
+	.tags-list {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	.tag-add-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		height: 2.8rem;
+		padding: 0 0.9rem;
+		border: none;
+		border-radius: 0.3rem;
+		background-color: var(--gray-light);
+		color: var(--gray-darker);
+		font-size: 1.2rem;
+		font-weight: 600;
+		font-family: inherit;
+		line-height: 1;
+		white-space: nowrap;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.tag-add-button:hover {
+		background-color: var(--gray-light);
+		border-color: var(--gray-500);
+	}
+
+	.tag-add-button:active {
+		background-color: var(--gray-dark);
+		color: var(--white);
+	}
+
+
 </style>
+
