@@ -9,7 +9,7 @@
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -223,6 +223,23 @@
 			if (activeSections.length > 0) activeSections = [];
 			if (selectedWord !== null) selectedWord = null;
 			if (suppressHoverCaret !== null) suppressHoverCaret = null;
+		}
+	});
+
+	// When a connection arc or connection note is activated, clear all structural visual
+	// selections so nothing else appears selected/highlighted simultaneously.
+	// Clearing activeSegments causes isActive=false on all Segment components, which
+	// triggers NoteEditor's "$effect(() => { if (!isActive && isInputMode) commitChanges(); })"
+	// and automatically closes any open passage quick note editors.
+	$effect(() => {
+		const isConnectionNoteActive =
+			$toolbarState.hasActiveHeadingOrNoteEditor &&
+			$toolbarState.activeHeadingOrNoteType === 'connection-note';
+		if ($toolbarState.hasActiveConnection || isConnectionNoteActive) {
+			if (activeSegments.length > 0) activeSegments = [];
+			if (activeColumns.length > 0) activeColumns = [];
+			if (activeSections.length > 0) activeSections = [];
+			if (selectedWord !== null) { selectedWord = null; suppressHoverCaret = null; }
 		}
 	});
 
@@ -823,6 +840,11 @@
 		const handleSelectColumnEvent = (event) => {
 			const { columnId } = event.detail;
 			
+			// Always clear connections and connection notes when any structural item is selected,
+			// regardless of whether cmd is held (single or multi-select structural mode).
+			setActiveConnection(false, []);
+			setHeadingOrNoteEditorActive(false, null);
+			
 			if (!isCommandKeyHeld) {
 				// Normal click: replace selection with just this column
 				if (isCompareMode) {
@@ -873,6 +895,11 @@
 		// Listen for select-section event from ToolbarStructure
 		const handleSelectSectionEvent = (event) => {
 			const { sectionId } = event.detail;
+			
+			// Always clear connections and connection notes when any structural item is selected,
+			// regardless of whether cmd is held (single or multi-select structural mode).
+			setActiveConnection(false, []);
+			setHeadingOrNoteEditorActive(false, null);
 			
 			if (!isCommandKeyHeld) {
 				// Normal click: replace selection with just this section
@@ -931,9 +958,21 @@
 			handleMoveTextDown();
 		};
 
+		// Listen for studies panel clearing all analyze selections.
+		// StudiesPanel calls store functions to clear connections/notes, but cannot
+		// directly clear local arrays. This event bridges that gap.
+		const handleClearAnalyzeSelections = () => {
+			activeSegments = [];
+			activeColumns = [];
+			activeSections = [];
+			selectedWord = null;
+			suppressHoverCaret = null;
+		};
+
 		const handleInsertConnectionEvent = () => handleInsertConnection();
 		const handleRemoveConnectionEvent = () => handleRemoveConnection();
 
+		window.addEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
 		window.addEventListener('insert-connection', handleInsertConnectionEvent);
 		window.addEventListener('remove-connection', handleRemoveConnectionEvent);
 		window.addEventListener('insert-column', handleInsertColumnEvent);
@@ -961,6 +1000,7 @@
 		}
 
 		return () => {
+			window.removeEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
 			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
 			window.removeEventListener('remove-connection', handleRemoveConnectionEvent);
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
@@ -2905,6 +2945,7 @@
 		if (!hasAnyNotes) {
 			setToolbarState('canToggleNotes', false);
 			setToolbarState('passageNotesVisible', false);
+			setToolbarState('connectionNotesVisible', false);
 		} else {
 			setToolbarState('canToggleNotes', true);
 		}

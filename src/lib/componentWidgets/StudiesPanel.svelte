@@ -20,7 +20,7 @@
 	import { usePanelResize } from "$lib/composables/usePanelResize.svelte.js";
 	import { formatPassageReference } from "$lib/utils/passageFormatting.js";
 	import { getFlattenedItemsList } from "$lib/utils/groupFlattening.js";
-	import { toolbarState, setActiveSegment, setActiveConnection } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveSegment, setActiveConnection, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { flip } from 'svelte/animate';
@@ -126,6 +126,8 @@
 		
 		// Check for modifier keys
 		const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey;
+
+		clearStudyContentState();
 		
 		// Always select the group
 		multiSelect.handleItemClick(event, 'group', group.id, group, getFlattenedItemsList(sortedGroupsAndStudies));
@@ -148,9 +150,8 @@
 		// Always select the study
 		multiSelect.handleItemClick(event, 'study', study.id, study, getFlattenedItemsList(sortedGroupsAndStudies));
 		
-		// Selecting a study deselects any active connection or segment inside the study
-		setActiveSegment(false, null);
-		setActiveConnection(false, []);
+		// Selecting a study deselects any active connection, segment, or note editor inside the study
+		clearStudyContentState();
 		
 		// Only navigate if no modifier keys are pressed
 		if (!hasModifier) {
@@ -191,12 +192,29 @@
 	}
 
 	/**
+	 * Clear any active study-content state (segment, connection, note editor).
+	 * Called whenever the user interacts with the Studies panel so that active
+	 * items inside the study are deactivated.
+	 */
+	function clearStudyContentState() {
+		setHeadingOrNoteEditorActive(false, null);
+		setActiveSegment(false, null);
+		setActiveConnection(false, []);
+		// Notify the analyze page to clear its local visual state (activeColumns, activeSections,
+		// activeSegments arrays). Those arrays live in +page.svelte and cannot be cleared from here
+		// via the store alone; a window event bridges the gap.
+		window.dispatchEvent(new CustomEvent('clear-analyze-selections'));
+	}
+
+	/**
 	 * Handle panel click (for deselection)
 	 */
 	function handlePanelClick(event) {
 		const clickedOnStudy = event.target.closest('.study-item');
 		const clickedOnGroupButton = event.target.closest('.group-select-button');
 		const clickedOnChevron = event.target.closest('.chevron-button');
+
+		clearStudyContentState();
 		
 		if (!clickedOnStudy && !clickedOnGroupButton && !clickedOnChevron) {
 			multiSelect.clearSelection();
@@ -326,13 +344,17 @@
 	});
 
 	/**
-	 * Clear Finder study selection when the user activates a connection or segment
-	 * inside the study content. This transitions the study from "selected" (blue)
-	 * to "active only" (gray) so the Delete button targets the connection/heading/note
-	 * rather than the study itself.
+	 * Clear Finder study selection when the user activates a connection, segment,
+	 * or connection quick note inside the study content. This transitions the study
+	 * from "selected" (blue) to "active only" (gray) so the Delete button targets
+	 * the connection/heading/note rather than the study itself.
 	 */
 	$effect(() => {
-		if (($toolbarState.hasActiveSegment || $toolbarState.hasActiveConnection)
+		const isConnectionNoteEditing =
+			$toolbarState.hasActiveHeadingOrNoteEditor &&
+			$toolbarState.activeHeadingOrNoteType === 'connection-note';
+
+		if (($toolbarState.hasActiveSegment || $toolbarState.hasActiveConnection || isConnectionNoteEditing)
 			&& multiSelect.selectedItems.length > 0) {
 			multiSelect.clearSelection();
 		}

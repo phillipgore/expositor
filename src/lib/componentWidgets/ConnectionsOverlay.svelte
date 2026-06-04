@@ -40,7 +40,7 @@
 
 	import { onMount, onDestroy } from 'svelte';
 	import { invalidate } from '$app/navigation';
-	import { toolbarState, setActiveConnection, setHeadingOrNoteEditorActive, setToolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveConnection, setHeadingOrNoteEditorActive, setToolbarState, clearSelectedItem, setActiveSegment, setActiveSection, setActiveColumn } from '$lib/stores/toolbar.js';
 
 	let { connections = [], scale = 1 } = $props();
 
@@ -50,7 +50,7 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle, note: string|null }} PathEntry
+	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteOffsetX: number, noteOffsetY: number }} PathEntry
 	 * @typedef {{ elementId: string, type: ConnType, side: 'left'|'right', x: number, y: number }} Handle
 	 */
 
@@ -96,8 +96,19 @@
 
 	// ─── Note editing state ───────────────────────────────────────────────────
 
-	/** ID of the connection whose note is currently being edited. */
+	/** ID of the connection whose note is currently being edited (textarea open). */
 	let noteEditingId = $state(/** @type {string|null} */ (null));
+
+	/** ID of the connection note in "selected / display" mode (no textarea, just highlighted). */
+	let noteSelectedId = $state(/** @type {string|null} */ (null));
+
+	/**
+	 * Drives hasActiveHeadingOrNoteEditor via $effect (not a direct store call).
+	 * Using $state + $effect mirrors NoteEditor's pattern so Svelte 5 schedules the
+	 * store update as a microtask — which means a Delete button click (fired after
+	 * the textarea's blur) still sees hasActiveHeadingOrNoteEditor=true in the toolbar.
+	 */
+	let noteEditorActive = $state(false);
 
 	/** Current value in the note textarea. */
 	let noteInputValue = $state('');
@@ -207,6 +218,59 @@
 		if (fromType === 'column') return 'dotted';
 		return 'solid';
 	}
+
+	// ─── Note placement helpers ───────────────────────────────────────────────
+
+	/** Approximate note box dimensions in CSS pixels for collision detection. */
+	const NOTE_BOX_W = 200;
+	const NOTE_BOX_H = 64;
+
+	/**
+	 * Compute the CSS-pixel bounding box for a note given its anchor and placement.
+	 * @param {number} anchorXpx
+	 * @param {number} anchorYpx
+	 * @param {'center'|'right'|'left'|'above'|'below'} placement
+	 * @returns {{ x: number, y: number, w: number, h: number }}
+	 */
+	function noteBoundingBox(anchorXpx, anchorYpx, placement) {
+		switch (placement) {
+			case 'right': return { x: anchorXpx,              y: anchorYpx - NOTE_BOX_H / 2, w: NOTE_BOX_W, h: NOTE_BOX_H };
+			case 'left':  return { x: anchorXpx - NOTE_BOX_W, y: anchorYpx - NOTE_BOX_H / 2, w: NOTE_BOX_W, h: NOTE_BOX_H };
+			case 'above': return { x: anchorXpx - NOTE_BOX_W / 2, y: anchorYpx - NOTE_BOX_H, w: NOTE_BOX_W, h: NOTE_BOX_H };
+			case 'below': return { x: anchorXpx - NOTE_BOX_W / 2, y: anchorYpx,              w: NOTE_BOX_W, h: NOTE_BOX_H };
+			default:      return { x: anchorXpx - NOTE_BOX_W / 2, y: anchorYpx - NOTE_BOX_H / 2, w: NOTE_BOX_W, h: NOTE_BOX_H };
+		}
+	}
+
+	/**
+	 * Return true if box a and box b overlap.
+	 * @param {{ x: number, y: number, w: number, h: number }} a
+	 * @param {{ x: number, y: number, w: number, h: number }} b
+	 * @returns {boolean}
+	 */
+	function boxesOverlap(a, b) {
+		return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+	}
+
+	/**
+	 * Return the CSS transform string for a note placement.
+	 * @param {'center'|'right'|'left'|'above'|'below'} placement
+	 * @returns {string}
+	 */
+	function noteTransform(placement) {
+		switch (placement) {
+			case 'right': return 'translate(0, -50%)';
+			case 'left':  return 'translate(-100%, -50%)';
+			case 'above': return 'translate(-50%, -100%)';
+			case 'below': return 'translate(-50%, 0%)';
+			default:      return 'translate(-50%, -50%)';
+		}
+	}
+
+	/** Priority order tried when resolving note–note collisions. */
+	const NOTE_PLACEMENT_ORDER = /** @type {Array<'center'|'right'|'above'|'below'|'left'>} */ (
+		['center', 'right', 'above', 'below', 'left']
+	);
 
 	// ─── DOM element lookup ───────────────────────────────────────────────────
 
@@ -387,14 +451,62 @@
 			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
 			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
 
+			// ── Initial note placement ──────────────────────────────────────────
+			// Same-column segment loop: the bezier bulges to the right.  The midpoint
+			// is already to the right of both anchors, so place the note right of it
+			// (start edge at anchor rather than centering over it).
+			/** @type {'center'|'right'|'left'|'above'|'below'} */
+			let notePlacement = 'center';
+			let noteOffsetX = 0;
+			let noteOffsetY = 0;
+
+			if (sameCol && fromSide2 && toSide2) {
+				// Same-column segment loop — note should sit to the right of the arc.
+				// noteOffsetX=0 places the note left edge at the dot center so they touch.
+				notePlacement = 'right';
+				noteOffsetX = 0;
+			}
+
 			newPaths.push({
 				id: connection.id,
 				d, x1: from.x, y1: from.y, x2: to.x, y2: to.y,
-				mx, my,
+				mx, my, cx1, cy1, cx2, cy2,
 				fromType, toType,
 				lineStyle: getLineStyle(fromType, toType),
-				note: connection.note ?? null
+				note: connection.note ?? null,
+				notePlacement, noteOffsetX, noteOffsetY
 			});
+		}
+
+		// ── Collision detection pass ────────────────────────────────────────────
+		// For each pair of notes whose bounding boxes would overlap, try alternative
+		// placements for the later note until one does not collide.
+		const notePaths = newPaths.filter(p => p.note);
+		for (let i = 0; i < notePaths.length; i++) {
+			for (let j = i + 1; j < notePaths.length; j++) {
+				const a = notePaths[i];
+				const b = notePaths[j];
+
+				const axPx = (a.mx + a.noteOffsetX) * scale;
+				const ayPx = (a.my + a.noteOffsetY) * scale;
+				const bxPx = (b.mx + b.noteOffsetX) * scale;
+				const byPx = (b.my + b.noteOffsetY) * scale;
+
+				const boxA = noteBoundingBox(axPx, ayPx, a.notePlacement);
+				const boxB = noteBoundingBox(bxPx, byPx, b.notePlacement);
+
+				if (boxesOverlap(boxA, boxB)) {
+					// Try each placement for b until one does not overlap with a
+					for (const placement of NOTE_PLACEMENT_ORDER) {
+						if (placement === b.notePlacement) continue;
+						const testBox = noteBoundingBox(bxPx, byPx, placement);
+						if (!boxesOverlap(boxA, testBox)) {
+							b.notePlacement = placement;
+							break;
+						}
+					}
+				}
+			}
 		}
 
 		paths = newPaths;
@@ -584,6 +696,16 @@
 	 */
 	function handlePathClick(event, path) {
 		event.stopPropagation();
+
+		// Commit any open note editor before switching to a connection selection.
+		// (stopPropagation prevents handleDocumentClick from doing this automatically.)
+		if (noteEditingId) {
+			commitNoteEdit();
+		} else if (noteSelectedId) {
+			noteSelectedId = null;
+			noteEditorActive = false;
+		}
+
 		const isMulti = event.metaKey || event.ctrlKey;
 
 		if (isMulti) {
@@ -615,17 +737,26 @@
 	 * @param {MouseEvent} event
 	 */
 	function handleDocumentClick(event) {
-		if (selectedPathIds.size === 0) return;
 		const target = /** @type {Element} */ (event.target);
 		// Only deselect if the click landed inside the analyze content wrapper
 		// (i.e. the passage area), not on toolbar buttons or the commentary panel.
 		const contentWrapper =
 			svgElement?.closest('.analyze-content-wrapper') ??
 			svgElement?.closest('.analyze-content');
-		if (contentWrapper && contentWrapper.contains(target)) {
-			selectedPathIds = new Set();
-			setActiveConnection(false, []);
+		if (!contentWrapper || !contentWrapper.contains(target)) return;
+
+		// If a note is open for editing and the click is inside the passage,
+		// commit the note (equivalent to NoteEditor's isActive-goes-false path).
+		if (noteEditingId) {
+			commitNoteEdit();
+		} else if (noteSelectedId) {
+			noteSelectedId = null;
+			noteEditorActive = false;
 		}
+
+		if (selectedPathIds.size === 0) return;
+		selectedPathIds = new Set();
+		setActiveConnection(false, []);
 	}
 
 	// Clear local selected state if an external action deselects the connection
@@ -633,6 +764,13 @@
 	$effect(() => {
 		if (!$toolbarState.hasActiveConnection && selectedPathIds.size > 0) {
 			selectedPathIds = new Set();
+		}
+	});
+
+	// Clear note-selected state when the toolbar editor state is cleared externally
+	$effect(() => {
+		if (!$toolbarState.hasActiveHeadingOrNoteEditor && noteSelectedId) {
+			noteSelectedId = null;
 		}
 	});
 
@@ -704,27 +842,78 @@
 		}, 1000);
 	}
 
+	// ── noteEditorActive drives hasActiveHeadingOrNoteEditor via microtask ────
+	// $state + $effect mirrors NoteEditor.svelte: setting noteEditorActive=false
+	// synchronously in commitNoteEdit schedules the store update as a microtask,
+	// so the Delete button's click still sees hasActiveHeadingOrNoteEditor=true.
+	$effect(() => {
+		setHeadingOrNoteEditorActive(noteEditorActive, noteEditorActive ? 'connection-note' : null);
+		return () => setHeadingOrNoteEditorActive(false, null);
+	});
+
+	// ── React to external editor-state clearing (e.g. Studies panel click) ──
+	// When the toolbar store's hasActiveHeadingOrNoteEditor is set to false by
+	// an external caller (StudiesPanel.clearStudyContentState), commit any open
+	// note and close the textarea.
+	$effect(() => {
+		if (!$toolbarState.hasActiveHeadingOrNoteEditor && noteEditingId) {
+			commitNoteEdit();
+		}
+	});
+
+	// ── Mutual exclusion with inline (passage) notes ──────────────────────────
+	// If the user clicks an inline note while a connection note is in edit mode,
+	// hasActiveSegment becomes true (set by NoteEditor/Segment on click).
+	// Commit and close the connection note so only one editor is open at a time.
+	$effect(() => {
+		if ($toolbarState.hasActiveSegment && noteEditingId) {
+			commitNoteEdit();
+		}
+	});
+
 	/**
-	 * Enter edit mode for a connection's note.
+	 * Enter edit mode for a connection's note (single click → immediate textarea).
+	 * Deactivates everything else in the study so only this note editor is active.
 	 * @param {string} connectionId
 	 */
 	function startNoteEdit(connectionId) {
 		const conn = connections.find(c => c.id === connectionId);
 		if (!conn) return;
+
+		// If a different connection note is already being edited, save it first.
+		if (noteEditingId && noteEditingId !== connectionId) {
+			commitNoteEdit();
+		}
+
 		noteOriginalValue = conn.note ?? '';
 		noteInputValue = conn.note ?? '';
+		noteSelectedId = connectionId;
 		noteEditingId = connectionId;
-		setHeadingOrNoteEditorActive(true, 'connection-note');
+		noteEditorActive = true;       // drives setHeadingOrNoteEditorActive via $effect
+
+		// Deactivate everything else in the study
+		clearSelectedItem();           // Studies panel: selected → active-only
+		setActiveSegment(false, null); // segment + inline note editor
+		setActiveSection(false, null); // section
+		setActiveColumn(false, null);  // column
+		setActiveConnection(false, []); // connection arc selection (selectedPathIds cleared via $effect)
 	}
 
 	/**
 	 * Commit the current note value and exit edit mode.
+	 * noteEditorActive=false is set synchronously; the $effect schedules the store
+	 * update as a microtask so the Delete button click still sees the editor active.
 	 */
 	function commitNoteEdit() {
 		if (!noteEditingId) return;
 		const id = noteEditingId;
 		const text = noteInputValue;
 		noteEditingId = null;
+		noteEditorActive = false; // $effect schedules store update as microtask
+		// Also clear the toolbar store synchronously so reactive effects in the analyze
+		// page (which watch isConnectionNoteActive) see the updated value during the
+		// SAME Svelte flush — preventing them from clearing activeSegments after the
+		// user clicks a heading or inline note while this note was being edited.
 		setHeadingOrNoteEditorActive(false, null);
 		if (noteSaveTimeout) { clearTimeout(noteSaveTimeout); noteSaveTimeout = null; }
 		saveNote(id, text);
@@ -736,11 +925,11 @@
 	function cancelNoteEdit() {
 		if (!noteEditingId) return;
 		noteEditingId = null;
+		noteSelectedId = null;
+		noteEditorActive = false;
 		noteInputValue = '';
 		noteOriginalValue = '';
-		setHeadingOrNoteEditorActive(false, null);
 		if (noteSaveTimeout) { clearTimeout(noteSaveTimeout); noteSaveTimeout = null; }
-		// No API call — just discard local edits (note display reverts to conn.note from props)
 	}
 
 	/**
@@ -785,22 +974,19 @@
 
 	/**
 	 * Handle "connection-remove-note" from the Delete toolbar button.
-	 * Deletes the note of the connection currently in edit mode.
+	 * Works whether the note is in edit mode (textarea) or selected display mode.
 	 */
 	async function handleRemoveConnectionNote() {
-		if (!noteEditingId) {
-			// Fallback: delete note of the single selected connection
-			const ids = [...selectedPathIds];
-			if (ids.length !== 1) return;
-			if (noteSaveTimeout) { clearTimeout(noteSaveTimeout); noteSaveTimeout = null; }
-			await saveNote(ids[0], '');
-			return;
-		}
-		const id = noteEditingId;
+		// Determine which connection's note to delete
+		const id = noteEditingId ?? noteSelectedId ?? ([...selectedPathIds][0] ?? null);
+		if (!id) return;
+
+		// Clear all note state
 		noteEditingId = null;
+		noteSelectedId = null;
+		noteEditorActive = false; // clears toolbar state via $effect
 		noteInputValue = '';
 		noteOriginalValue = '';
-		setHeadingOrNoteEditorActive(false, null);
 		if (noteSaveTimeout) { clearTimeout(noteSaveTimeout); noteSaveTimeout = null; }
 		await saveNote(id, '');
 	}
@@ -996,6 +1182,15 @@
 			{/if}
 		{/each}
 
+		<!-- Pass 4: note anchor dots — small gray circles that visually link each note to its arc -->
+		{#if $toolbarState.connectionNotesVisible}
+			{#each visiblePaths as path (path.id)}
+				{#if path.note}
+					<circle class="connection-note-dot" cx={path.mx} cy={path.my} r="3" />
+				{/if}
+			{/each}
+		{/if}
+
 		<!-- ── Drop handles (shown only while dragging) ── -->
 		{#if drag}
 			{#each dropHandles as handle (`${handle.elementId}-${handle.side}`)}
@@ -1049,8 +1244,8 @@
 				<div
 					class="connection-note-wrapper"
 					class:connection-note-wrapper--editing={noteEditingId === path.id}
-					class:connection-note-wrapper--selected={selectedPathIds.has(path.id)}
-					style="left: {path.mx * scale}px; top: {path.my * scale}px;"
+					class:connection-note-wrapper--selected={noteSelectedId === path.id || selectedPathIds.has(path.id)}
+					style="left: {(path.mx + path.noteOffsetX) * scale}px; top: {(path.my + path.noteOffsetY) * scale}px; transform: {noteTransform(path.notePlacement)};"
 					onclick={(e) => e.stopPropagation()}
 					onkeydown={(e) => e.stopPropagation()}
 					role="none"
@@ -1066,8 +1261,7 @@
 									noteInputValue = /** @type {HTMLTextAreaElement} */ (e.target).value;
 									scheduleNoteSave(noteEditingId, noteInputValue);
 								}}
-								onblur={commitNoteEdit}
-								onkeydown={handleNoteKeydown}
+										onkeydown={handleNoteKeydown}
 								use:focusOnMount
 								rows="1"
 							></textarea>
@@ -1076,10 +1270,10 @@
 							</div>
 						</div>
 					{:else}
-						<!-- Display mode: click to edit (only while connection is selected/hovered) -->
+						<!-- Display mode: single click enters edit mode immediately -->
 						<div
 							class="connection-note-display"
-							class:connection-note-display--interactive={hoveredPathId === path.id || selectedPathIds.has(path.id)}
+							class:connection-note-display--interactive={hoveredPathId === path.id || selectedPathIds.has(path.id) || noteSelectedId === path.id}
 							onclick={() => startNoteEdit(path.id)}
 							onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startNoteEdit(path.id); }}
 							role="button"
@@ -1203,9 +1397,15 @@
 
 	.connection-note-wrapper {
 		position: absolute;
-		transform: translateX(-50%);
+		/* transform is set inline via noteTransform() — see template */
 		pointer-events: auto;
 		z-index: 10;
+	}
+
+	/* Note anchor dot — ties the note box to the bezier arc */
+	.connection-note-dot {
+		fill: var(--gray-400);
+		pointer-events: none;
 	}
 
 	.connection-note-display {
@@ -1234,11 +1434,6 @@
 		margin-top: -0.1rem;
 	}
 
-	/* Selected connection note gets a slightly more prominent border */
-	.connection-note-wrapper--selected .connection-note-display {
-		border-color: var(--blue-300, #93c5fd);
-	}
-
 	.connection-note-edit {
 		position: relative;
 	}
@@ -1261,7 +1456,6 @@
 		resize: none;
 		overflow: hidden;
 		box-sizing: border-box;
-		box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
 		outline: none;
 	}
 
