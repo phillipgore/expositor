@@ -61,6 +61,8 @@ async function persistPreference(updates) {
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
  * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
  * @property {boolean} isStudyRoute - Whether the current route is a study/document route
+ * @property {boolean} isGlossaryRoute - Whether the current route is the glossary reference page
+
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
  * @property {boolean} canStructure - Whether Structure menu should be enabled
  * @property {boolean} canHeading - Whether Headings menu should be enabled
@@ -135,7 +137,9 @@ const defaultState = {
 	canToggleOverview: false,
 	canSwitchMode: false,
 	isStudyRoute: false,
+	isGlossaryRoute: false,
 	canZoom: false,
+
 	zoomMode: 'percentage',
 	canStructure: false,
 	canHeading: false,
@@ -215,14 +219,48 @@ export function updateToolbarForRoute(pathname) {
 	const isStudyGroupRoute = pathname.includes('/study-group/');
 	const isSettingsRoute = pathname === '/settings';
 	const isNewRoute = pathname === '/new-study' || pathname === '/new-study-group';
+	const isGlossaryRoute = pathname === '/glossary';
 
 	toolbarStateStore.update(state => {
+		// Glossary reference page: a read-only "reference mode" where only Finder,
+		// Studies, and the Analyze/Document switcher remain usable. Every document
+		// tool is disabled; isGlossaryRoute also disables the View menu via config.
+		if (isGlossaryRoute) {
+			return {
+				...state,
+				isStudyRoute: false,
+				isGlossaryRoute: true,
+				canFormat: false,
+				canToggleComparison: false,
+				canToggleConnections: false,
+				canToggleNotes: false,
+				canToggleComment: false,
+				canToggleReferences: false,
+				canToggleVerses: false,
+				canToggleWide: false,
+				canToggleOverview: false,
+				// Analyze/Document switcher: enabled only when a study is selected in
+				// the Finder (so the user can jump back into a study from here).
+				canSwitchMode: state.selectedItem !== null && state.selectedItem.hasStudies,
+				canZoom: false,
+				canStructure: false,
+				canHeading: false,
+				canColor: false,
+				canUseStructureItems: false,
+				canUseHeadingItems: false,
+				canUseColorItems: false,
+				commentaryPanelOpen: false
+			};
+		}
+
+
 		// On document/study pages, most tools should be available
 		// Note: canEdit and canDelete are controlled by selection state, not route
 		if (isDocumentRoute) {
 			return {
 				...state,
 				isStudyRoute: true,
+				isGlossaryRoute: false,
 				canFormat: true,
 				canToggleConnections: true,
 				canToggleHeadings: true,
@@ -249,6 +287,7 @@ export function updateToolbarForRoute(pathname) {
 		return {
 			...state,
 			isStudyRoute: false,
+			isGlossaryRoute: false,
 			canFormat: false,
 			canToggleComparison: false,
 			canToggleConnections: false,
@@ -276,6 +315,7 @@ export function updateToolbarForRoute(pathname) {
 		return {
 			...state,
 			isStudyRoute: false,
+			isGlossaryRoute: false,
 			canFormat: false,
 			canToggleComparison: false,
 			canToggleConnections: false,

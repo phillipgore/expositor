@@ -187,8 +187,11 @@ export function getAppToolbarConfig() {
 					menuId: 'MenuView',
 					underLabel: 'View',
 					classes: 'toolbar-dark',
-					underLabelClasses: 'light'
+					underLabelClasses: 'light',
+					// Disabled on the glossary reference page (reference mode)
+					disabledCheck: (state) => state.isGlossaryRoute
 				},
+
 				{
 					type: 'menu',
 					menuId: 'MenuZoom',
@@ -222,6 +225,23 @@ export function getAppToolbarConfig() {
 			]
 		},
 		{
+			type: 'section',
+			id: 'glossary',
+			items: [
+				{
+					// Navigation link to the standalone Glossary reference page.
+					// Uses the 'icon' button type's href support (like the auth Home button),
+					// so it needs no extra wiring in ToolbarApp.
+					type: 'icon',
+					iconId: 'glossary',
+					underLabel: 'Glossary',
+					href: '/glossary',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light'
+				}
+			]
+		},
+		{
 			type: 'spacer',
 			variant: 'fixed'
 		},
@@ -239,6 +259,7 @@ export function getAppToolbarConfig() {
 				}
 			]
 		}
+
 	];
 }
 
