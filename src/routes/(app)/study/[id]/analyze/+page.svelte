@@ -2929,41 +2929,6 @@
 	});
 
 	/**
-	 * Derived: whether any segment in any passage has a non-empty quick note.
-	 * Re-evaluates whenever data.passagesWithText changes (e.g. after invalidate).
-	 */
-	let hasAnyNotes = $derived.by(() => {
-		// Check segment notes in passage structure
-		const hasSegmentNotes = (data.passagesWithText ?? []).some(passageText =>
-			passageText.structure?.columns?.some(col =>
-				col.sections?.some(section =>
-					section.segments?.some(seg => seg.note && seg.note.trim().length > 0)
-				)
-			)
-		);
-		if (hasSegmentNotes) return true;
-
-		// Also check connection notes
-		const hasConnectionNotes = (data.connections ?? []).some(conn => conn.note && conn.note.trim().length > 0);
-		return hasConnectionNotes;
-	});
-
-	/**
-	 * Keep the Notes toggle in sync with whether any notes actually exist.
-	 * - No notes → disable the toggle and ensure it is turned off.
-	 * - Notes exist → ensure the toggle is enabled.
-	 */
-	$effect(() => {
-		if (!hasAnyNotes) {
-			setToolbarState('canToggleNotes', false);
-			setToolbarState('passageNotesVisible', false);
-			setToolbarState('connectionNotesVisible', false);
-		} else {
-			setToolbarState('canToggleNotes', true);
-		}
-	});
-
-	/**
 	 * Derived: whether any passage text contains a paragraph break marker.
 	 * Re-evaluates whenever data.passagesWithText changes.
 	 */
