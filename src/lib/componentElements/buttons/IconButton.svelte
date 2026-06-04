@@ -44,7 +44,7 @@
 	 * ```svelte
 	 * <IconButton 
 	 *   id="analyze"
-	 *   iconId="structure" 
+	 *   iconId="analyze" 
 	 *   classes="toolbar-dark grouped"
 	 *   groupedIsActive={handleSelection}
 	 *   isActive={true}

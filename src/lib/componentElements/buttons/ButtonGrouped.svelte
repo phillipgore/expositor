@@ -39,7 +39,7 @@
 	 * ```svelte
 	 * <ButtonGrouped
 	 *   buttons={[
-	 *     { id: 'analyze', iconId: 'structure', label: 'Analyze' },
+	 *     { id: 'analyze', iconId: 'analyze', label: 'Analyze' },
 	 *     { id: 'document', iconId: 'document', label: 'Document' }
 	 *   ]}
 	 *   defaultActive="analyze"
