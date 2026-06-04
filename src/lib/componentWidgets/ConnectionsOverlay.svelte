@@ -267,10 +267,60 @@
 		}
 	}
 
-	/** Priority order tried when resolving note–note collisions. */
-	const NOTE_PLACEMENT_ORDER = /** @type {Array<'center'|'right'|'above'|'below'|'left'>} */ (
-		['center', 'right', 'above', 'below', 'left']
+	/** Priority order tried when resolving note–note collisions (never 'center'). */
+	const NOTE_PLACEMENT_ORDER = /** @type {Array<'above'|'below'|'right'|'left'>} */ (
+		['above', 'below', 'right', 'left']
 	);
+
+	/**
+	 * Clamp a note's placement and offsets so it never clips off the top or left
+	 * edge of the SVG canvas.  Mutates path.notePlacement, path.noteOffsetX, and
+	 * path.noteOffsetY in-place.
+	 *
+	 * Rules:
+	 *   'above' / 'below' — can slide horizontally (noteOffsetX) to clear the left
+	 *     edge.  If 'above' would clip the top edge, switch to 'below' instead.
+	 *   'right' / 'left'  — can slide vertically (noteOffsetY) to clear the top
+	 *     edge.  If 'left' would clip the left edge, switch to 'right' instead.
+	 *
+	 * @param {{ notePlacement: string, noteOffsetX: number, noteOffsetY: number, mx: number, my: number }} path
+	 * @param {number} scl  — current zoom scale (CSS px per SVG unit)
+	 */
+	function clampNotePlacement(path, scl) {
+		const MARGIN = 4 / scl; // 4 visual-px buffer converted to layout px
+
+		if (path.notePlacement === 'above') {
+			// Top-edge check: switch to 'below' if the note box would go above y=0
+			const topEdge = (path.my + path.noteOffsetY) - NOTE_BOX_H;
+			if (topEdge < MARGIN) {
+				path.notePlacement = 'below';
+			}
+		}
+
+		if (path.notePlacement === 'above' || path.notePlacement === 'below') {
+			// Left-edge check: slide right until the note box clears x=0
+			const leftEdge = (path.mx + path.noteOffsetX) - NOTE_BOX_W / 2;
+			if (leftEdge < MARGIN) {
+				path.noteOffsetX += MARGIN - leftEdge;
+			}
+			return;
+		}
+
+		if (path.notePlacement === 'left') {
+			// Left-edge check: switch to 'right' if the note box would go left of x=0
+			const leftEdge = (path.mx + path.noteOffsetX) - NOTE_BOX_W;
+			if (leftEdge < MARGIN) {
+				path.notePlacement = 'right';
+			}
+		}
+
+		// 'right' or 'left' (after possible switch above):
+		// Top-edge check: slide down until the note box clears y=0
+		const topEdge = (path.my + path.noteOffsetY) - NOTE_BOX_H / 2;
+		if (topEdge < MARGIN) {
+			path.noteOffsetY += MARGIN - topEdge;
+		}
+	}
 
 	// ─── DOM element lookup ───────────────────────────────────────────────────
 
@@ -451,63 +501,71 @@
 			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
 			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
 
-			// ── Initial note placement ──────────────────────────────────────────
-			// Same-column segment loop: the bezier bulges to the right.  The midpoint
-			// is already to the right of both anchors, so place the note right of it
-			// (start edge at anchor rather than centering over it).
-			/** @type {'center'|'right'|'left'|'above'|'below'} */
-			let notePlacement = 'center';
-			let noteOffsetX = 0;
-			let noteOffsetY = 0;
+		// ── Initial note placement ──────────────────────────────────────────
+		// Default: 'above' the bezier midpoint.
+		// Same-column segment loop: the bezier bulges to the right, so place
+		// the note to the right of the midpoint instead.
+		/** @type {'center'|'right'|'left'|'above'|'below'} */
+		let notePlacement = 'above';
+		let noteOffsetX = 0;
+		let noteOffsetY = 0;
 
-			if (sameCol && fromSide2 && toSide2) {
-				// Same-column segment loop — note should sit to the right of the arc.
-				// noteOffsetX=0 places the note left edge at the dot center so they touch.
-				notePlacement = 'right';
-				noteOffsetX = 0;
-			}
-
-			newPaths.push({
-				id: connection.id,
-				d, x1: from.x, y1: from.y, x2: to.x, y2: to.y,
-				mx, my, cx1, cy1, cx2, cy2,
-				fromType, toType,
-				lineStyle: getLineStyle(fromType, toType),
-				note: connection.note ?? null,
-				notePlacement, noteOffsetX, noteOffsetY
-			});
+		if (sameCol && fromSide2 && toSide2) {
+			// Same-column segment loop — note should sit to the right of the arc.
+			notePlacement = 'right';
 		}
 
-		// ── Collision detection pass ────────────────────────────────────────────
-		// For each pair of notes whose bounding boxes would overlap, try alternative
-		// placements for the later note until one does not collide.
-		const notePaths = newPaths.filter(p => p.note);
-		for (let i = 0; i < notePaths.length; i++) {
-			for (let j = i + 1; j < notePaths.length; j++) {
-				const a = notePaths[i];
-				const b = notePaths[j];
+		newPaths.push({
+			id: connection.id,
+			d, x1: from.x, y1: from.y, x2: to.x, y2: to.y,
+			mx, my, cx1, cy1, cx2, cy2,
+			fromType, toType,
+			lineStyle: getLineStyle(fromType, toType),
+			note: connection.note ?? null,
+			notePlacement, noteOffsetX, noteOffsetY
+		});
 
-				const axPx = (a.mx + a.noteOffsetX) * scale;
-				const ayPx = (a.my + a.noteOffsetY) * scale;
-				const bxPx = (b.mx + b.noteOffsetX) * scale;
-				const byPx = (b.my + b.noteOffsetY) * scale;
+		// ── Bounds clamping (initial pass) ─────────────────────────────────
+		// Ensure the note does not clip off the top or left edges of the canvas
+		// after its initial placement is assigned.
+		clampNotePlacement(newPaths[newPaths.length - 1], scale);
+	}
 
-				const boxA = noteBoundingBox(axPx, ayPx, a.notePlacement);
-				const boxB = noteBoundingBox(bxPx, byPx, b.notePlacement);
+	// ── Collision detection pass ────────────────────────────────────────────
+	// For each pair of notes whose bounding boxes would overlap, try alternative
+	// placements for the later note until one does not collide.
+	const notePaths = newPaths.filter(p => p.note);
+	for (let i = 0; i < notePaths.length; i++) {
+		for (let j = i + 1; j < notePaths.length; j++) {
+			const a = notePaths[i];
+			const b = notePaths[j];
 
-				if (boxesOverlap(boxA, boxB)) {
-					// Try each placement for b until one does not overlap with a
-					for (const placement of NOTE_PLACEMENT_ORDER) {
-						if (placement === b.notePlacement) continue;
-						const testBox = noteBoundingBox(bxPx, byPx, placement);
-						if (!boxesOverlap(boxA, testBox)) {
-							b.notePlacement = placement;
-							break;
-						}
+		const axPx = a.mx + a.noteOffsetX;
+		const ayPx = a.my + a.noteOffsetY;
+		const bxPx = b.mx + b.noteOffsetX;
+		const byPx = b.my + b.noteOffsetY;
+
+			const boxA = noteBoundingBox(axPx, ayPx, a.notePlacement);
+			const boxB = noteBoundingBox(bxPx, byPx, b.notePlacement);
+
+			if (boxesOverlap(boxA, boxB)) {
+				// Try each placement for b until one does not overlap with a.
+				// Re-clamp after each candidate placement change so bounds stay safe.
+				for (const placement of NOTE_PLACEMENT_ORDER) {
+					if (placement === b.notePlacement) continue;
+					const testBox = noteBoundingBox(bxPx, byPx, placement);
+					if (!boxesOverlap(boxA, testBox)) {
+						b.notePlacement = placement;
+						// Reset offsets before re-clamping the new placement
+						b.noteOffsetX = 0;
+						b.noteOffsetY = 0;
+						clampNotePlacement(b, scale);
+						break;
 					}
 				}
 			}
 		}
+	}
 
 		paths = newPaths;
 	}
@@ -1182,14 +1240,6 @@
 			{/if}
 		{/each}
 
-		<!-- Pass 4: note anchor dots — small gray circles that visually link each note to its arc -->
-		{#if $toolbarState.connectionNotesVisible}
-			{#each visiblePaths as path (path.id)}
-				{#if path.note}
-					<circle class="connection-note-dot" cx={path.mx} cy={path.my} r="3" />
-				{/if}
-			{/each}
-		{/if}
 
 		<!-- ── Drop handles (shown only while dragging) ── -->
 		{#if drag}
@@ -1237,6 +1287,8 @@
 	</svg>
 
 	<!-- ── Connection Quick Notes ────────────────────────────────────────────── -->
+	<!-- Note wrappers are rendered before the anchor-dot SVG so that the dots  -->
+	<!-- always paint on top of (over) the note boxes (z-axis layering).        -->
 	{#if $toolbarState.connectionNotesVisible}
 		{#each visiblePaths as path (path.id)}
 			{#if path.note || noteEditingId === path.id}
@@ -1245,7 +1297,7 @@
 					class="connection-note-wrapper"
 					class:connection-note-wrapper--editing={noteEditingId === path.id}
 					class:connection-note-wrapper--selected={noteSelectedId === path.id || selectedPathIds.has(path.id)}
-					style="left: {(path.mx + path.noteOffsetX) * scale}px; top: {(path.my + path.noteOffsetY) * scale}px; transform: {noteTransform(path.notePlacement)};"
+					style="left: {path.mx + path.noteOffsetX}px; top: {path.my + path.noteOffsetY}px; transform: {noteTransform(path.notePlacement)};"
 					onclick={(e) => e.stopPropagation()}
 					onkeydown={(e) => e.stopPropagation()}
 					role="none"
@@ -1286,6 +1338,20 @@
 				</div>
 			{/if}
 		{/each}
+	{/if}
+
+	<!-- ── Note anchor dots (top layer) ────────────────────────────────────── -->
+	<!-- Rendered AFTER the note wrappers so the dot SVG sits above them in the -->
+	<!-- z-stack.  The separate SVG shares the same coordinate space as the     -->
+	<!-- main connections-overlay SVG but has a higher z-index.                 -->
+	{#if $toolbarState.connectionNotesVisible}
+		<svg class="connections-dots-overlay" aria-hidden="true" focusable="false">
+			{#each visiblePaths as path (path.id)}
+				{#if path.note}
+					<circle class="connection-note-dot" cx={path.mx} cy={path.my} r="4" />
+				{/if}
+			{/each}
+		</svg>
 	{/if}
 </div>
 
@@ -1400,6 +1466,18 @@
 		/* transform is set inline via noteTransform() — see template */
 		pointer-events: auto;
 		z-index: 10;
+	}
+
+	/* ── Note anchor dot top-layer SVG ── */
+	/* Sits above the HTML note wrappers (z-index > 10) so the dot is always   */
+	/* visible on top of the note box it visually anchors.                      */
+	.connections-dots-overlay {
+		position: absolute;
+		top: 0; left: 0;
+		width: 100%; height: 100%;
+		pointer-events: none;
+		overflow: visible;
+		z-index: 15;
 	}
 
 	/* Note anchor dot — ties the note box to the bezier arc */

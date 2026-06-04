@@ -2837,26 +2837,38 @@
 	});
 
 	/**
-	 * Calculate wrapper dimensions for scroll area
-	 * @returns {string} CSS dimensions for wrapper
+	 * Explicit scroll-area size for the wrapper div.
+	 * CSS transform (scale) does not affect layout dimensions, so we must
+	 * manually set the wrapper's width/height to match the visual (scaled) size.
+	 * We use $state + $effect + tick() rather than $derived because:
+	 *   - $derived runs during Svelte's render phase, before the browser has
+	 *     finished computing layout; scrollWidth/scrollHeight may be stale or 0.
+	 *   - $effect runs after the DOM is fully updated; tick() additionally flushes
+	 *     all pending Svelte batch updates so measurements are guaranteed accurate.
 	 */
-	let wrapperDimensions = $derived.by(() => {
-		if (!contentInnerRef) return '';
-		
-		// Get actual content dimensions
-		const currentTransform = contentInnerRef.style.transform;
-		contentInnerRef.style.transform = 'none';
-		const width = contentInnerRef.scrollWidth;
-		const height = contentInnerRef.scrollHeight;
-		contentInnerRef.style.transform = currentTransform;
-		
-		if (width === 0 || height === 0) return '';
-		
-		// Apply scale to dimensions
-		const scaledWidth = width * currentScale;
-		const scaledHeight = height * currentScale;
-		
-		return `width: ${scaledWidth}px; height: ${scaledHeight}px;`;
+	let wrapperDimensions = $state('');
+
+	$effect(() => {
+		const scale = currentScale;          // reactive: re-run on zoom change
+		const ref   = contentInnerRef;       // reactive: re-run when element mounts
+		const _dep  = data.passagesWithText; // reactive: re-run when content changes
+
+		if (!ref) { wrapperDimensions = ''; return; }
+
+		tick().then(() => {
+			if (!ref) return;
+			// Temporarily remove transform so scrollWidth/scrollHeight reflect
+			// the natural (un-scaled) layout dimensions.
+			const saved = ref.style.transform;
+			ref.style.transform = 'none';
+			const width  = ref.scrollWidth;
+			const height = ref.scrollHeight;
+			ref.style.transform = saved;
+
+			if (width > 0 && height > 0) {
+				wrapperDimensions = `width: ${width * scale}px; height: ${height * scale}px;`;
+			}
+		});
 	});
 
 	/**
@@ -3140,7 +3152,19 @@
 		display: flex;
 		flex-direction: column;
 		position: relative;
-		height: 100%;
+		/* This element is a flex-column child of the shared .content-wrapper
+		   (which has overflow-y: auto). Using `height: 100%` here is fragile inside
+		   that nested-flex chain: the percentage doesn't reliably constrain the box,
+		   so the tall scaled content (zoom > 100%) can push .container past the
+		   viewport and let the ANCESTOR .content-wrapper absorb the vertical scroll
+		   instead of .analyze-content. Result: the inner scroller never receives the
+		   overflow and vertical scrolling appears broken (horizontal still works
+		   because .content-wrapper only scrolls on the Y axis).
+		   `flex: 1; min-height: 0;` makes .container a properly bounded flex item that
+		   can shrink below its content, so .analyze-content becomes the single
+		   bounded scroller on BOTH axes. */
+		flex: 1;
+		min-height: 0;
 	}
 
 	.study-header {
@@ -3172,6 +3196,14 @@
 
 	.analyze-content {
 		flex-grow: 1;
+		/* min-height: 0 overrides the default flex-item min-height: auto.
+		   Without this, a vertical (main-axis) flex item refuses to shrink
+		   below its content's intrinsic height, so when zoom > 100% makes the
+		   scaled content taller than the viewport the box just grows to fit and
+		   overflow-y: auto never engages (vertical scrolling appears broken).
+		   The horizontal (cross) axis is unaffected, which is why only vertical
+		   scrolling failed. */
+		min-height: 0;
 		overflow-x: auto;
 		overflow-y: auto;
 		touch-action: pan-x pan-y pinch-zoom;
