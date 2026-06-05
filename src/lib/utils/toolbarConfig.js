@@ -163,6 +163,16 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'toggle',
+					iconId: 'glasses',
+					underLabel: 'Focus',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					activeStateProp: 'focusMode',
+					toggleHandler: 'toggleFocus',
+					disabledStateProp: 'canToggleFocus'
+				},
+				{
+					type: 'toggle',
 					iconId: 'commentary',
 					underLabel: 'Comment',
 					classes: 'toolbar-dark',

@@ -9,7 +9,7 @@
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -70,6 +70,16 @@
 	let visibleSectionIds = $state(new Set());
 	let visibleSegmentIds = $state(new Set());
 
+	// Focus mode state — mirrors compare mode but driven by a single selection.
+	let isFocusMode = $state(false);
+	let originalFocusSelection = $state({ columns: [], sections: [], segments: [] });
+
+	// True whenever items should be hidden based on the visible Sets — i.e. in either
+	// compare mode or focus mode (both reuse the same visibility filtering mechanism).
+	let isHideMode = $derived(isCompareMode || isFocusMode);
+
+
+
 	// Derived state: Check if we're in multi-select mode (more than 1 item selected)
 	let isInMultiSelectMode = $derived.by(() => {
 		// Use compare-mode selections if in compare mode, otherwise use normal selections
@@ -80,6 +90,14 @@
 		const totalSelected = selections.columns.length + selections.sections.length + selections.segments.length;
 		return totalSelected > 1;
 	});
+
+	// Derived state: Check if exactly one item is selected (enables the Focus button).
+	// Uses normal selections only — Focus is entered from a single structural selection.
+	let isSingleSelectMode = $derived.by(() => {
+		const totalSelected = activeColumns.length + activeSections.length + activeSegments.length;
+		return totalSelected === 1;
+	});
+
 
 	// Sync word selection state to toolbar store
 	$effect(() => {
@@ -211,6 +229,11 @@
 	// introducing reactive reads of the toolbar store here (which would cause loops).
 	$effect(() => {
 		setMultiSelectMode(isInMultiSelectMode);
+	});
+
+	// Sync single-select mode to toolbar store (enables Focus button when exactly 1 item selected).
+	$effect(() => {
+		setFocusEnabled(isSingleSelectMode);
 	});
 
 	// Clear active segments and word selection when overview mode is enabled.
@@ -353,7 +376,56 @@
 		}
 	});
 
-	// Apply dynamic classes for first/last visible elements in compare mode
+	// Focus mode toggle logic — mirrors compare mode, but driven by a single selection.
+	// Reuses the same visibleColumnIds/SectionIds/SegmentIds Sets and the compare-hidden
+	// mechanism to hide everything except the focused item (and its containers/children).
+	$effect(() => {
+		if ($toolbarState.focusMode && !isFocusMode) {
+			// ENTERING FOCUS MODE
+
+			// 1. Save the current single selection so it can be restored on exit
+			originalFocusSelection = {
+				columns: [...activeColumns],
+				sections: [...activeSections],
+				segments: [...activeSegments]
+			};
+
+			// 2. Calculate which items remain visible (same rules as compare mode)
+			const visible = calculateVisibleItems(originalFocusSelection);
+			visibleColumnIds = new Set(visible.columns);
+			visibleSectionIds = new Set(visible.sections);
+			visibleSegmentIds = new Set(visible.segments);
+
+			// 3. Clear word selection and visual structural selection
+			selectedWord = null;
+			suppressHoverCaret = null;
+			activeColumns = [];
+			activeSections = [];
+			activeSegments = [];
+
+			// 4. Mark we're in focus mode
+			isFocusMode = true;
+
+		} else if (!$toolbarState.focusMode && isFocusMode) {
+			// EXITING FOCUS MODE
+
+			// 1. Clear visibility filters (show all)
+			visibleColumnIds = new Set();
+			visibleSectionIds = new Set();
+			visibleSegmentIds = new Set();
+
+			// 2. Restore the original selection
+			activeColumns = [...originalFocusSelection.columns];
+			activeSections = [...originalFocusSelection.sections];
+			activeSegments = [...originalFocusSelection.segments];
+
+			// 3. Clear saved selection and exit focus mode
+			originalFocusSelection = { columns: [], sections: [], segments: [] };
+			isFocusMode = false;
+		}
+	});
+
+	// Apply dynamic classes for first/last visible elements in compare/focus mode
 	$effect(() => {
 		// Force reactivity by reading from the Sets
 		const _cols = Array.from(visibleColumnIds);
@@ -367,8 +439,8 @@
 				el.classList.remove('compare-first-segment', 'compare-last-segment', 'compare-first-section');
 			});
 			
-			// Only apply classes when in compare mode
-			if (!isCompareMode) return;
+			// Only apply classes when in compare or focus mode
+			if (!isHideMode) return;
 			
 			// Process each column
 			document.querySelectorAll('.column').forEach(column => {
@@ -2994,7 +3066,7 @@
 				<div class="passage-wrapper">
 					{#if data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}
-							<div class="passage" class:compare-hidden={isCompareMode && !passageHasVisibleItems(passageText)}>
+							<div class="passage" class:compare-hidden={isHideMode && !passageHasVisibleItems(passageText)}>
 								{#if passageText.error}
 									<div class="error-message">
 										<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
@@ -3014,10 +3086,10 @@
 										{@const passageEndWordId = getPassageEndWordId(allSegments, data.passages[passageIndex])}
 										{@const headingReferences = calculateHeadingReferences(allSegments, verseSectionMap, segmentSectionEndIdxMap, passageEndWordId)}
 											{#each passageText.structure.columns as column, columnIndex}
-												<div class="column" data-column-id="{column.id}" class:compare-hidden={isCompareMode && !visibleColumnIds.has(column.id)}>
+												<div class="column" data-column-id="{column.id}" class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}>
 													{#if column.sections && column.sections.length > 0}
 														{#each column.sections as section, sectionIndex}
-															<div class="section {section.color}" data-section-id="{section.id}" class:compare-hidden={isCompareMode && !visibleSectionIds.has(section.id)}>
+															<div class="section {section.color}" data-section-id="{section.id}" class:compare-hidden={isHideMode && !visibleSectionIds.has(section.id)}>
 																{#if section.segments && section.segments.length > 0}
 																	{#each section.segments as segment, segmentIndex}
 																		{@const domSegmentIndex = passageSegmentIndexTracker.current}
@@ -3053,7 +3125,7 @@
 																			isActive={activeSegments.some(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)}
 																			segmentId={segment.id}
 																			generation={activeSegments.find(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)?.generation || 0}
-																			isCompareHidden={isCompareMode && !visibleSegmentIds.has(segment.id)}
+																			isCompareHidden={isHideMode && !visibleSegmentIds.has(segment.id)}
 																			{isVerseSubdivided}
 																			prevSegmentHasHeading={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree)}
 																			nextSegmentHasHeading={!!(section.segments[segmentIndex + 1]?.headingOne || section.segments[segmentIndex + 1]?.headingTwo || section.segments[segmentIndex + 1]?.headingThree)}
@@ -3092,7 +3164,7 @@
 									</div>
 								{/if}
 							</div>
-							<div class="passage-divider" class:compare-hidden={isCompareMode && (!passageHasVisibleItems(passageText) || data.passagesWithText.slice(passageIndex + 1).every(p => !passageHasVisibleItems(p)))}></div>
+							<div class="passage-divider" class:compare-hidden={isHideMode && (!passageHasVisibleItems(passageText) || data.passagesWithText.slice(passageIndex + 1).every(p => !passageHasVisibleItems(p)))}></div>
 						{/each}
 					{:else}
 						<p class="placeholder-text">No passages available for this study.</p>

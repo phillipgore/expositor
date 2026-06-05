@@ -50,6 +50,7 @@ async function persistPreference(updates) {
  * @property {boolean} canEdit - Whether Edit button should be enabled (has selected item)
  * @property {boolean} canFormat - Whether formatting buttons should be enabled (has content/selection)
  * @property {boolean} canToggleComparison - Whether Comparison toggle should be enabled
+ * @property {boolean} canToggleFocus - Whether Focus toggle should be enabled
  * @property {boolean} canToggleConnections - Whether Connections toggle should be enabled
  * @property {boolean} canToggleHeadings - Whether Headings toggle should be enabled
  * @property {boolean} canToggleNotes - Whether Notes toggle should be enabled (document supports notes)
@@ -73,6 +74,7 @@ async function persistPreference(updates) {
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
  * @property {boolean} commentaryPanelOpen - Whether the commentary panel is open
  * @property {boolean} comparisonsVisible - Whether comparisons are visible
+ * @property {boolean} focusMode - Whether focus mode is active
  * @property {boolean} headingsVisible - Whether headings are visible in segments
  * @property {boolean} connectionsVisible - Whether connections are visible (master toggle)
  * @property {boolean} columnConnectionsVisible - Whether column connections are visible
@@ -126,6 +128,7 @@ const defaultState = {
 	canEdit: false,
 	canFormat: false,
 	canToggleComparison: false,
+	canToggleFocus: false,
 	canToggleConnections: false,
 	canToggleHeadings: false,
 	canToggleNotes: false,
@@ -151,6 +154,7 @@ const defaultState = {
 	commentaryPanelOpen: false,
 	headingsVisible: true,
 	comparisonsVisible: false,
+	focusMode: false,
 	columnConnectionsVisible: true,
 	sectionConnectionsVisible: true,
 	segmentConnectionsVisible: true,
@@ -480,6 +484,17 @@ export function toggleComparison() {
 			comparisonsVisible: newValue
 		};
 	});
+}
+
+/**
+ * Toggle focus mode.
+ * Functionality to be wired up later.
+ */
+export function toggleFocus() {
+	toolbarStateStore.update(state => ({
+		...state,
+		focusMode: !state.focusMode
+	}));
 }
 
 /**
@@ -863,6 +878,20 @@ export function setMultiSelectMode(isMultiSelect) {
 		...state,
 		// Keep Compare button enabled if: multi-selecting, a connection is selected, or already in compare mode
 		canToggleComparison: isMultiSelect || state.hasActiveConnection || state.comparisonsVisible
+	}));
+}
+
+/**
+ * Set single-select mode state (enables Focus button when exactly one item is selected).
+ * Mirrors setMultiSelectMode for Compare: the Focus button stays enabled while focus
+ * mode is active so the user can toggle it back off.
+ * @param {boolean} isSingleSelect - Whether exactly one item (segment/section/column) is selected
+ */
+export function setFocusEnabled(isSingleSelect) {
+	toolbarStateStore.update(state => ({
+		...state,
+		// Keep Focus button enabled if: a single item is selected, or focus mode is already active
+		canToggleFocus: isSingleSelect || state.focusMode
 	}));
 }
 
