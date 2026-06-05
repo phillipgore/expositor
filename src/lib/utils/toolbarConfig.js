@@ -116,7 +116,7 @@ export function getAppToolbarConfig() {
 			items: [
 				{
 					type: 'menu',
-					iconId: 'segment',
+					iconId: 'section',
 					menuId: 'MenuStructure',
 					underLabel: 'Structure',
 					classes: 'toolbar-dark',
@@ -125,7 +125,7 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'menu',
-					iconId: 'outline',
+					iconId: 'headings',
 					menuId: 'MenuOutline',
 					underLabel: 'Markup',
 					classes: 'toolbar-dark',
