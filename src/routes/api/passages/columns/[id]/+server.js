@@ -50,8 +50,33 @@ export const PATCH = async ({ request, params }) => {
 		const body = await request.json();
 		const columnId = params.id;
 
+		// Handle left-offset update (horizontal column spacing).
+		// leftOffset is the EXTRA spacing in px added to the gap on the column's
+		// leading (left) side beyond its default gap. null/0 = default spacing;
+		// positive integer = pushed right. Capped at 294px total (255px offset) by
+		// the client; we also guard here.
+		if ('leftOffset' in body) {
+			const { leftOffset } = body;
+
+			if (leftOffset !== null) {
+				if (typeof leftOffset !== 'number' || !Number.isFinite(leftOffset) || leftOffset < 0) {
+					return json({ error: 'Invalid leftOffset' }, { status: 400 });
+				}
+			}
+
+			await db.update(passageColumn)
+				.set({
+					leftOffset: leftOffset === null ? null : Math.round(leftOffset),
+					updatedAt: new Date()
+				})
+				.where(eq(passageColumn.id, columnId));
+
+			return json({ success: true }, { status: 200 });
+		}
+
 		// Handle commentary update
 		if ('commentary' in body) {
+
 			const { commentary } = body;
 
 			if (commentary !== undefined && typeof commentary !== 'string' && commentary !== null) {

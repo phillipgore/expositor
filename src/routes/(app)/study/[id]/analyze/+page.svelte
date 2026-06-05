@@ -10,9 +10,12 @@
 	import ResizeTooltip from '$lib/componentElements/ResizeTooltip.svelte';
 	import SetSegmentHeightModal from '$lib/componentWidgets/modals/SetSegmentHeightModal.svelte';
 	import SetSectionSpacingModal from '$lib/componentWidgets/modals/SetSectionSpacingModal.svelte';
+	import SetColumnSpacingModal from '$lib/componentWidgets/modals/SetColumnSpacingModal.svelte';
 
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
 	import { useSectionReposition } from '$lib/composables/useSectionReposition.svelte.js';
+	import { useColumnReposition } from '$lib/composables/useColumnReposition.svelte.js';
+
 
 
 
@@ -50,8 +53,24 @@
 	// Attach window mousemove/mouseup listeners only while a reposition drag is active.
 	$effect(() => sectionReposition.setupRepositionListeners());
 
+	// ─── Column reposition (horizontal spacing) ───────────────────────────────
+	// Lives at page level so it can see all .column elements and the current zoom
+	// scale. Adjusts the gap to the LEFT of a column (distance from the previous
+	// column); the first column in a passage has no left gap and never gets a handle.
+	// The total gap is capped at 294px.
+	const columnReposition = useColumnReposition({
+		getScale: () => currentScale,
+		onPersist: () => invalidate('app:studies'),
+		maxGap: 294
+	});
+
+	// Attach window mousemove/mouseup listeners only while a column drag is active.
+	$effect(() => columnReposition.setupRepositionListeners());
+
 
 	// ─── Set-height modal (bulk uniform height for selected segments) ──────────
+
+
 	// Opened from Structure → Set Height. Measures the current selection to seed
 	// the default value (tallest current height) and the minimum allowed value
 	// (tallest natural/content height) before showing the modal.
@@ -205,6 +224,70 @@
 		if (ids.length === 0) return;
 		await sectionReposition.resetSpacing(ids);
 	}
+
+	// ─── Set-column-spacing modal (bulk uniform TOTAL left gap for selected columns) ─
+	// Opened from Layout → Set Column Spacing. Columns that are first in their passage
+	// have no adjustable left gap and are excluded. Seeds the default value from the
+	// first adjustable selected column's current gap, the minimum from the largest
+	// default gap among the selection, and the maximum from the 294px cap.
+	let setColumnSpacingModalOpen = $state(false);
+	let setColumnSpacingIds = $state(/** @type {string[]} */ ([]));
+	let setColumnSpacingCurrent = $state(0);
+	let setColumnSpacingMin = $state(0);
+	const COLUMN_SPACING_MAX = 294;
+
+	/**
+	 * Collect the currently selected column IDs that have an adjustable left gap
+	 * (i.e. are NOT the first column in their passage).
+	 * @returns {string[]}
+	 */
+	function getAdjustableColumnIds() {
+		return activeColumns.filter((columnId) => {
+			const colEl = document.querySelector(`[data-column-id="${columnId}"]`);
+			const prevEl = colEl?.previousElementSibling;
+			return !!prevEl && prevEl.classList.contains('column');
+		});
+	}
+
+	/**
+	 * Measure the selected columns and open the Set Column Spacing modal.
+	 */
+	function openSetColumnSpacingModal() {
+		const ids = getAdjustableColumnIds();
+		if (ids.length === 0) return;
+
+		let minFloor = 0;
+		for (const id of ids) {
+			const def = columnReposition.measureDefaultGap(id);
+			if (def > minFloor) minFloor = def;
+		}
+
+		setColumnSpacingIds = ids;
+		setColumnSpacingCurrent = Math.round(columnReposition.measureCurrentGap(ids[0]));
+		setColumnSpacingMin = Math.ceil(minFloor);
+		setColumnSpacingModalOpen = true;
+	}
+
+	/**
+	 * Persist a uniform TOTAL left gap across the selected columns, then refresh data.
+	 * @param {number} gap
+	 */
+	async function applySetColumnSpacing(gap) {
+		const ids = setColumnSpacingIds;
+		setColumnSpacingModalOpen = false;
+		if (ids.length === 0) return;
+		await columnReposition.setSpacing(ids, gap);
+	}
+
+	/**
+	 * Reset the horizontal spacing of all currently selected columns back to defaults.
+	 */
+	async function resetColumnSpacing() {
+		const ids = getAdjustableColumnIds();
+		if (ids.length === 0) return;
+		await columnReposition.resetSpacing(ids);
+	}
+
 
 
 
@@ -1353,6 +1436,9 @@
 		// Section spacing (Structure menu): open the modal / reset the selection.
 		const handleSetSectionSpacingEvent = () => openSetSpacingModal();
 		const handleResetSectionSpacingEvent = () => resetSectionSpacing();
+		// Column spacing (Layout menu): open the modal / reset the selection.
+		const handleSetColumnSpacingEvent = () => openSetColumnSpacingModal();
+		const handleResetColumnSpacingEvent = () => resetColumnSpacing();
 
 		window.addEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
 		window.addEventListener('set-segment-height', handleSetSegmentHeightEvent);
@@ -1360,6 +1446,9 @@
 		window.addEventListener('reset-section-position', handleResetSectionPositionEvent);
 		window.addEventListener('set-section-spacing', handleSetSectionSpacingEvent);
 		window.addEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
+		window.addEventListener('set-column-spacing', handleSetColumnSpacingEvent);
+		window.addEventListener('reset-column-spacing', handleResetColumnSpacingEvent);
+
 
 
 
@@ -1397,7 +1486,10 @@
 			window.removeEventListener('reset-section-position', handleResetSectionPositionEvent);
 			window.removeEventListener('set-section-spacing', handleSetSectionSpacingEvent);
 			window.removeEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
+			window.removeEventListener('set-column-spacing', handleSetColumnSpacingEvent);
+			window.removeEventListener('reset-column-spacing', handleResetColumnSpacingEvent);
 			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
+
 
 
 
@@ -3236,6 +3328,7 @@
 	});
 
 	/**
+
 	 * Explicit scroll-area size for the wrapper div.
 	 * CSS transform (scale) does not affect layout dimensions, so we must
 	 * manually set the wrapper's width/height to match the visual (scaled) size.
@@ -3413,8 +3506,18 @@
 										{@const passageEndWordId = getPassageEndWordId(allSegments, data.passages[passageIndex])}
 										{@const headingReferences = calculateHeadingReferences(allSegments, verseSectionMap, segmentSectionEndIdxMap, passageEndWordId)}
 											{#each passageText.structure.columns as column, columnIndex}
-												<div class="column" data-column-id="{column.id}" class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}>
+												{@const columnOffset = columnReposition.getLiveOffset(column.id) ?? column.leftOffset ?? 0}
+												<div
+													class="column"
+													class:not-first-column={columnIndex > 0}
+													class:is-repositioning={columnReposition.activeColumnId === column.id}
+													data-column-id="{column.id}"
+													class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}
+													style:--column-offset="{columnOffset}px"
+												>
 													{#if column.sections && column.sections.length > 0}
+
+
 														{#each column.sections as section, sectionIndex}
 															{@const sectionOffset = sectionReposition.getLiveOffset(section.id) ?? section.topOffset ?? 0}
 															<div
@@ -3527,8 +3630,35 @@
 															sectionColor={column.sections[0]?.color}
 														/>
 													{/if}
+
+													<!-- Column reposition handle: a narrow strip over the RIGHT border of
+													     every column EXCEPT the first in its passage, anchored near the top
+													     of the column. Hovering shows a grab cursor and a vertical three-dot
+													     indicator; mousedown begins a horizontal reposition drag that widens
+													     the gap on this column's LEFT side (the column visually slides right).
+													     Rendered LAST (it is position:absolute, so DOM order is irrelevant
+													     visually) so it never becomes the column's first child and disturb the
+													     first section's :first-of-type margin. Disabled in
+													     overview/compare/focus modes. -->
+													{#if columnIndex > 0 && !$toolbarState.overviewMode && !isHideMode}
+														<div
+															class="column-reposition-handle"
+															role="separator"
+															aria-label="Adjust column spacing"
+															aria-orientation="vertical"
+															onmousedown={(e) => columnReposition.handleRepositionStart(e, column.id)}
+														>
+
+															<span class="column-reposition-indicator">
+																<span class="column-reposition-dot"></span>
+																<span class="column-reposition-dot"></span>
+																<span class="column-reposition-dot"></span>
+															</span>
+														</div>
+													{/if}
 												</div>
 											{/each}
+
 											{/key}
 										{/if}
 									</div>
@@ -3590,6 +3720,18 @@
 		/>
 	{/if}
 
+	<!-- Live spacing tooltip following a column reposition drag. Reuses the same
+	     ResizeTooltip component; here `height` is the total horizontal gap (px) to the
+	     LEFT of the dragged column. -->
+	{#if columnReposition.dragTooltip.visible}
+		<ResizeTooltip
+			x={columnReposition.dragTooltip.x}
+			y={columnReposition.dragTooltip.y}
+			height={columnReposition.dragTooltip.height}
+		/>
+	{/if}
+
+
 
 	<!-- Bulk "Set Height" modal (Structure → Set Height). Applies a uniform height
 	     across all selected segments, never smaller than the tallest text floor. -->
@@ -3613,6 +3755,20 @@
 		onApply={applySetSpacing}
 		onClose={() => (setSpacingModalOpen = false)}
 	/>
+
+	<!-- Bulk "Set Column Spacing" modal (Layout → Set Column Spacing). Applies a uniform
+	     TOTAL gap to the LEFT of all selected (non-first) columns, never tighter than each
+	     column's default spacing and never wider than 294px. -->
+	<SetColumnSpacingModal
+		isOpen={setColumnSpacingModalOpen}
+		columnCount={setColumnSpacingIds.length}
+		currentGap={setColumnSpacingCurrent}
+		minGap={setColumnSpacingMin}
+		maxGap={COLUMN_SPACING_MAX}
+		onApply={applySetColumnSpacing}
+		onClose={() => (setColumnSpacingModalOpen = false)}
+	/>
+
 
 
 	<!-- Copyright Notice -->
@@ -3760,6 +3916,72 @@
 		background-color: var(--gray-lighter);
 		outline: 0.1rem solid var(--gray-700);
 	}
+
+	/* User horizontal spacing offset: EXTRA px added to the gap on a column's LEFT side
+	   beyond the container's default 3.9rem gap. Defaults to 0 (no change). Only applied
+	   to non-first columns (the first column in a passage stays fixed). Pushing a column
+	   right widens the gap to its left; the total gap is capped at 294px by the JS. */
+	.column.not-first-column {
+		margin-left: var(--column-offset, 0px);
+	}
+
+	/* While actively dragging a column, suppress transitions and lift it above siblings
+	   so it tracks the cursor cleanly. */
+	.column.is-repositioning {
+		z-index: 15;
+	}
+
+	/* ============================================================ */
+	/* Column Reposition Handle (right border drag affordance) */
+	/* ============================================================ */
+
+	/* A narrow strip overlapping the RIGHT border of each non-first column. Invisible
+	   until hovered, at which point it shows a grab cursor and a vertical three-dot
+	   indicator so the user knows the column can be dragged horizontally. Anchored near
+	   the TOP of the column (matching the section handle's placement) so it is easy to
+	   find without scrolling through long columns. */
+	.column-reposition-handle {
+		position: absolute;
+		top: 1.2rem;
+		right: -1.2rem;
+		width: 1.4rem;
+		height: 2.0rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: grab;
+		z-index: 16;
+		opacity: 0;
+		transition: opacity 80ms ease-in-out;
+	}
+
+
+	.column-reposition-handle:hover,
+	.column.is-repositioning .column-reposition-handle {
+		opacity: 1;
+	}
+
+	.column.is-repositioning .column-reposition-handle {
+		cursor: grabbing;
+	}
+
+	/* Grab indicator: exactly three dots in a VERTICAL column (the column counterpart
+	   to the section handle's horizontal row), centered over the column's right border. */
+	.column-reposition-indicator {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.3rem;
+	}
+
+	.column-reposition-dot {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background-color: var(--gray-400);
+	}
+
 
 	.wide-layout .column {
 		/* Readable column widthe 480 plus 18 for spacing */

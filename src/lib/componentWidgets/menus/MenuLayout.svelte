@@ -9,7 +9,9 @@
 	 *
 	 * - Segment Height  — Set Segment Height / Reset Segment Height
 	 * - Section Spacing — Set Section Spacing / Reset Section Spacing
+	 * - Column Spacing  — Set Column Spacing / Reset Column Spacing
 	 *
+
 	 * Usage:
 	 * ```
 	 * <MenuButton menuId="MenuLayout" iconId="drafting-compass" underLabel="Layout" />
@@ -85,4 +87,31 @@
 		}}
 		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
 	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="column-spacing"
+		label="Set Column Spacing"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('set-column-spacing'));
+		}}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="column-spacing-reset"
+		label="Reset Column Spacing"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('reset-column-spacing'));
+		}}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
 </Menu>
+

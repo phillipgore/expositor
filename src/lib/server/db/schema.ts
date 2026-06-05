@@ -138,6 +138,15 @@ export const passageColumn = pgTable('passage_column', {
 		.references(() => passage.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
 	commentary: text('commentary'),
+	/**
+	 * Extra horizontal spacing (in CSS px) ADDED to the gap on this column's LEADING
+	 * (left) side, beyond its default gap. NULL/0 = default spacing. Used to push a
+	 * column to the right so it visually separates from the previous column. Cannot
+	 * make a column tighter than the default — the value is an additive offset on top
+	 * of the CSS default. The first column in a passage is never offset. The total gap
+	 * (default + offset) is capped at 294px.
+	 */
+	leftOffset: integer('left_offset'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
@@ -146,6 +155,7 @@ export const passageColumn = pgTable('passage_column', {
 		.notNull()
 }, (table) => ({
 	passageIdIdx: index('passage_column_passage_id_idx').on(table.passageId),
+
 	startingWordIdx: index('passage_column_starting_word_idx').on(table.startingWordId)
 }));
 
