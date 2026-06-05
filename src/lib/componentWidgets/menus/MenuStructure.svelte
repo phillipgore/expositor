@@ -40,6 +40,33 @@
 <Menu {menuId} ariaLabel="Document structure menu">
 	<IconButton
 		classes="menu-light justify-content-left"
+		iconId="column"
+		label="Select All Columns"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			// Select every column across the study (puts the app in column-selection mode).
+			window.dispatchEvent(new CustomEvent('select-all-columns'));
+		}}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="sections"
+		label="Select All Sections"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			// Select every section across the study (puts the app in section-selection mode).
+			window.dispatchEvent(new CustomEvent('select-all-sections'));
+		}}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
 		iconId="column-split"
 		label="Split Column"
 		role="menuitem"

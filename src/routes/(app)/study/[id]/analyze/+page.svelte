@@ -1415,6 +1415,17 @@
 			}
 		};
 		
+		// Listen for select-all-columns / select-all-sections events from MenuStructure.
+		// These select every column / every section across the study, which puts the app
+		// into multi-select mode (the derived isInMultiSelectMode/hasMultipleStructuralSelections
+		// flip to true automatically since 2+ items become selected).
+		const handleSelectAllColumnsEvent = () => {
+			handleSelectAllColumns();
+		};
+		const handleSelectAllSectionsEvent = () => {
+			handleSelectAllSections();
+		};
+
 		// Listen for move-text-up event from MenuStructure
 		const handleMoveTextUpEvent = () => {
 			handleMoveTextUp();
@@ -1480,6 +1491,8 @@
 		window.addEventListener('deselect-column', handleDeselectColumnEvent);
 		window.addEventListener('select-section', handleSelectSectionEvent);
 		window.addEventListener('deselect-section', handleDeselectSectionEvent);
+		window.addEventListener('select-all-columns', handleSelectAllColumnsEvent);
+		window.addEventListener('select-all-sections', handleSelectAllSectionsEvent);
 		
 		// Set up ResizeObserver to recompute fit scale when the viewport dimensions change
 		// (e.g. user resizes the window or toggles the studies/commentary panels)
@@ -1519,6 +1532,8 @@
 			window.removeEventListener('deselect-column', handleDeselectColumnEvent);
 			window.removeEventListener('select-section', handleSelectSectionEvent);
 			window.removeEventListener('deselect-section', handleDeselectSectionEvent);
+			window.removeEventListener('select-all-columns', handleSelectAllColumnsEvent);
+			window.removeEventListener('select-all-sections', handleSelectAllSectionsEvent);
 			resizeObserver?.disconnect();
 		};
 	});
@@ -2282,6 +2297,86 @@
 			}
 		}
 		return [];
+	}
+
+	/**
+	 * Get all column IDs across every passage in the study, in document order.
+	 * @returns {string[]} Array of column IDs
+	 */
+	function getAllColumnIdsInStudy() {
+		if (!data.passagesWithText) return [];
+		const ids = [];
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			for (const column of passageText.structure.columns) {
+				ids.push(column.id);
+			}
+		}
+		return ids;
+	}
+
+	/**
+	 * Get all section IDs across every passage/column in the study, in document order.
+	 * @returns {string[]} Array of section IDs
+	 */
+	function getAllSectionIdsInStudy() {
+		if (!data.passagesWithText) return [];
+		const ids = [];
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			for (const column of passageText.structure.columns) {
+				for (const section of column.sections) {
+					ids.push(section.id);
+				}
+			}
+		}
+		return ids;
+	}
+
+	/**
+	 * Select every column in the study at once. Clears any section/segment selection
+	 * (columns sit at the top of the hierarchy) plus connection and word selections.
+	 * Respects compare mode by writing to the compare-mode selection arrays instead.
+	 */
+	function handleSelectAllColumns() {
+		// Clear connections / open editors when a structural selection is made.
+		setActiveConnection(false, []);
+		setHeadingOrNoteEditorActive(false, null);
+
+		const ids = getAllColumnIdsInStudy();
+		if (isCompareMode) {
+			compareActiveColumns = ids;
+			compareActiveSections = [];
+			compareActiveSegments = [];
+		} else {
+			activeColumns = ids;
+			activeSections = [];
+			activeSegments = [];
+		}
+		selectedWord = null;
+		suppressHoverCaret = null;
+	}
+
+	/**
+	 * Select every section in the study at once. Clears any column/segment selection
+	 * plus connection and word selections. Respects compare mode.
+	 */
+	function handleSelectAllSections() {
+		setActiveConnection(false, []);
+		setHeadingOrNoteEditorActive(false, null);
+
+		const ids = getAllSectionIdsInStudy();
+		if (isCompareMode) {
+			compareActiveColumns = [];
+			compareActiveSections = ids;
+			compareActiveSegments = [];
+		} else {
+			activeColumns = [];
+			activeSections = ids;
+			activeSegments = [];
+		}
+		selectedWord = null;
+		suppressHoverCaret = null;
 	}
 
 	// ============================================================
