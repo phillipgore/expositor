@@ -344,17 +344,18 @@
 	});
 
 	/**
-	 * Clear Finder study selection when the user activates a connection, segment,
-	 * or connection quick note inside the study content. This transitions the study
-	 * from "selected" (blue) to "active only" (gray) so the Delete button targets
-	 * the connection/heading/note rather than the study itself.
+	 * Clear Finder study selection when the user activates a column, section,
+	 * connection, segment, or connection quick note inside the study content.
+	 * This transitions the study from "selected" (blue) to "active only" (gray)
+	 * so the Delete button targets the column/section/connection/heading/note
+	 * rather than the study itself.
 	 */
 	$effect(() => {
 		const isConnectionNoteEditing =
 			$toolbarState.hasActiveHeadingOrNoteEditor &&
 			$toolbarState.activeHeadingOrNoteType === 'connection-note';
 
-		if (($toolbarState.hasActiveSegment || $toolbarState.hasActiveConnection || isConnectionNoteEditing)
+		if (($toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.hasActiveSegment || $toolbarState.hasActiveConnection || isConnectionNoteEditing)
 			&& multiSelect.selectedItems.length > 0) {
 			multiSelect.clearSelection();
 		}

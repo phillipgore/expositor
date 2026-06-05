@@ -61,6 +61,7 @@
 	import Toolbar from '$lib/componentElements/Toolbar.svelte';
 	import MenuZoom from '$lib/componentWidgets/menus/MenuZoom.svelte';
 	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
+	import MenuLayout from '$lib/componentWidgets/menus/MenuLayout.svelte';
 	import MenuOutline from '$lib/componentWidgets/menus/MenuOutline.svelte';
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
@@ -467,6 +468,7 @@
 
 <MenuZoom menuId="MenuZoom" onselect={handleZoomChange} />
 <MenuStructure menuId="MenuStructure" />
+<MenuLayout menuId="MenuLayout" />
 <MenuOutline menuId="MenuOutline" />
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
 <MenuView menuId="MenuView" />

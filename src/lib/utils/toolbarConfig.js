@@ -134,6 +134,15 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'menu',
+					iconId: 'drafting-compass',
+					menuId: 'MenuLayout',
+					underLabel: 'Layout',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledCheck: (state) => !state.canStructure || state.overviewMode || state.comparisonsVisible || state.focusMode
+				},
+				{
+					type: 'menu',
 					iconId: 'paintbrush',
 					menuId: 'MenuColor',
 					underLabel: 'Color',
