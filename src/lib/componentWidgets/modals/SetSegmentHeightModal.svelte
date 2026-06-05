@@ -53,8 +53,10 @@
 
 	function handleApply() {
 		if (isInvalid) return;
-		onApply?.(Math.round(numericValue));
+		// Clamp as a final safety net so a value below the floor can never be persisted.
+		onApply?.(Math.max(Math.round(minHeight), Math.round(numericValue)));
 	}
+
 
 	function handleClose() {
 		onClose?.();
@@ -76,6 +78,7 @@
 	showCloseButton={false}
 	confirmLabel="Apply"
 	cancelLabel="Cancel"
+	confirmDisabled={isInvalid}
 	onConfirm={handleApply}
 	onCancel={handleClose}
 	onClose={handleClose}
@@ -86,11 +89,15 @@
 			id="segment-height-input"
 			name="segment-height"
 			type="number"
+			min={Math.round(minHeight)}
 			bind:value
 			onkeydown={handleKeydown}
 		/>
 		<span class="suffix">px</span>
 	</div>
+	<p class="hint" class:error={isInvalid}>
+		Minimum height is {Math.round(minHeight)}px.
+	</p>
 </Modal>
 
 <style>
@@ -104,5 +111,16 @@
 		font-size: 1.4rem;
 		color: var(--black);
 	}
+
+	.hint {
+		margin: 0.6rem 0.0rem 0.0rem;
+		font-size: 1.2rem;
+		color: var(--gray-300);
+	}
+
+	.hint.error {
+		color: var(--red);
+	}
 </style>
+
 

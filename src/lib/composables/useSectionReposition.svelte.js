@@ -32,7 +32,13 @@
  * @param {() => Promise<void>} options.onPersist - Called after a successful save to refresh data (e.g. invalidate('app:studies')).
  * @param {number} [options.snapThreshold=8] - Snap distance in viewport px.
  */
+// Extra vertical lift (viewport px) applied to the reposition tooltip's anchor so the
+// label clears the three-dot grab handle that sits just above the section's top edge.
+const TOOLTIP_ANCHOR_LIFT = 8;
+
+
 export function useSectionReposition({ getScale, getContainer, onPersist, snapThreshold = 8 }) {
+
 	// Live offset overrides during a drag: sectionId -> extra px (pre-zoom) beyond default.
 	// The page merges this over the persisted topOffset when rendering each section.
 	/** @type {Record<string, number>} */
@@ -45,12 +51,20 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 	// Yellow guide line geometry (viewport-fixed). visible=false hides it.
 	let guideLine = $state({ visible: false, top: 0, left: 0, width: 0 });
 
+	// Live gap tooltip that follows the drag (viewport-fixed). x/y track the horizontal
+	// center and current top edge of the dragged section; gap is the CSS-px total spacing
+	// above the section (and ultimately what determines the saved offset). Mirrors the
+	// segment-resize tooltip via the shared ResizeTooltip component.
+	let dragTooltip = $state({ visible: false, x: 0, y: 0, height: 0 });
+
 	// Internal (non-reactive) drag bookkeeping.
 	let startY = 0; // pointer Y at mousedown (viewport px)
 	let startTopY = 0; // dragged section's top edge (viewport px) at drag start
 	let startMargin = 0; // dragged section's margin-top (CSS px) at drag start
 	let defaultMargin = 0; // the floor: section's default margin-top (CSS px)
+	let draggedCenterX = 0; // dragged section's horizontal center (viewport px) — fixed during drag
 	let snapCandidates = []; // array of viewport Y values (other columns' section/segment edges)
+
 
 	/**
 	 * Begin a reposition drag for the given section.
@@ -73,6 +87,8 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 
 		const rect = sectionEl.getBoundingClientRect();
 		startTopY = rect.top;
+		draggedCenterX = rect.left + rect.width / 2;
+
 
 		// Current applied margin-top (CSS px). Read the inline value if present,
 		// otherwise the computed default.
@@ -100,10 +116,24 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 			snapCandidates.push(r.top, r.bottom);
 		});
 
+		// Show the live-gap tooltip anchored to the section's current top edge. It reports
+		// the TOTAL spacing above the section (default + offset), matching what the user
+		// would enter in the Set Section Spacing modal.
+		dragTooltip = {
+			visible: true,
+			x: draggedCenterX,
+			// Lift the anchor above the three-dot grab handle (which sits ~12px above the
+			// section's top edge) so the tooltip doesn't overlap it.
+			y: startTopY - TOOLTIP_ANCHOR_LIFT,
+			height: Math.round(startMargin)
+		};
+
+
 		activeSectionId = sectionId;
 		document.body.style.cursor = 'grabbing';
 		document.body.style.userSelect = 'none';
 	}
+
 
 	/**
 	 * Handle pointer movement during a reposition.
@@ -145,7 +175,19 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		const offset = newMargin - defaultMargin;
 		liveOffsets = { ...liveOffsets, [activeSectionId]: offset };
 
+		// Update the live-gap tooltip to follow the dragged top edge and report the new
+		// total spacing above the section (CSS px).
+		dragTooltip = {
+			visible: true,
+			x: draggedCenterX,
+			// Keep the same lift as on drag start so the label stays clear of the grab handle.
+			y: startTopY + (newMargin - startMargin) * scale - TOOLTIP_ANCHOR_LIFT,
+			height: Math.round(newMargin)
+		};
+
+
 		// Position / toggle the guide line.
+
 		if (snappedY !== null) {
 			const container = getContainer();
 			if (container) {
@@ -171,8 +213,10 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		// Reset interaction state immediately.
 		activeSectionId = null;
 		guideLine = { visible: false, top: 0, left: 0, width: 0 };
+		dragTooltip = { visible: false, x: 0, y: 0, height: 0 };
 		document.body.style.cursor = '';
 		document.body.style.userSelect = '';
+
 
 		if (finalOffset == null) return;
 
@@ -242,17 +286,130 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		}
 	}
 
+	/**
+	 * Measure a section's DEFAULT vertical gap (margin-top with no reposition offset),
+	 * in CSS px at scale 1. This is the floor: first section = 0, others ≈ 43px.
+	 * @param {string} sectionId
+	 * @returns {number} Default gap in CSS px (0 if the section can't be found).
+	 */
+	function measureDefaultGap(sectionId) {
+		const sectionEl = /** @type {HTMLElement|null} */ (
+			document.querySelector(`[data-section-id="${sectionId}"]`)
+		);
+		if (!sectionEl) return 0;
+
+		const scale = getScale() || 1;
+		// Temporarily zero the reposition offset so margin-top collapses to its default.
+		const prevVar = sectionEl.style.getPropertyValue('--reposition-offset');
+		sectionEl.style.setProperty('--reposition-offset', '0px');
+		const measured = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
+		// Restore the previous inline value (empty string removes the inline override).
+		if (prevVar) sectionEl.style.setProperty('--reposition-offset', prevVar);
+		else sectionEl.style.removeProperty('--reposition-offset');
+
+		return measured / scale;
+	}
+
+	/**
+	 * Measure a section's CURRENT total vertical gap (rendered margin-top), in CSS px at
+	 * scale 1. Equals defaultGap + current offset (persisted or live).
+	 * @param {string} sectionId
+	 * @returns {number} Current total gap in CSS px (0 if not found).
+	 */
+	function measureCurrentGap(sectionId) {
+		const sectionEl = /** @type {HTMLElement|null} */ (
+			document.querySelector(`[data-section-id="${sectionId}"]`)
+		);
+		if (!sectionEl) return 0;
+		const scale = getScale() || 1;
+		const measured = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
+		return measured / scale;
+	}
+
+	/**
+	 * Set a uniform TOTAL vertical gap across one or more sections. The total is converted
+	 * per-section into the stored EXTRA offset (offset = max(0, total − sectionDefault)),
+	 * persisted via PATCH, then data is refreshed once.
+	 * @param {string[]} sectionIds
+	 * @param {number} totalGap - Desired total gap in CSS px.
+	 */
+	async function setSpacing(sectionIds, totalGap) {
+		if (!Array.isArray(sectionIds) || sectionIds.length === 0) return;
+
+		try {
+			await Promise.all(
+				sectionIds.map((sectionId) => {
+					const defaultGap = measureDefaultGap(sectionId);
+					const offset = Math.max(0, Math.round(totalGap - defaultGap));
+					const toPersist = offset <= 0 ? null : offset;
+
+					// Drop any live override for this section.
+					if (sectionId in liveOffsets) {
+						const { [sectionId]: _drop, ...rest } = liveOffsets;
+						liveOffsets = rest;
+					}
+
+					return fetch(`/api/passages/sections/${sectionId}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ topOffset: toPersist })
+					});
+				})
+			);
+			if (onPersist) await onPersist();
+		} catch (error) {
+			console.error('Failed to set section spacing:', error);
+		}
+	}
+
+	/**
+	 * Reset the vertical spacing of one or more sections back to their defaults
+	 * (topOffset = null), then refresh data once.
+	 * @param {string[]} sectionIds
+	 */
+	async function resetSpacing(sectionIds) {
+		if (!Array.isArray(sectionIds) || sectionIds.length === 0) return;
+
+		try {
+			await Promise.all(
+				sectionIds.map((sectionId) => {
+					if (sectionId in liveOffsets) {
+						const { [sectionId]: _drop, ...rest } = liveOffsets;
+						liveOffsets = rest;
+					}
+					return fetch(`/api/passages/sections/${sectionId}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ topOffset: null })
+					});
+				})
+			);
+			if (onPersist) await onPersist();
+		} catch (error) {
+			console.error('Failed to reset section spacing:', error);
+		}
+	}
+
 	return {
 		handleRepositionStart,
 		setupRepositionListeners,
 		getLiveOffset,
 		resetPosition,
+		measureDefaultGap,
+		measureCurrentGap,
+		setSpacing,
+		resetSpacing,
+
 
 		get activeSectionId() {
 			return activeSectionId;
 		},
 		get guideLine() {
 			return guideLine;
+		},
+		get dragTooltip() {
+			return dragTooltip;
 		}
 	};
 }
+

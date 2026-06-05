@@ -9,6 +9,8 @@
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import ResizeTooltip from '$lib/componentElements/ResizeTooltip.svelte';
 	import SetSegmentHeightModal from '$lib/componentWidgets/modals/SetSegmentHeightModal.svelte';
+	import SetSectionSpacingModal from '$lib/componentWidgets/modals/SetSectionSpacingModal.svelte';
+
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
 	import { useSectionReposition } from '$lib/composables/useSectionReposition.svelte.js';
 
@@ -136,6 +138,74 @@
 			console.error('Failed to restore segment heights:', error);
 		}
 	}
+
+	// ─── Set-spacing modal (bulk uniform TOTAL gap for selected sections) ──────
+	// Opened from Structure → Set Section Spacing. Measures the current selection to
+	// seed the default value (first section's current total gap) and the minimum
+	// allowed value (largest default gap among the selected sections) before showing
+	// the modal. Mirrors the segment Set-Height flow but for vertical section spacing.
+	let setSpacingModalOpen = $state(false);
+	let setSpacingSectionIds = $state(/** @type {string[]} */ ([]));
+	let setSpacingCurrent = $state(0);
+	let setSpacingMin = $state(0);
+
+	/**
+	 * Collect the currently selected section IDs. A selected COLUMN implies all of its
+	 * sections; explicitly selected sections are included directly. (Spacing has no
+	 * meaning for a segment selection, so segments are ignored here.)
+	 * @returns {string[]}
+	 */
+	function getSelectedSectionIds() {
+		const ids = new Set();
+		activeSections.forEach((id) => ids.add(id));
+		activeColumns.forEach((colId) => {
+			getAllSectionIdsInColumn(colId).forEach((sId) => ids.add(sId));
+		});
+		return Array.from(ids);
+	}
+
+	/**
+	 * Measure the selected sections and open the Set Section Spacing modal.
+	 * - current = the first selected section's current total gap → default value
+	 * - min     = the largest default gap among the selection    → floor
+	 */
+	function openSetSpacingModal() {
+		const ids = getSelectedSectionIds();
+		if (ids.length === 0) return;
+
+		let minFloor = 0;
+		for (const id of ids) {
+			const def = sectionReposition.measureDefaultGap(id);
+			if (def > minFloor) minFloor = def;
+		}
+
+		setSpacingSectionIds = ids;
+		setSpacingCurrent = Math.round(sectionReposition.measureCurrentGap(ids[0]));
+		setSpacingMin = Math.ceil(minFloor);
+		setSpacingModalOpen = true;
+	}
+
+	/**
+	 * Persist a uniform TOTAL gap across the selected sections (converted per-section
+	 * into the stored extra offset by the composable), then refresh loaded data.
+	 * @param {number} gap
+	 */
+	async function applySetSpacing(gap) {
+		const ids = setSpacingSectionIds;
+		setSpacingModalOpen = false;
+		if (ids.length === 0) return;
+		await sectionReposition.setSpacing(ids, gap);
+	}
+
+	/**
+	 * Reset the spacing of all currently selected sections back to their defaults.
+	 */
+	async function resetSectionSpacing() {
+		const ids = getSelectedSectionIds();
+		if (ids.length === 0) return;
+		await sectionReposition.resetSpacing(ids);
+	}
+
 
 
 
@@ -1267,11 +1337,17 @@
 			const sectionId = event.detail?.sectionId;
 			if (sectionId) sectionReposition.resetPosition(sectionId);
 		};
+		// Section spacing (Structure menu): open the modal / reset the selection.
+		const handleSetSectionSpacingEvent = () => openSetSpacingModal();
+		const handleResetSectionSpacingEvent = () => resetSectionSpacing();
 
 		window.addEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
 		window.addEventListener('set-segment-height', handleSetSegmentHeightEvent);
 		window.addEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
 		window.addEventListener('reset-section-position', handleResetSectionPositionEvent);
+		window.addEventListener('set-section-spacing', handleSetSectionSpacingEvent);
+		window.addEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
+
 
 
 
@@ -1305,7 +1381,11 @@
 			window.removeEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
 			window.removeEventListener('set-segment-height', handleSetSegmentHeightEvent);
 			window.removeEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
+			window.removeEventListener('reset-section-position', handleResetSectionPositionEvent);
+			window.removeEventListener('set-section-spacing', handleSetSectionSpacingEvent);
+			window.removeEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
 			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
+
 
 
 			window.removeEventListener('remove-connection', handleRemoveConnectionEvent);
@@ -3481,6 +3561,18 @@
 		/>
 	{/if}
 
+	<!-- Live spacing tooltip following a section reposition drag. Reuses the same
+	     ResizeTooltip component as segment resize; here `height` is the total vertical
+	     gap (px) above the section. -->
+	{#if sectionReposition.dragTooltip.visible}
+		<ResizeTooltip
+			x={sectionReposition.dragTooltip.x}
+			y={sectionReposition.dragTooltip.y}
+			height={sectionReposition.dragTooltip.height}
+		/>
+	{/if}
+
+
 	<!-- Bulk "Set Height" modal (Structure → Set Height). Applies a uniform height
 	     across all selected segments, never smaller than the tallest text floor. -->
 	<SetSegmentHeightModal
@@ -3491,6 +3583,19 @@
 		onApply={applySetHeight}
 		onClose={() => (setHeightModalOpen = false)}
 	/>
+
+	<!-- Bulk "Set Section Spacing" modal (Structure → Set Section Spacing). Applies a
+	     uniform TOTAL gap above all selected sections, never tighter than each
+	     section's default spacing. -->
+	<SetSectionSpacingModal
+		isOpen={setSpacingModalOpen}
+		sectionCount={setSpacingSectionIds.length}
+		currentGap={setSpacingCurrent}
+		minGap={setSpacingMin}
+		onApply={applySetSpacing}
+		onClose={() => (setSpacingModalOpen = false)}
+	/>
+
 
 	<!-- Copyright Notice -->
 

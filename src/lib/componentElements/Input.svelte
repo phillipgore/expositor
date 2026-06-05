@@ -41,11 +41,15 @@
 	 * @property {boolean} [required=false] - Mark input as required with HTML5 validation
 	 * @property {string} value - Bindable input value
 	 * @property {string} [placeholder] - Placeholder text
+	 * @property {number|string} [min] - Minimum value (for type="number"/range)
+	 * @property {number|string} [max] - Maximum value (for type="number"/range)
+	 * @property {number|string} [step] - Step increment (for type="number"/range)
 	 * @property {(event: KeyboardEvent) => void} [onkeydown] - Keydown event handler
 	 */
 
 	/** @type {InputProps} */
 	let { id, name, type = 'text', classes = '', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable(''), ...restProps } = $props();
+
 </script>
 
 <input

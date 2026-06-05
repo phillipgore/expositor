@@ -43,8 +43,10 @@
 		confirmLabel = 'Confirm',
 		cancelLabel = 'Cancel',
 		confirmClasses = 'blue',
+		confirmDisabled = false,
 		showConfirm = true,
 		showCancel = true,
+
 		focusCancelOnOpen = false,
 		onClose = () => {},
 		onConfirm = null,
@@ -179,9 +181,11 @@
 					<Button
 						label={confirmLabel}
 						classes={confirmClasses}
+						isDisabled={confirmDisabled}
 						handleClick={handleConfirm}
 					/>
 				{/if}
+
 			</div>
 		{/if}
 	</div>

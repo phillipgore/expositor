@@ -49,16 +49,6 @@
 			console.log('[TOOLBAR] select-section event dispatched');
 		}
 	}
-
-	// Reset this section's vertical position (clear the reposition offset) back to the
-	// default spacing. Handled by the analyze page, which persists and refreshes.
-	function handleResetPosition(event) {
-		event?.stopPropagation();
-		event?.preventDefault();
-		window.dispatchEvent(new CustomEvent('reset-section-position', {
-			detail: { sectionId }
-		}));
-	}
 </script>
 
 <div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
@@ -70,14 +60,8 @@
 		isActive={isActive}
 		handleClick={handleSectionSelect}
 	/>
-	<IconButton
-		iconId="segment-height-reset"
-		classes="passage-toolbar"
-		title="Reset Section Position"
-		isSquare
-		handleClick={handleResetPosition}
-	/>
 </div>
+
 
 
 <style>

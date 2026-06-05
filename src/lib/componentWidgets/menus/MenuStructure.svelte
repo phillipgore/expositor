@@ -161,6 +161,33 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
+		iconId="section"
+		label="Set Section Spacing"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('set-section-spacing'));
+		}}
+		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="segment-height-reset"
+		label="Reset Section Spacing"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('reset-section-spacing'));
+		}}
+		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
+
+	<DividerHorizontal />
+
+
+	<IconButton
+		classes="menu-light justify-content-left"
 		iconId="connect"
 		label="Connect"
 
