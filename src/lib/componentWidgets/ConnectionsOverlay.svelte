@@ -205,16 +205,61 @@
 	}
 
 	/**
-	 * Returns true if the connection type anchors on the top edge (column only).
-	 * @param {ConnType} type
+	 * Spacing (SVG units) between adjacent anchor points that share the same
+	 * element edge.  Large enough to clear the 8px square / r4 circle endpoint
+	 * nodes so multiple connections on one element never visually overlap.
 	 */
-	function isTopAnchor(type) { return type === 'column'; }
+	const ANCHOR_SPACING = 14;
 
 	/**
-	 * Returns true if the connection type anchors on the bottom edge (section only).
-	 * @param {ConnType} type
+	 * Inset (SVG units) kept clear at each corner of an edge so distributed
+	 * anchors never sit exactly on the element's corner.
 	 */
-	function isBottomAnchor(type) { return type === 'section'; }
+	const ANCHOR_EDGE_PAD = 6;
+
+	/**
+	 * Canonical anchor point for a specific edge of a rect (before any
+	 * multi-connection distribution offset is applied).
+	 *   top    → top edge, horizontally centred
+	 *   bottom → bottom edge, horizontally centred
+	 *   left   → left edge, vertically centred
+	 *   right  → right edge, vertically centred
+	 * @param {DOMRect} rect
+	 * @param {'top'|'bottom'|'left'|'right'} edge
+	 * @param {DOMRect} svgRect
+	 * @returns {{ x: number, y: number }}
+	 */
+	function edgeAnchorPoint(rect, edge, svgRect) {
+		const cx = (rect.left + rect.width / 2 - svgRect.left) / scale;
+		const cy = (rect.top + rect.height / 2 - svgRect.top) / scale;
+		switch (edge) {
+			case 'top':    return { x: cx, y: (rect.top    - svgRect.top) / scale };
+			case 'bottom': return { x: cx, y: (rect.bottom - svgRect.top) / scale };
+			case 'left':   return { x: (rect.left  - svgRect.left) / scale, y: cy };
+			default:       return { x: (rect.right - svgRect.left) / scale, y: cy };
+		}
+	}
+
+	/**
+	 * Decide which edge of an element a connection end should anchor to so the
+	 * connection line is as short as possible.
+	 *   Column  → always top (preserves the column visual language)
+	 *   Section → top or bottom, whichever is nearer the opposite endpoint
+	 *   Segment → left or right (already decided from element centres)
+	 * @param {ConnType} type
+	 * @param {DOMRect} rect
+	 * @param {number} otherCY — opposite element's vertical centre (client px)
+	 * @param {'left'|'right'} side — precomputed segment side
+	 * @returns {'top'|'bottom'|'left'|'right'}
+	 */
+	function decideEdge(type, rect, otherCY, side) {
+		if (type === 'column') return 'top';
+		if (type === 'section') {
+			const cy = rect.top + rect.height / 2;
+			return otherCY <= cy ? 'top' : 'bottom';
+		}
+		return side;
+	}
 
 	// ─── Bezier midpoint helper ───────────────────────────────────────────────
 
@@ -579,8 +624,18 @@
 		if (svgRect.width === 0 && svgRect.height === 0) { paths = []; return; }
 
 		const SAME_COL_PX = 20;
-		/** @type {PathEntry[]} */
-		const newPaths = [];
+
+		// ── Pass A: resolve each connection's endpoints and chosen edges ──────
+		// For every connection we decide which EDGE of each element it anchors to
+		// (column=top, section=top/bottom by shortest line, segment=left/right) and
+		// register both endpoints into per-edge groups so they can be fanned out.
+		/**
+		 * @typedef {{ key: string, edge: 'top'|'bottom'|'left'|'right', rect: DOMRect, otherCX: number, otherCY: number }} Endpoint
+		 * @type {Array<{ connection: any, fromType: ConnType, toType: ConnType, fromCX: number, toCX: number, sameCol: boolean, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right' }>}
+		 */
+		const resolved = [];
+		/** @type {Map<string, Endpoint[]>} key = `${elementId}|${edge}` */
+		const groups = new Map();
 
 		for (const connection of connections) {
 			const fromType = /** @type {ConnType} */ (connection.fromType || 'segment');
@@ -592,24 +647,81 @@
 			const toRect   = toEl.getBoundingClientRect();
 			if (fromRect.width === 0 || toRect.width === 0) continue;
 
-			// Horizontal centre of each element — used to decide left/right side for segments
-			const fromCX = (fromRect.left + fromRect.right) / 2;
-			const toCX   = (toRect.left   + toRect.right)   / 2;
+			// Centres of each element — used to pick segment side & section edge.
+			const fromCX = (fromRect.left + fromRect.right)  / 2;
+			const toCX   = (toRect.left   + toRect.right)    / 2;
+			const fromCY = (fromRect.top  + fromRect.bottom) / 2;
+			const toCY   = (toRect.top    + toRect.bottom)   / 2;
 			const sameCol = Math.abs(fromCX - toCX) < SAME_COL_PX;
 
 			// Segment side selection: exit toward the other element, or right when same column
 			const fromSide = /** @type {'left'|'right'} */ (!sameCol && fromCX > toCX ? 'left' : 'right');
 			const toSide   = /** @type {'left'|'right'} */ (!sameCol && toCX > fromCX ? 'left' : 'right');
 
-			const from = getAnchorPoint(fromRect, fromType, svgRect, fromSide);
-			const to   = getAnchorPoint(toRect,   toType,   svgRect, toSide);
+			// Which edge each end anchors to (shortest line for sections).
+			const fromEdge = decideEdge(fromType, fromRect, toCY, fromSide);
+			const toEdge   = decideEdge(toType,   toRect,   fromCY, toSide);
 
-			const fromTop    = isTopAnchor(fromType);
-			const toTop      = isTopAnchor(toType);
-			const fromBottom = isBottomAnchor(fromType);
-			const toBottom   = isBottomAnchor(toType);
-			const fromSide2  = !fromTop && !fromBottom;  // segment
-			const toSide2    = !toTop   && !toBottom;    // segment
+			const fromId = getEndRef(connection, 'from').id;
+			const toId   = getEndRef(connection, 'to').id;
+			const fromGroupKey = `${fromId}|${fromEdge}`;
+			const toGroupKey   = `${toId}|${toEdge}`;
+
+			if (!groups.has(fromGroupKey)) groups.set(fromGroupKey, []);
+			if (!groups.has(toGroupKey))   groups.set(toGroupKey, []);
+			groups.get(fromGroupKey)?.push({ key: `${connection.id}|from`, edge: fromEdge, rect: fromRect, otherCX: toCX,   otherCY: toCY   });
+			groups.get(toGroupKey)?.push(  { key: `${connection.id}|to`,   edge: toEdge,   rect: toRect,   otherCX: fromCX, otherCY: fromCY });
+
+			resolved.push({ connection, fromType, toType, fromCX, toCX, sameCol, fromEdge, toEdge });
+		}
+
+		// ── Pass B: distribute endpoints evenly along each shared edge ────────
+		// Endpoints on the same element edge are sorted by the position of their
+		// FAR end (so lines fan out without crossing) then spread symmetrically
+		// about the edge centre.  A single endpoint stays exactly at the centre,
+		// keeping the common case visually identical to before.  When the edge is
+		// too short the spacing compresses so anchors always stay on the edge.
+		/** @type {Map<string, { x: number, y: number }>} key = `${connId}|${end}` */
+		const anchorMap = new Map();
+		for (const members of groups.values()) {
+			const horizontal = members[0].edge === 'top' || members[0].edge === 'bottom';
+			members.sort((a, b) => {
+				const pa = horizontal ? a.otherCX : a.otherCY;
+				const pb = horizontal ? b.otherCX : b.otherCY;
+				if (pa !== pb) return pa - pb;
+				return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; // stable tie-break
+			});
+			const n = members.length;
+			for (let i = 0; i < n; i++) {
+				const m = members[i];
+				const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
+				if (n === 1) { anchorMap.set(m.key, base); continue; }
+				const edgeLen = (horizontal ? m.rect.width : m.rect.height) / scale;
+				const usable  = Math.max(0, edgeLen - 2 * ANCHOR_EDGE_PAD);
+				const spacing = Math.min(ANCHOR_SPACING, usable / (n - 1));
+				const offset  = (i - (n - 1) / 2) * spacing;
+				anchorMap.set(m.key, horizontal
+					? { x: base.x + offset, y: base.y }
+					: { x: base.x, y: base.y + offset });
+			}
+		}
+
+		/** @type {PathEntry[]} */
+		const newPaths = [];
+
+		// ── Pass C: build the bezier path for each connection ─────────────────
+		for (const r of resolved) {
+			const { connection, fromType, toType, fromCX, toCX, sameCol, fromEdge, toEdge } = r;
+			const from = anchorMap.get(`${connection.id}|from`);
+			const to   = anchorMap.get(`${connection.id}|to`);
+			if (!from || !to) continue;
+
+			const fromTop    = fromEdge === 'top';
+			const toTop      = toEdge   === 'top';
+			const fromBottom = fromEdge === 'bottom';
+			const toBottom   = toEdge   === 'bottom';
+			const fromSide2  = !fromTop && !fromBottom;  // segment (left/right edge)
+			const toSide2    = !toTop   && !toBottom;    // segment (left/right edge)
 
 			const dx = Math.abs(to.x - from.x);
 			const dy = Math.abs(to.y - from.y);
