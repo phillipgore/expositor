@@ -11,8 +11,8 @@
 	 * how the whole view is laid out:
 	 * - Structure labels — Headings, References (refs render within headings)
 	 * - Text markers     — Notations, Paragraphs
-	 * - Quick Notes      — All / Passage / Connection
 	 * - Connections      — All / Column / Section / Segment (largest container first)
+	 * - Quick Notes      — All / Passage / Connection
 	 * - Layout / mode    — Wide View, Overview
 	 * 
 	 * Usage:
@@ -80,27 +80,6 @@
 	<DividerHorizontal />
 
 	<MenuToggleItem
-		label="All Quick Notes"
-		isActive={$toolbarState.notesVisible}
-		onToggle={toggleNotes}
-		isDisabled={!$toolbarState.canToggleNotes}
-	/>
-	<MenuToggleItem
-		label="Passage Quick Notes"
-		isActive={$toolbarState.passageNotesVisible}
-		onToggle={togglePassageNotes}
-		isDisabled={!$toolbarState.canToggleNotes}
-	/>
-	<MenuToggleItem
-		label="Connection Quick Notes"
-		isActive={$toolbarState.connectionNotesVisible}
-		onToggle={toggleConnectionNotes}
-		isDisabled={!$toolbarState.canToggleNotes}
-	/>
-
-	<DividerHorizontal />
-
-	<MenuToggleItem
 		label="All Connections"
 		isActive={$toolbarState.connectionsVisible}
 		onToggle={toggleConnections}
@@ -129,6 +108,27 @@
 		isActive={$toolbarState.crossItemConnectionsVisible}
 		onToggle={toggleCrossItemConnections}
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
+	/>
+
+	<DividerHorizontal />
+
+	<MenuToggleItem
+		label="All Quick Notes"
+		isActive={$toolbarState.notesVisible}
+		onToggle={toggleNotes}
+		isDisabled={!$toolbarState.canToggleNotes}
+	/>
+	<MenuToggleItem
+		label="Passage Quick Notes"
+		isActive={$toolbarState.passageNotesVisible}
+		onToggle={togglePassageNotes}
+		isDisabled={!$toolbarState.canToggleNotes}
+	/>
+	<MenuToggleItem
+		label="Connection Quick Notes"
+		isActive={$toolbarState.connectionNotesVisible}
+		onToggle={toggleConnectionNotes}
+		isDisabled={!$toolbarState.canToggleNotes}
 	/>
 
 	<DividerHorizontal />
