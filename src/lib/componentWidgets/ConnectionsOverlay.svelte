@@ -1822,7 +1822,12 @@
 		<svg class="connections-dots-overlay" aria-hidden="true" focusable="false">
 			{#each visiblePaths as path (path.id)}
 				{#if path.note}
-					<circle class="connection-note-dot" cx={path.noteAnchorX} cy={path.noteAnchorY} r="4" />
+					<circle
+						class="connection-note-dot"
+						class:connection-note-dot--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+						class:connection-note-dot--selected={selectedPathIds.has(path.id)}
+						cx={path.noteAnchorX} cy={path.noteAnchorY} r="4"
+					/>
 				{/if}
 			{/each}
 		</svg>
@@ -1972,6 +1977,14 @@
 	.connection-note-dot {
 		fill: var(--gray-400);
 		pointer-events: none;
+		transition: fill 0.15s;
+	}
+
+	/* Turn blue when hovering over the connection's line (matches the line +
+	   endpoint node highlight), or when the connection is selected. */
+	.connection-note-dot--hovered,
+	.connection-note-dot--selected {
+		fill: var(--blue);
 	}
 
 	.connection-note-display {
