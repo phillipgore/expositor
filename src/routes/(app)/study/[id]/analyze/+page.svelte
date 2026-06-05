@@ -266,6 +266,71 @@
 		}
 	});
 
+	/**
+	 * Scroll the scroll container so the given structural selection is centered as much
+	 * as possible. Used when exiting Focus/Compare mode to bring the restored selection
+	 * back into view. Falls back to scrolling to the top-left when nothing is found.
+	 * @param {{ columns: string[], sections: string[], segments: Array<{segmentId: string}> }} selection
+	 */
+	function scrollSelectionIntoView(selection) {
+		const container = analyzeContentRef;
+		if (!container) return;
+
+		// Gather the DOM elements for the restored selection
+		const elements = [];
+		selection.segments.forEach(seg => {
+			const el = container.querySelector(`[data-segment-id="${seg.segmentId}"]`);
+			if (el) elements.push(el);
+		});
+		selection.sections.forEach(id => {
+			const el = container.querySelector(`[data-section-id="${id}"]`);
+			if (el) elements.push(el);
+		});
+		selection.columns.forEach(id => {
+			const el = container.querySelector(`[data-column-id="${id}"]`);
+			if (el) elements.push(el);
+		});
+
+		// Nothing to focus on — fall back to top-left
+		if (elements.length === 0) {
+			container.scrollTo(0, 0);
+			return;
+		}
+
+		const containerRect = container.getBoundingClientRect();
+
+		// Compute the combined bounding box of all selected elements, in content
+		// coordinates (relative to the scrollable content, accounting for current scroll).
+		let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity, maxBottom = -Infinity;
+		for (const el of elements) {
+			const r = el.getBoundingClientRect();
+			const left = r.left - containerRect.left + container.scrollLeft;
+			const top = r.top - containerRect.top + container.scrollTop;
+			minLeft = Math.min(minLeft, left);
+			minTop = Math.min(minTop, top);
+			maxRight = Math.max(maxRight, left + r.width);
+			maxBottom = Math.max(maxBottom, top + r.height);
+		}
+
+		const boxWidth = maxRight - minLeft;
+		const boxHeight = maxBottom - minTop;
+		const viewportWidth = container.clientWidth;
+		const viewportHeight = container.clientHeight;
+
+		// Center the box within the viewport (top-left aligned when larger than viewport),
+		// then clamp to the valid scroll range to avoid overscrolling.
+		const targetLeft = minLeft + boxWidth / 2 - viewportWidth / 2;
+		const targetTop = minTop + boxHeight / 2 - viewportHeight / 2;
+
+		const maxScrollLeft = container.scrollWidth - viewportWidth;
+		const maxScrollTop = container.scrollHeight - viewportHeight;
+
+		const clampedLeft = Math.max(0, Math.min(targetLeft, maxScrollLeft));
+		const clampedTop = Math.max(0, Math.min(targetTop, maxScrollTop));
+
+		container.scrollTo(clampedLeft, clampedTop);
+	}
+
 	// Compare mode toggle logic
 	$effect(() => {
 		console.log('🔍 [COMPARE EFFECT] Running - comparisonsVisible:', $toolbarState.comparisonsVisible, 'isCompareMode:', isCompareMode);
@@ -377,10 +442,16 @@
 			// 5. Mark we're out of compare mode
 			isCompareMode = false;
 
-			// 6. Reset scroll to the top-left corner
-			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
+			// 6. Scroll the restored selection into view, as centered as possible
+			const restoredSelection = {
+				columns: [...activeColumns],
+				sections: [...activeSections],
+				segments: [...activeSegments]
+			};
+			tick().then(() => scrollSelectionIntoView(restoredSelection));
 		}
 	});
+
 
 
 	// Focus mode toggle logic — mirrors compare mode, but driven by a single selection.
@@ -430,10 +501,19 @@
 			activeSegments = [...originalFocusSelection.segments];
 
 			// 3. Clear saved selection and exit focus mode
+			const restoredSelection = {
+				columns: [...activeColumns],
+				sections: [...activeSections],
+				segments: [...activeSegments]
+			};
 			originalFocusSelection = { columns: [], sections: [], segments: [] };
 			isFocusMode = false;
+
+			// 4. Scroll the restored selection into view, as centered as possible
+			tick().then(() => scrollSelectionIntoView(restoredSelection));
 		}
 	});
+
 
 	// Apply dynamic classes for first/last visible elements in compare/focus mode
 	$effect(() => {
