@@ -43,25 +43,37 @@ export async function PATCH({ request, params }) {
 	}
 
 	try {
-		const { commentary } = await request.json();
+		const body = await request.json();
+		const { commentary, height } = body;
 		const segmentId = params.id;
-		
+
 		// Validate commentary
 		if (commentary !== undefined && typeof commentary !== 'string') {
 			return json({ error: 'Invalid commentary' }, { status: 400 });
 		}
 
-		// Update segment commentary
+		// Validate height: must be null (flexible) or a positive integer (pixels)
+		if (height !== undefined && height !== null) {
+			if (typeof height !== 'number' || !Number.isFinite(height) || height <= 0) {
+				return json({ error: 'Invalid height' }, { status: 400 });
+			}
+		}
+
+		// Build the update set from only the provided fields so callers can
+		// patch commentary and height independently.
+		/** @type {Record<string, unknown>} */
+		const updateData = { updatedAt: new Date() };
+		if (commentary !== undefined) updateData.commentary = commentary;
+		if (height !== undefined) updateData.height = height === null ? null : Math.round(height);
+
 		await db.update(passageSegment)
-			.set({ 
-				commentary,
-				updatedAt: new Date()
-			})
+			.set(updateData)
 			.where(eq(passageSegment.id, segmentId));
 
 		return json({ success: true });
 	} catch (error) {
-		console.error('Error updating segment commentary:', error);
-		return json({ error: 'Failed to update commentary' }, { status: 500 });
+		console.error('Error updating segment:', error);
+		return json({ error: 'Failed to update segment' }, { status: 500 });
 	}
 }
+

@@ -180,6 +180,8 @@ export const passageSegment = pgTable('passage_segment', {
 	headingThree: text('heading_three'),
 	note: text('note'),
 	commentary: text('commentary'),
+	/** User-set minimum height in pixels. NULL = flexible/natural height (content-sized). */
+	height: integer('height'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
@@ -188,6 +190,7 @@ export const passageSegment = pgTable('passage_segment', {
 		.notNull()
 }, (table) => ({
 	sectionIdIdx: index('passage_segment_section_id_idx').on(table.passageSectionId),
+
 	startingWordIdx: index('passage_segment_starting_word_idx').on(table.startingWordId)
 }));
 

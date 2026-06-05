@@ -26,8 +26,17 @@
 		prevSegmentHasRef = false,
 		isFirstInSection = false,
 		isFirstVisibleInSection = false,
-		isVerseSubdivided = false
+		isVerseSubdivided = false,
+		/** Effective min-height in CSS px (persisted height or live drag override). null = flexible. */
+		height = null,
+		/** Whether the segment is resizable (disabled in overview/compare/focus modes). */
+		resizeEnabled = false,
+		/** Whether this segment is currently being resized (drives active handle styling). */
+		isResizing = false,
+		/** Called on mousedown on the resize handle: (event, segmentId) => void */
+		onResizeStart = null
 	} = $props();
+
 
 	// Track input mode for each heading type and note
 	let headingOneInputMode = $state(false);
@@ -175,7 +184,10 @@
      class:has-note={(note || noteInputMode) && $toolbarState.passageNotesVisible}
      class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.passageNotesVisible)}
      class:compare-hidden={isCompareHidden}
+     class:is-resizing={isResizing}
+     style:min-height={height != null ? `${height}px` : null}
      data-segment-id="{segmentId}">
+
 	
 	<!-- Heading One -->
 	<HeadingEditor
@@ -264,12 +276,31 @@
 		hasHeadingThree={!!heading3}
 		hasNote={!!note}
 	/>
+
+	<!-- Resize handle: a narrow strip over the bottom border. Hovering shows the
+	     ns-resize cursor and a centered indicator; mousedown begins a height drag. -->
+	{#if resizeEnabled}
+		<div
+			class="resize-handle"
+			role="separator"
+			aria-label="Resize segment height"
+			aria-orientation="horizontal"
+			onmousedown={(e) => onResizeStart?.(e, segmentId)}
+		>
+			<span class="resize-indicator"></span>
+		</div>
+	{/if}
 </div>
+
 
 <style>
 	.segment {
 		position: relative;
 		background-color: var(--white);
+		/* Column layout so the .text block can flex-grow to fill any extra height
+		   created by a user-set min-height, keeping the bottom border at the bottom. */
+		display: flex;
+		flex-direction: column;
 	}
 
 	.segment:global(.active) {
@@ -280,6 +311,8 @@
 	.text {
 		position: inherit;
 		z-index: inherit;
+		/* Fill remaining vertical space when the segment has a set min-height. */
+		flex: 1 1 auto;
 		font-size: 1.2rem;
 		line-height: 1.6;
 		color: var(--gray-100);
@@ -293,6 +326,49 @@
 		border-bottom: 0.1rem solid;
 		border-color: var(--section-dark);
 	}
+
+	/* ============================================================ */
+	/* Resize Handle */
+	/* ============================================================ */
+
+	/* Narrow hit-zone straddling the bottom border of the segment. Sits above
+	   content (z-index) so it captures the drag, but is only ~8px tall so normal
+	   word selection in the text body is unaffected. */
+	.resize-handle {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: -0.4rem;
+		height: 0.8rem;
+		z-index: 15;
+		cursor: ns-resize;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		opacity: 0;
+		transition: opacity 0.12s ease-out;
+	}
+
+	/* Reveal the indicator on hover or while actively dragging this segment. */
+	.resize-handle:hover,
+	.segment.is-resizing .resize-handle {
+		opacity: 1;
+	}
+
+	/* Centered indicator: a short horizontal bar centered on the border, with a
+	   subtle dot feel via rounded ends. */
+	.resize-indicator {
+		width: 2.4rem;
+		height: 0.3rem;
+		border-radius: 0.3rem;
+		background-color: var(--gray-400);
+		box-shadow: 0 0 0 0.1rem var(--white);
+	}
+
+	.segment.is-resizing .resize-indicator {
+		background-color: var(--yellow);
+	}
+
 
 	/* Remove top padding when segment has heading-three */
 	.segment.has-heading-three .text {

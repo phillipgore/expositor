@@ -7,14 +7,30 @@
 	import ConnectionsOverlay from '$lib/componentWidgets/ConnectionsOverlay.svelte';
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
+	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
+
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
+	// ─── Segment height resize ────────────────────────────────────────────────
+	// Lives at page level so it can see all .segment elements (for cross-page
+	// snapping) and the current zoom scale. getScale/getContainer are lazy closures
+	// over reactive state declared later in this module.
+	const segmentResize = useSegmentResize({
+		getScale: () => currentScale,
+		getContainer: () => analyzeContentRef,
+		onPersist: () => invalidate('app:studies')
+	});
+
+	// Attach window mousemove/mouseup listeners only while a resize drag is active.
+	$effect(() => segmentResize.setupResizeListeners());
+
 	/**
 	 * Compare two word IDs to determine their order (client-side version)
+
 	 * Word ID format: BOOK-CHAPTER-VERSE-WORD (e.g., "JN-001-001-005")
 	 * @param {string} wordId1 - First word ID
 	 * @param {string} wordId2 - Second word ID
@@ -3223,7 +3239,12 @@
 																			prevSegmentHasRef={!!(headingReferences[section.segments[segmentIndex - 1]?.id]?.segmentRef)}
 																			isFirstInSection={segmentIndex === 0}
 																			isFirstVisibleInSection={segmentIndex === 0}
+																			height={segmentResize.getLiveHeight(segment.id) ?? segment.height ?? null}
+																			resizeEnabled={!$toolbarState.overviewMode && !isHideMode}
+																			isResizing={segmentResize.activeSegmentId === segment.id}
+																			onResizeStart={segmentResize.handleResizeStart}
 																		/>
+
 																	{/each}
 																{/if}
 																
@@ -3264,8 +3285,21 @@
 		</div>
 	</div>
 			
+	<!-- Segment resize snap guide: a yellow line spanning the content width, shown
+	     while a resize drag is snapping to another segment's edge. Fixed-positioned
+	     because the composable computes its geometry in viewport coordinates. -->
+	{#if segmentResize.guideLine.visible}
+		<div
+			class="resize-snap-guide"
+			style:top="{segmentResize.guideLine.top}px"
+			style:left="{segmentResize.guideLine.left}px"
+			style:width="{segmentResize.guideLine.width}px"
+		></div>
+	{/if}
+
 	<!-- Copyright Notice -->
 	<div class="copyright-notice">
+
 		{#if data.study.translation === 'esv'}
 			<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.</p>
 		{:else if data.study.translation === 'net'}
@@ -3829,8 +3863,21 @@
 		margin: 0;
 	}
 
+	/* Yellow snap guide line shown during a segment resize when the dragged edge
+	   aligns with another segment's top/bottom edge. Fixed to the viewport because
+	   its geometry is computed in viewport coordinates by the resize composable. */
+	.resize-snap-guide {
+		position: fixed;
+		height: 0.1rem;
+		background-color: var(--yellow);
+		pointer-events: none;
+		z-index: 200;
+	}
+
+
 	.copyright-notice {
 		position: absolute;
+
 		text-align: center;
 		width: 33.3rem;
 		bottom: 0.9rem;
