@@ -261,6 +261,96 @@
 		return side;
 	}
 
+	/**
+	 * Test whether the straight line segment (x1,y1)→(x2,y2) intersects the
+	 * axis-aligned box b.  Liang–Barsky clipping: returns true when any portion of
+	 * the segment lies inside the box (including fully-contained segments).  All
+	 * inputs are in the SVG/note coordinate space (CSS px ÷ scale).
+	 * @param {number} x1 @param {number} y1 @param {number} x2 @param {number} y2
+	 * @param {{ x: number, y: number, w: number, h: number }} b
+	 * @returns {boolean}
+	 */
+	function lineIntersectsBox(x1, y1, x2, y2, b) {
+		const minX = b.x, minY = b.y, maxX = b.x + b.w, maxY = b.y + b.h;
+		const dx = x2 - x1, dy = y2 - y1;
+		let t0 = 0, t1 = 1;
+		/** @type {Array<[number, number]>} */
+		const checks = [
+			[-dx, x1 - minX],
+			[ dx, maxX - x1],
+			[-dy, y1 - minY],
+			[ dy, maxY - y1]
+		];
+		for (const [p, q] of checks) {
+			if (p === 0) {
+				if (q < 0) return false; // parallel and outside this slab
+			} else {
+				const r = q / p;
+				if (p < 0) {
+					if (r > t1) return false;
+					if (r > t0) t0 = r;
+				} else {
+					if (r < t0) return false;
+					if (r < t1) t1 = r;
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * True when the line (x1,y1)→(x2,y2) passes through any of the given text
+	 * boxes, skipping boxes whose id is in excludeIds (so a connection never counts
+	 * its own endpoint segments as obstacles).
+	 * A box is skipped when its segment, section, or column id is in excludeIds —
+	 * so a connection never counts the text of its OWN two endpoint elements as an
+	 * obstacle (otherwise a line aimed at an element's centre would always "hit"
+	 * that element's own text).
+	 * @param {number} x1 @param {number} y1 @param {number} x2 @param {number} y2
+	 * @param {Array<{ segId?: string, secId?: string, colId?: string, x: number, y: number, w: number, h: number }>} boxes
+	 * @param {Array<string|null>} excludeIds
+	 * @returns {boolean}
+	 */
+	function lineIntersectsAnyBox(x1, y1, x2, y2, boxes, excludeIds) {
+		for (const b of boxes) {
+			if ((b.segId && excludeIds.includes(b.segId)) ||
+				(b.secId && excludeIds.includes(b.secId)) ||
+				(b.colId && excludeIds.includes(b.colId))) continue;
+			if (lineIntersectsBox(x1, y1, x2, y2, b)) return true;
+		}
+		return false;
+	}
+
+
+	/**
+	 * Choose a section endpoint's edge (top or bottom).  The default is the edge
+	 * with the SHORTEST line to the opposite endpoint; we only switch to the far
+	 * edge when the short-edge line would pass through passage text AND the far
+	 * edge's line would NOT.  If both (or neither) cross text, the short edge wins.
+	 * @param {DOMRect} rect — the section's client rect
+	 * @param {DOMRect} svgRect
+	 * @param {number} oppX — opposite endpoint target point, SVG coords
+	 * @param {number} oppY — opposite endpoint target point, SVG coords
+	 * @param {Array<{ id?: string, x: number, y: number, w: number, h: number }>} boxes
+	 * @param {Array<string|null>} excludeIds — own endpoint segment ids
+	 * @returns {'top'|'bottom'}
+	 */
+	function decideSectionEdge(rect, svgRect, oppX, oppY, boxes, excludeIds) {
+		const cy = (rect.top + rect.height / 2 - svgRect.top) / scale;
+		const shortEdge = /** @type {'top'|'bottom'} */ (oppY <= cy ? 'top' : 'bottom');
+		const farEdge   = /** @type {'top'|'bottom'} */ (shortEdge === 'top' ? 'bottom' : 'top');
+
+		const aShort = edgeAnchorPoint(rect, shortEdge, svgRect);
+		if (!lineIntersectsAnyBox(aShort.x, aShort.y, oppX, oppY, boxes, excludeIds)) {
+			return shortEdge; // short edge is clear — always prefer it
+		}
+		const aFar = edgeAnchorPoint(rect, farEdge, svgRect);
+		if (lineIntersectsAnyBox(aFar.x, aFar.y, oppX, oppY, boxes, excludeIds)) {
+			return shortEdge; // both cross text — keep the shorter line
+		}
+		return farEdge; // short crosses text but far is clear — flip to avoid text
+	}
+
 	// ─── Bezier midpoint helper ───────────────────────────────────────────────
 
 	/**
@@ -375,19 +465,28 @@
 	 * prefer to sit over.
 	 *
 	 * Hidden segments (zero-width, or compare/hide-mode hidden) are skipped.
+	 * Each box is tagged with its segment id plus the ids of its nearest ancestor
+	 * section and column, so the section edge resolver can exclude the text that
+	 * belongs to a connection's OWN endpoint elements (a line aimed at a section's
+	 * centre would otherwise always "hit" that section's own text).
 	 * @param {DOMRect} svgRect
 	 * @param {number} scl — current zoom scale (CSS px per layout unit)
-	 * @returns {Array<{ x: number, y: number, w: number, h: number }>}
+	 * @returns {Array<{ segId: string|undefined, secId: string|undefined, colId: string|undefined, x: number, y: number, w: number, h: number }>}
 	 */
 	function collectSegmentBoxes(svgRect, scl) {
-		/** @type {Array<{ x: number, y: number, w: number, h: number }>} */
+		/** @type {Array<{ segId: string|undefined, secId: string|undefined, colId: string|undefined, x: number, y: number, w: number, h: number }>} */
 		const boxes = [];
 		document.querySelectorAll('.segment[data-segment-id]').forEach(el => {
 			const seg = /** @type {HTMLElement} */ (el);
 			if (seg.classList.contains('compare-hidden')) return;
 			const rect = seg.getBoundingClientRect();
 			if (rect.width === 0 || rect.height === 0) return;
+			const sectionEl = /** @type {HTMLElement|null} */ (seg.closest('[data-section-id]'));
+			const columnEl  = /** @type {HTMLElement|null} */ (seg.closest('[data-column-id]'));
 			boxes.push({
+				segId: seg.dataset.segmentId,
+				secId: sectionEl?.dataset.sectionId,
+				colId: columnEl?.dataset.columnId,
 				x: (rect.left - svgRect.left) / scl,
 				y: (rect.top  - svgRect.top)  / scl,
 				w: rect.width  / scl,
@@ -396,6 +495,8 @@
 		});
 		return boxes;
 	}
+
+
 
 	/**
 	 * Return the CSS transform string for a note placement.
@@ -625,6 +726,10 @@
 
 		const SAME_COL_PX = 20;
 
+		// Passage text obstacles (used to flip section anchors off the short edge
+		// only when the short-edge line would otherwise cut through text).
+		const textBoxes = collectSegmentBoxes(svgRect, scale);
+
 		// ── Pass A: resolve each connection's endpoints and chosen edges ──────
 		// For every connection we decide which EDGE of each element it anchors to
 		// (column=top, section=top/bottom by shortest line, segment=left/right) and
@@ -658,12 +763,26 @@
 			const fromSide = /** @type {'left'|'right'} */ (!sameCol && fromCX > toCX ? 'left' : 'right');
 			const toSide   = /** @type {'left'|'right'} */ (!sameCol && toCX > fromCX ? 'left' : 'right');
 
-			// Which edge each end anchors to (shortest line for sections).
-			const fromEdge = decideEdge(fromType, fromRect, toCY, fromSide);
-			const toEdge   = decideEdge(toType,   toRect,   fromCY, toSide);
-
 			const fromId = getEndRef(connection, 'from').id;
 			const toId   = getEndRef(connection, 'to').id;
+
+			// Opposite element centres in SVG coords — used as the straight-line
+			// target when testing whether a section's short edge would cross text.
+			const toCXsvg   = (toCX   - svgRect.left) / scale;
+			const toCYsvg   = (toCY   - svgRect.top)  / scale;
+			const fromCXsvg = (fromCX - svgRect.left) / scale;
+			const fromCYsvg = (fromCY - svgRect.top)  / scale;
+			const excludeIds = /** @type {Array<string|null>} */ ([fromId, toId]);
+
+			// Which edge each end anchors to.  Sections prefer the SHORTEST edge but
+			// flip to the opposite edge when the short side would route through text;
+			// columns (top) and segments (left/right) keep their existing behaviour.
+			const fromEdge = fromType === 'section'
+				? decideSectionEdge(fromRect, svgRect, toCXsvg, toCYsvg, textBoxes, excludeIds)
+				: decideEdge(fromType, fromRect, toCY, fromSide);
+			const toEdge   = toType === 'section'
+				? decideSectionEdge(toRect, svgRect, fromCXsvg, fromCYsvg, textBoxes, excludeIds)
+				: decideEdge(toType, toRect, fromCY, toSide);
 			const fromGroupKey = `${fromId}|${fromEdge}`;
 			const toGroupKey   = `${toId}|${toEdge}`;
 
