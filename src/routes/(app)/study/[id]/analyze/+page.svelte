@@ -237,17 +237,29 @@
 	const COLUMN_SPACING_MAX = 294;
 
 	/**
-	 * Collect the currently selected column IDs that have an adjustable left gap
-	 * (i.e. are NOT the first column in their passage).
+	 * Collect the currently selected column IDs that have an adjustable left gap.
+	 * Every column is adjustable EXCEPT the study's very first column (the first column
+	 * of the first passage): non-first columns adjust their within-passage gap, while a
+	 * passage's first column (other than the study's first) adjusts the cross-passage
+	 * gap that spans the divider.
 	 * @returns {string[]}
 	 */
 	function getAdjustableColumnIds() {
 		return activeColumns.filter((columnId) => {
 			const colEl = document.querySelector(`[data-column-id="${columnId}"]`);
-			const prevEl = colEl?.previousElementSibling;
-			return !!prevEl && prevEl.classList.contains('column');
+			if (!colEl) return false;
+			const prevEl = colEl.previousElementSibling;
+			// Within-passage column (has a previous column sibling) → always adjustable.
+			if (prevEl && prevEl.classList.contains('column')) return true;
+			// First column in its passage → adjustable only if a previous passage exists
+			// (i.e. it is NOT the study's first column). The element before the passage is
+			// a .passage-divider; the study's first passage has no preceding divider.
+			const passageEl = colEl.closest('.passage');
+			const prevDivider = passageEl?.previousElementSibling;
+			return !!prevDivider && prevDivider.classList.contains('passage-divider');
 		});
 	}
+
 
 	/**
 	 * Measure the selected columns and open the Set Column Spacing modal.
@@ -3486,7 +3498,10 @@
 				<div class="passage-wrapper">
 					{#if data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}
-							<div class="passage" class:compare-hidden={isHideMode && !passageHasVisibleItems(passageText)}>
+							{@const firstColumn = ('structure' in passageText) ? passageText.structure?.columns?.[0] : null}
+							{@const referenceOffset = firstColumn ? (columnReposition.getLiveOffset(firstColumn.id) ?? firstColumn.leftOffset ?? 0) : 0}
+							<div class="passage" style:--reference-offset="{referenceOffset}px" class:compare-hidden={isHideMode && !passageHasVisibleItems(passageText)}>
+
 								{#if passageText.error}
 									<div class="error-message">
 										<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
@@ -3510,8 +3525,10 @@
 												<div
 													class="column"
 													class:not-first-column={columnIndex > 0}
+													class:cross-passage-column={passageIndex > 0 && columnIndex === 0}
 													class:is-repositioning={columnReposition.activeColumnId === column.id}
 													data-column-id="{column.id}"
+
 													class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}
 													style:--column-offset="{columnOffset}px"
 												>
@@ -3640,7 +3657,7 @@
 													     visually) so it never becomes the column's first child and disturb the
 													     first section's :first-of-type margin. Disabled in
 													     overview/compare/focus modes. -->
-													{#if columnIndex > 0 && !$toolbarState.overviewMode && !isHideMode}
+													{#if !(passageIndex === 0 && columnIndex === 0) && !$toolbarState.overviewMode && !isHideMode}
 														<div
 															class="column-reposition-handle"
 															role="separator"
@@ -3648,6 +3665,7 @@
 															aria-orientation="vertical"
 															onmousedown={(e) => columnReposition.handleRepositionStart(e, column.id)}
 														>
+
 
 															<span class="column-reposition-indicator">
 																<span class="column-reposition-dot"></span>
@@ -3664,7 +3682,12 @@
 									</div>
 								{/if}
 							</div>
-							<div class="passage-divider" class:compare-hidden={isHideMode && (!passageHasVisibleItems(passageText) || data.passagesWithText.slice(passageIndex + 1).every(p => !passageHasVisibleItems(p)))}></div>
+							{@const nextPassage = data.passagesWithText[passageIndex + 1]}
+							{@const nextFirstColumn = (nextPassage && 'structure' in nextPassage) ? nextPassage.structure?.columns?.[0] : null}
+							{@const dividerOffset = nextFirstColumn ? (columnReposition.getLiveOffset(nextFirstColumn.id) ?? nextFirstColumn.leftOffset ?? 0) : 0}
+
+							<div class="passage-divider" style:--divider-offset="{dividerOffset}px" class:compare-hidden={isHideMode && (!passageHasVisibleItems(passageText) || data.passagesWithText.slice(passageIndex + 1).every(p => !passageHasVisibleItems(p)))}></div>
+
 						{/each}
 					{:else}
 						<p class="placeholder-text">No passages available for this study.</p>
@@ -3882,18 +3905,31 @@
 		border-right: solid 0.1rem var(--gray-700);
 		margin-top: 2.4rem;
 		margin-bottom: 4.4rem;
+		/* Cross-passage column spacing: mirror of the next passage's first-column
+		   per-side offset X. Growing this margin widens the gap on the divider's LEFT
+		   (between the previous passage and the divider) by the same amount the column's
+		   own margin-left widens the gap on the divider's RIGHT — keeping the divider
+		   centered as the cross-passage gap expands. Defaults to 0. */
+		margin-left: var(--divider-offset, 0px);
 	}
+
 
 	.passage-divider:last-child {
 		display: none;
 	}
 
+	/* The passage reference heading aligns with the left edge of the passage's first
+	   column. For cross-passage passages whose first column is shifted right by its
+	   per-side offset (--reference-offset, mirrored from the column's --column-offset),
+	   we add that same offset here so the reference tracks the column 1:1 — both during
+	   a live drag and after the offset is persisted. Defaults to 0. */
 	:global(h3.reference) {
 		font-size: 1.2rem;
-		margin-left: 0.2rem;
+		margin-left: calc(0.2rem + var(--reference-offset, 0px));
 		margin-top: 0.0rem;
 		margin-bottom: 0.9rem;
 	}
+
 
 	.passage-container {
 		display: flex;
@@ -3924,6 +3960,15 @@
 	.column.not-first-column {
 		margin-left: var(--column-offset, 0px);
 	}
+
+	/* Cross-passage first column: the first column of a passage OTHER than the first.
+	   Its left gap spans the passage divider. The per-side offset X is applied here as
+	   margin-left AND mirrored onto the divider's margin-left (see .passage-divider),
+	   so both sides of the divider grow equally and the divider stays centered. */
+	.column.cross-passage-column {
+		margin-left: var(--column-offset, 0px);
+	}
+
 
 	/* While actively dragging a column, suppress transitions and lift it above siblings
 	   so it tracks the cursor cleanly. */

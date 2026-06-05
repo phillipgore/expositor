@@ -55,15 +55,68 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 	// Internal (non-reactive) drag bookkeeping.
 	let startX = 0; // pointer X at mousedown (viewport px)
 	let startRightX = 0; // dragged column's right edge (viewport px) at drag start
-	let startMargin = 0; // dragged column's margin-left (CSS px) at drag start
+	let startMargin = 0; // dragged column's per-side offset (CSS px) at drag start
 	let defaultGap = 0; // the default left gap (CSS px) — the tooltip baseline
-	let maxMargin = 0; // max allowed margin-left (CSS px) = maxGap − defaultGap
+	let maxMargin = 0; // max allowed per-side offset (CSS px)
 	let tooltipY = 0; // fixed viewport Y for the tooltip during the drag
+	let activeIsCross = false; // whether the active drag spans a passage divider
+
+	/**
+	 * Classify a column for spacing purposes and locate the element whose RIGHT edge
+	 * forms the left side of this column's adjustable gap.
+	 *
+	 *  - 'within': a normal non-first column. Its gap is measured to the previous
+	 *    column in the same passage; the stored offset is applied as a single
+	 *    margin-left on this column (total gap = default + offset, capped at maxGap).
+	 *  - 'cross': the FIRST column of a passage OTHER than the first passage. Its gap
+	 *    spans the passage divider. The stored offset is a PER-SIDE amount X applied
+	 *    symmetrically to BOTH the divider (margin-left X) and this column
+	 *    (margin-left X), so the divider stays centered. Total gap = default + 2X,
+	 *    capped at maxGap. The gap is measured to the previous passage's LAST column.
+	 *  - null: the study's very first column (first column of the first passage). It
+	 *    has no adjustable gap and never gets a handle.
+	 *
+	 * @param {HTMLElement} colEl
+	 * @returns {{ isCross: boolean, prevRightEl: HTMLElement } | null}
+	 */
+	function classifyColumn(colEl) {
+		const prevCol = /** @type {HTMLElement|null} */ (colEl.previousElementSibling);
+		if (prevCol && prevCol.classList.contains('column')) {
+			return { isCross: false, prevRightEl: prevCol };
+		}
+		// First column in its passage — adjustable only if a previous passage exists.
+		const passageEl = colEl.closest('.passage');
+		const prevDivider = /** @type {HTMLElement|null} */ (passageEl?.previousElementSibling ?? null);
+		if (!prevDivider) return null; // study's first column
+		const prevPassage = /** @type {HTMLElement|null} */ (prevDivider.previousElementSibling);
+		if (!prevPassage) return null;
+		const prevCols = prevPassage.querySelectorAll('.column');
+		const lastCol = /** @type {HTMLElement|null} */ (prevCols[prevCols.length - 1] ?? null);
+		if (!lastCol) return null;
+		return { isCross: true, prevRightEl: lastCol };
+	}
+
+	/**
+	 * Get the passage divider element that sits immediately to the LEFT of a
+	 * cross-passage column (i.e. the divider before this column's passage), or null.
+	 * @param {HTMLElement} colEl
+	 * @returns {HTMLElement|null}
+	 */
+	function getLeftDivider(colEl) {
+		const passageEl = colEl.closest('.passage');
+		const prevDivider = /** @type {HTMLElement|null} */ (passageEl?.previousElementSibling ?? null);
+		if (prevDivider && prevDivider.classList.contains('passage-divider')) return prevDivider;
+		return null;
+	}
+
 
 	/**
 	 * Measure a column's DEFAULT left gap (the gap with no reposition offset), in CSS
-	 * px at scale 1. This is the container's flex gap (≈39px) for non-first columns,
-	 * and 0 for the first column.
+	 * px at scale 1.
+	 *  - within-passage column: the container's flex gap (≈39px) to the previous column.
+	 *  - cross-passage column: the TOTAL gap across the divider to the previous passage's
+	 *    last column with both per-side offsets zeroed (≈78px).
+	 *  - study's first column: 0 (no adjustable gap).
 	 * @param {string} columnId
 	 * @returns {number} Default left gap in CSS px (0 if not found / first column).
 	 */
@@ -73,27 +126,39 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 		);
 		if (!colEl) return 0;
 
-		const prevEl = /** @type {HTMLElement|null} */ (colEl.previousElementSibling);
-		if (!prevEl || !prevEl.classList.contains('column')) return 0;
+		const info = classifyColumn(colEl);
+		if (!info) return 0;
 
 		const scale = getScale() || 1;
 
-		// Temporarily zero the reposition offset so margin-left collapses to its default
-		// (0), leaving only the container's flex gap between the two columns.
-		const prevVar = colEl.style.getPropertyValue('--column-offset');
+		// Temporarily zero this column's offset so margin-left collapses to 0. For a
+		// cross-passage column, also zero the left divider's margin so both per-side
+		// offsets are removed, leaving the pure default total gap.
+		const divider = info.isCross ? getLeftDivider(colEl) : null;
+		const prevColVar = colEl.style.getPropertyValue('--column-offset');
+		const prevDivVar = divider?.style.getPropertyValue('--divider-offset');
 		colEl.style.setProperty('--column-offset', '0px');
+		if (divider) divider.style.setProperty('--divider-offset', '0px');
+
 		const colRect = colEl.getBoundingClientRect();
-		const prevRect = prevEl.getBoundingClientRect();
-		// Restore the previous inline value (empty string removes the inline override).
-		if (prevVar) colEl.style.setProperty('--column-offset', prevVar);
+		const prevRect = info.prevRightEl.getBoundingClientRect();
+
+		// Restore the previous inline values (empty string removes the inline override).
+		if (prevColVar) colEl.style.setProperty('--column-offset', prevColVar);
 		else colEl.style.removeProperty('--column-offset');
+		if (divider) {
+			if (prevDivVar) divider.style.setProperty('--divider-offset', prevDivVar);
+			else divider.style.removeProperty('--divider-offset');
+		}
 
 		return (colRect.left - prevRect.right) / scale;
 	}
 
 	/**
 	 * Measure a column's CURRENT total left gap (rendered), in CSS px at scale 1.
-	 * Equals defaultGap + current offset (persisted or live).
+	 * Equals the live distance between this column's left edge and the right edge of
+	 * the element forming the left side of its gap (previous column, or — across a
+	 * divider — the previous passage's last column).
 	 * @param {string} columnId
 	 * @returns {number} Current total left gap in CSS px (0 if not found / first column).
 	 */
@@ -103,14 +168,15 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 		);
 		if (!colEl) return 0;
 
-		const prevEl = /** @type {HTMLElement|null} */ (colEl.previousElementSibling);
-		if (!prevEl || !prevEl.classList.contains('column')) return 0;
+		const info = classifyColumn(colEl);
+		if (!info) return 0;
 
 		const scale = getScale() || 1;
 		const colRect = colEl.getBoundingClientRect();
-		const prevRect = prevEl.getBoundingClientRect();
+		const prevRect = info.prevRightEl.getBoundingClientRect();
 		return (colRect.left - prevRect.right) / scale;
 	}
+
 
 	/**
 	 * Begin a reposition drag for the given column.
@@ -127,9 +193,11 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 		);
 		if (!colEl) return;
 
-		// First column (no previous column sibling) cannot be repositioned.
-		const prevEl = /** @type {HTMLElement|null} */ (colEl.previousElementSibling);
-		if (!prevEl || !prevEl.classList.contains('column')) return;
+		// Only the study's very first column is non-adjustable; every other column
+		// (including the first column of later passages, across a divider) can move.
+		const info = classifyColumn(colEl);
+		if (!info) return;
+		activeIsCross = info.isCross;
 
 		const scale = getScale() || 1;
 
@@ -138,13 +206,19 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 		const rect = colEl.getBoundingClientRect();
 		startRightX = rect.right;
 
-		// Current applied margin-left (CSS px). Read the computed value.
+		// Current applied per-side offset (CSS px). For both modes this is the column's
+		// own margin-left (for cross columns the divider mirrors the same value).
 		const computedMargin = parseFloat(getComputedStyle(colEl).marginLeft) || 0;
 		startMargin = computedMargin / scale;
 
-		// Default gap (floor baseline for the tooltip) and the derived max margin.
+		// Default gap (floor baseline for the tooltip) and the derived max per-side
+		// offset. For cross columns the per-side ceiling is half the remaining range
+		// because BOTH sides grow by the same amount (total = default + 2X).
 		defaultGap = measureDefaultGap(columnId);
-		maxMargin = Math.max(0, maxGap - defaultGap);
+		maxMargin = activeIsCross
+			? Math.max(0, (maxGap - defaultGap) / 2)
+			: Math.max(0, maxGap - defaultGap);
+
 
 		// Anchor the tooltip at the vertical center of the column's currently-visible
 		// portion (matches the grab handle, which is viewport-centered).
@@ -161,10 +235,11 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 			visible: true,
 			x: startRightX,
 			y: tooltipY,
-			height: Math.round(defaultGap + startMargin)
+			height: Math.round(defaultGap + (activeIsCross ? 2 * startMargin : startMargin))
 		};
 
 		activeColumnId = columnId;
+
 		document.body.style.cursor = 'grabbing';
 		document.body.style.userSelect = 'none';
 	}
@@ -179,23 +254,31 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 		const scale = getScale() || 1;
 		const deltaViewport = event.clientX - startX;
 
-		// Convert the horizontal movement to a margin (CSS px) and clamp to the
-		// allowed range: floor at 0 (can't be tighter than default), ceiling at
-		// maxMargin (total gap capped at maxGap).
-		let newMargin = startMargin + deltaViewport / scale;
+		// Number of sides that grow with the per-side offset: 1 for a within-passage
+		// column (only its own left margin), 2 for a cross-passage column (the divider
+		// AND the column both shift, so the column's right edge moves by 2X). Dividing
+		// the cursor delta by this factor keeps the grabbed right edge tracking the
+		// cursor 1:1 in both modes.
+		const sides = activeIsCross ? 2 : 1;
+
+		// Convert the horizontal movement to a per-side offset (CSS px) and clamp:
+		// floor at 0 (can't be tighter than default), ceiling at maxMargin (total gap
+		// capped at maxGap; for cross columns maxMargin is already the per-side half).
+		let newMargin = startMargin + deltaViewport / (scale * sides);
 		if (newMargin < 0) newMargin = 0;
 		if (newMargin > maxMargin) newMargin = maxMargin;
 
 		liveOffsets = { ...liveOffsets, [activeColumnId]: newMargin };
 
 		// Update the live-gap tooltip to follow the dragged right edge and report the
-		// new total spacing to the column's left (CSS px).
+		// new TOTAL spacing to the column's left (default + sides·offset).
 		dragTooltip = {
 			visible: true,
-			x: startRightX + (newMargin - startMargin) * scale,
+			x: startRightX + (newMargin - startMargin) * scale * sides,
 			y: tooltipY,
-			height: Math.round(defaultGap + newMargin)
+			height: Math.round(defaultGap + sides * newMargin)
 		};
+
 	}
 
 	/**
@@ -275,14 +358,23 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 					const colEl = /** @type {HTMLElement|null} */ (
 						document.querySelector(`[data-column-id="${columnId}"]`)
 					);
-					const prevEl = /** @type {HTMLElement|null} */ (colEl?.previousElementSibling);
-					// Skip first-in-passage columns — they have no adjustable left gap.
-					if (!colEl || !prevEl || !prevEl.classList.contains('column')) return null;
+					if (!colEl) return null;
+					const info = classifyColumn(colEl);
+					// Skip the study's first column — it has no adjustable left gap.
+					if (!info) return null;
 
+					// Convert the requested TOTAL gap into the stored PER-SIDE offset.
+					// Within-passage: offset = total − default (one side).
+					// Cross-passage: offset = (total − default) / 2 (applied to both sides).
 					const colDefault = measureDefaultGap(columnId);
-					const maxOffset = Math.max(0, maxGap - colDefault);
-					const offset = Math.min(maxOffset, Math.max(0, Math.round(totalGap - colDefault)));
+					const sides = info.isCross ? 2 : 1;
+					const maxOffset = Math.max(0, (maxGap - colDefault) / sides);
+					const offset = Math.min(
+						maxOffset,
+						Math.max(0, Math.round((totalGap - colDefault) / sides))
+					);
 					const toPersist = offset <= 0 ? null : offset;
+
 
 					// Drop any live override for this column.
 					if (columnId in liveOffsets) {
