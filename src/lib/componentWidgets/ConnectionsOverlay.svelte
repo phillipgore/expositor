@@ -59,7 +59,8 @@
 
 	/**
 	 * Paths filtered by individual connection type visibility.
-	 * Cross-type connections (dashdot) are always shown when the master toggle is on.
+	 * Cross-item connections (dashdot, between items of a different kind) have
+	 * their own toggle, just like the same-kind types.
 	 * @type {PathEntry[]}
 	 */
 	let visiblePaths = $derived(
@@ -67,7 +68,7 @@
 			if (path.lineStyle === 'solid')  return $toolbarState.segmentConnectionsVisible;
 			if (path.lineStyle === 'dashed') return $toolbarState.sectionConnectionsVisible;
 			if (path.lineStyle === 'dotted') return $toolbarState.columnConnectionsVisible;
-			return true; // dashdot (cross-type) always shown when master is on
+			return $toolbarState.crossItemConnectionsVisible; // dashdot (cross-item)
 		})
 	);
 
@@ -77,6 +78,8 @@
 	 *   connectionId: string,
 	 *   end: 'from'|'to',
 	 *   dragEndType: ConnType,    // type of the endpoint being dragged
+	 *   dragLineStyle: LineStyle, // line style of the dragged connection
+	 *   fixedType: ConnType,      // type of the fixed (non-dragged) endpoint
 	 *   fixedElementId: string|null,
 	 *   fixedX: number, fixedY: number,
 	 *   cursorX: number, cursorY: number,
@@ -364,6 +367,51 @@
 		}
 	}
 
+	/**
+	 * Get the type of the fixed end's element (the end NOT being dragged).
+	 * @param {object} conn @param {'from'|'to'} draggedEnd
+	 * @returns {ConnType}
+	 */
+	function getFixedElementType(conn, draggedEnd) {
+		const type = draggedEnd === 'from' ? conn?.toType : conn?.fromType;
+		return /** @type {ConnType} */ (type || 'segment');
+	}
+
+	/**
+	 * Resolve the {type, id} for one end of a connection record.
+	 * @param {object} conn @param {'from'|'to'} end
+	 * @returns {{ type: ConnType, id: string|null }}
+	 */
+	function getEndRef(conn, end) {
+		const type = /** @type {ConnType} */ ((end === 'from' ? conn?.fromType : conn?.toType) || 'segment');
+		let id = null;
+		if (type === 'segment') id = end === 'from' ? conn?.fromSegmentId : conn?.toSegmentId;
+		else if (type === 'section') id = end === 'from' ? conn?.fromSectionId : conn?.toSectionId;
+		else id = end === 'from' ? conn?.fromColumnId : conn?.toColumnId;
+		return { type, id: id ?? null };
+	}
+
+	/**
+	 * Returns true if a connection already exists between the two given items
+	 * (direction-agnostic). The connection currently being dragged is excluded so
+	 * dropping back onto its own current target is still permitted.
+	 * @param {ConnType} typeA @param {string|null} idA
+	 * @param {ConnType} typeB @param {string|null} idB
+	 * @param {string} excludeConnectionId
+	 * @returns {boolean}
+	 */
+	function hasConnectionBetween(typeA, idA, typeB, idB, excludeConnectionId) {
+		if (!idA || !idB) return false;
+		return connections.some(c => {
+			if (c.id === excludeConnectionId) return false;
+			const a = getEndRef(c, 'from');
+			const b = getEndRef(c, 'to');
+			const matchForward = a.type === typeA && a.id === idA && b.type === typeB && b.id === idB;
+			const matchReverse = a.type === typeB && a.id === idB && b.type === typeA && b.id === idA;
+			return matchForward || matchReverse;
+		});
+	}
+
 	// ─── Path calculation ─────────────────────────────────────────────────────
 
 	function calculatePaths() {
@@ -573,10 +621,20 @@
 	// ─── Drop handle computation ──────────────────────────────────────────────
 
 	/**
+	 * Build the list of valid drop targets for the dragged endpoint.
+	 *
+	 * An item can only have ONE connection to another item, so any element that
+	 * already has a connection to the fixed end is excluded — its handle is never
+	 * created, which means it can neither be highlighted nor snapped to during the
+	 * drag.  The connection currently being dragged is excluded from that check so
+	 * dropping back onto its own current target is still permitted.
+	 *
 	 * @param {string|null} fixedElementId
+	 * @param {ConnType} fixedType — type of the fixed (non-dragged) endpoint
+	 * @param {string} connectionId — id of the connection being dragged
 	 * @returns {Handle[]}
 	 */
-	function computeDropHandles(fixedElementId) {
+	function computeDropHandles(fixedElementId, fixedType, connectionId) {
 		if (!svgElement) return [];
 		const svgRect = svgElement.getBoundingClientRect();
 		/** @type {Handle[]} */
@@ -586,6 +644,7 @@
 		document.querySelectorAll('.column[data-column-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.columnId;
 			if (!id || id === fixedElementId) return;
+			if (hasConnectionBetween(fixedType, fixedElementId, 'column', id, connectionId)) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
 			const { x, y } = getAnchorPoint(rect, 'column', svgRect);
@@ -596,6 +655,7 @@
 		document.querySelectorAll('.section[data-section-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.sectionId;
 			if (!id || id === fixedElementId) return;
+			if (hasConnectionBetween(fixedType, fixedElementId, 'section', id, connectionId)) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
 			const { x, y } = getAnchorPoint(rect, 'section', svgRect);
@@ -606,6 +666,7 @@
 		document.querySelectorAll('[data-segment-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.segmentId;
 			if (!id || id === fixedElementId) return;
+			if (hasConnectionBetween(fixedType, fixedElementId, 'segment', id, connectionId)) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
 			const left  = getAnchorPoint(rect, 'segment', svgRect, 'left');
@@ -660,18 +721,21 @@
 		const conn = connections.find(c => c.id === path.id);
 		const dragEndType = /** @type {ConnType} */ (end === 'from' ? path.fromType : path.toType);
 		const fixedElementId = getFixedElementId(conn, end);
+		const fixedType = getFixedElementType(conn, end);
 
 		drag = {
 			connectionId: path.id,
 			end,
 			dragEndType,
+			dragLineStyle: path.lineStyle,
+			fixedType,
 			fixedElementId,
 			fixedX, fixedY,
 			cursorX: dragX, cursorY: dragY,
 			activeHandle: null
 		};
 
-		dropHandles = computeDropHandles(fixedElementId);
+		dropHandles = computeDropHandles(fixedElementId, fixedType, path.id);
 	}
 
 	/** @param {PointerEvent} event */
@@ -842,6 +906,7 @@
 			if (path.lineStyle === 'solid')  return !$toolbarState.segmentConnectionsVisible;
 			if (path.lineStyle === 'dashed') return !$toolbarState.sectionConnectionsVisible;
 			if (path.lineStyle === 'dotted') return !$toolbarState.columnConnectionsVisible;
+			if (path.lineStyle === 'dashdot') return !$toolbarState.crossItemConnectionsVisible;
 			return false;
 		});
 		if (hasHiddenSelected) {
@@ -1068,6 +1133,7 @@
 		const _colVis     = $toolbarState.columnConnectionsVisible;
 		const _secVis     = $toolbarState.sectionConnectionsVisible;
 		const _segVis     = $toolbarState.segmentConnectionsVisible;
+		const _crossVis   = $toolbarState.crossItemConnectionsVisible;
 		const _studies    = $toolbarState.studiesPanelOpen;
 		const _comment    = $toolbarState.commentaryPanelOpen;
 		const _wide       = $toolbarState.wideLayout;
@@ -1130,7 +1196,7 @@
 -->
 <div
 	class="connections-layer"
-	class:connections-layer--hidden={!$toolbarState.columnConnectionsVisible && !$toolbarState.sectionConnectionsVisible && !$toolbarState.segmentConnectionsVisible}
+	class:connections-layer--hidden={!$toolbarState.columnConnectionsVisible && !$toolbarState.sectionConnectionsVisible && !$toolbarState.segmentConnectionsVisible && !$toolbarState.crossItemConnectionsVisible}
 	class:connections-layer--dragging={!!drag}
 >
 	<svg
@@ -1148,29 +1214,38 @@
 			Pass 3 — endpoint nodes for the ACTIVE connection (on top)
 		-->
 
-		{#snippet endpointNodes(path, isActive)}
+		{#snippet endpointNodes(path)}
 			<!-- From-end: column=■ square, section=◆ diamond, segment=● circle -->
 			{#if path.fromType === 'column'}
 				<rect class="connection-node connection-node--square"
-					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={selectedPathIds.has(path.id)}
+					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
 					x={path.x1 - 4} y={path.y1 - 4} width="8" height="8"
+					onpointerenter={() => { hoveredPathId = path.id; }}
+					onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
 					onpointerdown={(e) => startDrag(e, path, 'from')}
 					onclick={(e) => e.stopPropagation()}
 				/>
 			{:else if path.fromType === 'section'}
 				<polygon class="connection-node connection-node--diamond"
-					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={selectedPathIds.has(path.id)}
+					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
 					points={diamondPoints(path.x1, path.y1)}
+					onpointerenter={() => { hoveredPathId = path.id; }}
+					onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
 					onpointerdown={(e) => startDrag(e, path, 'from')}
 					onclick={(e) => e.stopPropagation()}
 				/>
 			{:else if path.fromType === 'segment'}
 				<circle class="connection-node"
-					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={selectedPathIds.has(path.id)}
+					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
 					cx={path.x1} cy={path.y1} r="4"
+					onpointerenter={() => { hoveredPathId = path.id; }}
+					onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
 					onpointerdown={(e) => startDrag(e, path, 'from')}
 					onclick={(e) => e.stopPropagation()}
 				/>
@@ -1178,25 +1253,34 @@
 			<!-- To-end: column=■ square, section=◆ diamond, segment=● circle -->
 			{#if path.toType === 'column'}
 				<rect class="connection-node connection-node--square"
-					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={selectedPathIds.has(path.id)}
+					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
 					x={path.x2 - 4} y={path.y2 - 4} width="8" height="8"
+					onpointerenter={() => { hoveredPathId = path.id; }}
+					onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
 					onpointerdown={(e) => startDrag(e, path, 'to')}
 					onclick={(e) => e.stopPropagation()}
 				/>
 			{:else if path.toType === 'section'}
 				<polygon class="connection-node connection-node--diamond"
-					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={selectedPathIds.has(path.id)}
+					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
 					points={diamondPoints(path.x2, path.y2)}
+					onpointerenter={() => { hoveredPathId = path.id; }}
+					onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
 					onpointerdown={(e) => startDrag(e, path, 'to')}
 					onclick={(e) => e.stopPropagation()}
 				/>
 			{:else if path.toType === 'segment'}
 				<circle class="connection-node"
-					class:connection-node--hovered={isActive && hoveredPathId === path.id && !selectedPathIds.has(path.id)}
-					class:connection-node--selected={isActive && selectedPathIds.has(path.id)}
+					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
+					class:connection-node--selected={selectedPathIds.has(path.id)}
+					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
 					cx={path.x2} cy={path.y2} r="4"
+					onpointerenter={() => { hoveredPathId = path.id; }}
+					onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
 					onpointerdown={(e) => startDrag(e, path, 'to')}
 					onclick={(e) => e.stopPropagation()}
 				/>
@@ -1210,7 +1294,7 @@
 				class:connection-path--dashed={path.lineStyle === 'dashed'}
 				class:connection-path--dotted={path.lineStyle === 'dotted'}
 				class:connection-path--dashdot={path.lineStyle === 'dashdot'}
-				class:connection-path--dimmed={!!drag && drag.connectionId === path.id}
+				class:connection-path--dragging={!!drag && drag.connectionId === path.id}
 				class:connection-path--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
 				class:connection-path--selected={selectedPathIds.has(path.id)}
 				d={path.d}
@@ -1226,17 +1310,19 @@
 			/>
 		{/each}
 
-		<!-- Pass 2: non-active nodes -->
+		<!-- Pass 2: non-selected nodes -->
+		<!-- Split by SELECTION only (not hover): hovering must never move a node -->
+		<!-- between passes, or the pointerdown that starts a drag would be lost.  -->
 		{#each visiblePaths as path (path.id)}
-			{#if path.id !== hoveredPathId && !selectedPathIds.has(path.id)}
-				{@render endpointNodes(path, false)}
+			{#if !selectedPathIds.has(path.id)}
+				{@render endpointNodes(path)}
 			{/if}
 		{/each}
 
-		<!-- Pass 3: active nodes — rendered last so always on top -->
+		<!-- Pass 3: selected nodes — rendered last so always on top -->
 		{#each visiblePaths as path (path.id)}
-			{#if path.id === hoveredPathId || selectedPathIds.has(path.id)}
-				{@render endpointNodes(path, true)}
+			{#if selectedPathIds.has(path.id)}
+				{@render endpointNodes(path)}
 			{/if}
 		{/each}
 
@@ -1271,7 +1357,18 @@
 			{@const ghostX    = drag.activeHandle?.x    ?? drag.cursorX}
 			{@const ghostY    = drag.activeHandle?.y    ?? drag.cursorY}
 			{@const ghostType = drag.activeHandle?.type ?? drag.dragEndType}
-			<line class="connection-ghost" x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY} />
+			<!-- When snapped to a handle, preview the line style the connection WOULD
+			     become (fixed end + snapped target type). Otherwise keep the original. -->
+			{@const ghostLineStyle = drag.activeHandle
+				? getLineStyle(drag.fixedType, drag.activeHandle.type)
+				: drag.dragLineStyle}
+			<line
+				class="connection-ghost"
+				class:connection-ghost--dashed={ghostLineStyle === 'dashed'}
+				class:connection-ghost--dotted={ghostLineStyle === 'dotted'}
+				class:connection-ghost--dashdot={ghostLineStyle === 'dashdot'}
+				x1={drag.fixedX} y1={drag.fixedY} x2={ghostX} y2={ghostY}
+			/>
 
 			<!-- Ghost endpoint node: column=■ square, section=◆ diamond, segment=● circle -->
 			{#if ghostType === 'column'}
@@ -1395,10 +1492,13 @@
 	.connection-path--dashed  { stroke-dasharray: 6 4; }      /* section-section */
 	.connection-path--dotted  { stroke-dasharray: 2 4; }      /* column-column   */
 	.connection-path--dashdot { stroke-dasharray: 6 3 1 3; }  /* cross-type      */
-	.connection-path--dimmed  { opacity: 0.3; }
 
 	.connection-path--hovered  { stroke: var(--blue); }
 	.connection-path--selected { stroke: var(--blue); stroke-width: 2.5; }
+
+	/* While dragging an endpoint, the original arc keeps its line style but
+	   renders in a lighter blue. Placed after hovered/selected so it wins. */
+	.connection-path--dragging { stroke: var(--blue-light); }
 
 	/* Wide transparent hit-target for easy hover/click on thin lines */
 	.connection-hit-target {
@@ -1425,9 +1525,16 @@
 		stroke: var(--blue);
 	}
 
+	/* Dragged connection's anchors render lighter blue during the drag.
+	   Placed after hovered/selected so the lighter blue wins while dragging. */
+	.connection-node--dragging {
+		fill: var(--blue-light);
+		stroke: var(--blue-light);
+	}
+
 	.connection-node--ghost {
-		fill: var(--gray-400);
-		stroke: var(--gray-200);
+		fill: var(--blue-light);
+		stroke: var(--blue-light);
 		cursor: grabbing;
 		pointer-events: none;
 	}
@@ -1452,12 +1559,16 @@
 	/* ── Ghost line ── */
 
 	.connection-ghost {
-		stroke: var(--gray-300);
+		stroke: var(--blue-light);
 		stroke-width: 2;
-		stroke-dasharray: 6 4;
 		stroke-linecap: round;
 		pointer-events: none;
 	}
+
+	/* Ghost line mirrors the dragged connection's line style. */
+	.connection-ghost--dashed  { stroke-dasharray: 6 4; }
+	.connection-ghost--dotted  { stroke-dasharray: 2 4; }
+	.connection-ghost--dashdot { stroke-dasharray: 6 3 1 3; }
 
 	/* ── Quick Note ── */
 

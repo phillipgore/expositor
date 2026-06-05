@@ -80,6 +80,7 @@ async function persistPreference(updates) {
  * @property {boolean} columnConnectionsVisible - Whether column connections are visible
  * @property {boolean} sectionConnectionsVisible - Whether section connections are visible
  * @property {boolean} segmentConnectionsVisible - Whether segment connections are visible
+ * @property {boolean} crossItemConnectionsVisible - Whether cross-item (different-kind) connections are visible
  * @property {boolean} notesVisible - Whether all quick notes are visible (master toggle; true when both passage and connection notes are on)
  * @property {boolean} passageNotesVisible - Whether passage (inline segment) quick notes are visible
  * @property {boolean} connectionNotesVisible - Whether connection quick notes are visible
@@ -158,6 +159,7 @@ const defaultState = {
 	columnConnectionsVisible: true,
 	sectionConnectionsVisible: true,
 	segmentConnectionsVisible: true,
+	crossItemConnectionsVisible: true,
 	connectionsVisible: true,
 	notesVisible: true,
 	passageNotesVisible: true,
@@ -519,13 +521,15 @@ export function toggleConnections() {
 		connectionsVisible: newValue,
 		columnConnectionsVisible: newValue,
 		sectionConnectionsVisible: newValue,
-		segmentConnectionsVisible: newValue
+		segmentConnectionsVisible: newValue,
+		crossItemConnectionsVisible: newValue
 	}));
 	persistPreference({
 		connectionsVisible: newValue,
 		columnConnectionsVisible: newValue,
 		sectionConnectionsVisible: newValue,
-		segmentConnectionsVisible: newValue
+		segmentConnectionsVisible: newValue,
+		crossItemConnectionsVisible: newValue
 	});
 }
 
@@ -536,7 +540,7 @@ export function toggleConnections() {
 export function toggleColumnConnections() {
 	const state = get(toolbarStateStore);
 	const newCol = !state.columnConnectionsVisible;
-	const newConnectionsVisible = newCol && state.sectionConnectionsVisible && state.segmentConnectionsVisible;
+	const newConnectionsVisible = newCol && state.sectionConnectionsVisible && state.segmentConnectionsVisible && state.crossItemConnectionsVisible;
 	toolbarStateStore.update(s => ({
 		...s,
 		columnConnectionsVisible: newCol,
@@ -552,7 +556,7 @@ export function toggleColumnConnections() {
 export function toggleSectionConnections() {
 	const state = get(toolbarStateStore);
 	const newSec = !state.sectionConnectionsVisible;
-	const newConnectionsVisible = state.columnConnectionsVisible && newSec && state.segmentConnectionsVisible;
+	const newConnectionsVisible = state.columnConnectionsVisible && newSec && state.segmentConnectionsVisible && state.crossItemConnectionsVisible;
 	toolbarStateStore.update(s => ({
 		...s,
 		sectionConnectionsVisible: newSec,
@@ -568,13 +572,30 @@ export function toggleSectionConnections() {
 export function toggleSegmentConnections() {
 	const state = get(toolbarStateStore);
 	const newSeg = !state.segmentConnectionsVisible;
-	const newConnectionsVisible = state.columnConnectionsVisible && state.sectionConnectionsVisible && newSeg;
+	const newConnectionsVisible = state.columnConnectionsVisible && state.sectionConnectionsVisible && newSeg && state.crossItemConnectionsVisible;
 	toolbarStateStore.update(s => ({
 		...s,
 		segmentConnectionsVisible: newSeg,
 		connectionsVisible: newConnectionsVisible
 	}));
 	persistPreference({ segmentConnectionsVisible: newSeg, connectionsVisible: newConnectionsVisible });
+}
+
+/**
+ * Toggle cross-item connections visibility (connections between items of a
+ * different kind, e.g. Column↔Segment). These render with the dash-dot line style.
+ * Auto-updates the master connectionsVisible based on whether all four are now on.
+ */
+export function toggleCrossItemConnections() {
+	const state = get(toolbarStateStore);
+	const newCross = !state.crossItemConnectionsVisible;
+	const newConnectionsVisible = state.columnConnectionsVisible && state.sectionConnectionsVisible && state.segmentConnectionsVisible && newCross;
+	toolbarStateStore.update(s => ({
+		...s,
+		crossItemConnectionsVisible: newCross,
+		connectionsVisible: newConnectionsVisible
+	}));
+	persistPreference({ crossItemConnectionsVisible: newCross, connectionsVisible: newConnectionsVisible });
 }
 
 /**

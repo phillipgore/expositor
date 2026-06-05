@@ -23,6 +23,7 @@ export const user = pgTable('user', {
 	columnConnectionsVisible: boolean('column_connections_visible').default(true),
 	sectionConnectionsVisible: boolean('section_connections_visible').default(true),
 	segmentConnectionsVisible: boolean('segment_connections_visible').default(true),
+	crossItemConnectionsVisible: boolean('cross_item_connections_visible').default(true),
 	referencesVisible: boolean('references_visible').default(false),
 	versesVisible: boolean('verses_visible').default(false),
 	paragraphBreaksVisible: boolean('paragraph_breaks_visible').default(false),

@@ -43,6 +43,9 @@
 		if (data.segmentConnectionsVisible !== undefined) {
 			setToolbarState('segmentConnectionsVisible', data.segmentConnectionsVisible);
 		}
+		if (data.crossItemConnectionsVisible !== undefined) {
+			setToolbarState('crossItemConnectionsVisible', data.crossItemConnectionsVisible);
+		}
 		if (data.referencesVisible !== undefined) {
 			setToolbarState('referencesVisible', data.referencesVisible);
 		}

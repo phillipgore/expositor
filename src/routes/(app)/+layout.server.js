@@ -31,6 +31,7 @@ export async function load({ request, depends }) {
 				columnConnectionsVisible: user.columnConnectionsVisible,
 				sectionConnectionsVisible: user.sectionConnectionsVisible,
 				segmentConnectionsVisible: user.segmentConnectionsVisible,
+				crossItemConnectionsVisible: user.crossItemConnectionsVisible,
 				referencesVisible: user.referencesVisible,
 				versesVisible: user.versesVisible,
 				paragraphBreaksVisible: user.paragraphBreaksVisible,
@@ -53,6 +54,7 @@ export async function load({ request, depends }) {
 		const columnConnectionsVisible = userData[0]?.columnConnectionsVisible ?? true;
 		const sectionConnectionsVisible = userData[0]?.sectionConnectionsVisible ?? true;
 		const segmentConnectionsVisible = userData[0]?.segmentConnectionsVisible ?? true;
+		const crossItemConnectionsVisible = userData[0]?.crossItemConnectionsVisible ?? true;
 		const referencesVisible = userData[0]?.referencesVisible ?? false;
 		const versesVisible = userData[0]?.versesVisible ?? false;
 		const paragraphBreaksVisible = userData[0]?.paragraphBreaksVisible ?? false;
@@ -134,6 +136,7 @@ export async function load({ request, depends }) {
 			columnConnectionsVisible,
 			sectionConnectionsVisible,
 			segmentConnectionsVisible,
+			crossItemConnectionsVisible,
 			referencesVisible,
 			versesVisible,
 			paragraphBreaksVisible,

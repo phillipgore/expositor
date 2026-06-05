@@ -38,6 +38,7 @@
 		toggleColumnConnections,
 		toggleSectionConnections,
 		toggleSegmentConnections,
+		toggleCrossItemConnections,
 		toggleReferences,
 		toggleVerses,
 		toggleParagraphBreaks,
@@ -121,6 +122,12 @@
 		label="Segment Connections"
 		isActive={$toolbarState.segmentConnectionsVisible}
 		onToggle={toggleSegmentConnections}
+		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Cross-Item Connections"
+		isActive={$toolbarState.crossItemConnectionsVisible}
+		onToggle={toggleCrossItemConnections}
 		isDisabled={!$toolbarState.canToggleConnections || $toolbarState.overviewMode}
 	/>
 
