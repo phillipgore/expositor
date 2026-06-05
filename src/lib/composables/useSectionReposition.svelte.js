@@ -199,6 +199,12 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		} else if (guideLine.visible) {
 			guideLine = { ...guideLine, visible: false };
 		}
+
+		// Signal the connection overlay to re-flow Quick Notes live as the section
+		// (and the passage text below it) reflows. The overlay rAF-coalesces these.
+		if (typeof window !== 'undefined') {
+			window.dispatchEvent(new Event('analyze-layout-changed'));
+		}
 	}
 
 	/**

@@ -50,7 +50,7 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteOffsetX: number, noteOffsetY: number }} PathEntry
+	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorX: number, noteAnchorY: number }} PathEntry
 	 * @typedef {{ elementId: string, type: ConnType, side: 'left'|'right', x: number, y: number }} Handle
 	 */
 
@@ -133,8 +133,35 @@
 	let scrollContainer = /** @type {HTMLElement | null} */ (null);
 	let contentInner = /** @type {HTMLElement | null} */ (null);
 
+	/**
+	 * rAF-coalesced recompute scheduler.  Multiple triggers in the same frame
+	 * (scroll, resize, spacing-drag mousemoves, store changes …) collapse into a
+	 * single calculatePaths() run on the next animation frame.  This keeps the
+	 * note-avoidance pass — which reads every segment's bounding box — from piling
+	 * up while a column/section spacing handle is being dragged.
+	 */
+	let rafScheduled = false;
+	function scheduleCalculate() {
+		if (rafScheduled) return;
+		rafScheduled = true;
+		requestAnimationFrame(() => {
+			rafScheduled = false;
+			calculatePaths();
+		});
+	}
+
 	/** Re-calculate paths once the zoom CSS transition finishes. */
-	const handleTransitionEnd = () => requestAnimationFrame(calculatePaths);
+	const handleTransitionEnd = () => scheduleCalculate();
+
+	/**
+	 * Recompute on column/section spacing changes (live drag + modal apply/reset).
+	 * The page-level reposition composables dispatch 'analyze-layout-changed' on
+	 * every drag mousemove; the spacing modals fire their own set/reset events.
+	 * All route through the rAF coalescer so the note layout re-flows to keep
+	 * notes over white space as the passage reflows.
+	 */
+	const handleLayoutChanged = () => scheduleCalculate();
+
 
 	// ─── Coordinate helpers ────────────────────────────────────────────────────
 
@@ -207,6 +234,30 @@
 		};
 	}
 
+	/**
+	 * Evaluate a cubic bezier at parameter t ∈ [0,1].
+	 * B(t) = (1−t)³P0 + 3(1−t)²t·C1 + 3(1−t)t²·C2 + t³·P3
+	 * Used by the note resolver to slide a note's anchor ALONG its connection line
+	 * (so the dot and box always stay attached to a real point on the curve).
+	 * @param {number} t
+	 * @param {number} x0 @param {number} y0
+	 * @param {number} cx1 @param {number} cy1
+	 * @param {number} cx2 @param {number} cy2
+	 * @param {number} x1 @param {number} y1
+	 * @returns {{ x: number, y: number }}
+	 */
+	function cubicBezierPoint(t, x0, y0, cx1, cy1, cx2, cy2, x1, y1) {
+		const u = 1 - t;
+		const a = u * u * u;
+		const b = 3 * u * u * t;
+		const c = 3 * u * t * t;
+		const d = t * t * t;
+		return {
+			x: a * x0 + b * cx1 + c * cx2 + d * x1,
+			y: a * y0 + b * cy1 + c * cy2 + d * y1
+		};
+	}
+
 	// ─── Line style determination ─────────────────────────────────────────────
 
 	/**
@@ -256,6 +307,52 @@
 	}
 
 	/**
+	 * Return the overlapping AREA (in CSS px²) between box a and box b. 0 when they
+	 * do not intersect.  Used to score candidate note placements: the resolver
+	 * prefers the placement that overlaps passage text (and other notes) the least.
+	 * @param {{ x: number, y: number, w: number, h: number }} a
+	 * @param {{ x: number, y: number, w: number, h: number }} b
+	 * @returns {number}
+	 */
+	function overlapArea(a, b) {
+		const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+		const iy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+		if (ix <= 0 || iy <= 0) return 0;
+		return ix * iy;
+	}
+
+	/**
+	 * Collect the bounding boxes of all visible passage segments in the note
+	 * coordinate space (CSS px relative to the SVG top-left, divided by scale —
+	 * the same transform getAnchorPoint uses).  These are the "passage text"
+	 * obstacles the note resolver tries to avoid; the gaps between them (column
+	 * gutters, inter-section spacing, margins) are the "white space" the notes
+	 * prefer to sit over.
+	 *
+	 * Hidden segments (zero-width, or compare/hide-mode hidden) are skipped.
+	 * @param {DOMRect} svgRect
+	 * @param {number} scl — current zoom scale (CSS px per layout unit)
+	 * @returns {Array<{ x: number, y: number, w: number, h: number }>}
+	 */
+	function collectSegmentBoxes(svgRect, scl) {
+		/** @type {Array<{ x: number, y: number, w: number, h: number }>} */
+		const boxes = [];
+		document.querySelectorAll('.segment[data-segment-id]').forEach(el => {
+			const seg = /** @type {HTMLElement} */ (el);
+			if (seg.classList.contains('compare-hidden')) return;
+			const rect = seg.getBoundingClientRect();
+			if (rect.width === 0 || rect.height === 0) return;
+			boxes.push({
+				x: (rect.left - svgRect.left) / scl,
+				y: (rect.top  - svgRect.top)  / scl,
+				w: rect.width  / scl,
+				h: rect.height / scl
+			});
+		});
+		return boxes;
+	}
+
+	/**
 	 * Return the CSS transform string for a note placement.
 	 * @param {'center'|'right'|'left'|'above'|'below'} placement
 	 * @returns {string}
@@ -275,53 +372,115 @@
 		['above', 'below', 'right', 'left']
 	);
 
+	// ─── Note placement resolver ───────────────────────────────────────────────
+
 	/**
-	 * Clamp a note's placement and offsets so it never clips off the top or left
-	 * edge of the SVG canvas.  Mutates path.notePlacement, path.noteOffsetX, and
-	 * path.noteOffsetY in-place.
-	 *
-	 * Rules:
-	 *   'above' / 'below' — can slide horizontally (noteOffsetX) to clear the left
-	 *     edge.  If 'above' would clip the top edge, switch to 'below' instead.
-	 *   'right' / 'left'  — can slide vertically (noteOffsetY) to clear the top
-	 *     edge.  If 'left' would clip the left edge, switch to 'right' instead.
-	 *
-	 * @param {{ notePlacement: string, noteOffsetX: number, noteOffsetY: number, mx: number, my: number }} path
-	 * @param {number} scl  — current zoom scale (CSS px per SVG unit)
+	 * Bezier parameters tried when sliding a note's anchor ALONG its connection
+	 * line.  0.5 is the true midpoint; the rest fan out symmetrically toward each
+	 * endpoint.  The note box stays welded to whichever point is chosen, so the
+	 * anchor dot is never separated from the box — it just rides the curve to find
+	 * clearer space.  Kept away from the very ends (no 0 or 1) so the note never
+	 * sits on top of an endpoint node.  Densely sampled but kept well short of the
+	 * ends so a note nudges just far enough to clear text without flinging itself
+	 * out to the tip of the curve.
 	 */
-	function clampNotePlacement(path, scl) {
-		const MARGIN = 4 / scl; // 4 visual-px buffer converted to layout px
+	const NOTE_T_STEPS = [0.5, 0.44, 0.56, 0.38, 0.62, 0.32, 0.68, 0.26, 0.74];
 
-		if (path.notePlacement === 'above') {
-			// Top-edge check: switch to 'below' if the note box would go above y=0
-			const topEdge = (path.my + path.noteOffsetY) - NOTE_BOX_H;
-			if (topEdge < MARGIN) {
-				path.notePlacement = 'below';
+	/**
+	 * The anchor may drift this far from the midpoint (|t − 0.5|) "for free" before
+	 * the W_DIST bias kicks in.  A small band lets a note escape a slight text graze
+	 * without being yanked back, while still strongly preferring the tidy midpoint.
+	 */
+	const NOTE_T_FREE_BAND = 0.06;
+
+	/** Tie-break preference: prefer 'above', then 'below', then 'right', then 'left'. */
+	const PLACEMENT_PREFERENCE = /** @type {Record<string, number>} */ ({
+		above: 0, below: 1, right: 2, left: 3
+	});
+
+	// Score weights.  Overlap areas are in CSS px² and dominate; the preference and
+	// distance terms are tiny tie-breakers so a fully-clear 'above' at the midpoint
+	// wins over an equally-clear spot further along the curve.
+	const W_SEGMENT = 1.0;   // overlapping passage text
+	const W_NOTE    = 3.0;   // overlapping another note (worse — notes must stay legible)
+	const W_BOUNDS  = 2.0;   // clipping off the top/left canvas edge
+	const W_DIST    = 5.0;   // bias toward the midpoint (only past the free band)
+
+	/**
+	 * Resolve the anchor point + placement of every note so each one prefers to sit
+	 * over WHITE SPACE (avoiding passage-segment boxes) and avoids overlapping other
+	 * notes — WITHOUT ever detaching the box from its anchor dot.
+	 *
+	 * For each note we slide the anchor along the connection's own bezier curve
+	 * (sampling NOTE_T_STEPS) and, at each sampled point, try the four placements
+	 * (above/below/left/right).  Every candidate is scored by how much it overlaps
+	 * passage text and other notes, how far it clips the top/left edges, how far the
+	 * anchor strayed from the midpoint, and a small placement preference.  The
+	 * lowest-scoring candidate wins; its on-curve point becomes noteAnchorX/Y so the
+	 * dot and the box move together.
+	 *
+	 * Notes are resolved in order; each committed note becomes an obstacle for the
+	 * ones after it.  Mutates notePlacement / noteAnchorX / noteAnchorY in-place.
+	 *
+	 * @param {PathEntry[]} notePaths — paths that have a note, in render order
+	 * @param {Array<{ x: number, y: number, w: number, h: number }>} segmentBoxes
+	 * @param {number} scl — current zoom scale (CSS px per layout unit)
+	 */
+	function resolveNotePlacements(notePaths, segmentBoxes, scl) {
+		const MARGIN = 4 / scl;
+		/** @type {Array<{ x: number, y: number, w: number, h: number }>} */
+		const placedNoteBoxes = [];
+
+		for (const note of notePaths) {
+			let best = /** @type {{ score: number, placement: 'above'|'below'|'right'|'left', ax: number, ay: number } | null} */ (null);
+
+			for (const t of NOTE_T_STEPS) {
+				// The on-curve anchor point for this t (the dot will sit exactly here).
+				const pt = cubicBezierPoint(
+					t, note.x1, note.y1, note.cx1, note.cy1, note.cx2, note.cy2, note.x2, note.y2
+				);
+				// Distance from the midpoint, with a "free band" near the centre: the
+				// anchor can drift up to NOTE_T_FREE_BAND for free, so a note can escape
+				// crowded text into nearby white space without the bias dragging it back.
+				const tDist = Math.max(0, Math.abs(t - 0.5) - NOTE_T_FREE_BAND);
+
+				for (const placement of NOTE_PLACEMENT_ORDER) {
+					const box = noteBoundingBox(pt.x, pt.y, placement);
+
+					// Sum overlap area against passage text and already-placed notes.
+					let segOverlap = 0;
+					for (const sb of segmentBoxes) segOverlap += overlapArea(box, sb);
+					let noteOverlap = 0;
+					for (const pb of placedNoteBoxes) noteOverlap += overlapArea(box, pb);
+
+					// Penalise clipping off the top/left edges (bottom/right are fine —
+					// the canvas scrolls/extends that way).
+					let bounds = 0;
+					if (box.x < MARGIN) bounds += (MARGIN - box.x) * box.h;
+					if (box.y < MARGIN) bounds += (MARGIN - box.y) * box.w;
+
+					const score =
+						segOverlap * W_SEGMENT +
+						noteOverlap * W_NOTE +
+						bounds * W_BOUNDS +
+						tDist * W_DIST * 100 +          // scale tDist (0–0.5) into px-comparable range
+						PLACEMENT_PREFERENCE[placement];
+
+					if (best === null || score < best.score) {
+						best = { score, placement, ax: pt.x, ay: pt.y };
+					}
+				}
 			}
-		}
 
-		if (path.notePlacement === 'above' || path.notePlacement === 'below') {
-			// Left-edge check: slide right until the note box clears x=0
-			const leftEdge = (path.mx + path.noteOffsetX) - NOTE_BOX_W / 2;
-			if (leftEdge < MARGIN) {
-				path.noteOffsetX += MARGIN - leftEdge;
+			if (best) {
+				note.notePlacement = best.placement;
+				note.noteAnchorX = best.ax;
+				note.noteAnchorY = best.ay;
 			}
-			return;
-		}
-
-		if (path.notePlacement === 'left') {
-			// Left-edge check: switch to 'right' if the note box would go left of x=0
-			const leftEdge = (path.mx + path.noteOffsetX) - NOTE_BOX_W;
-			if (leftEdge < MARGIN) {
-				path.notePlacement = 'right';
-			}
-		}
-
-		// 'right' or 'left' (after possible switch above):
-		// Top-edge check: slide down until the note box clears y=0
-		const topEdge = (path.my + path.noteOffsetY) - NOTE_BOX_H / 2;
-		if (topEdge < MARGIN) {
-			path.noteOffsetY += MARGIN - topEdge;
+			// Commit this note's final box so later notes treat it as an obstacle.
+			placedNoteBoxes.push(
+				noteBoundingBox(note.noteAnchorX, note.noteAnchorY, note.notePlacement)
+			);
 		}
 	}
 
@@ -553,10 +712,10 @@
 		// Default: 'above' the bezier midpoint.
 		// Same-column segment loop: the bezier bulges to the right, so place
 		// the note to the right of the midpoint instead.
+		// The anchor defaults to the bezier midpoint; resolveNotePlacements may
+		// slide it along the curve to find white space (keeping box + dot attached).
 		/** @type {'center'|'right'|'left'|'above'|'below'} */
 		let notePlacement = 'above';
-		let noteOffsetX = 0;
-		let noteOffsetY = 0;
 
 		if (sameCol && fromSide2 && toSide2) {
 			// Same-column segment loop — note should sit to the right of the arc.
@@ -570,49 +729,19 @@
 			fromType, toType,
 			lineStyle: getLineStyle(fromType, toType),
 			note: connection.note ?? null,
-			notePlacement, noteOffsetX, noteOffsetY
+			notePlacement, noteAnchorX: mx, noteAnchorY: my
 		});
-
-		// ── Bounds clamping (initial pass) ─────────────────────────────────
-		// Ensure the note does not clip off the top or left edges of the canvas
-		// after its initial placement is assigned.
-		clampNotePlacement(newPaths[newPaths.length - 1], scale);
 	}
 
-	// ── Collision detection pass ────────────────────────────────────────────
-	// For each pair of notes whose bounding boxes would overlap, try alternative
-	// placements for the later note until one does not collide.
+	// ── Note placement resolution ───────────────────────────────────────────
+	// Each note prefers to sit over WHITE SPACE (avoiding passage-segment boxes)
+	// and to not overlap other notes. The resolver scores every candidate
+	// placement/offset and commits the best, treating already-placed notes as
+	// obstacles for the ones that follow.
 	const notePaths = newPaths.filter(p => p.note);
-	for (let i = 0; i < notePaths.length; i++) {
-		for (let j = i + 1; j < notePaths.length; j++) {
-			const a = notePaths[i];
-			const b = notePaths[j];
-
-		const axPx = a.mx + a.noteOffsetX;
-		const ayPx = a.my + a.noteOffsetY;
-		const bxPx = b.mx + b.noteOffsetX;
-		const byPx = b.my + b.noteOffsetY;
-
-			const boxA = noteBoundingBox(axPx, ayPx, a.notePlacement);
-			const boxB = noteBoundingBox(bxPx, byPx, b.notePlacement);
-
-			if (boxesOverlap(boxA, boxB)) {
-				// Try each placement for b until one does not overlap with a.
-				// Re-clamp after each candidate placement change so bounds stay safe.
-				for (const placement of NOTE_PLACEMENT_ORDER) {
-					if (placement === b.notePlacement) continue;
-					const testBox = noteBoundingBox(bxPx, byPx, placement);
-					if (!boxesOverlap(boxA, testBox)) {
-						b.notePlacement = placement;
-						// Reset offsets before re-clamping the new placement
-						b.noteOffsetX = 0;
-						b.noteOffsetY = 0;
-						clampNotePlacement(b, scale);
-						break;
-					}
-				}
-			}
-		}
+	if (notePaths.length > 0) {
+		const segmentBoxes = collectSegmentBoxes(svgRect, scale);
+		resolveNotePlacements(notePaths, segmentBoxes, scale);
 	}
 
 		paths = newPaths;
@@ -1149,13 +1278,13 @@
 
 		const contentWrapper = svgElement.closest('.analyze-content-wrapper');
 		if (contentWrapper) {
-			resizeObserver = new ResizeObserver(() => requestAnimationFrame(calculatePaths));
+			resizeObserver = new ResizeObserver(() => scheduleCalculate());
 			resizeObserver.observe(contentWrapper);
 		}
 
 		scrollContainer = /** @type {HTMLElement|null} */ (svgElement.closest('.analyze-content'));
 		if (scrollContainer) {
-			scrollContainer.addEventListener('scroll', calculatePaths, { passive: true });
+			scrollContainer.addEventListener('scroll', scheduleCalculate, { passive: true });
 		}
 
 		// Re-calculate paths after the zoom CSS transition finishes so anchor points
@@ -1172,18 +1301,35 @@
 		window.addEventListener('connection-insert-note', handleInsertConnectionNote);
 		window.addEventListener('connection-remove-note', handleRemoveConnectionNote);
 
+		// Column/section spacing changes (live drag + modal apply/reset) reflow the
+		// passage text, so the note layout must re-evaluate to keep notes over
+		// white space. The reposition composables dispatch 'analyze-layout-changed'
+		// on each drag mousemove; the spacing modals fire their own set/reset events.
+		window.addEventListener('analyze-layout-changed', handleLayoutChanged);
+		window.addEventListener('set-section-spacing', handleLayoutChanged);
+		window.addEventListener('reset-section-spacing', handleLayoutChanged);
+		window.addEventListener('set-column-spacing', handleLayoutChanged);
+		window.addEventListener('reset-column-spacing', handleLayoutChanged);
+		window.addEventListener('reset-section-position', handleLayoutChanged);
+
 		requestAnimationFrame(calculatePaths);
 	});
 
 	onDestroy(() => {
 		resizeObserver?.disconnect();
-		scrollContainer?.removeEventListener('scroll', calculatePaths);
+		scrollContainer?.removeEventListener('scroll', scheduleCalculate);
 		contentInner?.removeEventListener('transitionend', handleTransitionEnd);
 		window.removeEventListener('pointermove', handlePointerMove);
 		window.removeEventListener('pointerup', handlePointerUp);
 		document.removeEventListener('click', handleDocumentClick);
 		window.removeEventListener('connection-insert-note', handleInsertConnectionNote);
 		window.removeEventListener('connection-remove-note', handleRemoveConnectionNote);
+		window.removeEventListener('analyze-layout-changed', handleLayoutChanged);
+		window.removeEventListener('set-section-spacing', handleLayoutChanged);
+		window.removeEventListener('reset-section-spacing', handleLayoutChanged);
+		window.removeEventListener('set-column-spacing', handleLayoutChanged);
+		window.removeEventListener('reset-column-spacing', handleLayoutChanged);
+		window.removeEventListener('reset-section-position', handleLayoutChanged);
 		if (noteSaveTimeout) clearTimeout(noteSaveTimeout);
 		document.querySelectorAll('.connection-drop-target').forEach(el => el.classList.remove('connection-drop-target'));
 	});
@@ -1394,7 +1540,7 @@
 					class="connection-note-wrapper"
 					class:connection-note-wrapper--editing={noteEditingId === path.id}
 					class:connection-note-wrapper--selected={noteSelectedId === path.id || selectedPathIds.has(path.id)}
-					style="left: {path.mx + path.noteOffsetX}px; top: {path.my + path.noteOffsetY}px; transform: {noteTransform(path.notePlacement)};"
+					style="left: {path.noteAnchorX}px; top: {path.noteAnchorY}px; transform: {noteTransform(path.notePlacement)};"
 					onclick={(e) => e.stopPropagation()}
 					onkeydown={(e) => e.stopPropagation()}
 					role="none"
@@ -1445,7 +1591,7 @@
 		<svg class="connections-dots-overlay" aria-hidden="true" focusable="false">
 			{#each visiblePaths as path (path.id)}
 				{#if path.note}
-					<circle class="connection-note-dot" cx={path.mx} cy={path.my} r="4" />
+					<circle class="connection-note-dot" cx={path.noteAnchorX} cy={path.noteAnchorY} r="4" />
 				{/if}
 			{/each}
 		</svg>

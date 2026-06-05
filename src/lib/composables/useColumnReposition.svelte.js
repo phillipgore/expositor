@@ -279,6 +279,11 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 			height: Math.round(defaultGap + sides * newMargin)
 		};
 
+		// Signal the connection overlay to re-flow Quick Notes live as the column
+		// (and the passage text beside it) reflows. The overlay rAF-coalesces these.
+		if (typeof window !== 'undefined') {
+			window.dispatchEvent(new Event('analyze-layout-changed'));
+		}
 	}
 
 	/**
