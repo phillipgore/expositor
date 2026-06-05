@@ -135,8 +135,36 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
+		iconId="segment-height"
+		label="Set Segment Height"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('set-segment-height'));
+		}}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="segment-height-reset"
+		label="Reset Segment Height"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('restore-segment-height'));
+		}}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
 		iconId="connect"
 		label="Connect"
+
+
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();

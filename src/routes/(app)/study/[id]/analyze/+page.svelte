@@ -7,7 +7,11 @@
 	import ConnectionsOverlay from '$lib/componentWidgets/ConnectionsOverlay.svelte';
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
+	import ResizeTooltip from '$lib/componentElements/ResizeTooltip.svelte';
+	import SetSegmentHeightModal from '$lib/componentWidgets/modals/SetSegmentHeightModal.svelte';
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
+
+
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
@@ -27,6 +31,96 @@
 
 	// Attach window mousemove/mouseup listeners only while a resize drag is active.
 	$effect(() => segmentResize.setupResizeListeners());
+
+	// ─── Set-height modal (bulk uniform height for selected segments) ──────────
+	// Opened from Structure → Set Height. Measures the current selection to seed
+	// the default value (tallest current height) and the minimum allowed value
+	// (tallest natural/content height) before showing the modal.
+	let setHeightModalOpen = $state(false);
+	let setHeightSegmentIds = $state(/** @type {string[]} */ ([]));
+	let setHeightTallest = $state(0);
+	let setHeightMin = $state(0);
+
+	/**
+	 * Measure the selected segments and open the Set Height modal.
+	 * - tallest = max current rendered height (÷ scale → CSS px) → default value
+	 * - min     = max natural/content height (÷ scale → CSS px)  → floor
+	 */
+	function openSetHeightModal() {
+		const ids = activeSegments.map((s) => s.segmentId);
+		if (ids.length === 0) return;
+
+		const scale = currentScale || 1;
+		let tallest = 0;
+		let minFloor = 0;
+
+		for (const id of ids) {
+			const el = /** @type {HTMLElement|null} */ (
+				document.querySelector(`[data-segment-id="${id}"]`)
+			);
+			if (!el) continue;
+
+			// Current rendered height (includes any applied min-height).
+			const current = el.getBoundingClientRect().height / scale;
+			if (current > tallest) tallest = current;
+
+			// Natural content height: momentarily clear inline min-height to measure.
+			const prevMinHeight = el.style.minHeight;
+			el.style.minHeight = '0px';
+			const natural = el.getBoundingClientRect().height / scale;
+			el.style.minHeight = prevMinHeight;
+			if (natural > minFloor) minFloor = natural;
+		}
+
+		setHeightSegmentIds = ids;
+		setHeightTallest = Math.round(tallest);
+		setHeightMin = Math.ceil(minFloor);
+		setHeightModalOpen = true;
+	}
+
+	/**
+	 * Persist a uniform height across the selected segments via the batch endpoint,
+	 * then refresh loaded data so the new heights survive reload.
+	 * @param {number} height
+	 */
+	async function applySetHeight(height) {
+		const ids = setHeightSegmentIds;
+		setHeightModalOpen = false;
+		if (ids.length === 0) return;
+
+		try {
+			await fetch('/api/segments/batch-height', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ids, height })
+			});
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Failed to set segment heights:', error);
+		}
+	}
+
+	/**
+	 * Restore the selected segments to their natural (flexible) height by clearing
+	 * any fixed height override (height = null) via the batch endpoint.
+	 */
+	async function restoreSegmentHeight() {
+		const ids = activeSegments.map((s) => s.segmentId);
+		if (ids.length === 0) return;
+
+		try {
+			await fetch('/api/segments/batch-height', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ids, height: null })
+			});
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Failed to restore segment heights:', error);
+		}
+	}
+
+
 
 	/**
 	 * Compare two word IDs to determine their order (client-side version)
@@ -1149,8 +1243,14 @@
 
 		const handleInsertConnectionEvent = () => handleInsertConnection();
 		const handleRemoveConnectionEvent = () => handleRemoveConnection();
+		const handleSetSegmentHeightEvent = () => openSetHeightModal();
+		const handleRestoreSegmentHeightEvent = () => restoreSegmentHeight();
 
 		window.addEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
+		window.addEventListener('set-segment-height', handleSetSegmentHeightEvent);
+		window.addEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
+
+
 		window.addEventListener('insert-connection', handleInsertConnectionEvent);
 		window.addEventListener('remove-connection', handleRemoveConnectionEvent);
 		window.addEventListener('insert-column', handleInsertColumnEvent);
@@ -1179,7 +1279,11 @@
 
 		return () => {
 			window.removeEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
+			window.removeEventListener('set-segment-height', handleSetSegmentHeightEvent);
+			window.removeEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
 			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
+
+
 			window.removeEventListener('remove-connection', handleRemoveConnectionEvent);
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
 			window.removeEventListener('insert-section', handleInsertSectionEvent);
@@ -3297,7 +3401,30 @@
 		></div>
 	{/if}
 
+	<!-- Live height tooltip following the resize drag, shown above the segment's
+	     bottom drag indicator. -->
+	{#if segmentResize.dragTooltip.visible}
+		<ResizeTooltip
+			x={segmentResize.dragTooltip.x}
+			y={segmentResize.dragTooltip.y}
+			height={segmentResize.dragTooltip.height}
+		/>
+	{/if}
+
+	<!-- Bulk "Set Height" modal (Structure → Set Height). Applies a uniform height
+	     across all selected segments, never smaller than the tallest text floor. -->
+	<SetSegmentHeightModal
+		isOpen={setHeightModalOpen}
+		segmentCount={setHeightSegmentIds.length}
+		tallestHeight={setHeightTallest}
+		minHeight={setHeightMin}
+		onApply={applySetHeight}
+		onClose={() => (setHeightModalOpen = false)}
+	/>
+
 	<!-- Copyright Notice -->
+
+
 	<div class="copyright-notice">
 
 		{#if data.study.translation === 'esv'}

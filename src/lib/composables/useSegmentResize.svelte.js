@@ -38,12 +38,19 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 	// Yellow guide line geometry (viewport-fixed). visible=false hides it.
 	let guideLine = $state({ visible: false, top: 0, left: 0, width: 0 });
 
+	// Live height tooltip that follows the drag (viewport-fixed). x/y track the
+	// horizontal center and current bottom edge of the dragged segment; height is
+	// the CSS-px value being applied (and ultimately saved).
+	let dragTooltip = $state({ visible: false, x: 0, y: 0, height: 0 });
+
 	// Internal (non-reactive) drag bookkeeping.
 	let startY = 0; // pointer Y at mousedown (viewport px)
 	let draggedTopY = 0; // dragged segment's top edge (viewport px) — fixed during its own resize
+	let draggedCenterX = 0; // dragged segment's horizontal center (viewport px) — fixed during resize
 	let renderedStartHeight = 0; // dragged segment's rendered height at start (viewport px)
 	let naturalContentHeight = 0; // minimum allowed height (CSS px) = natural text height
 	let snapCandidates = []; // array of viewport Y values (other columns' segment edges)
+
 
 	/**
 	 * Begin a resize drag for the given segment.
@@ -67,7 +74,9 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 
 		const rect = segmentEl.getBoundingClientRect();
 		draggedTopY = rect.top;
+		draggedCenterX = rect.left + rect.width / 2;
 		renderedStartHeight = rect.height;
+
 
 		// Measure natural (content) height by momentarily clearing the inline min-height.
 		const prevMinHeight = segmentEl.style.minHeight;
@@ -90,10 +99,19 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 			snapCandidates.push(r.top, r.bottom);
 		});
 
+		// Show the live-height tooltip anchored to the segment's current bottom edge.
+		dragTooltip = {
+			visible: true,
+			x: draggedCenterX,
+			y: draggedTopY + renderedStartHeight,
+			height: Math.round(renderedStartHeight / scale)
+		};
+
 		activeSegmentId = segmentId;
 		document.body.style.cursor = 'ns-resize';
 		document.body.style.userSelect = 'none';
 	}
+
 
 	/**
 	 * Handle pointer movement during a resize.
@@ -132,7 +150,16 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 
 		liveHeights = { ...liveHeights, [activeSegmentId]: newContentHeight };
 
+		// Update the live-height tooltip to follow the dragged bottom edge.
+		dragTooltip = {
+			visible: true,
+			x: draggedCenterX,
+			y: draggedTopY + newContentHeight * scale,
+			height: Math.round(newContentHeight)
+		};
+
 		// Position / toggle the guide line.
+
 		if (snappedY !== null) {
 			const container = getContainer();
 			if (container) {
@@ -158,8 +185,10 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		// Reset interaction state immediately.
 		activeSegmentId = null;
 		guideLine = { visible: false, top: 0, left: 0, width: 0 };
+		dragTooltip = { visible: false, x: 0, y: 0, height: 0 };
 		document.body.style.cursor = '';
 		document.body.style.userSelect = '';
+
 
 		if (finalHeight == null) return;
 
@@ -213,6 +242,10 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		},
 		get guideLine() {
 			return guideLine;
+		},
+		get dragTooltip() {
+			return dragTooltip;
 		}
 	};
+
 }
