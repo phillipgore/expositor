@@ -161,7 +161,7 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="section"
+		iconId="section-spacing"
 		label="Set Section Spacing"
 		role="menuitem"
 		handleClick={() => {
@@ -173,7 +173,7 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-height-reset"
+		iconId="section-spacing-reset"
 		label="Reset Section Spacing"
 		role="menuitem"
 		handleClick={() => {
