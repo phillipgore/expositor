@@ -115,10 +115,16 @@
 
 <style>
 	.glossary-page {
+		/* width:100% prevents this flex item (inside .content-wrapper, a flex
+		   column) from shrink-wrapping to its content. Without it, auto side
+		   margins disable stretch and the whole page — including the fixed-width
+		   nav column — narrows as search hides longer terms. */
+		width: 100%;
 		max-width: 100rem;
 		margin: 0 auto;
 		padding: 2.4rem 2.4rem 6rem;
 	}
+
 
 	/* ============================================
 	   HEADER + SEARCH
