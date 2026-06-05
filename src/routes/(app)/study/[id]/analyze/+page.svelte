@@ -288,6 +288,17 @@
 		return totalSelected > 1;
 	});
 
+	// Derived state: whether multiple structural items (columns and/or sections) are selected.
+	// When true, we keep ALL column/section selection controls visible (even without the
+	// Command/Ctrl key) so the user can easily add to or remove from the multi-selection.
+	let hasMultipleStructuralSelections = $derived.by(() => {
+		const selections = isCompareMode
+			? { columns: compareActiveColumns, sections: compareActiveSections }
+			: { columns: activeColumns, sections: activeSections };
+
+		return (selections.columns.length + selections.sections.length) > 1;
+	});
+
 	// Derived state: Check if exactly one item is selected (enables the Focus button).
 	// Uses normal selections only — Focus is entered from a single structural selection.
 	let isSingleSelectMode = $derived.by(() => {
@@ -1204,8 +1215,8 @@
 			setActiveConnection(false, []);
 			setHeadingOrNoteEditorActive(false, null);
 			
-			if (!isCommandKeyHeld) {
-				// Normal click: replace selection with just this column
+			if (!isCommandKeyHeld && !hasMultipleStructuralSelections) {
+				// Normal click with no existing multi-selection: replace selection with just this column
 				if (isCompareMode) {
 					compareActiveColumns = [columnId];
 					compareActiveSections = [];
@@ -1216,7 +1227,8 @@
 					activeSegments = [];
 				}
 			} else {
-				// Cmd/Ctrl held: use hierarchical selection handler (additive/toggle)
+				// Cmd/Ctrl held, or a multi-selection already exists: use hierarchical
+				// selection handler (additive/toggle) so the click adds to the selection.
 				const newState = handleSelection('column', columnId);
 				
 				// Update the appropriate state based on compare mode
@@ -1260,8 +1272,8 @@
 			setActiveConnection(false, []);
 			setHeadingOrNoteEditorActive(false, null);
 			
-			if (!isCommandKeyHeld) {
-				// Normal click: replace selection with just this section
+			if (!isCommandKeyHeld && !hasMultipleStructuralSelections) {
+				// Normal click with no existing multi-selection: replace selection with just this section
 				if (isCompareMode) {
 					compareActiveColumns = [];
 					compareActiveSections = [sectionId];
@@ -1272,7 +1284,8 @@
 					activeSegments = [];
 				}
 			} else {
-				// Cmd/Ctrl held: use hierarchical selection handler (additive/toggle)
+				// Cmd/Ctrl held, or a multi-selection already exists: use hierarchical
+				// selection handler (additive/toggle) so the click adds to the selection.
 				const newState = handleSelection('section', sectionId);
 				
 				// Update the appropriate state based on compare mode
@@ -3465,8 +3478,10 @@
 																	{/each}
 																{/if}
 																
-															<!-- Section toolbar: Command+any selection shows all, Single-select shows for active columns in that column -->
-															{#if (isCommandKeyHeld && (activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0))
+															<!-- Section toolbar: Command (or multiple column/section selections) shows all even with no
+															     single selection; single-select shows controls only for the active column in this column. -->
+															{#if isCommandKeyHeld
+															     || hasMultipleStructuralSelections
 															     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
 																<ToolbarSection 
 																	sectionId={section.id}
@@ -3501,12 +3516,15 @@
 														{/each}
 													{/if}
 
-													<!-- Column toolbar: Command+any selection shows all, Single-select shows for active columns in that column -->
-													{#if (isCommandKeyHeld && (activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0))
+													<!-- Column toolbar: Command (or multiple column/section selections) shows all even with no
+													     single selection; single-select shows controls only for the active column in this column. -->
+													{#if isCommandKeyHeld
+													     || hasMultipleStructuralSelections
 													     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
 														<ToolbarColumn 
 															columnId={column.id} 
 															isActive={activeColumns.includes(column.id)}
+															sectionColor={column.sections[0]?.color}
 														/>
 													{/if}
 												</div>
