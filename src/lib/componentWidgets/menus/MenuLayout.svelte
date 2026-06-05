@@ -7,9 +7,11 @@
 	 * only adjust spacing and sizing and are gated behind view modes — they are
 	 * disabled in Overview, Compare, and Focus modes.
 	 *
-	 * - Segment Height  — Set Segment Height / Reset Segment Height
-	 * - Section Spacing — Set Section Spacing / Reset Section Spacing
+	 * Items are ordered largest container first (Column ⊃ Section ⊃ Segment) to
+	 * match the app's nesting hierarchy and the Structure/View menus' ordering:
 	 * - Column Spacing  — Set Column Spacing / Reset Column Spacing
+	 * - Section Spacing — Set Section Spacing / Reset Section Spacing
+	 * - Segment Height  — Set Segment Height / Reset Segment Height
 	 *
 
 	 * Usage:
@@ -40,26 +42,26 @@
 <Menu {menuId} ariaLabel="Layout menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-height"
-		label="Set Segment Height"
+		iconId="column-spacing"
+		label="Set Column Spacing"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-segment-height'));
+			window.dispatchEvent(new CustomEvent('set-column-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
 	/>
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-height-reset"
-		label="Reset Segment Height"
+		iconId="column-spacing-reset"
+		label="Reset Column Spacing"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			window.dispatchEvent(new CustomEvent('restore-segment-height'));
+			window.dispatchEvent(new CustomEvent('reset-column-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
 	/>
 
 	<DividerHorizontal />
@@ -92,26 +94,26 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="column-spacing"
-		label="Set Column Spacing"
+		iconId="segment-height"
+		label="Set Segment Height"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-column-spacing'));
+			window.dispatchEvent(new CustomEvent('set-segment-height'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
 	/>
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="column-spacing-reset"
-		label="Reset Column Spacing"
+		iconId="segment-height-reset"
+		label="Reset Segment Height"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			window.dispatchEvent(new CustomEvent('reset-column-spacing'));
+			window.dispatchEvent(new CustomEvent('restore-segment-height'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
 	/>
 </Menu>
 
