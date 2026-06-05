@@ -46,12 +46,13 @@
 
 	<div class="glossary-search">
 		<input
-			type="text"
+			type="search"
 			bind:value={query}
 			placeholder="Search"
 			aria-label="Search glossary terms"
 		/>
 	</div>
+
 
 	{#if results.length === 0}
 		<p class="glossary-empty">No terms match “{query}”.</p>
@@ -93,7 +94,16 @@
 											<em>{entry.examples.join('; ')}</em>
 										</div>
 									{/if}
+									{#if entry.notes.length}
+										<div class="term-example">
+											<span class="term-example-label">
+												{entry.notesPlural ? 'Notes:' : 'Note:'}
+											</span>
+											<em>{entry.notes.join('; ')}</em>
+										</div>
+									{/if}
 								</article>
+
 							{/each}
 						</div>
 					</section>
@@ -175,6 +185,7 @@
 	}
 
 	.glossary-nav ul {
+
 		list-style: none;
 		margin: 0;
 		padding: 0;

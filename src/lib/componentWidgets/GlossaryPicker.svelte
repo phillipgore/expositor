@@ -102,7 +102,7 @@
 
 	<div class="picker-search">
 		<input
-			type="text"
+			type="search"
 			bind:this={inputElement}
 			bind:value={query}
 			placeholder="Search"
@@ -110,6 +110,7 @@
 			aria-label="Search glossary terms"
 		/>
 	</div>
+
 
 	<div class="picker-results">
 		{#if results.length === 0}

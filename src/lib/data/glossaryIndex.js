@@ -65,16 +65,55 @@ function usesPluralExamples(term) {
 }
 
 /**
+ * Normalize a term's note data into a single array of strings.
+ * The source JSON uses `note` (string) or `notes` (string/array) inconsistently.
+ * @param {any} term
+ * @returns {string[]}
+ */
+function normalizeNotes(term) {
+	const notes = [];
+	if (typeof term.note === 'string' && term.note.trim()) {
+		notes.push(term.note.trim());
+	}
+	if (typeof term.notes === 'string' && term.notes.trim()) {
+		notes.push(term.notes.trim());
+	}
+	if (Array.isArray(term.notes)) {
+		for (const n of term.notes) {
+			if (typeof n === 'string' && n.trim()) notes.push(n.trim());
+		}
+	}
+	return notes;
+}
+
+/**
+ * Determine whether a term used the PLURAL `notes` key in the source JSON.
+ * Drives the label ("Notes:" vs "Note:").
+ * @param {any} term
+ * @returns {boolean}
+ */
+function usesPluralNotes(term) {
+	return (
+		Array.isArray(term.notes) ||
+		(typeof term.notes === 'string' && term.notes.trim().length > 0)
+	);
+}
+
+
+/**
  * @typedef {Object} GlossaryEntry
  * @property {string} _id - Stable term id (e.g. "ls-chiasm")
  * @property {string} term - Display label
  * @property {string} definition
  * @property {string[]} examples
  * @property {boolean} examplesPlural - True when the source used the `examples` key
+ * @property {string[]} notes
+ * @property {boolean} notesPlural - True when the source used the `notes` key
  * @property {string} category - Human-readable category title
  * @property {string} categoryId - Category `_id`
  * @property {string} color - Badge color for this category
  */
+
 
 /**
  * Flattened, denormalized list of every glossary term.
@@ -87,10 +126,13 @@ export const glossaryIndex = glossary.flatMap((category) =>
 		definition: term.definition || '',
 		examples: normalizeExamples(term),
 		examplesPlural: usesPluralExamples(term),
+		notes: normalizeNotes(term),
+		notesPlural: usesPluralNotes(term),
 		category: category.title,
 		categoryId: category._id,
 		color: CATEGORY_COLORS[category._id] || DEFAULT_COLOR
 	}))
+
 );
 
 
@@ -158,7 +200,7 @@ export function groupByCategory(entries) {
 }
 
 /**
- * Build tooltip HTML (definition + examples) for a term.
+ * Build tooltip HTML (definition + examples + notes) for a term.
  * Safe-ish: escapes the dynamic text since the tooltip renders with allowHtml.
  * @param {string} id
  * @returns {string}
@@ -182,7 +224,13 @@ export function getTooltipHtml(id) {
 		html += `<hr class="glossary-tooltip-divider" />`;
 		html += `<div class="glossary-tooltip-example"><strong class="glossary-tooltip-example-label">${label}</strong> <em>${esc(entry.examples.join('; '))}</em></div>`;
 	}
+	if (entry.notes.length) {
+		const label = entry.notesPlural ? 'Notes:' : 'Note:';
+		html += `<hr class="glossary-tooltip-divider" />`;
+		html += `<div class="glossary-tooltip-example"><strong class="glossary-tooltip-example-label">${label}</strong> <em>${esc(entry.notes.join('; '))}</em></div>`;
+	}
 	html += `</div>`;
 	return html;
 }
+
 
