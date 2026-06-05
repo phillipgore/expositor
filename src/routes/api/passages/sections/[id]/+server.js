@@ -50,8 +50,31 @@ export const PATCH = async ({ request, params }) => {
 		const body = await request.json();
 		const sectionId = params.id;
 
+		// Handle top-offset update (vertical reposition spacing).
+		// topOffset is the EXTRA spacing in px added above the section beyond its
+		// default gap. null/0 = default spacing; positive integer = pushed down.
+		if ('topOffset' in body) {
+			const { topOffset } = body;
+
+			if (topOffset !== null) {
+				if (typeof topOffset !== 'number' || !Number.isFinite(topOffset) || topOffset < 0) {
+					return json({ error: 'Invalid topOffset' }, { status: 400 });
+				}
+			}
+
+			await db.update(passageSection)
+				.set({
+					topOffset: topOffset === null ? null : Math.round(topOffset),
+					updatedAt: new Date()
+				})
+				.where(eq(passageSection.id, sectionId));
+
+			return json({ success: true }, { status: 200 });
+		}
+
 		// Handle commentary update
 		if ('commentary' in body) {
+
 			const { commentary } = body;
 
 			if (commentary !== undefined && typeof commentary !== 'string' && commentary !== null) {

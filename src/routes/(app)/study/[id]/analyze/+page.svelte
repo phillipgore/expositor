@@ -10,6 +10,8 @@
 	import ResizeTooltip from '$lib/componentElements/ResizeTooltip.svelte';
 	import SetSegmentHeightModal from '$lib/componentWidgets/modals/SetSegmentHeightModal.svelte';
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
+	import { useSectionReposition } from '$lib/composables/useSectionReposition.svelte.js';
+
 
 
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
@@ -31,6 +33,21 @@
 
 	// Attach window mousemove/mouseup listeners only while a resize drag is active.
 	$effect(() => segmentResize.setupResizeListeners());
+
+	// ─── Section reposition (vertical spacing) ────────────────────────────────
+	// Lives at page level so it can see all .section/.segment elements (for
+	// cross-column snapping) and the current zoom scale. Adjusts the gap ABOVE a
+	// section (distance from previous section, or from the top of the column for
+	// the first section), with the current default spacing as the floor.
+	const sectionReposition = useSectionReposition({
+		getScale: () => currentScale,
+		getContainer: () => analyzeContentRef,
+		onPersist: () => invalidate('app:studies')
+	});
+
+	// Attach window mousemove/mouseup listeners only while a reposition drag is active.
+	$effect(() => sectionReposition.setupRepositionListeners());
+
 
 	// ─── Set-height modal (bulk uniform height for selected segments) ──────────
 	// Opened from Structure → Set Height. Measures the current selection to seed
@@ -1245,10 +1262,17 @@
 		const handleRemoveConnectionEvent = () => handleRemoveConnection();
 		const handleSetSegmentHeightEvent = () => openSetHeightModal();
 		const handleRestoreSegmentHeightEvent = () => restoreSegmentHeight();
+		// Reset a section's vertical reposition offset back to the default spacing.
+		const handleResetSectionPositionEvent = (event) => {
+			const sectionId = event.detail?.sectionId;
+			if (sectionId) sectionReposition.resetPosition(sectionId);
+		};
 
 		window.addEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
 		window.addEventListener('set-segment-height', handleSetSegmentHeightEvent);
 		window.addEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
+		window.addEventListener('reset-section-position', handleResetSectionPositionEvent);
+
 
 
 		window.addEventListener('insert-connection', handleInsertConnectionEvent);
@@ -3299,8 +3323,17 @@
 												<div class="column" data-column-id="{column.id}" class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}>
 													{#if column.sections && column.sections.length > 0}
 														{#each column.sections as section, sectionIndex}
-															<div class="section {section.color}" data-section-id="{section.id}" class:compare-hidden={isHideMode && !visibleSectionIds.has(section.id)}>
+															{@const sectionOffset = sectionReposition.getLiveOffset(section.id) ?? section.topOffset ?? 0}
+															<div
+																class="section {section.color}"
+																data-section-id="{section.id}"
+																class:compare-hidden={isHideMode && !visibleSectionIds.has(section.id)}
+																class:is-repositioning={sectionReposition.activeSectionId === section.id}
+																style:--reposition-offset="{sectionOffset}px"
+															>
 																{#if section.segments && section.segments.length > 0}
+
+
 																	{#each section.segments as segment, segmentIndex}
 																		{@const domSegmentIndex = passageSegmentIndexTracker.current}
 																		{@const _segIncrement = (passageSegmentIndexTracker.current++, null)}
@@ -3360,7 +3393,31 @@
 																	isActive={activeSections.includes(section.id)}
 																/>
 															{/if}
+
+															<!-- Reposition handle: a narrow strip over the TOP border. Hovering
+															     shows a grab cursor and a dotted indicator; mousedown begins a
+															     vertical reposition drag. Rendered LAST (it is position:absolute,
+															     so DOM order is irrelevant visually) to avoid becoming the
+															     section's :first-child, which would break the first segment's
+															     top-border CSS selectors. Disabled in overview/compare/focus modes. -->
+															{#if !$toolbarState.overviewMode && !isHideMode}
+																<div
+																	class="reposition-handle"
+																	role="separator"
+																	aria-label="Reposition section"
+																	aria-orientation="horizontal"
+																	onmousedown={(e) => sectionReposition.handleRepositionStart(e, section.id)}
+																>
+																	<span class="reposition-indicator">
+																		<span class="reposition-dot"></span>
+																		<span class="reposition-dot"></span>
+																		<span class="reposition-dot"></span>
+																	</span>
+																</div>
+
+															{/if}
 															</div>
+
 														{/each}
 													{/if}
 
@@ -3400,6 +3457,19 @@
 			style:width="{segmentResize.guideLine.width}px"
 		></div>
 	{/if}
+
+	<!-- Section reposition snap guide: a yellow line spanning the content width, shown
+	     while a reposition drag is snapping to another section/segment's top/bottom edge
+	     in a different column. Fixed-positioned (viewport coordinates). -->
+	{#if sectionReposition.guideLine.visible}
+		<div
+			class="resize-snap-guide"
+			style:top="{sectionReposition.guideLine.top}px"
+			style:left="{sectionReposition.guideLine.left}px"
+			style:width="{sectionReposition.guideLine.width}px"
+		></div>
+	{/if}
+
 
 	<!-- Live height tooltip following the resize drag, shown above the segment's
 	     bottom drag indicator. -->
@@ -3586,11 +3656,80 @@
 		--section-lighter: var(--green-lighter);
 		--section-color: var(--green-dark);
 		transition: box-shadow 50ms ease-in-out;
+		/* User reposition offset: extra spacing ADDED above the section beyond its
+		   default gap. Defaults to 0 (no change). Applied additively in margin-top
+		   below so a section can be pushed down but never tighter than its default. */
+		--reposition-offset: 0px;
 	}
 
-	.section:not(:first-of-type) {
-		margin-top: 4.3rem;
+	/* First section: default gap is 0 (sits at column top). The reposition offset is
+	   the distance from the top of the column. */
+	.section:first-of-type {
+		margin-top: var(--reposition-offset, 0px);
 	}
+
+	/* Other sections: default gap is 4.3rem (distance from the previous section). The
+	   reposition offset is added on top of that default. */
+	.section:not(:first-of-type) {
+		margin-top: calc(4.3rem + var(--reposition-offset, 0px));
+	}
+
+	/* While actively dragging, suppress the box-shadow transition so the section
+	   tracks the cursor without lag. */
+	.section.is-repositioning {
+		transition: none;
+		z-index: 15;
+	}
+
+	/* ============================================================ */
+	/* Section Reposition Handle (top border drag affordance) */
+	/* ============================================================ */
+
+	/* A narrow strip overlapping the top border of each section. Invisible until
+	   hovered, at which point it shows a grab cursor and a dotted indicator so the
+	   user knows the section can be dragged vertically. */
+	.reposition-handle {
+		position: absolute;
+		top: -1.2rem;
+		left: 0;
+		right: 0;
+		height: 1.4rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: grab;
+		z-index: 16;
+		opacity: 0;
+		transition: opacity 80ms ease-in-out;
+	}
+
+	.reposition-handle:hover,
+	.section.is-repositioning .reposition-handle {
+		opacity: 1;
+	}
+
+	.section.is-repositioning .reposition-handle {
+		cursor: grabbing;
+	}
+
+	/* Grab indicator: exactly three dots in a row, centered horizontally and sitting
+	   slightly above the section's top border. */
+	.reposition-indicator {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.3rem;
+	}
+
+	.reposition-dot {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background-color: var(--section-darker);
+	}
+
+
+
 
 	/* Color variant overrides */
 	.section.red {

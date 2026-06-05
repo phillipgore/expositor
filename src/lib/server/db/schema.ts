@@ -157,6 +157,13 @@ export const passageSection = pgTable('passage_section', {
 	startingWordId: text('starting_word_id').notNull(),
 	color: text('color').notNull().default('blue'),
 	commentary: text('commentary'),
+	/**
+	 * Extra vertical spacing (in CSS px) ADDED above this section beyond its default
+	 * gap. NULL/0 = default spacing. Used to push a section down so it visually aligns
+	 * with sections/segments in other columns. Cannot make a section tighter than the
+	 * default — the value is an additive offset on top of the CSS default margin-top.
+	 */
+	topOffset: integer('top_offset'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
@@ -165,6 +172,7 @@ export const passageSection = pgTable('passage_section', {
 		.notNull()
 }, (table) => ({
 	columnIdIdx: index('passage_section_column_id_idx').on(table.passageColumnId),
+
 	startingWordIdx: index('passage_section_starting_word_idx').on(table.startingWordId),
 	colorCheck: sql`CHECK (color IN ('red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'))`
 }));

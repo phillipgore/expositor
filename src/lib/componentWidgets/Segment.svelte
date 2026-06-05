@@ -361,9 +361,10 @@
 		width: 2.4rem;
 		height: 0.3rem;
 		border-radius: 0.3rem;
-		background-color: var(--gray-400);
+		background-color: var(--section-darker);
 		box-shadow: 0 0 0 0.1rem var(--white);
 	}
+
 
 
 
