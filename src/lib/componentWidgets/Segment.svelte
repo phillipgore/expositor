@@ -365,9 +365,6 @@
 		box-shadow: 0 0 0 0.1rem var(--white);
 	}
 
-	.segment.is-resizing .resize-indicator {
-		background-color: var(--yellow);
-	}
 
 
 	/* Remove top padding when segment has heading-three */
