@@ -1498,6 +1498,11 @@
 		color: var(--gray-dark);
 		white-space: pre-wrap;
 		word-break: break-word;
+		/* Size to content up to the cap. Without an intrinsic width, an
+		   absolutely-positioned box near the right edge of the connections
+		   layer (as happens in Compare/Focus mode) collapses to the few px
+		   of available space and the text wraps into a 1-char-wide strip. */
+		width: max-content;
 		max-width: 27.4rem;
 		cursor: default;
 		user-select: none;

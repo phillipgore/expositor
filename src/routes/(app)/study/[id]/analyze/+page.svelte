@@ -337,6 +337,9 @@
 			
 			// 6. Mark we're in compare mode
 			isCompareMode = true;
+
+			// 7. Reset scroll to the top-left corner
+			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
 			
 		} else if (!$toolbarState.comparisonsVisible && isCompareMode) {
 			// EXITING COMPARE MODE
@@ -373,8 +376,12 @@
 			
 			// 5. Mark we're out of compare mode
 			isCompareMode = false;
+
+			// 6. Reset scroll to the top-left corner
+			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
 		}
 	});
+
 
 	// Focus mode toggle logic — mirrors compare mode, but driven by a single selection.
 	// Reuses the same visibleColumnIds/SectionIds/SegmentIds Sets and the compare-hidden
@@ -405,6 +412,9 @@
 
 			// 4. Mark we're in focus mode
 			isFocusMode = true;
+
+			// 5. Reset scroll to the top-left corner
+			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
 
 		} else if (!$toolbarState.focusMode && isFocusMode) {
 			// EXITING FOCUS MODE
@@ -3615,7 +3625,8 @@
 	}
 
 	/* First segment with Heading Two at top in compare mode */
-	:global(.compare-first-segment .heading-two) {
+	/* Only when there's no Heading One above it within the same segment */
+	:global(.compare-first-segment:not(.has-heading-one) .heading-two) {
 		border-top: 0.1rem solid;
 		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
