@@ -97,7 +97,7 @@
 </script>
 
 {#if !isVerifying}
-	<Heading heading="h1" classes="h4">Email Verification</Heading>
+	<Heading heading="h1">Email Verification</Heading>
 {/if}
 
 {#if isVerifying}

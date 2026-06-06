@@ -65,7 +65,7 @@
 	}
 </script>
 
-<Heading heading="h1" classes="h4">Password Reset</Heading>
+<Heading heading="h1">Password Reset</Heading>
 
 <form on:submit={handleSubmit}>
 	

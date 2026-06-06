@@ -64,7 +64,7 @@
 	}
 </script>
 
-<Heading heading="h1" classes="h4">Sign In</Heading>
+<Heading heading="h1">Sign In</Heading>
 
 <form on:submit={handleSubmit}>
 	

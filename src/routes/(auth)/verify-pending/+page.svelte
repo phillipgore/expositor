@@ -16,7 +16,7 @@
 	}
 </script>
 
-<Heading heading="h1" classes="h4">Check Your Email</Heading>
+<Heading heading="h1">Check Your Email</Heading>
 
 <Alert color="green" look="subtle" message={message} />
 

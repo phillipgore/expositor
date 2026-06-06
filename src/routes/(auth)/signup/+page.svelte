@@ -64,7 +64,7 @@
 	}
 </script>
 
-<Heading heading="h1" classes="h4">Sign Up</Heading>
+<Heading heading="h1">Sign Up</Heading>
 
 <form on:submit={handleSubmit}>
 	<Alert color="red" look="subtle" message={error} />
