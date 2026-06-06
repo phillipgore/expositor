@@ -207,9 +207,13 @@ export function getAppToolbarConfig() {
 					underLabel: 'View',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					// Disabled on the glossary reference page (reference mode) and the dashboard
-					disabledCheck: (state) => state.isGlossaryRoute || state.isDashboardRoute
+					// The View button stays enabled on the dashboard, glossary, and
+					// study-group pages; on those routes every item inside the View menu is
+					// disabled instead (the canToggle* flags are all false there).
+					disabledCheck: () => false
 				},
+
+
 
 				{
 					type: 'menu',
@@ -321,7 +325,7 @@ export function getAuthToolbarConfig() {
 				},
 				{
 					type: 'icon',
-					iconId: 'plus',
+					iconId: 'plus-circle',
 					underLabel: 'Sign Up',
 					href: '/signup',
 					classes: 'toolbar-dark',

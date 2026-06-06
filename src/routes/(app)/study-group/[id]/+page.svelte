@@ -72,7 +72,7 @@
 		margin-top: -15.5rem;
 		height: 10.0rem;
 		max-width: initial;
-		margin-bottom: 5.4rem;
+		margin-bottom: 2.7rem;
 		fill: var(--gray-700);
 	}
 
@@ -84,6 +84,6 @@
 	.button-group {
 		display: flex;
 		gap: 1.5rem;
-		padding-top: 1.8rem;
+		padding-top: 5.4rem;
 	}
 </style>

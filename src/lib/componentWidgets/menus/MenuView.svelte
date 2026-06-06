@@ -60,6 +60,7 @@
 		label="References"
 		isActive={$toolbarState.referencesVisible}
 		onToggle={toggleReferences}
+		isDisabled={!$toolbarState.canToggleReferences}
 	/>
 
 	<DividerHorizontal />
