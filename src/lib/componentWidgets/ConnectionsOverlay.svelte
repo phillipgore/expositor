@@ -251,6 +251,47 @@
 	}
 
 	/**
+	 * Rect to use when anchoring a COLUMN connection end.
+	 *
+	 * A column box has no fixed height — it wraps its sections via flex.  When the
+	 * user pushes the FIRST section down (its reposition offset becomes margin-top),
+	 * that margin lives INSIDE the column box, so the column's own top edge stays put
+	 * and an empty gap opens above the section header.  Anchoring to the column box
+	 * top would leave the square endpoint floating in that gap.
+	 *
+	 * To keep the column anchor glued to the visible header, we keep the column's
+	 * horizontal extent (left / right / width — so the slide range still spans the
+	 * column) but take the TOP from the first VISIBLE section.  Falls back to the
+	 * column's own rect when it has no visible section.  Re-measured every frame, so
+	 * it tracks both a live section drag and a persisted offset.
+	 * @param {Element} columnEl
+	 * @returns {DOMRect}
+	 */
+	function columnAnchorRect(columnEl) {
+		const colRect = columnEl.getBoundingClientRect();
+		const sections = columnEl.querySelectorAll('.section[data-section-id]');
+		for (const sec of sections) {
+			if (sec.classList.contains('compare-hidden')) continue;
+			const r = sec.getBoundingClientRect();
+			if (r.width === 0 || r.height === 0) continue; // skip hidden sections
+			// Synthesize: column's horizontal bounds + first visible section's top.
+			return /** @type {DOMRect} */ ({
+				left:   colRect.left,
+				right:  colRect.right,
+				width:  colRect.width,
+				top:    r.top,
+				bottom: colRect.bottom,
+				height: colRect.bottom - r.top,
+				x:      colRect.left,
+				y:      r.top,
+				toJSON() { return this; }
+			});
+		}
+		return colRect;
+	}
+
+
+	/**
 	 * Distribute a set of anchor points along a one-dimensional edge span so that:
 	 *   • each anchor sits as close as possible to its IDEAL coordinate (the spot
 	 *     directly across from its opposite endpoint → shortest connecting line),
@@ -817,9 +858,13 @@
 			const fromEl = getElementForConnection(connection, 'from');
 			const toEl   = getElementForConnection(connection, 'to');
 			if (!fromEl || !toEl) continue;
-			const fromRect = fromEl.getBoundingClientRect();
-			const toRect   = toEl.getBoundingClientRect();
+			// Column ends anchor to the first VISIBLE section's top (not the column box
+			// top) so the square endpoint stays glued to the header even when the user
+			// pushes the first section down. See columnAnchorRect().
+			const fromRect = fromType === 'column' ? columnAnchorRect(fromEl) : fromEl.getBoundingClientRect();
+			const toRect   = toType   === 'column' ? columnAnchorRect(toEl)   : toEl.getBoundingClientRect();
 			if (fromRect.width === 0 || toRect.width === 0) continue;
+
 
 			// Centres of each element — used to pick segment side & section edge.
 			const fromCX = (fromRect.left + fromRect.right)  / 2;
@@ -1098,9 +1143,12 @@
 			const id = /** @type {HTMLElement} */ (el).dataset.columnId;
 			if (!id || id === fixedElementId) return;
 			if (hasConnectionBetween(fixedType, fixedElementId, 'column', id, connectionId)) return;
-			const rect = el.getBoundingClientRect();
+			// Match the column anchor: top from the first visible section, not the
+			// column box top (see columnAnchorRect).
+			const rect = columnAnchorRect(el);
 			if (rect.width === 0) return;
 			const { x, y } = getAnchorPoint(rect, 'column', svgRect);
+
 			handles.push({ elementId: id, type: 'column', side: 'left', x, y });
 		});
 

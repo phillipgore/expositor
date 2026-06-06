@@ -95,11 +95,16 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		const computedMargin = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
 		startMargin = computedMargin / scale;
 
-		// Measure the DEFAULT (floor) margin by momentarily clearing any inline override.
-		const prevInlineMargin = sectionEl.style.marginTop;
-		sectionEl.style.marginTop = '';
+		// Measure the DEFAULT (floor) margin. The reposition offset is applied through the
+		// `--reposition-offset` CSS variable (margin-top: calc(default + var(...))), NOT via
+		// an inline margin-top, so we must momentarily zero that variable to collapse the
+		// margin to its default. (Clearing style.marginTop would be a no-op and leave the
+		// offset baked in, making defaultMargin == startMargin — which breaks dragging up.)
+		const prevVar = sectionEl.style.getPropertyValue('--reposition-offset');
+		sectionEl.style.setProperty('--reposition-offset', '0px');
 		const measuredDefault = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
-		sectionEl.style.marginTop = prevInlineMargin;
+		if (prevVar) sectionEl.style.setProperty('--reposition-offset', prevVar);
+		else sectionEl.style.removeProperty('--reposition-offset');
 		defaultMargin = measuredDefault / scale;
 
 		// Collect snap candidates: top & bottom edges (viewport Y) of every section and
