@@ -9,11 +9,11 @@
 	 * 
 	 * Order flows from what is printed on the text → annotations layered on top →
 	 * how the whole view is laid out:
-	 * - Structure labels — Headings, References (refs render within headings)
-	 * - Text markers     — Notations, Paragraphs
+	 * - Headings         — Heading labels on segments
+	 * - Text markers     — References, Notations, Paragraphs
 	 * - Connections      — All / Column / Section / Segment (largest container first)
 	 * - Quick Notes      — All / Passage / Connection
-	 * - Layout / mode    — Wide View, Overview
+	 * - View modes       — Wide View, Overview, Selection Controls
 	 * 
 	 * Usage:
 	 * ```svelte
@@ -43,7 +43,8 @@
 		toggleVerses,
 		toggleParagraphBreaks,
 		toggleWide,
-		toggleOverview
+		toggleOverview,
+		toggleSelectors
 	} from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuView' } = $props();
@@ -56,15 +57,15 @@
 		onToggle={toggleHeadings}
 		isDisabled={!$toolbarState.canToggleHeadings || $toolbarState.overviewMode}
 	/>
+
+	<DividerHorizontal />
+
 	<MenuToggleItem
 		label="References"
 		isActive={$toolbarState.referencesVisible}
 		onToggle={toggleReferences}
 		isDisabled={!$toolbarState.canToggleReferences}
 	/>
-
-	<DividerHorizontal />
-
 	<MenuToggleItem
 		label="Notations"
 		isActive={$toolbarState.versesVisible}
@@ -145,5 +146,11 @@
 		isActive={$toolbarState.overviewMode}
 		onToggle={toggleOverview}
 		isDisabled={!$toolbarState.canToggleOverview}
+	/>
+	<MenuToggleItem
+		label="Selection Controls"
+		isActive={$toolbarState.selectorsVisible}
+		onToggle={toggleSelectors}
+		isDisabled={!$toolbarState.canToggleOverview || $toolbarState.overviewMode}
 	/>
 </Menu>

@@ -29,6 +29,7 @@ export const user = pgTable('user', {
 	paragraphBreaksVisible: boolean('paragraph_breaks_visible').default(false),
 	wideLayout: boolean('wide_layout').default(false),
 	overviewMode: boolean('overview_mode').default(false),
+	selectorsVisible: boolean('selectors_visible').default(false),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

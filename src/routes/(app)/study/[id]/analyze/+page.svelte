@@ -3695,7 +3695,7 @@
 																
 															<!-- Section toolbar: Command (or multiple column/section selections) shows all even with no
 															     single selection; single-select shows controls only for the active column in this column. -->
-															{#if isCommandKeyHeld
+															{#if $toolbarState.selectorsVisible
 															     || hasMultipleStructuralSelections
 															     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
 																<ToolbarSection 
@@ -3733,7 +3733,7 @@
 
 													<!-- Column toolbar: Command (or multiple column/section selections) shows all even with no
 													     single selection; single-select shows controls only for the active column in this column. -->
-													{#if isCommandKeyHeld
+													{#if $toolbarState.selectorsVisible
 													     || hasMultipleStructuralSelections
 													     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
 														<ToolbarColumn 

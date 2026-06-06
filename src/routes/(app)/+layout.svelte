@@ -61,6 +61,9 @@
 		if (data.overviewMode !== undefined) {
 			setToolbarState('overviewMode', data.overviewMode);
 		}
+		if (data.selectorsVisible !== undefined) {
+			setToolbarState('selectorsVisible', data.selectorsVisible);
+		}
 	});
 
 	onMount(() => {

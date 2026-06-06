@@ -33,7 +33,8 @@ export async function PATCH({ request }) {
 			versesVisible,
 			paragraphBreaksVisible,
 			wideLayout,
-			overviewMode
+			overviewMode,
+			selectorsVisible
 		} = body;
 		
 		// Build update object with only provided fields
@@ -86,7 +87,8 @@ export async function PATCH({ request }) {
 			versesVisible,
 			paragraphBreaksVisible,
 			wideLayout,
-			overviewMode
+			overviewMode,
+			selectorsVisible
 		};
 
 		for (const [key, value] of Object.entries(booleanViewPrefs)) {

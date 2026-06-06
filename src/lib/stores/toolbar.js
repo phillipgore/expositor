@@ -91,6 +91,7 @@ async function persistPreference(updates) {
  * @property {boolean} paragraphBreaksVisible - Whether translator paragraph break markers are visible
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
+ * @property {boolean} selectorsVisible - Whether the Column/Section selector buttons are shown without holding Command/Ctrl
  * @property {number} zoomLevel - Current zoom level as percentage (25-400)
  * @property {'percentage'|'fit-width'|'fit-study'} zoomMode - Zoom mode: percentage-based or a fit mode
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
@@ -174,6 +175,7 @@ const defaultState = {
 	paragraphBreaksVisible: false,
 	wideLayout: false,
 	overviewMode: false,
+	selectorsVisible: false,
 	zoomLevel: 100,
 	selectedItem: null,
 	hasWordSelection: false,
@@ -784,6 +786,19 @@ export function toggleOverview() {
 	if (shouldCloseCommentary) updates.commentaryPanelOpen = false;
 	if (newOverviewMode) updates.headingsVisible = true;
 	persistPreference(updates);
+}
+
+/**
+ * Toggle the Column/Section selector buttons.
+ * When on, the structural selector buttons are shown in the Analyze view without
+ * requiring the Command/Ctrl key to be held. Replaces the prior behaviour where the
+ * selectors were only revealed while Command/Ctrl was pressed (the key still works
+ * for adding to / removing from a multi-selection).
+ */
+export function toggleSelectors() {
+	const newValue = !get(toolbarStateStore).selectorsVisible;
+	toolbarStateStore.update(state => ({ ...state, selectorsVisible: newValue }));
+	persistPreference({ selectorsVisible: newValue });
 }
 
 /**
