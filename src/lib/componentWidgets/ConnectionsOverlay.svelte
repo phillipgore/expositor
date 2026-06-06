@@ -6,10 +6,13 @@
 	 * Each end of a connection can be a different type (cross-type connections).
 	 *
 	 * Visual language:
-	 *   Column   → ■ square endpoints,  dotted line     · · · ·
-	 *   Section  → ◆ diamond endpoints, dashed line     – – – –
+	 *   Column   → ■ square endpoints,  solid line      ──────
+	 *   Section  → ◆ diamond endpoints, solid line      ──────
 	 *   Segment  → ● circle endpoints,  solid line      ──────
-	 *   Mixed    → dash-dot line                        – · – ·
+	 *   Mixed    → solid line                           ──────
+	 *
+	 * All connection lines render solid; the differing endpoint shapes and
+	 * anchor points remain the distinguishing visual language between types.
 	 *
 	 * Anchor points:
 	 *   Column  → top edge, centered horizontally (1/2 across)
@@ -407,6 +410,20 @@
 		if (fromType === 'column') return 'dotted';
 		return 'solid';
 	}
+
+	/**
+	 * Human-readable, capitalized label for an anchor type — shown in the hover
+	 * tooltip above each endpoint so the user can tell what kind of element an
+	 * anchor point attaches to (Column / Section / Segment).
+	 * @param {ConnType} type
+	 * @returns {string}
+	 */
+	function anchorLabel(type) {
+		if (type === 'column') return 'Column';
+		if (type === 'section') return 'Section';
+		return 'Segment';
+	}
+
 
 	// ─── Note placement helpers ───────────────────────────────────────────────
 
@@ -1832,7 +1849,31 @@
 			{/each}
 		</svg>
 	{/if}
+
+	<!-- ── Anchor type tooltips (hover) ────────────────────────────────────── -->
+	<!-- When a connection line (or either endpoint) is hovered, show a small    -->
+	<!-- black tooltip above each anchor point naming what kind of element it    -->
+	<!-- attaches to (Column / Section / Segment). Reuses the ResizeTooltip look.-->
+	{#if hoveredPathId}
+		{#each visiblePaths as path (path.id)}
+			{#if hoveredPathId === path.id}
+				<div
+					class="connection-anchor-tooltip"
+					style="left: {path.x1}px; top: {path.y1}px;"
+				>
+					{anchorLabel(path.fromType)}
+				</div>
+				<div
+					class="connection-anchor-tooltip"
+					style="left: {path.x2}px; top: {path.y2}px;"
+				>
+					{anchorLabel(path.toType)}
+				</div>
+			{/if}
+		{/each}
+	{/if}
 </div>
+
 
 <style>
 	/* ── Layer wrapper ── */
@@ -1871,9 +1912,9 @@
 		/* segment-segment: solid (default) */
 	}
 
-	.connection-path--dashed  { stroke-dasharray: 6 4; }      /* section-section */
-	.connection-path--dotted  { stroke-dasharray: 2 4; }      /* column-column   */
-	.connection-path--dashdot { stroke-dasharray: 6 3 1 3; }  /* cross-type      */
+	/* All connection lines render solid; the line-style classes are retained
+	   only to drive visibility toggles and endpoint shapes (anchor points stay
+	   distinct per type). No stroke-dasharray means every line is solid. */
 
 	.connection-path--hovered  { stroke: var(--blue); }
 	.connection-path--selected { stroke: var(--blue); stroke-width: 2.5; }
@@ -1947,10 +1988,9 @@
 		pointer-events: none;
 	}
 
-	/* Ghost line mirrors the dragged connection's line style. */
-	.connection-ghost--dashed  { stroke-dasharray: 6 4; }
-	.connection-ghost--dotted  { stroke-dasharray: 2 4; }
-	.connection-ghost--dashdot { stroke-dasharray: 6 3 1 3; }
+	/* Ghost line renders solid, matching the now-solid connection lines.
+	   The line-style classes remain on the element for parity but apply no
+	   dash pattern. */
 
 	/* ── Quick Note ── */
 
@@ -2057,6 +2097,27 @@
 
 	.connection-note-char-counter.at-limit {
 		font-weight: 700;
+	}
+
+	/* ── Anchor type tooltip (hover) ── */
+	/* Small black label above each anchor point naming its element type.
+	   Matches ResizeTooltip's look (var(--gray-200) bg, white text). Positioned
+	   in the overlay's scaled coordinate space (same as note wrappers), lifted
+	   above the anchor and centered horizontally. */
+
+	.connection-anchor-tooltip {
+		position: absolute;
+		transform: translate(-50%, calc(-100% - 0.8rem));
+		padding: 0.3rem 0.6rem;
+		border-radius: 0.3rem;
+		background-color: var(--gray-200);
+		color: var(--white);
+		font-size: 1.1rem;
+		font-variant-numeric: tabular-nums;
+		line-height: 1;
+		white-space: nowrap;
+		pointer-events: none;
+		z-index: 20;
 	}
 
 	/* ── Drop-target outline (applied to DOM elements via JS) ── */
