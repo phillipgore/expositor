@@ -35,10 +35,6 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Glossary · Expositor</title>
-</svelte:head>
-
 <div class="glossary-page">
 	<header class="glossary-header">
 		<h1 class="glossary-title">Glossary</h1>
