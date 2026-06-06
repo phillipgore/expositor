@@ -18,7 +18,7 @@
 	} = $props();
 
 	// Character limit
-	const MAX_CHARS = 140;
+	const MAX_CHARS = 280;
 
 	// Input state
 	let inputValue = $state('');

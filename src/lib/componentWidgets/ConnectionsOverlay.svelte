@@ -123,7 +123,7 @@
 	let noteSaveTimeout = null;
 
 	/** Maximum characters allowed in a connection note. */
-	const MAX_NOTE_CHARS = 140;
+	const MAX_NOTE_CHARS = 280;
 
 	/** Reference to the note textarea for auto-grow. @type {HTMLTextAreaElement|null} */
 	let noteTextareaRef = $state(null);

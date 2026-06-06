@@ -23,9 +23,9 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Missing required field: segmentId' }, { status: 400 });
 		}
 
-		// Validate note length (140 character limit)
-		if (noteText && noteText.length > 140) {
-			return json({ error: 'Note exceeds 140 character limit' }, { status: 400 });
+		// Validate note length (280 character limit)
+		if (noteText && noteText.length > 280) {
+			return json({ error: 'Note exceeds 280 character limit' }, { status: 400 });
 		}
 
 		// Perform the note update
