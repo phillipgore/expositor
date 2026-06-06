@@ -43,7 +43,19 @@
 		const result = await signIn(email, password);
 		
 		if (result.success) {
-			goto('/new-study');
+			// Force the dashboard landing layout: Finder open, Commentary closed.
+			// Persist to the DB so the layout's server load doesn't restore the
+			// user's previous panel state and override the dashboard defaults.
+			try {
+				await fetch('/api/user/preferences', {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ studiesPanelOpen: true, commentaryPanelOpen: false })
+				});
+			} catch (e) {
+				console.error('Failed to set dashboard panel defaults on login:', e);
+			}
+			goto('/dashboard');
 		} else {
 			error = result.error;
 		}

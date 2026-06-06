@@ -207,8 +207,8 @@ export function getAppToolbarConfig() {
 					underLabel: 'View',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					// Disabled on the glossary reference page (reference mode)
-					disabledCheck: (state) => state.isGlossaryRoute
+					// Disabled on the glossary reference page (reference mode) and the dashboard
+					disabledCheck: (state) => state.isGlossaryRoute || state.isDashboardRoute
 				},
 
 				{

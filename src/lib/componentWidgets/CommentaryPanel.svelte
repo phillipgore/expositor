@@ -35,7 +35,7 @@
 		() => isOpen,
 		'commentaryPanelWidth', // API property name
 		'right', // Panel is on the right side
-		475, // Minimum width: 47.5rem (475px)
+		547, // Minimum width: 54.7rem (547px) — extra room to fit the full toolbar
 		816  // Maximum width: 81.6rem (816px)
 	);
 	

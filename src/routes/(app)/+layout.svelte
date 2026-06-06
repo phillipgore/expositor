@@ -68,8 +68,8 @@
 			if (!authenticated) {
 				goto('/signin');
 			} else if ($page.url.pathname === '/') {
-				// Redirect to /new-study if on root path
-				goto('/new-study');
+				// Redirect to the dashboard (with the Finder open) if on root path
+				goto('/dashboard');
 			}
 		});
 

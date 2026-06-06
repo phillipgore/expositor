@@ -9,6 +9,7 @@
 	import { Editor } from '@tiptap/core';
 	import StarterKit from '@tiptap/starter-kit';
 	import Link from '@tiptap/extension-link';
+	import Highlight from '@tiptap/extension-highlight';
 	import { Footnote } from '$lib/utils/tiptapFootnote.js';
 	import { GlossaryTerm } from '$lib/utils/tiptapGlossaryTerm.js';
 	import { getMarkRange, isValidUrl } from '$lib/utils/tiptapUtils.js';
@@ -40,6 +41,39 @@
 	let linkPopoverPosition = $state({ top: 0, left: 0, arrowPosition: 'bottom' });
 	let isEditingExistingLink = $state(false);
 	let editingFootnoteId = $state(null);
+
+	// Reactive counter bumped on every editor selection/transaction so that
+	// `isActive()` (and thus the toolbar active states) re-evaluates live as the
+	// cursor moves, not just when document content changes.
+	let editorState = $state(0);
+
+	// Heading dropdown (H4–H6) state
+	let showHeadingMenu = $state(false);
+	let headingMenuElement = $state(null);
+
+	// Lists dropdown (Bullet / Numbered) state
+	let showListsMenu = $state(false);
+	let listsMenuElement = $state(null);
+
+	// Insert dropdown (Blockquote / Horizontal Rule) state
+	let showInsertMenu = $state(false);
+	let insertMenuElement = $state(null);
+
+	// Highlight color dropdown state
+	let showHighlightMenu = $state(false);
+	let highlightMenuElement = $state(null);
+
+	// The 8 app colors offered for highlighting (uses the `-light` shade).
+	const highlightColors = [
+		{ name: 'Red', value: 'var(--red-light)' },
+		{ name: 'Orange', value: 'var(--orange-light)' },
+		{ name: 'Yellow', value: 'var(--yellow-light)' },
+		{ name: 'Green', value: 'var(--green-light)' },
+		{ name: 'Aqua', value: 'var(--aqua-light)' },
+		{ name: 'Blue', value: 'var(--blue-light)' },
+		{ name: 'Purple', value: 'var(--purple-light)' },
+		{ name: 'Pink', value: 'var(--pink-light)' }
+	];
 
 	// Glossary picker state. `glossaryMode` distinguishes the two entry points:
 	//  - 'inline' → insert a badge into the prose at the cursor
@@ -74,8 +108,9 @@
 			editable: true,
 			extensions: [
 				StarterKit.configure({
-					// Disable features we don't need
-					heading: false,
+					// Limit headings to H4–H6 so they stay semantically distinct
+					// from the H1–H3 used by the passage/segment structure.
+					heading: { levels: [4, 5, 6] },
 					code: false,
 					codeBlock: false,
 					strike: false
@@ -88,6 +123,7 @@
 						rel: 'noopener noreferrer'
 					}
 				}),
+				Highlight.configure({ multicolor: true }),
 				Footnote,
 				GlossaryTerm
 			],
@@ -115,6 +151,14 @@
 				const html = editor.getHTML();
 				onUpdate(html);
 			},
+			// Bump the reactive counter so toolbar active states re-evaluate as the
+			// selection moves or any transaction is applied.
+			onSelectionUpdate: () => {
+				editorState++;
+			},
+			onTransaction: () => {
+				editorState++;
+			},
 			autofocus: 'end'
 		});
 	});
@@ -134,20 +178,70 @@
 		editor?.chain().focus().toggleItalic().run();
 	}
 
+	function toggleUnderline() {
+		editor?.chain().focus().toggleUnderline().run();
+	}
+
+	/** Apply a highlight in the given color and close the menu. */
+	function setHighlight(color) {
+		editor?.chain().focus().setHighlight({ color }).run();
+		showHighlightMenu = false;
+	}
+
+	/** Remove any highlight from the selection and close the menu. */
+	function removeHighlight() {
+		editor?.chain().focus().unsetHighlight().run();
+		showHighlightMenu = false;
+	}
+
+	/** Toggle the Highlight color dropdown menu open/closed. */
+	function toggleHighlightMenu() {
+		showHighlightMenu = !showHighlightMenu;
+	}
+
 	function toggleBulletList() {
 		editor?.chain().focus().toggleBulletList().run();
+		showListsMenu = false;
 	}
 
 	function toggleOrderedList() {
 		editor?.chain().focus().toggleOrderedList().run();
+		showListsMenu = false;
 	}
 
 	function toggleBlockquote() {
 		editor?.chain().focus().toggleBlockquote().run();
+		showInsertMenu = false;
 	}
 
 	function insertHorizontalRule() {
 		editor?.chain().focus().setHorizontalRule().run();
+		showInsertMenu = false;
+	}
+
+	/** Toggle the Lists dropdown menu open/closed. */
+	function toggleListsMenu() {
+		showListsMenu = !showListsMenu;
+	}
+
+	/** Toggle the Insert dropdown menu open/closed. */
+	function toggleInsertMenu() {
+		showInsertMenu = !showInsertMenu;
+	}
+
+	/**
+	 * Toggle a heading at the given level (4, 5 or 6). Toggling an already-active
+	 * level turns the block back into a paragraph.
+	 * @param {4|5|6} level
+	 */
+	function toggleHeading(level) {
+		editor?.chain().focus().toggleHeading({ level }).run();
+		showHeadingMenu = false;
+	}
+
+	/** Toggle the H4–H6 dropdown menu open/closed. */
+	function toggleHeadingMenu() {
+		showHeadingMenu = !showHeadingMenu;
 	}
 
 	let autoSaveTimeout;
@@ -466,14 +560,6 @@
 		};
 	});
 
-	// Check active states
-	$effect(() => {
-		if (editor) {
-			// Force reactivity when editor updates
-			editor.on('update', () => {});
-		}
-	});
-
 	// Auto-resize footnote textareas when footnotes are loaded
 	$effect(() => {
 		if (footnotes.length > 0) {
@@ -536,8 +622,80 @@
 	});
 
 	function isActive(type, attrs = {}) {
+		// Touch the reactive counter so this re-evaluates on selection/transaction
+		// changes, keeping the toolbar's active states in sync with the cursor.
+		editorState;
 		return editor?.isActive(type, attrs) ?? false;
 	}
+
+	// Click-outside detection for the heading (H4–H6) dropdown menu
+	$effect(() => {
+		if (showHeadingMenu) {
+			const handleClickOutside = (event) => {
+				if (headingMenuElement && !headingMenuElement.contains(event.target)) {
+					showHeadingMenu = false;
+				}
+			};
+			// Small delay to avoid immediate close from the opening click
+			setTimeout(() => {
+				window.addEventListener('click', handleClickOutside);
+			}, 0);
+			return () => {
+				window.removeEventListener('click', handleClickOutside);
+			};
+		}
+	});
+
+	// Click-outside detection for the Lists dropdown menu
+	$effect(() => {
+		if (showListsMenu) {
+			const handleClickOutside = (event) => {
+				if (listsMenuElement && !listsMenuElement.contains(event.target)) {
+					showListsMenu = false;
+				}
+			};
+			setTimeout(() => {
+				window.addEventListener('click', handleClickOutside);
+			}, 0);
+			return () => {
+				window.removeEventListener('click', handleClickOutside);
+			};
+		}
+	});
+
+	// Click-outside detection for the Insert dropdown menu
+	$effect(() => {
+		if (showInsertMenu) {
+			const handleClickOutside = (event) => {
+				if (insertMenuElement && !insertMenuElement.contains(event.target)) {
+					showInsertMenu = false;
+				}
+			};
+			setTimeout(() => {
+				window.addEventListener('click', handleClickOutside);
+			}, 0);
+			return () => {
+				window.removeEventListener('click', handleClickOutside);
+			};
+		}
+	});
+
+	// Click-outside detection for the Highlight color dropdown menu
+	$effect(() => {
+		if (showHighlightMenu) {
+			const handleClickOutside = (event) => {
+				if (highlightMenuElement && !highlightMenuElement.contains(event.target)) {
+					showHighlightMenu = false;
+				}
+			};
+			setTimeout(() => {
+				window.addEventListener('click', handleClickOutside);
+			}, 0);
+			return () => {
+				window.removeEventListener('click', handleClickOutside);
+			};
+		}
+	});
 
 	/* ----------------------------------------------------------------------
 	 * Glossary: inline insertion + bottom tags
@@ -816,6 +974,63 @@
 
 <div class="commentary-editor">
 	<div class="editor-toolbar">
+		<div class="toolbar-group dropdown-group">
+			<button
+				use:tooltip
+				type="button"
+				class="toolbar-button has-caret"
+				class:active={isActive('heading', { level: 4 }) ||
+					isActive('heading', { level: 5 }) ||
+					isActive('heading', { level: 6 })}
+				onmousedown={(e) => e.preventDefault()}
+				onclick={toggleHeadingMenu}
+				title="Heading"
+				aria-label="Heading"
+				aria-haspopup="menu"
+				aria-expanded={showHeadingMenu}
+			>
+				<Icon iconId="headings" />
+				<Icon iconId="caret-down" classes="menu-caret" />
+			</button>
+
+			{#if showHeadingMenu}
+				<div class="dropdown-menu" role="menu" bind:this={headingMenuElement}>
+					<button
+						type="button"
+						class="dropdown-menu-item"
+						class:active={isActive('heading', { level: 4 })}
+						role="menuitem"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={() => toggleHeading(4)}
+					>
+						Heading 4
+					</button>
+					<button
+						type="button"
+						class="dropdown-menu-item"
+						class:active={isActive('heading', { level: 5 })}
+						role="menuitem"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={() => toggleHeading(5)}
+					>
+						Heading 5
+					</button>
+					<button
+						type="button"
+						class="dropdown-menu-item"
+						class:active={isActive('heading', { level: 6 })}
+						role="menuitem"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={() => toggleHeading(6)}
+					>
+						Heading 6
+					</button>
+				</div>
+			{/if}
+		</div>
+
+		<!-- <div class="toolbar-divider"></div> -->
+
 		<div class="toolbar-group">
 			<button
 				use:tooltip
@@ -839,59 +1054,150 @@
 			>
 				<Icon iconId="italic" />
 			</button>
-		</div>
-
-		<!-- <div class="toolbar-divider"></div> -->
-
-		<div class="toolbar-group">
 			<button
 				use:tooltip
 				type="button"
 				class="toolbar-button"
-				class:active={isActive('bulletList')}
-				onclick={toggleBulletList}
-				title="Bullet List"
-				aria-label="Bullet List"
+				class:active={isActive('underline')}
+				onclick={toggleUnderline}
+				title="Underline (Cmd+U)"
+				aria-label="Underline"
+			>
+				<Icon iconId="underline" />
+			</button>
+			<div class="dropdown-group">
+				<button
+					use:tooltip
+					type="button"
+					class="toolbar-button has-caret"
+					class:active={isActive('highlight')}
+					onmousedown={(e) => e.preventDefault()}
+					onclick={toggleHighlightMenu}
+					title="Highlight"
+					aria-label="Highlight"
+					aria-haspopup="menu"
+					aria-expanded={showHighlightMenu}
+				>
+					<Icon iconId="highlight" />
+					<Icon iconId="caret-down" classes="menu-caret" />
+				</button>
+
+				{#if showHighlightMenu}
+					<div class="dropdown-menu" role="menu" bind:this={highlightMenuElement}>
+						{#each highlightColors as color (color.name)}
+							<button
+								type="button"
+								class="dropdown-menu-item"
+								class:active={isActive('highlight', { color: color.value })}
+								role="menuitem"
+								onmousedown={(e) => e.preventDefault()}
+								onclick={() => setHighlight(color.value)}
+							>
+								{color.name}
+							</button>
+						{/each}
+						<div class="dropdown-divider" role="separator"></div>
+						<button
+							type="button"
+							class="dropdown-menu-item"
+							role="menuitem"
+							onmousedown={(e) => e.preventDefault()}
+							onclick={removeHighlight}
+						>
+							Remove Highlight
+						</button>
+					</div>
+				{/if}
+			</div>
+		</div>
+
+		<!-- <div class="toolbar-divider"></div> -->
+
+		<div class="toolbar-group dropdown-group">
+			<button
+				use:tooltip
+				type="button"
+				class="toolbar-button has-caret"
+				class:active={isActive('bulletList') || isActive('orderedList')}
+				onmousedown={(e) => e.preventDefault()}
+				onclick={toggleListsMenu}
+				title="Lists"
+				aria-label="Lists"
+				aria-haspopup="menu"
+				aria-expanded={showListsMenu}
 			>
 				<Icon iconId="outline-bulleted" />
+				<Icon iconId="caret-down" classes="menu-caret" />
 			</button>
-			<button
-				use:tooltip
-				type="button"
-				class="toolbar-button"
-				class:active={isActive('orderedList')}
-				onclick={toggleOrderedList}
-				title="Numbered List"
-				aria-label="Numbered List"
-			>
-				<Icon iconId="outline-numbered" />
-			</button>
+
+			{#if showListsMenu}
+				<div class="dropdown-menu" role="menu" bind:this={listsMenuElement}>
+					<button
+						type="button"
+						class="dropdown-menu-item"
+						class:active={isActive('bulletList')}
+						role="menuitem"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={toggleBulletList}
+					>
+						Bullet List
+					</button>
+					<button
+						type="button"
+						class="dropdown-menu-item"
+						class:active={isActive('orderedList')}
+						role="menuitem"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={toggleOrderedList}
+					>
+						Numbered List
+					</button>
+				</div>
+			{/if}
 		</div>
 
 		<!-- <div class="toolbar-divider"></div> -->
 
-		<div class="toolbar-group">
+		<div class="toolbar-group dropdown-group">
 			<button
 				use:tooltip
 				type="button"
-				class="toolbar-button"
+				class="toolbar-button has-caret"
 				class:active={isActive('blockquote')}
-				onclick={toggleBlockquote}
-				title="Blockquote"
-				aria-label="Blockquote"
+				onmousedown={(e) => e.preventDefault()}
+				onclick={toggleInsertMenu}
+				title="Insert"
+				aria-label="Insert"
+				aria-haspopup="menu"
+				aria-expanded={showInsertMenu}
 			>
-				<Icon iconId="block-quote" />
+				<Icon iconId="plus" />
+				<Icon iconId="caret-down" classes="menu-caret" />
 			</button>
-			<button
-				use:tooltip
-				type="button"
-				class="toolbar-button"
-				onclick={insertHorizontalRule}
-				title="Horizontal Rule"
-				aria-label="Horizontal Rule"
-			>
-				<Icon iconId="horizontal-rule" />
-			</button>
+
+			{#if showInsertMenu}
+				<div class="dropdown-menu" role="menu" bind:this={insertMenuElement}>
+					<button
+						type="button"
+						class="dropdown-menu-item"
+						class:active={isActive('blockquote')}
+						role="menuitem"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={toggleBlockquote}
+					>
+						Blockquote
+					</button>
+					<button
+						type="button"
+						class="dropdown-menu-item"
+						role="menuitem"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={insertHorizontalRule}
+					>
+						Horizontal Rule
+					</button>
+				</div>
+			{/if}
 		</div>
 
 		<!-- <div class="toolbar-divider"></div> -->
@@ -1006,7 +1312,7 @@
 		
 		{#if hasSubject}
 			<div class="tags-section">
-				<hr class="tags-divider" />
+				<div class="tags-box">
 				<div class="tags-row">
 					<div class="tags-list">
 						{#each tags as tag (tag.id)}
@@ -1030,14 +1336,12 @@
 
 					</div>
 				</div>
-
-
+				</div>
 			</div>
 		{/if}
 
 		{#if footnotes.length > 0}
 			<div class="footnotes-section">
-				<hr class="footnotes-divider" />
 				<div class="footnotes-list">
 					{#each footnotes as note, index (note.id)}
 						<div class="footnote-item">
@@ -1112,6 +1416,73 @@
 		gap: 0.0rem;
 	}
 
+	/* Toolbar dropdowns (Heading / Lists / Insert) */
+	.dropdown-group {
+		position: relative;
+	}
+
+	.dropdown-menu {
+		position: absolute;
+		top: calc(100% + 0.4rem);
+		left: 0;
+		z-index: 200;
+		display: flex;
+		flex-direction: column;
+		min-width: 14rem;
+		padding: 0.3rem;
+		background-color: var(--gray-800);
+		border: none;
+		border-radius: 0.3rem;
+		box-shadow: 0rem 0rem 0.7rem var(--black-alpha);
+	}
+
+	.dropdown-divider {
+		margin: 0.4rem 0;
+		border-top: 0.1rem solid var(--gray-700);
+	}
+
+	.dropdown-menu-item {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		width: 100%;
+		padding: 0.6rem 0.9rem;
+		border: none;
+		border-radius: 0.3rem;
+		background-color: transparent;
+		color: var(--black);
+		font-size: 1.2rem;
+		font-weight: 500;
+		font-family: inherit;
+		line-height: 1;
+		white-space: nowrap;
+		text-align: left;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.dropdown-menu-item :global(.menu-item-icon path) {
+		fill: var(--gray-darker);
+	}
+
+	.dropdown-menu-item:hover {
+		background-color: var(--blue);
+		color: var(--white);
+	}
+
+	.dropdown-menu-item:hover :global(.menu-item-icon path) {
+		fill: var(--white);
+	}
+
+	.dropdown-menu-item.active {
+		background-color: var(--gray-dark);
+		color: var(--white);
+	}
+
+	.dropdown-menu-item.active :global(.menu-item-icon path) {
+		fill: var(--white);
+	}
+
 	.toolbar-divider {
 		width: 1px;
 		height: 2.4rem;
@@ -1162,9 +1533,13 @@
 	}
 
 	.toolbar-button.active {
-		background-color: var(--blue);
-		border-color: var(--blue);
+		background-color: var(--gray-dark);
+		border-color: var(--gray-dark);
 		color: var(--white);
+	}
+
+	.toolbar-button.active :global(.icon path) {
+		fill: var(--white);
 	}
 
 	.toolbar-button:disabled {
@@ -1307,6 +1682,42 @@
 		margin-top: 0;
 	}
 
+	:global(.tiptap-editor h4) {
+		font-size: 2.0rem;
+		font-weight: 600;
+		color: var(--black);
+		margin: 1.6rem 0 0.4rem 0;
+		line-height: 1.4;
+	}
+
+	:global(.tiptap-editor h4:first-child) {
+		margin-top: 0;
+	}
+
+	:global(.tiptap-editor h5) {
+		font-size: 1.6rem;
+		font-weight: 700;
+		color: var(--black);
+		margin: 1.6rem 0 0.4rem 0;
+		line-height: 1.5;
+	}
+
+	:global(.tiptap-editor h5:first-child) {
+		margin-top: 0;
+	}
+
+	:global(.tiptap-editor h6) {
+		font-size: 1.4rem;
+		font-weight: 700;
+		color: var(--gray-400);
+		margin: 1.6rem 0 0.4rem 0;
+		line-height: 1.5;
+	}
+
+	:global(.tiptap-editor h6:first-child) {
+		margin-top: 0;
+	}
+
 	:global(.tiptap-editor strong) {
 		font-weight: 600;
 		color: var(--black);
@@ -1392,14 +1803,8 @@
 
 	/* Footnotes Section at Bottom */
 	.footnotes-section {
+		margin-top: 2.2rem;
 		padding: 0 1.8rem 1.8rem;
-	}
-
-
-	.footnotes-divider {
-		border: none;
-		border-top: 1px solid var(--gray-700);
-		margin: 0 0 1.8rem 0;
 	}
 
 	.footnotes-list {
@@ -1491,14 +1896,14 @@
 
 	/* Bottom Tags strip */
 	.tags-section {
-		margin-top: 1.8rem;
-		padding: 1.8rem;
+		padding: 0 1.8rem;
 	}
 
-	.tags-divider {
-		border: none;
-		border-top: 1px solid var(--gray-700);
-		margin: 0 0 1.2rem 0;
+	/* Bordered box surrounding the bottom glossary terms */
+	.tags-box {
+		border: 1px solid var(--gray-700);
+		border-radius: 0.3rem;
+		padding: 1.2rem;
 	}
 
 	.tags-row {

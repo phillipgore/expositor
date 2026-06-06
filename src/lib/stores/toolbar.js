@@ -63,6 +63,7 @@ async function persistPreference(updates) {
  * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
  * @property {boolean} isStudyRoute - Whether the current route is a study/document route
  * @property {boolean} isGlossaryRoute - Whether the current route is the glossary reference page
+ * @property {boolean} isDashboardRoute - Whether the current route is the dashboard page
 
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
  * @property {boolean} canStructure - Whether Structure menu should be enabled
@@ -142,6 +143,7 @@ const defaultState = {
 	canSwitchMode: false,
 	isStudyRoute: false,
 	isGlossaryRoute: false,
+	isDashboardRoute: false,
 	canZoom: false,
 
 	zoomMode: 'percentage',
@@ -226,8 +228,40 @@ export function updateToolbarForRoute(pathname) {
 	const isSettingsRoute = pathname === '/settings';
 	const isNewRoute = pathname === '/new-study' || pathname === '/new-study-group';
 	const isGlossaryRoute = pathname === '/glossary';
+	const isDashboardRoute = pathname === '/dashboard';
 
 	toolbarStateStore.update(state => {
+		// Dashboard landing page: the Finder is forced open and the commentary panel
+		// is closed. All document tools (including the View menu, via isDashboardRoute)
+		// are disabled since there is no active study/document here.
+		if (isDashboardRoute) {
+			return {
+				...state,
+				isStudyRoute: false,
+				isGlossaryRoute: false,
+				isDashboardRoute: true,
+				canFormat: false,
+				canToggleComparison: false,
+				canToggleConnections: false,
+				canToggleNotes: false,
+				canToggleComment: false,
+				canToggleReferences: false,
+				canToggleVerses: false,
+				canToggleWide: false,
+				canToggleOverview: false,
+				canSwitchMode: false,
+				canZoom: false,
+				canStructure: false,
+				canHeading: false,
+				canColor: false,
+				canUseStructureItems: false,
+				canUseHeadingItems: false,
+				canUseColorItems: false,
+				studiesPanelOpen: true, // Force the Finder open on the dashboard
+				commentaryPanelOpen: false // Commentary is disabled on the dashboard
+			};
+		}
+
 		// Glossary reference page: a read-only "reference mode" where only Finder,
 		// Studies, and the Analyze/Document switcher remain usable. Every document
 		// tool is disabled; isGlossaryRoute also disables the View menu via config.
@@ -236,6 +270,7 @@ export function updateToolbarForRoute(pathname) {
 				...state,
 				isStudyRoute: false,
 				isGlossaryRoute: true,
+				isDashboardRoute: false,
 				canFormat: false,
 				canToggleComparison: false,
 				canToggleConnections: false,
@@ -267,6 +302,7 @@ export function updateToolbarForRoute(pathname) {
 				...state,
 				isStudyRoute: true,
 				isGlossaryRoute: false,
+				isDashboardRoute: false,
 				canFormat: true,
 				canToggleConnections: true,
 				canToggleHeadings: true,
@@ -294,6 +330,7 @@ export function updateToolbarForRoute(pathname) {
 			...state,
 			isStudyRoute: false,
 			isGlossaryRoute: false,
+			isDashboardRoute: false,
 			canFormat: false,
 			canToggleComparison: false,
 			canToggleConnections: false,
@@ -322,6 +359,7 @@ export function updateToolbarForRoute(pathname) {
 			...state,
 			isStudyRoute: false,
 			isGlossaryRoute: false,
+			isDashboardRoute: false,
 			canFormat: false,
 			canToggleComparison: false,
 			canToggleConnections: false,
