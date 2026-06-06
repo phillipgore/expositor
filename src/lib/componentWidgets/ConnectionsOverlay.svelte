@@ -15,12 +15,19 @@
 	 * anchor points remain the distinguishing visual language between types.
 	 *
 	 * Anchor points:
-	 *   Column  → top edge, centered horizontally (1/2 across)
-	 *   Section → bottom edge, centered horizontally (1/2 across)
+	 *   Column  → top edge; slides horizontally toward the opposite endpoint
+	 *   Section → top or bottom edge; slides horizontally toward the opposite endpoint
 	 *   Segment → left or right side edge, 1/2 of the way down (vertically)
+	 *
+	 * Column/Section anchors are no longer locked to the element's horizontal
+	 * centre: each one slides along its edge toward the opposite endpoint so the
+	 * connecting line is as short as possible.  Multiple connections sharing one
+	 * edge fan out just enough (ANCHOR_SPACING) to keep their endpoint nodes from
+	 * overlapping, each clustering around its own ideal (shortest-line) position.
 	 *
 	 * Column anchors exit from the top (bezier control points droop downward).
 	 * Section anchors exit from the bottom (bezier control points extend downward).
+
 	 * Segment anchors exit from the side (bezier control points extend horizontally).
 	 * Mixed connections blend the two control-point directions.
 	 *
@@ -242,6 +249,51 @@
 			default:       return { x: (rect.right - svgRect.left) / scale, y: cy };
 		}
 	}
+
+	/**
+	 * Distribute a set of anchor points along a one-dimensional edge span so that:
+	 *   • each anchor sits as close as possible to its IDEAL coordinate (the spot
+	 *     directly across from its opposite endpoint → shortest connecting line),
+	 *   • adjacent anchors stay at least ANCHOR_SPACING apart so their endpoint
+	 *     nodes never overlap, and
+	 *   • every anchor stays inside the usable span [lo, hi].
+	 *
+	 * `ideals` MUST already be sorted ascending (callers sort members by the far
+	 * end's position).  Returns the resolved coordinates in the same order.
+	 *
+	 * When the ideals are already far enough apart, each one lands exactly on its
+	 * ideal — so a single connection (or well-separated ones) gets the shortest
+	 * possible line.  When they crowd together, a forward "push-right" pass opens
+	 * the minimum gap, then the cluster is shifted back inside [lo, hi].
+	 * @param {number[]} ideals — desired coordinates, ascending
+	 * @param {number} lo — minimum allowed coordinate
+	 * @param {number} hi — maximum allowed coordinate
+	 * @returns {number[]}
+	 */
+	function distributeAlongEdge(ideals, lo, hi) {
+		const n = ideals.length;
+		if (n === 0) return [];
+		if (n === 1) return [Math.min(hi, Math.max(lo, ideals[0]))];
+
+		const usable  = Math.max(0, hi - lo);
+		const spacing = Math.min(ANCHOR_SPACING, usable / (n - 1));
+
+		// Start at each clamped ideal, then push later anchors right to open gaps.
+		const pos = ideals.map(v => Math.min(hi, Math.max(lo, v)));
+		for (let i = 1; i < n; i++) {
+			if (pos[i] < pos[i - 1] + spacing) pos[i] = pos[i - 1] + spacing;
+		}
+		// If the last anchor overran the right bound, slide the whole cluster left.
+		const overflow = pos[n - 1] - hi;
+		if (overflow > 0) for (let i = 0; i < n; i++) pos[i] -= overflow;
+		// Guarantee the left bound (safe: (n−1)·spacing ≤ usable, so the cluster fits).
+		if (pos[0] < lo) {
+			const shift = lo - pos[0];
+			for (let i = 0; i < n; i++) pos[i] += shift;
+		}
+		return pos;
+	}
+
 
 	/**
 	 * Decide which edge of an element a connection end should anchor to so the
@@ -811,12 +863,21 @@
 			resolved.push({ connection, fromType, toType, fromCX, toCX, sameCol, fromEdge, toEdge });
 		}
 
-		// ── Pass B: distribute endpoints evenly along each shared edge ────────
+		// ── Pass B: slide endpoints toward their opposite end along each edge ──
 		// Endpoints on the same element edge are sorted by the position of their
-		// FAR end (so lines fan out without crossing) then spread symmetrically
-		// about the edge centre.  A single endpoint stays exactly at the centre,
-		// keeping the common case visually identical to before.  When the edge is
-		// too short the spacing compresses so anchors always stay on the edge.
+		// FAR end (so lines fan out without crossing).
+		//
+		// Column / Section (top & bottom edges → HORIZONTAL):
+		//   Each anchor slides along the edge toward the x-position of its opposite
+		//   endpoint — the spot that yields the SHORTEST connecting line — instead
+		//   of being locked to the element's horizontal centre.  distributeAlongEdge
+		//   keeps each anchor on its ideal when they're far enough apart, and only
+		//   nudges crowded anchors apart by ANCHOR_SPACING so their nodes never
+		//   overlap.  A lone connection therefore lands exactly opposite its far end.
+		//
+		// Segment (left & right edges → VERTICAL):
+		//   Unchanged — fan out symmetrically about the side edge's vertical
+		//   midpoint (a single segment endpoint stays exactly at the midpoint).
 		/** @type {Map<string, { x: number, y: number }>} key = `${connId}|${end}` */
 		const anchorMap = new Map();
 		for (const members of groups.values()) {
@@ -828,19 +889,34 @@
 				return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; // stable tie-break
 			});
 			const n = members.length;
-			for (let i = 0; i < n; i++) {
-				const m = members[i];
-				const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
-				if (n === 1) { anchorMap.set(m.key, base); continue; }
-				const edgeLen = (horizontal ? m.rect.width : m.rect.height) / scale;
-				const usable  = Math.max(0, edgeLen - 2 * ANCHOR_EDGE_PAD);
-				const spacing = Math.min(ANCHOR_SPACING, usable / (n - 1));
-				const offset  = (i - (n - 1) / 2) * spacing;
-				anchorMap.set(m.key, horizontal
-					? { x: base.x + offset, y: base.y }
-					: { x: base.x, y: base.y + offset });
+			const rect = members[0].rect; // all members share one element edge → one rect
+
+			if (horizontal) {
+				// Column / Section: slide along the edge toward each opposite endpoint.
+				const lo = (rect.left  - svgRect.left) / scale + ANCHOR_EDGE_PAD;
+				const hi = (rect.right - svgRect.left) / scale - ANCHOR_EDGE_PAD;
+				const ideals = members.map(m => (m.otherCX - svgRect.left) / scale);
+				const xs = distributeAlongEdge(ideals, lo, hi);
+				for (let i = 0; i < n; i++) {
+					const m = members[i];
+					const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
+					anchorMap.set(m.key, { x: xs[i], y: base.y });
+				}
+			} else {
+				// Segment: keep the side-edge vertical midpoint, fan out symmetrically.
+				for (let i = 0; i < n; i++) {
+					const m = members[i];
+					const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
+					if (n === 1) { anchorMap.set(m.key, base); continue; }
+					const edgeLen = m.rect.height / scale;
+					const usable  = Math.max(0, edgeLen - 2 * ANCHOR_EDGE_PAD);
+					const spacing = Math.min(ANCHOR_SPACING, usable / (n - 1));
+					const offset  = (i - (n - 1) / 2) * spacing;
+					anchorMap.set(m.key, { x: base.x, y: base.y + offset });
+				}
 			}
 		}
+
 
 		/** @type {PathEntry[]} */
 		const newPaths = [];
