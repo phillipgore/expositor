@@ -148,7 +148,7 @@
 			id="group-search"
 			name="group-search"
 			type="search"
-			placeholder="Search groups..."
+			placeholder="Search"
 			aria-label="Search groups"
 			autofocus={true}
 			bind:value={searchQuery}
