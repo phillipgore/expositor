@@ -60,7 +60,8 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number }} PathEntry
+	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, handleCorner: 'tl'|'tr'|'bl'|'br' }} PathEntry
+
 	 * @typedef {{ elementId: string, type: ConnType, side: 'left'|'right', x: number, y: number }} Handle
 	 */
 
@@ -1113,12 +1114,159 @@
 			lineStyle: getLineStyle(fromType, toType),
 			note: connection.note ?? null,
 			notePlacement, noteAnchorSide: anchorSide, noteAnchorT: anchorT,
-			noteAnchorX: anchorPt.x, noteAnchorY: anchorPt.y, noteOffset
+			noteAnchorX: anchorPt.x, noteAnchorY: anchorPt.y, noteOffset,
+			handleCorner: defaultHandleCorner(anchorSide)
 		});
 	}
 
+		// ── Pass D: pick a collision-free grab-handle corner per note ─────────
+		// Each note's slide handle sits just outside one corner of its card, on the
+		// edge OPPOSITE the anchored side (so it never covers the note's own text).
+		// Either end of that edge is valid, so when the default corner would land on
+		// another connection's anchor point (endpoint node or another note's anchor
+		// dot) we flip the handle to the other end of the edge. Falls back to the
+		// default when both ends are obstructed ("if practicable").
+		resolveHandleCorners(newPaths, svgRect);
+
 		paths = newPaths;
 	}
+
+	/**
+	 * Default grab-handle corner for a note anchored on a given side (the historic
+	 * fixed rule). The card extends AWAY from the anchored side, so the handle hugs
+	 * the opposite edge:
+	 *   anchor top    (card below)  → bottom-left  corner
+	 *   anchor bottom (card above)  → top-left     corner
+	 *   anchor left   (card right)  → top-right    corner
+	 *   anchor right  (card left)   → top-left     corner
+	 * @param {'top'|'right'|'bottom'|'left'} anchorSide
+	 * @returns {'tl'|'tr'|'bl'|'br'}
+	 */
+	function defaultHandleCorner(anchorSide) {
+		if (anchorSide === 'top')  return 'bl';
+		if (anchorSide === 'left') return 'tr';
+		return 'tl'; // bottom / right
+	}
+
+	/**
+	 * The two grab-handle corners a note MAY use, given its anchored side. Both lie
+	 * on the edge opposite the anchored side (so the handle never covers the note
+	 * text); the first entry is the historic default. The handle can slide to the
+	 * other end of that edge to dodge a nearby anchor point.
+	 *   anchor top    → bottom edge → ['bl', 'br']
+	 *   anchor bottom → top edge    → ['tl', 'tr']
+	 *   anchor left   → right edge  → ['tr', 'br']
+	 *   anchor right  → left edge   → ['tl', 'bl']
+	 * @param {'top'|'right'|'bottom'|'left'} anchorSide
+	 * @returns {Array<'tl'|'tr'|'bl'|'br'>}
+	 */
+	function candidateHandleCorners(anchorSide) {
+		switch (anchorSide) {
+			case 'top':    return ['bl', 'br'];
+			case 'bottom': return ['tl', 'tr'];
+			case 'left':   return ['tr', 'br'];
+			default:       return ['tl', 'bl']; // 'right'
+		}
+	}
+
+	/**
+	 * Approximate, in the overlay's layout coordinate space, the centre point a
+	 * given grab-handle corner would occupy for a note card. The card box is
+	 * reconstructed from the note's anchor point + its placement transform +
+	 * slide offset; the handle sits just OUTSIDE the requested corner.
+	 * @param {PathEntry} path
+	 * @param {'tl'|'tr'|'bl'|'br'} corner
+	 * @param {number} cardW — card width in layout units
+	 * @param {number} cardH — card height in layout units
+	 * @param {number} pad — handle half-extent in layout units (gap outside corner)
+	 * @returns {{ x: number, y: number }}
+	 */
+	function handleCornerPoint(path, corner, cardW, cardH, pad) {
+		// Top-left of the card in layout units, derived from the placement transform
+		// (mirrors noteTransform()). noteOffset slides the card along its edge.
+		let cardLeft = path.noteAnchorX;
+		let cardTop  = path.noteAnchorY;
+		switch (path.notePlacement) {
+			case 'right': cardLeft = path.noteAnchorX;             cardTop = path.noteAnchorY - cardH / 2 + path.noteOffset; break;
+			case 'left':  cardLeft = path.noteAnchorX - cardW;     cardTop = path.noteAnchorY - cardH / 2 + path.noteOffset; break;
+			case 'above': cardLeft = path.noteAnchorX - cardW / 2 + path.noteOffset; cardTop = path.noteAnchorY - cardH; break;
+			case 'below': cardLeft = path.noteAnchorX - cardW / 2 + path.noteOffset; cardTop = path.noteAnchorY;          break;
+			default:      cardLeft = path.noteAnchorX - cardW / 2; cardTop = path.noteAnchorY - cardH / 2;                 break;
+		}
+		const left   = corner === 'tl' || corner === 'bl';
+		const top     = corner === 'tl' || corner === 'tr';
+		return {
+			x: left ? cardLeft - pad : cardLeft + cardW + pad,
+			y: top  ? cardTop  - pad : cardTop  + cardH + pad
+		};
+	}
+
+	/**
+	 * Choose a grab-handle corner for every note so the handle avoids covering
+	 * OTHER connections' anchor points (endpoint nodes) and note anchor dots. The
+	 * historic default corner is kept unless it sits within HANDLE_AVOID_RADIUS of
+	 * an obstacle and the alternate corner is clear. Measures each card's rendered
+	 * size from the DOM (same technique as the slide-offset clamp).
+	 * @param {PathEntry[]} list
+	 * @param {DOMRect} svgRect
+	 */
+	function resolveHandleCorners(list, svgRect) {
+		// Obstacle points: every endpoint node + every note anchor dot, in layout
+		// units (the same space noteAnchorX/Y and x1/y1/x2/y2 already live in).
+		/** @type {Array<{ id: string, x: number, y: number }>} */
+		const obstacles = [];
+		for (const p of list) {
+			obstacles.push({ id: p.id, x: p.x1, y: p.y1 });
+			obstacles.push({ id: p.id, x: p.x2, y: p.y2 });
+			if (p.note) obstacles.push({ id: p.id, x: p.noteAnchorX, y: p.noteAnchorY });
+		}
+
+		const HANDLE_AVOID_RADIUS = 11; // layout units; ~handle + node half-extents
+		const HANDLE_PAD = 4;           // handle centre sits this far outside the corner
+
+		for (const p of list) {
+			// Only notes with a rendered card need a handle.
+			if (!p.note) continue;
+
+			const cardEl = /** @type {HTMLElement|null} */ (
+				document.querySelector(`.connection-note-wrapper[data-note-id="${p.id}"] .connection-note-display`)
+			);
+			if (!cardEl) continue; // not yet rendered — keep the default
+			const cardW = cardEl.offsetWidth;
+			const cardH = cardEl.offsetHeight;
+
+			const candidates = candidateHandleCorners(p.noteAnchorSide);
+
+			/**
+			 * Smallest distance from a candidate handle position to any OTHER
+			 * connection's obstacle point (own points excluded).
+			 * @param {'tl'|'tr'|'bl'|'br'} corner
+			 * @returns {number}
+			 */
+			const clearance = (corner) => {
+				const pt = handleCornerPoint(p, corner, cardW, cardH, HANDLE_PAD);
+				let min = Infinity;
+				for (const o of obstacles) {
+					if (o.id === p.id) continue;
+					const dd = Math.hypot(o.x - pt.x, o.y - pt.y);
+					if (dd < min) min = dd;
+				}
+				return min;
+			};
+
+			const [primary, alternate] = candidates;
+			// Keep the default unless it's obstructed and the alternate is clearer.
+			if (clearance(primary) >= HANDLE_AVOID_RADIUS) {
+				p.handleCorner = primary;
+			} else if (clearance(alternate) >= HANDLE_AVOID_RADIUS) {
+				p.handleCorner = alternate;
+			} else {
+				// Both crowded — take whichever has more breathing room.
+				p.handleCorner = clearance(alternate) > clearance(primary) ? alternate : primary;
+			}
+		}
+	}
+
 
 	// ─── Drop handle computation ──────────────────────────────────────────────
 
@@ -2172,18 +2320,15 @@
 						</div>
 					{:else}
 						{@const slideHorizontal = path.noteAnchorSide === 'top' || path.noteAnchorSide === 'bottom'}
-						<!-- The grab handle hugs the card corner on the side OPPOSITE the
-						     anchored edge (the edge the card extends toward), just outside
-						     the card so it never covers the note text:
-						       anchor top    (card below)  → bottom-left  corner
-						       anchor bottom (card above)  → top-left     corner
-						       anchor left   (card right)  → top-right    corner
-						       anchor right  (card left)   → top-left     corner -->
-						{@const handleCorner =
-							path.noteAnchorSide === 'top' ? 'bl'
-							: path.noteAnchorSide === 'left' ? 'tr'
-							: 'tl'}
+						<!-- The grab handle hugs a card corner on the edge OPPOSITE the
+						     anchored side (the edge the card extends toward), just outside
+						     the card so it never covers the note text. Which END of that
+						     edge it uses is chosen per-frame by resolveHandleCorners() so
+						     the handle slides clear of other connections' anchor points and
+						     note dots when practicable (see path.handleCorner). -->
+						{@const handleCorner = path.handleCorner}
 						<!-- Display mode: click the card body to edit. A dedicated
+
 						     three-dot grab handle (like the section/column handles)
 						     slides the card along its anchored edge. -->
 						<div
@@ -2510,6 +2655,15 @@
 		top: calc(100% - 0.4rem);
 		transform: rotate(-90deg);
 	}
+
+	/* Bottom-right corner: against the bottom-right corner; L rotated 180° so
+	   the vertex lands on the card's bottom-right corner. */
+	.connection-note-handle--corner-br {
+		left: calc(100% - 0.4rem);
+		top: calc(100% - 0.4rem);
+		transform: rotate(180deg);
+	}
+
 
 	/* Shown on hover/selection, and grabbable only then. */
 	.connection-note-handle--visible {
