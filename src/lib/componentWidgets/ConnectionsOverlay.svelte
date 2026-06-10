@@ -60,7 +60,7 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorX: number, noteAnchorY: number }} PathEntry
+	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number }} PathEntry
 	 * @typedef {{ elementId: string, type: ConnType, side: 'left'|'right', x: number, y: number }} Handle
 	 */
 
@@ -137,6 +137,38 @@
 
 	/** Reference to the note textarea for auto-grow. @type {HTMLTextAreaElement|null} */
 	let noteTextareaRef = $state(null);
+
+	// ─── Note placement (drag) state ──────────────────────────────────────────
+
+	/**
+	 * Live placement overrides applied DURING a note drag, keyed by connection id.
+	 * Each entry holds the in-progress anchor parameter `t` (0..1 along the curve),
+	 * the card `side` it attaches to, and the perpendicular `offset` (CSS px).
+	 * calculatePaths() merges these over the persisted values so the dot/card track
+	 * the cursor smoothly; on release the final values are PATCHed and the override
+	 * is dropped once the persisted data refreshes.
+	 * @type {Record<string, { t: number|null, side: ('top'|'right'|'bottom'|'left')|null, offset: number|null }>}
+	 */
+	let notePlacementOverrides = $state({});
+
+	/**
+	 * Active note-placement drag, or null when idle.
+	 *   mode 'dot'  → dragging the anchor dot ALONG the connection curve (sets t)
+	 *   mode 'card' → sliding the card along its attached edge (sets offset)
+	 * @type {{ id: string, mode: 'dot'|'card', startX: number, startY: number, startOffset: number, side: ('top'|'right'|'bottom'|'left') } | null}
+	 */
+	let notePlacementDrag = $state(null);
+
+	/**
+	 * True once the active placement drag has moved past DRAG_THRESHOLD px. A card
+	 * pointerdown doubles as a click-to-edit trigger, so we only commit/persist a
+	 * slide — and suppress the subsequent click→edit — once the pointer has
+	 * actually moved. Reset at the start of every placement drag.
+	 */
+	let notePlacementDidDrag = $state(false);
+
+	/** Pixels the pointer must travel before a card pointerdown becomes a slide. */
+	const NOTE_DRAG_THRESHOLD = 4;
 
 	const SNAP_RADIUS = 32;
 	let resizeObserver = /** @type {ResizeObserver | null} */ (null);
@@ -520,50 +552,24 @@
 
 	// ─── Note placement helpers ───────────────────────────────────────────────
 
-	/** Approximate note box dimensions in CSS pixels for collision detection. */
-	const NOTE_BOX_W = 200;
-	const NOTE_BOX_H = 64;
-
 	/**
-	 * Compute the CSS-pixel bounding box for a note given its anchor and placement.
-	 * @param {number} anchorXpx
-	 * @param {number} anchorYpx
-	 * @param {'center'|'right'|'left'|'above'|'below'} placement
-	 * @returns {{ x: number, y: number, w: number, h: number }}
+	 * Map the stored anchor SIDE (which edge of the card the dot attaches to) to
+	 * the legacy `placement` keyword used by noteTransform()/the dot SVG.  The card
+	 * always extends AWAY from the anchored edge:
+	 *   side 'top'    → dot on the card's top edge    → card hangs below  → 'below'
+	 *   side 'bottom' → dot on the card's bottom edge  → card sits above  → 'above'
+	 *   side 'left'   → dot on the card's left edge    → card sits right  → 'right'
+	 *   side 'right'  → dot on the card's right edge   → card sits left   → 'left'
+	 * @param {'top'|'right'|'bottom'|'left'} side
+	 * @returns {'above'|'below'|'right'|'left'}
 	 */
-	function noteBoundingBox(anchorXpx, anchorYpx, placement) {
-		switch (placement) {
-			case 'right': return { x: anchorXpx,              y: anchorYpx - NOTE_BOX_H / 2, w: NOTE_BOX_W, h: NOTE_BOX_H };
-			case 'left':  return { x: anchorXpx - NOTE_BOX_W, y: anchorYpx - NOTE_BOX_H / 2, w: NOTE_BOX_W, h: NOTE_BOX_H };
-			case 'above': return { x: anchorXpx - NOTE_BOX_W / 2, y: anchorYpx - NOTE_BOX_H, w: NOTE_BOX_W, h: NOTE_BOX_H };
-			case 'below': return { x: anchorXpx - NOTE_BOX_W / 2, y: anchorYpx,              w: NOTE_BOX_W, h: NOTE_BOX_H };
-			default:      return { x: anchorXpx - NOTE_BOX_W / 2, y: anchorYpx - NOTE_BOX_H / 2, w: NOTE_BOX_W, h: NOTE_BOX_H };
+	function sideToPlacement(side) {
+		switch (side) {
+			case 'bottom': return 'above';
+			case 'left':   return 'right';
+			case 'right':  return 'left';
+			default:       return 'below'; // 'top'
 		}
-	}
-
-	/**
-	 * Return true if box a and box b overlap.
-	 * @param {{ x: number, y: number, w: number, h: number }} a
-	 * @param {{ x: number, y: number, w: number, h: number }} b
-	 * @returns {boolean}
-	 */
-	function boxesOverlap(a, b) {
-		return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-	}
-
-	/**
-	 * Return the overlapping AREA (in CSS px²) between box a and box b. 0 when they
-	 * do not intersect.  Used to score candidate note placements: the resolver
-	 * prefers the placement that overlaps passage text (and other notes) the least.
-	 * @param {{ x: number, y: number, w: number, h: number }} a
-	 * @param {{ x: number, y: number, w: number, h: number }} b
-	 * @returns {number}
-	 */
-	function overlapArea(a, b) {
-		const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
-		const iy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
-		if (ix <= 0 || iy <= 0) return 0;
-		return ix * iy;
 	}
 
 	/**
@@ -609,135 +615,56 @@
 
 
 	/**
-	 * Return the CSS transform string for a note placement.
+	 * Return the CSS transform string for a note placement, folding in the
+	 * perpendicular slide offset so the box rides ALONG its attachment edge while
+	 * the anchor dot (positioned at left/top) stays put:
+	 *   above / below → offset shifts the box horizontally (translateX)
+	 *   left  / right → offset shifts the box vertically   (translateY)
+	 * Offset is in CSS px; it's added to the base percentage translate via calc().
 	 * @param {'center'|'right'|'left'|'above'|'below'} placement
+	 * @param {number} [offset=0]
 	 * @returns {string}
 	 */
-	function noteTransform(placement) {
+	function noteTransform(placement, offset = 0) {
 		switch (placement) {
-			case 'right': return 'translate(0, -50%)';
-			case 'left':  return 'translate(-100%, -50%)';
-			case 'above': return 'translate(-50%, -100%)';
-			case 'below': return 'translate(-50%, 0%)';
+			case 'right': return `translate(0, calc(-50% + ${offset}px))`;
+			case 'left':  return `translate(-100%, calc(-50% + ${offset}px))`;
+			case 'above': return `translate(calc(-50% + ${offset}px), -100%)`;
+			case 'below': return `translate(calc(-50% + ${offset}px), 0%)`;
 			default:      return 'translate(-50%, -50%)';
 		}
 	}
 
-	/** Priority order tried when resolving note–note collisions (never 'center'). */
-	const NOTE_PLACEMENT_ORDER = /** @type {Array<'above'|'below'|'right'|'left'>} */ (
-		['above', 'below', 'right', 'left']
-	);
-
-	// ─── Note placement resolver ───────────────────────────────────────────────
-
 	/**
-	 * Bezier parameters tried when sliding a note's anchor ALONG its connection
-	 * line.  0.5 is the true midpoint; the rest fan out symmetrically toward each
-	 * endpoint.  The note box stays welded to whichever point is chosen, so the
-	 * anchor dot is never separated from the box — it just rides the curve to find
-	 * clearer space.  Kept away from the very ends (no 0 or 1) so the note never
-	 * sits on top of an endpoint node.  Densely sampled but kept well short of the
-	 * ends so a note nudges just far enough to clear text without flinging itself
-	 * out to the tip of the curve.
+	 * Find the bezier parameter t ∈ [0,1] whose point is closest to (px, py) in
+	 * SVG/layout coordinates.  Used while dragging a note's anchor DOT along its
+	 * connection line so the dot follows the cursor but stays welded to the curve.
+	 * Coarse sample then a short refine pass — plenty accurate for interaction.
+	 * @param {PathEntry} path
+	 * @param {number} px @param {number} py
+	 * @returns {number}
 	 */
-	const NOTE_T_STEPS = [0.5, 0.44, 0.56, 0.38, 0.62, 0.32, 0.68, 0.26, 0.74];
-
-	/**
-	 * The anchor may drift this far from the midpoint (|t − 0.5|) "for free" before
-	 * the W_DIST bias kicks in.  A small band lets a note escape a slight text graze
-	 * without being yanked back, while still strongly preferring the tidy midpoint.
-	 */
-	const NOTE_T_FREE_BAND = 0.06;
-
-	/** Tie-break preference: prefer 'above', then 'below', then 'right', then 'left'. */
-	const PLACEMENT_PREFERENCE = /** @type {Record<string, number>} */ ({
-		above: 0, below: 1, right: 2, left: 3
-	});
-
-	// Score weights.  Overlap areas are in CSS px² and dominate; the preference and
-	// distance terms are tiny tie-breakers so a fully-clear 'above' at the midpoint
-	// wins over an equally-clear spot further along the curve.
-	const W_SEGMENT = 1.0;   // overlapping passage text
-	const W_NOTE    = 3.0;   // overlapping another note (worse — notes must stay legible)
-	const W_BOUNDS  = 2.0;   // clipping off the top/left canvas edge
-	const W_DIST    = 5.0;   // bias toward the midpoint (only past the free band)
-
-	/**
-	 * Resolve the anchor point + placement of every note so each one prefers to sit
-	 * over WHITE SPACE (avoiding passage-segment boxes) and avoids overlapping other
-	 * notes — WITHOUT ever detaching the box from its anchor dot.
-	 *
-	 * For each note we slide the anchor along the connection's own bezier curve
-	 * (sampling NOTE_T_STEPS) and, at each sampled point, try the four placements
-	 * (above/below/left/right).  Every candidate is scored by how much it overlaps
-	 * passage text and other notes, how far it clips the top/left edges, how far the
-	 * anchor strayed from the midpoint, and a small placement preference.  The
-	 * lowest-scoring candidate wins; its on-curve point becomes noteAnchorX/Y so the
-	 * dot and the box move together.
-	 *
-	 * Notes are resolved in order; each committed note becomes an obstacle for the
-	 * ones after it.  Mutates notePlacement / noteAnchorX / noteAnchorY in-place.
-	 *
-	 * @param {PathEntry[]} notePaths — paths that have a note, in render order
-	 * @param {Array<{ x: number, y: number, w: number, h: number }>} segmentBoxes
-	 * @param {number} scl — current zoom scale (CSS px per layout unit)
-	 */
-	function resolveNotePlacements(notePaths, segmentBoxes, scl) {
-		const MARGIN = 4 / scl;
-		/** @type {Array<{ x: number, y: number, w: number, h: number }>} */
-		const placedNoteBoxes = [];
-
-		for (const note of notePaths) {
-			let best = /** @type {{ score: number, placement: 'above'|'below'|'right'|'left', ax: number, ay: number } | null} */ (null);
-
-			for (const t of NOTE_T_STEPS) {
-				// The on-curve anchor point for this t (the dot will sit exactly here).
-				const pt = cubicBezierPoint(
-					t, note.x1, note.y1, note.cx1, note.cy1, note.cx2, note.cy2, note.x2, note.y2
-				);
-				// Distance from the midpoint, with a "free band" near the centre: the
-				// anchor can drift up to NOTE_T_FREE_BAND for free, so a note can escape
-				// crowded text into nearby white space without the bias dragging it back.
-				const tDist = Math.max(0, Math.abs(t - 0.5) - NOTE_T_FREE_BAND);
-
-				for (const placement of NOTE_PLACEMENT_ORDER) {
-					const box = noteBoundingBox(pt.x, pt.y, placement);
-
-					// Sum overlap area against passage text and already-placed notes.
-					let segOverlap = 0;
-					for (const sb of segmentBoxes) segOverlap += overlapArea(box, sb);
-					let noteOverlap = 0;
-					for (const pb of placedNoteBoxes) noteOverlap += overlapArea(box, pb);
-
-					// Penalise clipping off the top/left edges (bottom/right are fine —
-					// the canvas scrolls/extends that way).
-					let bounds = 0;
-					if (box.x < MARGIN) bounds += (MARGIN - box.x) * box.h;
-					if (box.y < MARGIN) bounds += (MARGIN - box.y) * box.w;
-
-					const score =
-						segOverlap * W_SEGMENT +
-						noteOverlap * W_NOTE +
-						bounds * W_BOUNDS +
-						tDist * W_DIST * 100 +          // scale tDist (0–0.5) into px-comparable range
-						PLACEMENT_PREFERENCE[placement];
-
-					if (best === null || score < best.score) {
-						best = { score, placement, ax: pt.x, ay: pt.y };
-					}
-				}
-			}
-
-			if (best) {
-				note.notePlacement = best.placement;
-				note.noteAnchorX = best.ax;
-				note.noteAnchorY = best.ay;
-			}
-			// Commit this note's final box so later notes treat it as an obstacle.
-			placedNoteBoxes.push(
-				noteBoundingBox(note.noteAnchorX, note.noteAnchorY, note.notePlacement)
-			);
+	function nearestTOnCurve(path, px, py) {
+		let bestT = 0.5;
+		let bestD = Infinity;
+		const evalT = (t) => {
+			const p = cubicBezierPoint(t, path.x1, path.y1, path.cx1, path.cy1, path.cx2, path.cy2, path.x2, path.y2);
+			return (p.x - px) ** 2 + (p.y - py) ** 2;
+		};
+		for (let i = 0; i <= 40; i++) {
+			const t = i / 40;
+			const d = evalT(t);
+			if (d < bestD) { bestD = d; bestT = t; }
 		}
+		// Refine around the coarse best.
+		let lo = Math.max(0, bestT - 1 / 40);
+		let hi = Math.min(1, bestT + 1 / 40);
+		for (let i = 0; i < 12; i++) {
+			const m1 = lo + (hi - lo) / 3;
+			const m2 = hi - (hi - lo) / 3;
+			if (evalT(m1) < evalT(m2)) hi = m2; else lo = m1;
+		}
+		return (lo + hi) / 2;
 	}
 
 	// ─── DOM element lookup ───────────────────────────────────────────────────
@@ -1077,19 +1004,45 @@
 			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
 			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
 
-		// ── Initial note placement ──────────────────────────────────────────
-		// Default: 'above' the bezier midpoint.
-		// Same-column segment loop: the bezier bulges to the right, so place
-		// the note to the right of the midpoint instead.
-		// The anchor defaults to the bezier midpoint; resolveNotePlacements may
-		// slide it along the curve to find white space (keeping box + dot attached).
-		/** @type {'center'|'right'|'left'|'above'|'below'} */
-		let notePlacement = 'above';
+		// ── Note placement (user-controlled, persisted) ──────────────────────
+		// The note's anchor DOT rides the bezier curve at parameter `noteAnchorT`
+		// (0 = from-end … 1 = to-end), and the card attaches to one of the dot's
+		// four SIDES (`noteAnchorSide`) so the card extends AWAY from that edge.
+		// `noteOffset` slides the card ALONG its attached edge (perpendicular to
+		// the dot direction) so it can dodge text without moving the dot.
+		//
+		// When a connection has never been placed (null fields) we fall back to a
+		// sensible default: dot at the midpoint, card 'above' it — or to the right
+		// for the same-column segment loop, whose arc bulges rightward.
+		//
+		// A live drag (notePlacementOverrides) supersedes the persisted values so
+		// the card/dot track the cursor smoothly before the PATCH round-trips.
+		const override = notePlacementOverrides[connection.id];
+		const storedSide = override?.side ?? connection.noteAnchorSide ?? null;
+		const storedT    = override?.t    ?? connection.noteAnchorT    ?? null;
+		const storedOff  = override?.offset ?? connection.noteOffset   ?? null;
 
-		if (sameCol && fromSide2 && toSide2) {
-			// Same-column segment loop — note should sit to the right of the arc.
-			notePlacement = 'right';
+		// Resolve the anchor parameter t and the card side.
+		/** @type {'top'|'right'|'bottom'|'left'} */
+		let anchorSide;
+		let anchorT;
+		if (storedSide !== null && storedT !== null) {
+			anchorSide = storedSide;
+			anchorT = storedT;
+		} else {
+			// Default placement.
+			anchorT = 0.5;
+			anchorSide = (sameCol && fromSide2 && toSide2) ? 'right' : 'top';
 		}
+
+		// The on-curve point the dot sits on (and the card hangs from).
+		const anchorPt = cubicBezierPoint(
+			anchorT, from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y
+		);
+
+		/** @type {'center'|'right'|'left'|'above'|'below'} */
+		const notePlacement = sideToPlacement(anchorSide);
+		const noteOffset = storedOff ?? 0;
 
 		newPaths.push({
 			id: connection.id,
@@ -1098,19 +1051,9 @@
 			fromType, toType,
 			lineStyle: getLineStyle(fromType, toType),
 			note: connection.note ?? null,
-			notePlacement, noteAnchorX: mx, noteAnchorY: my
+			notePlacement, noteAnchorSide: anchorSide, noteAnchorT: anchorT,
+			noteAnchorX: anchorPt.x, noteAnchorY: anchorPt.y, noteOffset
 		});
-	}
-
-	// ── Note placement resolution ───────────────────────────────────────────
-	// Each note prefers to sit over WHITE SPACE (avoiding passage-segment boxes)
-	// and to not overlap other notes. The resolver scores every candidate
-	// placement/offset and commits the best, treating already-placed notes as
-	// obstacles for the ones that follow.
-	const notePaths = newPaths.filter(p => p.note);
-	if (notePaths.length > 0) {
-		const segmentBoxes = collectSegmentBoxes(svgRect, scale);
-		resolveNotePlacements(notePaths, segmentBoxes, scale);
 	}
 
 		paths = newPaths;
@@ -1625,6 +1568,182 @@
 		}
 	});
 
+	// ─── Note placement drag (slide along line + slide card along edge) ───────
+
+	/**
+	 * Persist a note's placement (anchor parameter t, attached side, slide offset)
+	 * and refresh the loaded data so the values survive a reload.
+	 * @param {string} connectionId
+	 * @param {{ t?: number, side?: 'top'|'right'|'bottom'|'left', offset?: number }} placement
+	 */
+	async function saveNotePlacement(connectionId, placement) {
+		try {
+			/** @type {Record<string, number|string>} */
+			const body = {};
+			if (placement.t !== undefined)      body.noteAnchorT = placement.t;
+			if (placement.side !== undefined)   body.noteAnchorSide = placement.side;
+			if (placement.offset !== undefined) body.noteOffset = placement.offset;
+			const response = await fetch(`/api/segments/connections/${connectionId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			if (response.ok) {
+				await invalidate('app:studies');
+			} else {
+				console.error('Connection note placement save error:', await response.json());
+			}
+		} catch (err) {
+			console.error('Connection note placement save network error:', err);
+		}
+	}
+
+	/**
+	 * Begin dragging a note's ANCHOR DOT along its connection curve. The dot rides
+	 * the bezier (its parameter t follows the cursor's nearest point on the curve)
+	 * while the card stays welded to whichever side it's attached to.
+	 * @param {PointerEvent} event
+	 * @param {PathEntry} path
+	 */
+	function startNoteDotDrag(event, path) {
+		event.preventDefault();
+		event.stopPropagation();
+		notePlacementDidDrag = false;
+		notePlacementDrag = {
+			id: path.id,
+			mode: 'dot',
+			startX: event.clientX,
+			startY: event.clientY,
+			startOffset: 0,
+			side: path.noteAnchorSide
+		};
+		document.body.style.cursor = 'grabbing';
+		document.body.style.userSelect = 'none';
+	}
+
+	/**
+	 * Begin sliding a note's CARD along its attached edge (perpendicular to the dot
+	 * direction). The dot stays put on the curve; only the card translates.
+	 * @param {PointerEvent} event
+	 * @param {PathEntry} path
+	 */
+	function startNoteCardDrag(event, path) {
+		event.preventDefault();
+		event.stopPropagation();
+		notePlacementDidDrag = false;
+		notePlacementDrag = {
+			id: path.id,
+			mode: 'card',
+			startX: event.clientX,
+			startY: event.clientY,
+			startOffset: path.noteOffset,
+			side: path.noteAnchorSide
+		};
+		document.body.style.cursor = 'grabbing';
+		document.body.style.userSelect = 'none';
+	}
+
+	/** @param {PointerEvent} event */
+	function handleNotePlacementMove(event) {
+		if (!notePlacementDrag) return;
+		event.preventDefault();
+		const drag = notePlacementDrag;
+		const path = paths.find(p => p.id === drag.id);
+		if (!path) return;
+
+		// Mark a real drag once the pointer travels past the threshold so a click
+		// (pointerdown→up with no movement) on the card still enters edit mode.
+		if (!notePlacementDidDrag) {
+			const moved = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+			if (moved < NOTE_DRAG_THRESHOLD) return;
+			notePlacementDidDrag = true;
+		}
+
+		if (drag.mode === 'dot') {
+
+			// Map the cursor to the nearest point on the curve → new t.
+			const { x, y } = toSvgCoords(event.clientX, event.clientY);
+			const t = nearestTOnCurve(path, x, y);
+			notePlacementOverrides = {
+				...notePlacementOverrides,
+				[drag.id]: { ...(notePlacementOverrides[drag.id] ?? { side: null, offset: null }), t }
+			};
+		} else {
+			// Slide the card along its attached edge. For top/bottom sides the card
+			// slides horizontally; for left/right it slides vertically. Delta is in
+			// CSS px ÷ scale so it tracks the cursor 1:1 at any zoom.
+			const horizontal = drag.side === 'top' || drag.side === 'bottom';
+			const deltaPx = horizontal
+				? (event.clientX - drag.startX)
+				: (event.clientY - drag.startY);
+			const offset = drag.startOffset + deltaPx / (scale || 1);
+			notePlacementOverrides = {
+				...notePlacementOverrides,
+				[drag.id]: { ...(notePlacementOverrides[drag.id] ?? { t: null, side: null }), offset }
+			};
+		}
+		scheduleCalculate();
+	}
+
+	/** @param {PointerEvent} _event */
+	async function handleNotePlacementUp(_event) {
+		if (!notePlacementDrag) return;
+		const drag = notePlacementDrag;
+		notePlacementDrag = null;
+		document.body.style.cursor = '';
+		document.body.style.userSelect = '';
+
+		const override = notePlacementOverrides[drag.id];
+		if (!override) return;
+
+		// Persist whichever value this drag changed (round t/offset for clean data).
+		/** @type {{ t?: number, side?: 'top'|'right'|'bottom'|'left', offset?: number }} */
+		const placement = {};
+		if (drag.mode === 'dot' && override.t != null) {
+			placement.t = Math.round(override.t * 1000) / 1000;
+			// First placement must also pin the side so the stored row is complete.
+			placement.side = drag.side;
+		} else if (drag.mode === 'card' && override.offset != null) {
+			placement.offset = Math.round(override.offset);
+		}
+
+		try {
+			await saveNotePlacement(drag.id, placement);
+		} finally {
+			// Drop the live override now the persisted value is the source of truth.
+			const { [drag.id]: _drop, ...rest } = notePlacementOverrides;
+			notePlacementOverrides = rest;
+		}
+	}
+
+	/**
+	 * Handle "connection-note-set-side" from the Layout menu: re-attach the
+	 * selected connection's note to a chosen side of its anchor dot. The card
+	 * extends away from that side; the offset resets so it re-centres on the dot.
+	 * @param {CustomEvent<{ side: 'top'|'right'|'bottom'|'left' }>} event
+	 */
+	function handleSetNoteSide(event) {
+		const ids = [...selectedPathIds];
+		if (ids.length !== 1) return;
+		const id = ids[0];
+		const side = event.detail?.side;
+		if (!side) return;
+		const path = paths.find(p => p.id === id);
+		const t = path?.noteAnchorT ?? 0.5;
+		// Live override for an instant visual response, then persist.
+		notePlacementOverrides = {
+			...notePlacementOverrides,
+			[id]: { t, side, offset: 0 }
+		};
+		scheduleCalculate();
+		saveNotePlacement(id, { t: Math.round(t * 1000) / 1000, side, offset: 0 }).finally(() => {
+			const { [id]: _drop, ...rest } = notePlacementOverrides;
+			notePlacementOverrides = rest;
+		});
+	}
+
+
+
 	// ─── Reactivity ──────────────────────────────────────────────────────────
 
 	$effect(() => {
@@ -1669,9 +1788,12 @@
 
 		window.addEventListener('pointermove', handlePointerMove, { passive: false });
 		window.addEventListener('pointerup', handlePointerUp);
+		window.addEventListener('pointermove', handleNotePlacementMove, { passive: false });
+		window.addEventListener('pointerup', handleNotePlacementUp);
 		document.addEventListener('click', handleDocumentClick);
 		window.addEventListener('connection-insert-note', handleInsertConnectionNote);
 		window.addEventListener('connection-remove-note', handleRemoveConnectionNote);
+		window.addEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
 
 		// Column/section spacing changes (live drag + modal apply/reset) reflow the
 		// passage text, so the note layout must re-evaluate to keep notes over
@@ -1693,9 +1815,12 @@
 		contentInner?.removeEventListener('transitionend', handleTransitionEnd);
 		window.removeEventListener('pointermove', handlePointerMove);
 		window.removeEventListener('pointerup', handlePointerUp);
+		window.removeEventListener('pointermove', handleNotePlacementMove);
+		window.removeEventListener('pointerup', handleNotePlacementUp);
 		document.removeEventListener('click', handleDocumentClick);
 		window.removeEventListener('connection-insert-note', handleInsertConnectionNote);
 		window.removeEventListener('connection-remove-note', handleRemoveConnectionNote);
+		window.removeEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
 		window.removeEventListener('analyze-layout-changed', handleLayoutChanged);
 		window.removeEventListener('set-section-spacing', handleLayoutChanged);
 		window.removeEventListener('reset-section-spacing', handleLayoutChanged);
@@ -1910,9 +2035,10 @@
 				<!-- Note positioned at the bezier midpoint (SVG units → CSS pixels via scale) -->
 				<div
 					class="connection-note-wrapper"
+					data-note-id={path.id}
 					class:connection-note-wrapper--editing={noteEditingId === path.id}
 					class:connection-note-wrapper--selected={noteSelectedId === path.id || selectedPathIds.has(path.id)}
-					style="left: {path.noteAnchorX}px; top: {path.noteAnchorY}px; transform: {noteTransform(path.notePlacement)};"
+					style="left: {path.noteAnchorX}px; top: {path.noteAnchorY}px; transform: {noteTransform(path.notePlacement, path.noteOffset)};"
 					onclick={(e) => e.stopPropagation()}
 					onkeydown={(e) => e.stopPropagation()}
 					role="none"
@@ -1937,11 +2063,14 @@
 							</div>
 						</div>
 					{:else}
-						<!-- Display mode: single click enters edit mode immediately -->
+						<!-- Display mode: drag to slide the card along its edge; a click
+						     (pointerdown→up with no movement) enters edit mode. -->
 						<div
 							class="connection-note-display"
 							class:connection-note-display--interactive={hoveredPathId === path.id || selectedPathIds.has(path.id) || noteSelectedId === path.id}
-							onclick={() => startNoteEdit(path.id)}
+							class:connection-note-display--sliding={notePlacementDrag?.id === path.id && notePlacementDrag?.mode === 'card'}
+							onpointerdown={(e) => startNoteCardDrag(e, path)}
+							onclick={() => { if (!notePlacementDidDrag) startNoteEdit(path.id); }}
 							onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startNoteEdit(path.id); }}
 							role="button"
 							tabindex="0"
@@ -1963,10 +2092,19 @@
 		<svg class="connections-dots-overlay" aria-hidden="true" focusable="false">
 			{#each visiblePaths as path (path.id)}
 				{#if path.note}
+					<!-- Larger transparent hit-target so the small dot is easy to grab -->
+					<circle
+						class="connection-note-dot-target"
+						cx={path.noteAnchorX} cy={path.noteAnchorY} r="9"
+						onpointerdown={(e) => startNoteDotDrag(e, path)}
+						onpointerenter={() => { hoveredPathId = path.id; }}
+						onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
+					/>
 					<circle
 						class="connection-note-dot"
 						class:connection-note-dot--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
 						class:connection-note-dot--selected={selectedPathIds.has(path.id)}
+						class:connection-note-dot--dragging={notePlacementDrag?.id === path.id && notePlacementDrag?.mode === 'dot'}
 						cx={path.noteAnchorX} cy={path.noteAnchorY} r="4"
 					/>
 				{/if}
@@ -2151,6 +2289,24 @@
 		fill: var(--blue);
 	}
 
+	/* While the dot is being dragged along the line it stays blue. */
+	.connection-note-dot--dragging {
+		fill: var(--blue);
+	}
+
+	/* Invisible, larger hit-target around the dot so it's easy to grab and slide
+	   along the connection line. It's the only interactive element in the dots
+	   overlay, hence pointer-events:all here while the SVG itself stays none. */
+	.connection-note-dot-target {
+		fill: transparent;
+		pointer-events: all;
+		cursor: grab;
+	}
+
+	.connection-note-dot-target:active {
+		cursor: grabbing;
+	}
+
 	.connection-note-display {
 		background-color: var(--gray-light);
 		border: 0.1rem solid var(--section-dark, var(--gray-600));
@@ -2174,7 +2330,12 @@
 	}
 
 	.connection-note-display--interactive {
-		cursor: pointer;
+		cursor: grab;
+	}
+
+	/* While the card is being slid along its edge it shows the grabbing cursor. */
+	.connection-note-display--sliding {
+		cursor: grabbing;
 	}
 
 	.connection-note-display--interactive:hover {

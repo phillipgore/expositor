@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, real, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const user = pgTable('user', {
@@ -238,6 +238,22 @@ export const segmentConnection = pgTable('segment_connection', {
 		.references(() => passageColumn.id, { onDelete: 'cascade' }),
 	// Short plain-text quick note for this connection (mirrors passage_segment.note)
 	note: text('note'),
+	/**
+	 * Which edge of the note card the anchor dot attaches to: 'top' | 'right' |
+	 * 'bottom' | 'left'. NULL = default 'top'. The card extends away from this edge.
+	 */
+	noteAnchorSide: text('note_anchor_side'),
+	/**
+	 * Position of the anchor dot ALONG the connection's bezier curve, 0…1.
+	 * NULL = default 0.5 (the curve midpoint). The user slides the dot along the line.
+	 */
+	noteAnchorT: real('note_anchor_t'),
+	/**
+	 * Signed pixel distance the card is slid ALONG its anchored edge (perpendicular
+	 * to the anchor direction): horizontal for top/bottom, vertical for left/right.
+	 * NULL/0 = centered on the dot.
+	 */
+	noteOffset: integer('note_offset'),
 	// Rich text commentary for this connection (mirrors passage_segment.commentary)
 	commentary: text('commentary'),
 	createdAt: timestamp('created_at')

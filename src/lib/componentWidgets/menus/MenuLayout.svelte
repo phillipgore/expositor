@@ -37,6 +37,28 @@
 			menuElement.hidePopover();
 		}
 	}
+
+	/**
+	 * Re-attach the selected connection's quick note to a chosen side of its
+	 * anchor dot. The card always extends AWAY from the chosen edge, so picking
+	 * 'top' hangs the card below the dot, 'left' puts it to the right, etc.
+	 * ConnectionsOverlay listens for this event (handleSetNoteSide).
+	 * @param {'top'|'right'|'bottom'|'left'} side
+	 */
+	function setNoteSide(side) {
+		closeMenu();
+		window.dispatchEvent(new CustomEvent('connection-note-set-side', { detail: { side } }));
+	}
+
+	// The note side-pickers only apply to a single selected connection that
+	// actually has a note. Other layout items stay gated behind view modes.
+	let noteSideDisabled = $derived(
+		!(
+			$toolbarState.hasActiveConnection &&
+			$toolbarState.activeConnectionIds?.length === 1 &&
+			$toolbarState.activeConnectionHasNote
+		)
+	);
 </script>
 
 <Menu {menuId} ariaLabel="Layout menu">
@@ -114,6 +136,48 @@
 			window.dispatchEvent(new CustomEvent('restore-segment-height'));
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
+
+	<DividerHorizontal />
+
+	<!-- Connection quick-note placement: pick which side of the anchor dot the
+	     note card attaches to. The card extends away from the chosen edge, so the
+	     label describes where the card lands relative to the dot. -->
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-above"
+		label="Quick Note Above"
+		role="menuitem"
+		handleClick={() => setNoteSide('bottom')}
+		isDisabled={noteSideDisabled}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-below"
+		label="Quick Note Below"
+		role="menuitem"
+		handleClick={() => setNoteSide('top')}
+		isDisabled={noteSideDisabled}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-right"
+		label="Quick Note Right"
+		role="menuitem"
+		handleClick={() => setNoteSide('left')}
+		isDisabled={noteSideDisabled}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-left"
+		label="Quick Note Left"
+		role="menuitem"
+		handleClick={() => setNoteSide('right')}
+		isDisabled={noteSideDisabled}
 	/>
 </Menu>
 

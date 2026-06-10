@@ -89,9 +89,11 @@ export const PATCH = async ({ params, request }) => {
 		const updatingTo        = 'toType'   in body || 'toSegmentId'   in body || 'toSectionId'   in body || 'toColumnId'   in body;
 		const updatingCommentary = 'commentary' in body;
 		const updatingNote       = 'note' in body;
+		const updatingNotePlacement =
+			'noteAnchorSide' in body || 'noteAnchorT' in body || 'noteOffset' in body;
 
-		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote) {
-			return json({ error: 'Must provide at least one field to update (from*, to*, note, or commentary)' }, { status: 400 });
+		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote && !updatingNotePlacement) {
+			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, or commentary)' }, { status: 400 });
 		}
 
 		// Validate types if provided
@@ -137,6 +139,32 @@ export const PATCH = async ({ params, request }) => {
 				return json({ error: 'Invalid note: must be a string or null' }, { status: 400 });
 			}
 			updates.note = body.note ?? null;
+		}
+
+		// Note placement update (independent of rerouting) — manual card placement.
+		if (updatingNotePlacement) {
+			if ('noteAnchorSide' in body) {
+				const side = body.noteAnchorSide;
+				if (side !== null && !['top', 'right', 'bottom', 'left'].includes(side)) {
+					return json({ error: "Invalid noteAnchorSide: must be 'top', 'right', 'bottom', 'left', or null" }, { status: 400 });
+				}
+				updates.noteAnchorSide = side ?? null;
+			}
+			if ('noteAnchorT' in body) {
+				const t = body.noteAnchorT;
+				if (t !== null && (typeof t !== 'number' || Number.isNaN(t))) {
+					return json({ error: 'Invalid noteAnchorT: must be a number or null' }, { status: 400 });
+				}
+				// Clamp to the valid 0..1 range.
+				updates.noteAnchorT = t === null ? null : Math.min(1, Math.max(0, t));
+			}
+			if ('noteOffset' in body) {
+				const off = body.noteOffset;
+				if (off !== null && (typeof off !== 'number' || Number.isNaN(off))) {
+					return json({ error: 'Invalid noteOffset: must be a number or null' }, { status: 400 });
+				}
+				updates.noteOffset = off === null ? null : Math.round(off);
+			}
 		}
 
 		// Commentary update (independent of rerouting)
