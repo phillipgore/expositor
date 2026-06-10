@@ -60,7 +60,7 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number }} PathEntry
+	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number }} PathEntry
 	 * @typedef {{ elementId: string, type: ConnType, side: 'left'|'right', x: number, y: number }} Handle
 	 */
 
@@ -169,6 +169,15 @@
 
 	/** Pixels the pointer must travel before a card pointerdown becomes a slide. */
 	const NOTE_DRAG_THRESHOLD = 4;
+
+	/**
+	 * Set on the pointerup that ends a note-placement interaction (dot or card) so
+	 * the document `click` that immediately follows doesn't deselect the connection
+	 * we just selected/activated by grabbing the anchor. Consumed (and cleared) by
+	 * handleDocumentClick.
+	 */
+	let suppressNextDocumentClick = $state(false);
+
 
 	const SNAP_RADIUS = 32;
 	let resizeObserver = /** @type {ResizeObserver | null} */ (null);
@@ -547,6 +556,58 @@
 		if (type === 'column') return 'Column';
 		if (type === 'section') return 'Section';
 		return 'Segment';
+	}
+
+	/**
+	 * Decide which side of an anchor point its hover tooltip should sit on so it
+	 * stays CLEAR of the connection's Quick Note (card + anchor dot).
+	 *
+	 *   • Vertical connection end (anchor on a top/bottom edge → Column/Section):
+	 *       the line exits vertically, so the tooltip goes to the LEFT or RIGHT.
+	 *   • Horizontal connection end (anchor on a left/right edge → Segment):
+	 *       the line exits horizontally, so the tooltip goes ABOVE or BELOW.
+	 *
+	 * Within the required axis we pick the side OPPOSITE the note. When the note
+	 * sits on the perpendicular axis (so "opposite" isn't defined on our axis) we
+	 * fall back to whichever side points away from the note's anchor dot, keeping
+	 * the tooltip off the note even then.
+	 * @param {'top'|'bottom'|'left'|'right'} edge — this end's anchor edge
+	 * @param {'center'|'right'|'left'|'above'|'below'} notePlacement — where the note card sits
+	 * @param {number} anchorX — this anchor point x (SVG/layout units)
+	 * @param {number} anchorY — this anchor point y (SVG/layout units)
+	 * @param {number} noteX — the note's anchor-dot x
+	 * @param {number} noteY — the note's anchor-dot y
+	 * @returns {'left'|'right'|'above'|'below'}
+	 */
+	function anchorTooltipPlacement(edge, notePlacement, anchorX, anchorY, noteX, noteY) {
+		const vertical = edge === 'top' || edge === 'bottom';
+		if (vertical) {
+			// Tooltip must be left or right.
+			if (notePlacement === 'right') return 'left';
+			if (notePlacement === 'left')  return 'right';
+			// Note is above/below/center → steer away from the note dot horizontally.
+			return noteX >= anchorX ? 'left' : 'right';
+		}
+		// Horizontal end: tooltip must be above or below.
+		if (notePlacement === 'above') return 'below';
+		if (notePlacement === 'below') return 'above';
+		// Note is left/right/center → steer away from the note dot vertically.
+		return noteY >= anchorY ? 'above' : 'below';
+	}
+
+	/**
+	 * CSS transform for an anchor tooltip placed on a given side of its anchor
+	 * point, keeping the same 0.8rem gap the original (always-above) tooltip used.
+	 * @param {'left'|'right'|'above'|'below'} placement
+	 * @returns {string}
+	 */
+	function anchorTooltipTransform(placement) {
+		switch (placement) {
+			case 'left':  return 'translate(calc(-100% - 0.8rem), -50%)';
+			case 'right': return 'translate(0.8rem, -50%)';
+			case 'below': return 'translate(-50%, 0.8rem)';
+			default:      return 'translate(-50%, calc(-100% - 0.8rem))'; // above
+		}
 	}
 
 
@@ -1048,7 +1109,7 @@
 			id: connection.id,
 			d, x1: from.x, y1: from.y, x2: to.x, y2: to.y,
 			mx, my, cx1, cy1, cx2, cy2,
-			fromType, toType,
+			fromType, toType, fromEdge, toEdge,
 			lineStyle: getLineStyle(fromType, toType),
 			note: connection.note ?? null,
 			notePlacement, noteAnchorSide: anchorSide, noteAnchorT: anchorT,
@@ -1303,6 +1364,14 @@
 	 * @param {MouseEvent} event
 	 */
 	function handleDocumentClick(event) {
+		// A note placement drag (slide along the line / slide the card) just ended;
+		// swallow the click it generated so we keep the connection we activated by
+		// grabbing the anchor selected.
+		if (suppressNextDocumentClick) {
+			suppressNextDocumentClick = false;
+			return;
+		}
+
 		const target = /** @type {Element} */ (event.target);
 		// Only deselect if the click landed inside the analyze content wrapper
 		// (i.e. the passage area), not on toolbar buttons or the commentary panel.
@@ -1608,6 +1677,18 @@
 	function startNoteDotDrag(event, path) {
 		event.preventDefault();
 		event.stopPropagation();
+
+		// Grabbing the anchor dot selects the connection so its line activates
+		// (matches a click on the line itself). Commit any open note editor first.
+		if (noteEditingId) {
+			commitNoteEdit();
+		} else if (noteSelectedId) {
+			noteSelectedId = null;
+			noteEditorActive = false;
+		}
+		selectedPathIds = new Set([path.id]);
+		setActiveConnection(true, [path.id], !!path.note);
+
 		notePlacementDidDrag = false;
 		notePlacementDrag = {
 			id: path.id,
@@ -1630,6 +1711,16 @@
 	function startNoteCardDrag(event, path) {
 		event.preventDefault();
 		event.stopPropagation();
+
+		// Grabbing the slide handle selects the connection so its line activates
+		// (matches the anchor-dot grab and a click on the line itself).
+		if (noteSelectedId && noteSelectedId !== path.id) {
+			noteSelectedId = null;
+			noteEditorActive = false;
+		}
+		selectedPathIds = new Set([path.id]);
+		setActiveConnection(true, [path.id], !!path.note);
+
 		notePlacementDidDrag = false;
 		notePlacementDrag = {
 			id: path.id,
@@ -1676,7 +1767,20 @@
 			const deltaPx = horizontal
 				? (event.clientX - drag.startX)
 				: (event.clientY - drag.startY);
-			const offset = drag.startOffset + deltaPx / (scale || 1);
+			let offset = drag.startOffset + deltaPx / (scale || 1);
+
+			// Clamp so the card never slides off its anchor: the dot sits centered on
+			// the attached edge at offset 0, so it can travel at most half the card's
+			// length along the slide axis before reaching a corner. Measured live (in
+			// unscaled layout units, matching `offset`) from the card element.
+			const cardEl = /** @type {HTMLElement|null} */ (
+				document.querySelector(`.connection-note-wrapper[data-note-id="${drag.id}"] .connection-note-display`)
+			);
+			if (cardEl) {
+				const limit = (horizontal ? cardEl.offsetWidth : cardEl.offsetHeight) / 2;
+				offset = Math.max(-limit, Math.min(limit, offset));
+			}
+
 			notePlacementOverrides = {
 				...notePlacementOverrides,
 				[drag.id]: { ...(notePlacementOverrides[drag.id] ?? { t: null, side: null }), offset }
@@ -1692,6 +1796,10 @@
 		notePlacementDrag = null;
 		document.body.style.cursor = '';
 		document.body.style.userSelect = '';
+
+		// The pointerup is followed by a document `click`; don't let it deselect
+		// the connection we activated by grabbing the anchor/handle.
+		suppressNextDocumentClick = true;
 
 		const override = notePlacementOverrides[drag.id];
 		if (!override) return;
@@ -2063,20 +2171,47 @@
 							</div>
 						</div>
 					{:else}
-						<!-- Display mode: drag to slide the card along its edge; a click
-						     (pointerdown→up with no movement) enters edit mode. -->
+						{@const slideHorizontal = path.noteAnchorSide === 'top' || path.noteAnchorSide === 'bottom'}
+						<!-- The grab handle hugs the card corner on the side OPPOSITE the
+						     anchored edge (the edge the card extends toward), just outside
+						     the card so it never covers the note text:
+						       anchor top    (card below)  → bottom-left  corner
+						       anchor bottom (card above)  → top-left     corner
+						       anchor left   (card right)  → top-right    corner
+						       anchor right  (card left)   → top-left     corner -->
+						{@const handleCorner =
+							path.noteAnchorSide === 'top' ? 'bl'
+							: path.noteAnchorSide === 'left' ? 'tr'
+							: 'tl'}
+						<!-- Display mode: click the card body to edit. A dedicated
+						     three-dot grab handle (like the section/column handles)
+						     slides the card along its anchored edge. -->
 						<div
 							class="connection-note-display"
 							class:connection-note-display--interactive={hoveredPathId === path.id || selectedPathIds.has(path.id) || noteSelectedId === path.id}
-							class:connection-note-display--sliding={notePlacementDrag?.id === path.id && notePlacementDrag?.mode === 'card'}
-							onpointerdown={(e) => startNoteCardDrag(e, path)}
-							onclick={() => { if (!notePlacementDidDrag) startNoteEdit(path.id); }}
+							onclick={() => startNoteEdit(path.id)}
 							onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startNoteEdit(path.id); }}
 							role="button"
 							tabindex="0"
 							aria-label="Edit connection note"
 						>
 							{path.note}
+						</div>
+						<!-- Slide handle: three dots in an L that wraps a card corner
+						     from the OUTSIDE (vertex on the diagonal, legs running along
+						     the two adjacent edges). Shown on hover/selection. -->
+						<div
+							class="connection-note-handle connection-note-handle--corner-{handleCorner}"
+							class:connection-note-handle--visible={hoveredPathId === path.id || selectedPathIds.has(path.id) || noteSelectedId === path.id}
+							class:connection-note-handle--sliding={notePlacementDrag?.id === path.id && notePlacementDrag?.mode === 'card'}
+							onpointerdown={(e) => startNoteCardDrag(e, path)}
+							role="separator"
+							aria-label="Slide connection note"
+							aria-orientation={slideHorizontal ? 'vertical' : 'horizontal'}
+						>
+							<span class="connection-note-handle-dot"></span>
+							<span class="connection-note-handle-dot"></span>
+							<span class="connection-note-handle-dot"></span>
 						</div>
 					{/if}
 				</div>
@@ -2119,15 +2254,17 @@
 	{#if hoveredPathId}
 		{#each visiblePaths as path (path.id)}
 			{#if hoveredPathId === path.id}
+				{@const fromPlacement = anchorTooltipPlacement(path.fromEdge, path.notePlacement, path.x1, path.y1, path.noteAnchorX, path.noteAnchorY)}
+				{@const toPlacement = anchorTooltipPlacement(path.toEdge, path.notePlacement, path.x2, path.y2, path.noteAnchorX, path.noteAnchorY)}
 				<div
 					class="connection-anchor-tooltip"
-					style="left: {path.x1}px; top: {path.y1}px;"
+					style="left: {path.x1}px; top: {path.y1}px; transform: {anchorTooltipTransform(fromPlacement)};"
 				>
 					{anchorLabel(path.fromType)}
 				</div>
 				<div
 					class="connection-anchor-tooltip"
-					style="left: {path.x2}px; top: {path.y2}px;"
+					style="left: {path.x2}px; top: {path.y2}px; transform: {anchorTooltipTransform(toPlacement)};"
 				>
 					{anchorLabel(path.toType)}
 				</div>
@@ -2330,17 +2467,67 @@
 	}
 
 	.connection-note-display--interactive {
+		cursor: pointer;
+	}
+
+	/* ── Note slide handle (L-shaped three-dot corner bracket) ───────────────
+	   A grab handle that slides the note card ALONG its anchored edge. Three
+	   dots form an "L" that wraps a corner of the card from the OUTSIDE (so it
+	   never covers the note text). The base layout is a 2×2 grid whose three
+	   dots auto-fill the top-left, top-right and bottom-left cells — an L with
+	   its vertex at the top-left. The corner modifiers rotate that L 90° so the
+	   vertex lands on whichever card corner sits nearest the anchor dot, and
+	   position the bracket just outside that corner. Shown on hover/selection. */
+	.connection-note-handle {
+		position: absolute;
+		display: grid;
+		grid-template-columns: repeat(2, 0.5rem);
+		grid-template-rows: repeat(2, 0.5rem);
+		gap: 0.3rem;
 		cursor: grab;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 80ms ease-in-out;
+		z-index: 1;
 	}
 
-	/* While the card is being slid along its edge it shows the grabbing cursor. */
-	.connection-note-display--sliding {
+	/* Top-left corner: bracket tucks right up against the card's top-left corner. */
+	.connection-note-handle--corner-tl {
+		right: calc(100% - 0.4rem);
+		bottom: calc(100% - 0.4rem);
+	}
+
+	/* Top-right corner: against the top-right corner; L rotated so vertex is TR. */
+	.connection-note-handle--corner-tr {
+		left: calc(100% - 0.4rem);
+		bottom: calc(100% - 0.4rem);
+		transform: rotate(90deg);
+	}
+
+	/* Bottom-left corner: against the bottom-left corner; vertex rotated to BL. */
+	.connection-note-handle--corner-bl {
+		right: calc(100% - 0.4rem);
+		top: calc(100% - 0.4rem);
+		transform: rotate(-90deg);
+	}
+
+	/* Shown on hover/selection, and grabbable only then. */
+	.connection-note-handle--visible {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.connection-note-handle--sliding {
 		cursor: grabbing;
+		opacity: 1;
+		pointer-events: auto;
 	}
 
-	.connection-note-display--interactive:hover {
-		border-top: 0.1rem dashed var(--gray);
-		margin-top: -0.1rem;
+	.connection-note-handle-dot {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background-color: var(--gray-darker, #333);
 	}
 
 	.connection-note-edit {
@@ -2385,14 +2572,15 @@
 	}
 
 	/* ── Anchor type tooltip (hover) ── */
-	/* Small black label above each anchor point naming its element type.
-	   Matches ResizeTooltip's look (var(--gray-200) bg, white text). Positioned
-	   in the overlay's scaled coordinate space (same as note wrappers), lifted
-	   above the anchor and centered horizontally. */
+	/* Small black label naming each anchor point's element type. Matches
+	   ResizeTooltip's look (var(--gray-200) bg, white text). Positioned in the
+	   overlay's scaled coordinate space (same as note wrappers); the per-tooltip
+	   `transform` is set inline (see anchorTooltipTransform) so each label sits on
+	   the side OPPOSITE the connection's Quick Note — left/right for vertical
+	   (column/section) ends, above/below for horizontal (segment) ends. */
 
 	.connection-anchor-tooltip {
 		position: absolute;
-		transform: translate(-50%, calc(-100% - 0.8rem));
 		padding: 0.3rem 0.6rem;
 		border-radius: 0.3rem;
 		background-color: var(--gray-200);
