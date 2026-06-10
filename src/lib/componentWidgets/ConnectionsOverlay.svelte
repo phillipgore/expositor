@@ -1063,9 +1063,6 @@
 				cy2 = to.y + vCurve;
 			}
 
-			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
-			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
-
 		// ── Note placement (user-controlled, persisted) ──────────────────────
 		// The note's anchor DOT rides the bezier curve at parameter `noteAnchorT`
 		// (0 = from-end … 1 = to-end), and the card attaches to one of the dot's
@@ -1097,14 +1094,50 @@
 			anchorSide = (sameCol && fromSide2 && toSide2) ? 'right' : 'top';
 		}
 
-		// The on-curve point the dot sits on (and the card hangs from).
+		/** @type {'center'|'right'|'left'|'above'|'below'} */
+		const notePlacement = sideToPlacement(anchorSide);
+		const noteOffset = storedOff ?? 0;
+
+			// ── Separate a noted note from a STRAIGHT VERTICAL line ───────────────
+			// Column/Section vertical cases place both control points straight up or
+			// down (cx1=from.x, cx2=to.x). When the two endpoints share an x, that
+			// "curve" collapses to a perfectly straight vertical line — so a Quick
+			// Note's dot and card sit right on top of the line and its anchors with no
+			// breathing room. When such a line carries a note, bow the control points
+			// sideways (away from the card) so the arc's middle swings clear of the
+			// straight anchor-to-anchor path. Segment side-loops already bow via
+			// loopOut, so this only targets the vertical (top/bottom) exits.
+			const hasNoteForCurve = !!(connection.note ?? null) || noteEditingId === connection.id;
+			const verticalish = !(fromSide2 && toSide2); // at least one top/bottom end
+			if (hasNoteForCurve && verticalish && dx < 8 && dy > dx) {
+				// REBUILD the control points as a clean, symmetric arc — exactly like the
+				// same-column segment loop — rather than nudging the already-vertical
+				// handles sideways (which produced a J-hook because one handle pointed
+				// down while the other pointed sideways). Both handles now push equally
+				// toward the card with a matching vertical component, so the line bows
+				// out as a simple "(" curve. loopOut matches the segment formula.
+				const loopOut = Math.max(16, dy * 0.1);
+				// Bow TOWARD the card: card left → bow left, otherwise bow right.
+				const dir = notePlacement === 'left' ? -1 : 1;
+				const vIn = dy * 0.2; // gentle vertical easing toward each anchor
+				cx1 = from.x + loopOut * dir;
+				cy1 = from.y + (from.y < to.y ? vIn : -vIn);
+				cx2 = to.x + loopOut * dir;
+				cy2 = to.y + (from.y < to.y ? -vIn : vIn);
+			}
+
+
+
+
+			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
+			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
+
+		// The on-curve point the dot sits on (and the card hangs from), computed on
+		// the FINAL (possibly bowed) control points so the dot stays welded to the line.
 		const anchorPt = cubicBezierPoint(
 			anchorT, from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y
 		);
 
-		/** @type {'center'|'right'|'left'|'above'|'below'} */
-		const notePlacement = sideToPlacement(anchorSide);
-		const noteOffset = storedOff ?? 0;
 
 		newPaths.push({
 			id: connection.id,
