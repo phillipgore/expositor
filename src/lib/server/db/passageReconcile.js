@@ -394,95 +394,254 @@ async function loadTaggedIds(dbx, subjectType, ids) {
 	return set;
 }
 
+/* ------------------------------------------------------------------ */
+/* Removal geometry + content-summary helpers (shared by analyze/apply)*/
+/* ------------------------------------------------------------------ */
+
 /**
- * Analyze a removal edge against the live structure to find what would be lost.
+ * Resolve the orphaned items and the single surviving "merge target" for a
+ * removal edge. The target is the adjacent surviving segment (and, through it,
+ * its section and column) that orphaned content / connections fold into.
+ *
+ * @param {Array} tree - loadTree() output
+ * @param {Array} flat - flattenSegments(tree) output
+ * @param {'start'|'end'} side
+ * @param {string} boundaryWord - newFirst (start) or newEnd (end)
+ * @returns {{orphanEntries:Array, survivors:Array, target:Object|null,
+ *   orphanSections:Array, orphanColumns:Array, orphanSegIdSet:Set<string>}}
+ */
+function computeRemovalSets(tree, flat, side, boundaryWord) {
+	let orphanEntries;
+	let survivors;
+	let targetEntry;
+	if (side === 'start') {
+		// Covering segment = greatest start <= boundary; everything strictly
+		// before it is orphaned, and the covering segment is the merge target.
+		let coveringIdx = -1;
+		for (let i = 0; i < flat.length; i++) {
+			if (compareWordIds(flat[i].segment.startingWordId, boundaryWord) <= 0) coveringIdx = i;
+			else break;
+		}
+		if (coveringIdx <= 0) {
+			orphanEntries = [];
+			survivors = flat.slice();
+			targetEntry = flat[0] || null;
+		} else {
+			orphanEntries = flat.slice(0, coveringIdx);
+			survivors = flat.slice(coveringIdx);
+			targetEntry = flat[coveringIdx];
+		}
+	} else {
+		// Orphans are segments at/after the new exclusive end; the last survivor
+		// is the merge target.
+		orphanEntries = flat.filter((e) => compareWordIds(e.segment.startingWordId, boundaryWord) >= 0);
+		survivors = flat.filter((e) => compareWordIds(e.segment.startingWordId, boundaryWord) < 0);
+		targetEntry = survivors.length ? survivors[survivors.length - 1] : null;
+	}
+
+	const orphanSegIdSet = new Set(orphanEntries.map((e) => e.segment.id));
+	const orphanSections = [];
+	const orphanColumns = [];
+	for (const column of tree) {
+		const colSegs = column.sections.flatMap((s) => s.segments);
+		const colAllOrphan = colSegs.length > 0 && colSegs.every((seg) => orphanSegIdSet.has(seg.id));
+		if (colAllOrphan) orphanColumns.push(column);
+		for (const section of column.sections) {
+			const allOrphan =
+				section.segments.length > 0 && section.segments.every((seg) => orphanSegIdSet.has(seg.id));
+			if (allOrphan) orphanSections.push(section);
+		}
+	}
+
+	const target = targetEntry
+		? { segment: targetEntry.segment, section: targetEntry.section, column: targetEntry.column }
+		: null;
+
+	return { orphanEntries, survivors, target, orphanSections, orphanColumns, orphanSegIdSet };
+}
+
+/**
+ * Parse a BOOK-CHAP-VERSE-WORD id into a short "chapter:verse" label.
+ * @param {string} wordId
+ * @returns {string}
+ */
+function wordIdToRef(wordId) {
+	const parts = String(wordId).split('-');
+	if (parts.length < 3) return '';
+	return `${parseInt(parts[1], 10)}:${parseInt(parts[2], 10)}`;
+}
+
+/** Short human summary of a segment's authored content. */
+function summarizeSegmentContent(seg, isTagged) {
+	const parts = [];
+	const headings = [seg.headingOne, seg.headingTwo, seg.headingThree].filter(Boolean).length;
+	if (headings) parts.push(`${headings} heading${headings === 1 ? '' : 's'}`);
+	if (seg.note) parts.push('a note');
+	if (seg.commentary) parts.push('commentary');
+	if (isTagged) parts.push('tags');
+	if (seg.height) parts.push('a custom height');
+	return parts.join(', ');
+}
+
+/** Short summary of a section/column commentary subject. */
+function summarizeCommentarySubject(row, isTagged) {
+	const parts = [];
+	if (row.commentary) parts.push('commentary');
+	if (isTagged) parts.push('tags');
+	return parts.join(', ');
+}
+
+/** Short summary of a connection (endpoint kinds + any content). */
+function summarizeConnection(conn, isTagged) {
+	const parts = [];
+	if (conn.note) parts.push('a note');
+	if (conn.commentary) parts.push('commentary');
+	if (isTagged) parts.push('tags');
+	const content = parts.length ? ` with ${parts.join(', ')}` : '';
+	return `${conn.fromType} ↔ ${conn.toType}${content}`;
+}
+
+/** Read one end of a connection as a {type, id} pair. */
+function connEndpoint(conn, end) {
+	const type = end === 'from' ? conn.fromType : conn.toType;
+	let id;
+	if (type === 'segment') id = end === 'from' ? conn.fromSegmentId : conn.toSegmentId;
+	else if (type === 'section') id = end === 'from' ? conn.fromSectionId : conn.toSectionId;
+	else id = end === 'from' ? conn.fromColumnId : conn.toColumnId;
+	return { type, id };
+}
+
+/** True when two endpoints reference the same entity. */
+function sameEndpoint(a, b) {
+	return a.type === b.type && a.id === b.id;
+}
+
+/** True when two endpoint pairs are equal, ignoring direction (A↔B == B↔A). */
+function endpointsKeyEqual(a1, a2, b1, b2) {
+	return (
+		(sameEndpoint(a1, b1) && sameEndpoint(a2, b2)) ||
+		(sameEndpoint(a1, b2) && sameEndpoint(a2, b1))
+	);
+}
+
+/** Re-point an endpoint onto its surviving merge target, if it was removed. */
+function remapEndpoint(ep, segMap, secMap, colMap) {
+	if (ep.type === 'segment' && segMap.has(ep.id)) return { type: 'segment', id: segMap.get(ep.id) };
+	if (ep.type === 'section' && secMap.has(ep.id)) return { type: 'section', id: secMap.get(ep.id) };
+	if (ep.type === 'column' && colMap.has(ep.id)) return { type: 'column', id: colMap.get(ep.id) };
+	return ep;
+}
+
+/** Build the DB column patch for one connection end ('from'|'to'). */
+function endpointColumns(end, ep) {
+	const cap = end === 'from' ? 'from' : 'to';
+	return {
+		[`${cap}Type`]: ep.type,
+		[`${cap}SegmentId`]: ep.type === 'segment' ? ep.id : null,
+		[`${cap}SectionId`]: ep.type === 'section' ? ep.id : null,
+		[`${cap}ColumnId`]: ep.type === 'column' ? ep.id : null
+	};
+}
+
+/**
+ * Analyze a removal edge against the live structure to find, per orphaned
+ * ENTITY (segment / section / column / connection), what would be lost and
+ * what its merge target would be. Only entities that actually carry authored
+ * content are surfaced (empty containers are pruned silently); every affected
+ * connection is surfaced regardless of content, since the link itself is lost.
+ *
  * @param {'start'|'end'} side
  * @param {string} boundaryWord - newFirst (start) or newEnd (end)
  */
 async function analyzeRemoval(dbx, studyId, passageId, side, boundaryWord) {
 	const tree = await loadTree(dbx, passageId);
 	const flat = flattenSegments(tree);
+	const sets = computeRemovalSets(tree, flat, side, boundaryWord);
+	const { orphanEntries, target, orphanSections, orphanColumns, orphanSegIdSet } = sets;
+	const hasTarget = !!target;
 
-	let orphanEntries;
-	if (side === 'start') {
-		// Covering segment = greatest start <= boundary; everything strictly
-		// before it is orphaned.
-		let coveringIdx = -1;
-		for (let i = 0; i < flat.length; i++) {
-			if (compareWordIds(flat[i].segment.startingWordId, boundaryWord) <= 0) coveringIdx = i;
-			else break;
-		}
-		orphanEntries = coveringIdx > 0 ? flat.slice(0, coveringIdx) : [];
-	} else {
-		// Orphans are segments starting at/after the new exclusive end.
-		orphanEntries = flat.filter((e) => compareWordIds(e.segment.startingWordId, boundaryWord) >= 0);
-	}
-
-	const orphanSegmentIds = orphanEntries.map((e) => e.segment.id);
-	const taggedSegments = await loadTaggedIds(dbx, 'segment', orphanSegmentIds);
-
-	// Fully-orphaned sections / columns (all their segments are orphaned)
-	const orphanSegmentIdSet = new Set(orphanSegmentIds);
-	const orphanSections = [];
-	const orphanColumns = [];
-	for (const column of tree) {
-		const colSegs = column.sections.flatMap((s) => s.segments);
-		const colAllOrphan = colSegs.length > 0 && colSegs.every((seg) => orphanSegmentIdSet.has(seg.id));
-		if (colAllOrphan) orphanColumns.push(column);
-		for (const section of column.sections) {
-			const allOrphan =
-				section.segments.length > 0 && section.segments.every((seg) => orphanSegmentIdSet.has(seg.id));
-			if (allOrphan) orphanSections.push(section);
-		}
-	}
-
+	const taggedSegments = await loadTaggedIds(dbx, 'segment', orphanEntries.map((e) => e.segment.id));
 	const taggedSections = await loadTaggedIds(dbx, 'section', orphanSections.map((s) => s.id));
 	const taggedColumns = await loadTaggedIds(dbx, 'column', orphanColumns.map((c) => c.id));
 
-	const segmentsWithContent = orphanEntries.filter((e) => segmentHasContent(e.segment, taggedSegments)).length;
-	const sectionsWithContent = orphanSections.filter((s) => s.commentary || taggedSections.has(s.id)).length;
-	const columnsWithContent = orphanColumns.filter((c) => c.commentary || taggedColumns.has(c.id)).length;
+	const segments = orphanEntries
+		.filter((e) => segmentHasContent(e.segment, taggedSegments))
+		.map((e) => ({
+			id: e.segment.id,
+			label: wordIdToRef(e.segment.startingWordId),
+			summary: summarizeSegmentContent(e.segment, taggedSegments.has(e.segment.id)),
+			canMerge: hasTarget
+		}));
 
-	// Connections touching any orphaned item
+	const sections = orphanSections
+		.filter((s) => s.commentary || taggedSections.has(s.id))
+		.map((s) => ({
+			id: s.id,
+			summary: summarizeCommentarySubject(s, taggedSections.has(s.id)),
+			canMerge: hasTarget
+		}));
+
+	const columns = orphanColumns
+		.filter((c) => c.commentary || taggedColumns.has(c.id))
+		.map((c) => ({
+			id: c.id,
+			summary: summarizeCommentarySubject(c, taggedColumns.has(c.id)),
+			canMerge: hasTarget
+		}));
+
+	// Connections touching any orphaned item.
 	const orphanSectionIds = new Set(orphanSections.map((s) => s.id));
 	const orphanColumnIds = new Set(orphanColumns.map((c) => c.id));
 	const allConnections = await dbx
 		.select()
 		.from(segmentConnection)
 		.where(eq(segmentConnection.studyId, studyId));
-	const affectedConnections = allConnections.filter(
+	const affected = allConnections.filter(
 		(c) =>
-			(c.fromSegmentId && orphanSegmentIdSet.has(c.fromSegmentId)) ||
-			(c.toSegmentId && orphanSegmentIdSet.has(c.toSegmentId)) ||
+			(c.fromSegmentId && orphanSegIdSet.has(c.fromSegmentId)) ||
+			(c.toSegmentId && orphanSegIdSet.has(c.toSegmentId)) ||
 			(c.fromSectionId && orphanSectionIds.has(c.fromSectionId)) ||
 			(c.toSectionId && orphanSectionIds.has(c.toSectionId)) ||
 			(c.fromColumnId && orphanColumnIds.has(c.fromColumnId)) ||
 			(c.toColumnId && orphanColumnIds.has(c.toColumnId))
 	);
 
-	const segments = orphanEntries.length;
-	const connections = affectedConnections.length;
-	const sections = orphanSections.length;
-	const columns = orphanColumns.length;
+	// Maps from each removed entity → the surviving target of the same kind,
+	// used here only to detect connections that would collapse into a self-loop.
+	const segMap = new Map();
+	const secMap = new Map();
+	const colMap = new Map();
+	if (target) {
+		for (const e of orphanEntries) segMap.set(e.segment.id, target.segment.id);
+		for (const s of orphanSections) secMap.set(s.id, target.section.id);
+		for (const c of orphanColumns) colMap.set(c.id, target.column.id);
+	}
+	const connTagged = await loadTaggedIds(dbx, 'connection', affected.map((c) => c.id));
+	const connections = affected.map((c) => {
+		const nf = remapEndpoint(connEndpoint(c, 'from'), segMap, secMap, colMap);
+		const nt = remapEndpoint(connEndpoint(c, 'to'), segMap, secMap, colMap);
+		const selfLoop = sameEndpoint(nf, nt);
+		return {
+			id: c.id,
+			summary: summarizeConnection(c, connTagged.has(c.id)),
+			canReanchor: hasTarget && !selfLoop
+		};
+	});
 
-	// A decision is needed only when something meaningful would be lost.
 	const needsDecision =
-		segmentsWithContent > 0 || sectionsWithContent > 0 || columnsWithContent > 0 || connections > 0;
-
-	// Whether a merge target exists (a surviving segment to fold into)
-	const survivingSegments = flat.length - orphanEntries.length;
-	const canMerge = survivingSegments > 0 && segments > 0;
+		segments.length > 0 || sections.length > 0 || columns.length > 0 || connections.length > 0;
 
 	return {
 		segments,
-		segmentsWithContent,
 		sections,
-		sectionsWithContent,
 		columns,
-		columnsWithContent,
 		connections,
+		// Aggregate counts retained for any consumer that wants quick totals.
+		segmentsWithContent: segments.length,
+		sectionsWithContent: sections.length,
+		columnsWithContent: columns.length,
 		needsDecision,
-		canMerge
+		canMerge: hasTarget
 	};
 }
 
@@ -709,6 +868,175 @@ async function foldSegmentContent(tx, fromSeg, targetSeg) {
 }
 
 /**
+ * Move all tags from one subject onto another of the same type, deduped by
+ * termId. Tags whose termId already exists on the target are deleted (not
+ * duplicated). Used when folding a section/column/connection into its target.
+ */
+async function moveTagsDedup(tx, subjectType, fromId, toId) {
+	const fromTags = await tx
+		.select()
+		.from(commentaryTag)
+		.where(and(eq(commentaryTag.subjectType, subjectType), eq(commentaryTag.subjectId, fromId)));
+	if (fromTags.length === 0) return;
+
+	const targetTags = await tx
+		.select()
+		.from(commentaryTag)
+		.where(and(eq(commentaryTag.subjectType, subjectType), eq(commentaryTag.subjectId, toId)));
+	const existingTerms = new Set(targetTags.map((t) => t.termId));
+	let order = targetTags.length;
+	for (const tag of fromTags) {
+		if (existingTerms.has(tag.termId)) {
+			await tx.delete(commentaryTag).where(eq(commentaryTag.id, tag.id));
+			continue;
+		}
+		await tx
+			.update(commentaryTag)
+			.set({ subjectId: toId, displayOrder: order++ })
+			.where(eq(commentaryTag.id, tag.id));
+		existingTerms.add(tag.termId);
+	}
+}
+
+/**
+ * Fold an orphan section's commentary + tags into a surviving target section.
+ * Commentary is appended; tags are deduped by termId.
+ */
+async function foldCommentarySubject(tx, table, subjectType, fromRow, targetRow) {
+	if (fromRow.commentary) {
+		const merged = targetRow.commentary
+			? `${targetRow.commentary}\n${fromRow.commentary}`
+			: fromRow.commentary;
+		targetRow.commentary = merged;
+		await tx
+			.update(table)
+			.set({ commentary: merged, updatedAt: new Date() })
+			.where(eq(table.id, targetRow.id));
+	}
+	await moveTagsDedup(tx, subjectType, fromRow.id, targetRow.id);
+}
+
+/**
+ * Re-anchor or delete ALL connections touching the orphaned items of a removal
+ * edge, per a single group-level choice ('reanchor' or 'delete').
+ *
+ * When the choice is 'reanchor' (default), each affected connection:
+ *   - Re-points each end that landed on a removed segment/section/column to the
+ *     surviving merge target of the same kind.
+ *   - If both ends collapse onto the same target (self-loop), it is dropped
+ *     (auto-fallback — a self-loop can't be re-anchored).
+ *   - If the re-anchored shape duplicates an existing connection (same unordered
+ *     endpoint pair), this one's note/commentary/tags fold into that existing
+ *     connection and this row is deleted (no duplicate created).
+ *   - Otherwise its endpoints are updated in place.
+ * When the choice is 'delete' (or no surviving target exists), every affected
+ * connection (and its tags) is removed outright.
+ *
+ * Must run BEFORE the orphan segments are deleted (so FK cascade doesn't remove
+ * connections we intend to re-anchor).
+ *
+ * @param {Object} target - { segment, section, column } surviving merge target
+ * @param {string} connChoice - 'reanchor' | 'delete'
+ */
+async function reanchorOrphanConnections(
+	tx,
+	studyId,
+	orphanSegIds,
+	orphanSectionIds,
+	orphanColumnIds,
+	target,
+	connChoice = 'reanchor'
+) {
+	const segSet = new Set(orphanSegIds);
+	const secSet = new Set(orphanSectionIds);
+	const colSet = new Set(orphanColumnIds);
+
+	const allConns = await tx
+		.select()
+		.from(segmentConnection)
+		.where(eq(segmentConnection.studyId, studyId));
+
+	const affected = allConns.filter(
+		(c) =>
+			(c.fromSegmentId && segSet.has(c.fromSegmentId)) ||
+			(c.toSegmentId && segSet.has(c.toSegmentId)) ||
+			(c.fromSectionId && secSet.has(c.fromSectionId)) ||
+			(c.toSectionId && secSet.has(c.toSectionId)) ||
+			(c.fromColumnId && colSet.has(c.fromColumnId)) ||
+			(c.toColumnId && colSet.has(c.toColumnId))
+	);
+	if (affected.length === 0) return;
+
+	// Maps from removed entity → surviving target of the same kind.
+	const segMap = new Map();
+	const secMap = new Map();
+	const colMap = new Map();
+	if (target) {
+		for (const id of orphanSegIds) segMap.set(id, target.segment.id);
+		for (const id of orphanSectionIds) secMap.set(id, target.section.id);
+		for (const id of orphanColumnIds) colMap.set(id, target.column.id);
+	}
+
+	const affectedIds = new Set(affected.map((c) => c.id));
+	// Survivor pool = connections that won't be touched, used for dedup matching.
+	const survivorPool = allConns.filter((c) => !affectedIds.has(c.id));
+
+	for (const conn of affected) {
+		if (connChoice === 'delete' || !target) {
+			await deleteTagsFor(tx, 'connection', [conn.id]);
+			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
+			continue;
+		}
+
+		const newFrom = remapEndpoint(connEndpoint(conn, 'from'), segMap, secMap, colMap);
+		const newTo = remapEndpoint(connEndpoint(conn, 'to'), segMap, secMap, colMap);
+
+		// Self-loop: both ends collapsed to the same target — meaningless, drop it.
+		if (sameEndpoint(newFrom, newTo)) {
+			await deleteTagsFor(tx, 'connection', [conn.id]);
+			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
+			continue;
+		}
+
+		// Duplicate of an existing surviving connection? Fold into it.
+		const dup = survivorPool.find((s) =>
+			endpointsKeyEqual(newFrom, newTo, connEndpoint(s, 'from'), connEndpoint(s, 'to'))
+		);
+		if (dup) {
+			const set = {};
+			if (conn.note) set.note = dup.note ? `${dup.note}\n${conn.note}` : conn.note;
+			if (conn.commentary) {
+				set.commentary = dup.commentary
+					? `${dup.commentary}\n${conn.commentary}`
+					: conn.commentary;
+			}
+			if (Object.keys(set).length > 0) {
+				set.updatedAt = new Date();
+				await tx.update(segmentConnection).set(set).where(eq(segmentConnection.id, dup.id));
+				if ('note' in set) dup.note = set.note;
+				if ('commentary' in set) dup.commentary = set.commentary;
+			}
+			await moveTagsDedup(tx, 'connection', conn.id, dup.id);
+			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
+			continue;
+		}
+
+		// No duplicate: re-anchor this row's endpoints in place.
+		await tx
+			.update(segmentConnection)
+			.set({ ...endpointColumns('from', newFrom), ...endpointColumns('to', newTo), updatedAt: new Date() })
+			.where(eq(segmentConnection.id, conn.id));
+		// This row now occupies its new shape — include it in the survivor pool so
+		// later affected connections can dedup against it.
+		survivorPool.push({
+			...conn,
+			...endpointColumns('from', newFrom),
+			...endpointColumns('to', newTo)
+		});
+	}
+}
+
+/**
  * Re-anchor the very first column/section/segment of a passage to `newFirst`.
  *
  * Used when the passage's start moves (verses added before the old start, or
@@ -833,56 +1161,90 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
 	}
 }
 
-async function applyRemoveStart(tx, studyId, passageId, newFirst, mode) {
+/**
+ * Apply one removal edge ('start' or 'end') honoring per-item decisions.
+ *
+ * `decision` is a per-edge bundle with ONE choice per entity kind; that choice
+ * applies to every orphaned item of that kind:
+ *   {
+ *     segments:    'merge'|'delete',
+ *     sections:    'merge'|'delete',
+ *     columns:     'merge'|'delete',
+ *     connections: 'reanchor'|'delete'
+ *   }
+ * Any kind not present defaults to the non-destructive choice (merge/reanchor).
+ * Items that physically can't honor a merge/reanchor (no surviving target, or a
+ * connection that would become a self-loop) fall back to delete automatically.
+ *
+ * Order matters:
+ *   1. Fold orphan segment/section/column content into the surviving target.
+ *   2. Reconcile connections (re-anchor or delete) BEFORE deleting segments, so
+ *      FK cascade doesn't remove a connection we mean to re-home.
+ *   3. Delete the orphan segments, prune emptied containers, re-anchor the start.
+ *
+ * @param {'start'|'end'} side
+ * @param {string} boundaryWord
+ * @param {Object} decision - per-edge group-level decision bundle
+ */
+async function applyRemovalEdge(tx, studyId, passageId, side, boundaryWord, decision = {}) {
 	const tree = await loadTree(tx, passageId);
 	const flat = flattenSegments(tree);
-	if (flat.length === 0) return;
-
-	// Covering segment = greatest start <= newFirst
-	let coveringIdx = -1;
-	for (let i = 0; i < flat.length; i++) {
-		if (compareWordIds(flat[i].segment.startingWordId, newFirst) <= 0) coveringIdx = i;
-		else break;
-	}
-	if (coveringIdx <= 0) {
-		// Nothing strictly before the covering segment — just re-anchor.
-		await reanchorFirst(tx, passageId, newFirst);
+	if (flat.length === 0) {
+		if (side === 'start') await reanchorFirst(tx, passageId, boundaryWord);
 		return;
 	}
 
-	const orphanEntries = flat.slice(0, coveringIdx);
-	const target = flat[coveringIdx].segment;
+	const sets = computeRemovalSets(tree, flat, side, boundaryWord);
+	const { orphanEntries, target, orphanSections, orphanColumns } = sets;
 
-	if (mode === 'merge') {
-		// Fold in word order (already sorted ascending).
+	if (orphanEntries.length === 0) {
+		// Nothing orphaned (start edge landed inside the first segment): re-anchor.
+		if (side === 'start') await reanchorFirst(tx, passageId, boundaryWord);
+		return;
+	}
+
+	// Group-level decisions (one choice applies to every item of that kind).
+	const segChoice = decision.segments || 'merge';
+	const secChoice = decision.sections || 'merge';
+	const colChoice = decision.columns || 'merge';
+	const connChoice = decision.connections || 'reanchor';
+
+	// 1a. Fold orphan SEGMENT content (only when merging and a target exists).
+	if (target && segChoice === 'merge') {
 		for (const entry of orphanEntries) {
-			await foldSegmentContent(tx, entry.segment, target);
+			await foldSegmentContent(tx, entry.segment, target.segment);
+		}
+	}
+	// 1b. Fold orphan SECTION commentary/tags.
+	if (target && secChoice === 'merge') {
+		for (const sec of orphanSections) {
+			if (sec.id === target.section.id) continue;
+			await foldCommentarySubject(tx, passageSection, 'section', sec, target.section);
+		}
+	}
+	// 1c. Fold orphan COLUMN commentary/tags.
+	if (target && colChoice === 'merge') {
+		for (const col of orphanColumns) {
+			if (col.id === target.column.id) continue;
+			await foldCommentarySubject(tx, passageColumn, 'column', col, target.column);
 		}
 	}
 
+	// 2. Reconcile connections BEFORE deleting segments.
+	await reanchorOrphanConnections(
+		tx,
+		studyId,
+		orphanEntries.map((e) => e.segment.id),
+		orphanSections.map((s) => s.id),
+		orphanColumns.map((c) => c.id),
+		target,
+		connChoice
+	);
+
+	// 3. Delete the orphan segments, prune emptied containers, re-anchor.
 	await deleteSegments(tx, studyId, orphanEntries.map((e) => e.segment.id));
 	await pruneEmptyContainers(tx, studyId, passageId);
-	await reanchorFirst(tx, passageId, newFirst);
-}
-
-async function applyRemoveEnd(tx, studyId, passageId, newEnd, mode) {
-	const tree = await loadTree(tx, passageId);
-	const flat = flattenSegments(tree);
-	if (flat.length === 0) return;
-
-	const orphanEntries = flat.filter((e) => compareWordIds(e.segment.startingWordId, newEnd) >= 0);
-	if (orphanEntries.length === 0) return;
-
-	const survivors = flat.filter((e) => compareWordIds(e.segment.startingWordId, newEnd) < 0);
-	if (mode === 'merge' && survivors.length > 0) {
-		const target = survivors[survivors.length - 1].segment;
-		for (const entry of orphanEntries) {
-			await foldSegmentContent(tx, entry.segment, target);
-		}
-	}
-
-	await deleteSegments(tx, studyId, orphanEntries.map((e) => e.segment.id));
-	await pruneEmptyContainers(tx, studyId, passageId);
+	if (side === 'start') await reanchorFirst(tx, passageId, boundaryWord);
 }
 
 /**
@@ -937,11 +1299,22 @@ async function applyReplace(tx, studyId, passageId, newFirstWord) {
 /* ------------------------------------------------------------------ */
 
 /**
+ * Per-edge removal decision bundle — ONE choice per entity kind, applied to
+ * every orphaned item of that kind. Absent entries default to the
+ * non-destructive choice ('merge' / 'reanchor').
+ * @typedef {Object} RemovalDecision
+ * @property {string} [segments]    - 'merge'|'delete'
+ * @property {string} [sections]    - 'merge'|'delete'
+ * @property {string} [columns]     - 'merge'|'delete'
+ * @property {string} [connections] - 'reanchor'|'delete'
+ */
+
+/**
  * @typedef {Object} PassageDecision
  * @property {string} [addStartPlacement] - 'extend'|'segment'|'section'|'column'
  * @property {string} [addEndPlacement]   - 'extend'|'segment'|'section'|'column'
- * @property {string} [removeStartMode]   - 'merge'|'delete'
- * @property {string} [removeEndMode]     - 'merge'|'delete'
+ * @property {RemovalDecision} [removeStart]
+ * @property {RemovalDecision} [removeEnd]
  */
 
 /**
@@ -970,14 +1343,14 @@ export async function applyPassageRangeChange(tx, studyId, old, next, decision =
 	if (edges.addStart) {
 		await applyAddStart(tx, next.id, edges.addStart.newFirst, decision.addStartPlacement || 'extend');
 	} else if (edges.removeStart) {
-		await applyRemoveStart(tx, studyId, next.id, edges.removeStart.newFirst, decision.removeStartMode || 'delete');
+		await applyRemovalEdge(tx, studyId, next.id, 'start', edges.removeStart.newFirst, decision.removeStart || {});
 	}
 
 	// Apply end edge
 	if (edges.addEnd) {
 		await applyAddEnd(tx, next.id, edges.addEnd.firstAddedWord, decision.addEndPlacement || 'extend');
 	} else if (edges.removeEnd) {
-		await applyRemoveEnd(tx, studyId, next.id, edges.removeEnd.newEnd, decision.removeEndMode || 'delete');
+		await applyRemovalEdge(tx, studyId, next.id, 'end', edges.removeEnd.newEnd, decision.removeEnd || {});
 	}
 }
 

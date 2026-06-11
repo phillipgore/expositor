@@ -30,15 +30,24 @@
 	let { isOpen = false, report = null, onConfirm, onCancel, isSaving = false } = $props();
 
 	/**
-	 * Decisions keyed by passageId:
+	 * Decisions keyed by passageId. Add placements are scalars; each removal edge
+	 * carries ONE choice per entity kind, applied to every orphaned item of that
+	 * kind:
 	 * {
 	 *   [passageId]: {
-	 *     addStartPlacement, addEndPlacement,  // 'extend'|'segment'|'section'|'column'
-	 *     removeStartMode, removeEndMode       // 'merge'|'delete'
+	 *     addStartPlacement, addEndPlacement,    // 'extend'|'segment'|'section'|'column'
+	 *     removeStart: {
+	 *       segments:    'merge'|'delete',
+	 *       sections:    'merge'|'delete',
+	 *       columns:     'merge'|'delete',
+	 *       connections: 'reanchor'|'delete'
+	 *     },
+	 *     removeEnd: { ...same shape... }
 	 *   }
 	 * }
 	 */
 	let decisions = $state({});
+
 
 	// The "extend" option is phrased per edge: prepend at the start, append at
 	// the end. The remaining options are identical for both edges.
@@ -53,6 +62,29 @@
 	];
 	const ADD_END_OPTIONS = [{ value: 'extend', label: 'Append to last segment' }, ...NEW_OPTIONS];
 
+	/**
+	 * Seed a per-edge bundle of GROUP-level decisions — one choice per entity
+	 * kind, applied to every orphaned item of that kind. Defaults to the
+	 * non-destructive choice ('merge'/'reanchor') when at least one item of the
+	 * kind can honor it, otherwise 'delete'. Preserves a prior choice if present.
+	 */
+	function seedRemovalBundle(impact, prev) {
+		if (!impact) return undefined;
+		const prior = prev || {};
+		const seedGroup = (items, priorVal, canKey, mergeVal) => {
+			if (priorVal) return priorVal;
+			const anyCan = (items || []).some((it) => it[canKey]);
+			return anyCan ? mergeVal : 'delete';
+		};
+		return {
+			segments: seedGroup(impact.segments, prior.segments, 'canMerge', 'merge'),
+			sections: seedGroup(impact.sections, prior.sections, 'canMerge', 'merge'),
+			columns: seedGroup(impact.columns, prior.columns, 'canMerge', 'merge'),
+			connections: seedGroup(impact.connections, prior.connections, 'canReanchor', 'reanchor')
+		};
+	}
+
+
 	// Seed sensible defaults whenever a new report arrives.
 	$effect(() => {
 		if (!report?.passages) return;
@@ -62,11 +94,8 @@
 			seeded[p.passageId] = {
 				addStartPlacement: d.addStartPlacement || 'extend',
 				addEndPlacement: d.addEndPlacement || 'extend',
-				// Merge is the safe default whenever merging is possible; otherwise delete.
-				removeStartMode:
-					d.removeStartMode || (p.removeStart && p.removeStart.canMerge ? 'merge' : 'delete'),
-				removeEndMode:
-					d.removeEndMode || (p.removeEnd && p.removeEnd.canMerge ? 'merge' : 'delete')
+				removeStart: seedRemovalBundle(p.removeStart, d.removeStart),
+				removeEnd: seedRemovalBundle(p.removeEnd, d.removeEnd)
 			};
 		}
 		decisions = seeded;
@@ -80,30 +109,30 @@
 	}
 
 	/**
-	 * Build a short "what will be lost" summary line for a removal impact.
+	 * Set a group-level decision within a removal edge bundle (applies to every
+	 * orphaned item of that kind).
+	 * @param {string} passageId
+	 * @param {'removeStart'|'removeEnd'} edge
+	 * @param {'segments'|'sections'|'columns'|'connections'} group
+	 * @param {string} value
 	 */
-	function lossSummary(impact) {
-		const parts = [];
-		if (impact.segmentsWithContent > 0) {
-			parts.push(
-				`${impact.segmentsWithContent} segment${impact.segmentsWithContent === 1 ? '' : 's'} with content`
-			);
-		}
-		if (impact.sectionsWithContent > 0) {
-			parts.push(
-				`${impact.sectionsWithContent} section${impact.sectionsWithContent === 1 ? '' : 's'} with commentary`
-			);
-		}
-		if (impact.columnsWithContent > 0) {
-			parts.push(
-				`${impact.columnsWithContent} column${impact.columnsWithContent === 1 ? '' : 's'} with commentary`
-			);
-		}
-		if (impact.connections > 0) {
-			parts.push(`${impact.connections} connection${impact.connections === 1 ? '' : 's'}`);
-		}
-		return parts.join(', ');
+	function setGroupDecision(passageId, edge, group, value) {
+		const passage = decisions[passageId] || {};
+		const bundle = passage[edge] || {};
+		decisions = {
+			...decisions,
+			[passageId]: {
+				...passage,
+				[edge]: { ...bundle, [group]: value }
+			}
+		};
 	}
+
+	/** Read the current group-level decision (for `checked` binding). */
+	function groupDecision(passageId, edge, group) {
+		return decisions[passageId]?.[edge]?.[group];
+	}
+
 
 	async function handleConfirm() {
 		if (onConfirm) await onConfirm(decisions);
@@ -194,88 +223,94 @@
 				{/if}
 
 				{#if p.removeStart && p.removeStart.needsDecision}
-					<div class="change">
-						<p class="change-title">
-							Removed {p.removeStart.count} verse{p.removeStart.count === 1 ? '' : 's'} from the start
-							{#if p.removeStart.reference}<span class="ref">({p.removeStart.reference})</span>{/if}
-						</p>
-						<p class="change-loss">This would remove: {lossSummary(p.removeStart)}.</p>
-						<div class="options">
-							{#if p.removeStart.canMerge}
-								<label class="opt">
-									<input
-										type="radio"
-										name={`removeStart-${p.passageId}`}
-										value="merge"
-										checked={decisions[p.passageId]?.removeStartMode === 'merge'}
-										onchange={() => setDecision(p.passageId, 'removeStartMode', 'merge')}
-									/>
-									<span>Merge headings, notes &amp; commentary into the next segment (recommended)</span>
-								</label>
-							{/if}
-							<label class="opt">
-								<input
-									type="radio"
-									name={`removeStart-${p.passageId}`}
-									value="delete"
-									checked={decisions[p.passageId]?.removeStartMode === 'delete'}
-									onchange={() => setDecision(p.passageId, 'removeStartMode', 'delete')}
-								/>
-								<span>Delete it permanently</span>
-							</label>
-						</div>
-						{#if p.removeStart.connections > 0}
-							<p class="change-note">
-								Note: connections attached to the removed verses can't be reattached and will be
-								deleted either way.
-							</p>
-						{/if}
-					</div>
+					{@render removalEdge('removeStart', p, p.removeStart, 'next')}
 				{/if}
 
 				{#if p.removeEnd && p.removeEnd.needsDecision}
-					<div class="change">
-						<p class="change-title">
-							Removed {p.removeEnd.count} verse{p.removeEnd.count === 1 ? '' : 's'} from the end
-							{#if p.removeEnd.reference}<span class="ref">({p.removeEnd.reference})</span>{/if}
-						</p>
-						<p class="change-loss">This would remove: {lossSummary(p.removeEnd)}.</p>
-						<div class="options">
-							{#if p.removeEnd.canMerge}
-								<label class="opt">
-									<input
-										type="radio"
-										name={`removeEnd-${p.passageId}`}
-										value="merge"
-										checked={decisions[p.passageId]?.removeEndMode === 'merge'}
-										onchange={() => setDecision(p.passageId, 'removeEndMode', 'merge')}
-									/>
-									<span>Merge headings, notes &amp; commentary into the previous segment (recommended)</span>
-								</label>
-							{/if}
-							<label class="opt">
-								<input
-									type="radio"
-									name={`removeEnd-${p.passageId}`}
-									value="delete"
-									checked={decisions[p.passageId]?.removeEndMode === 'delete'}
-									onchange={() => setDecision(p.passageId, 'removeEndMode', 'delete')}
-								/>
-								<span>Delete it permanently</span>
-							</label>
-						</div>
-						{#if p.removeEnd.connections > 0}
-							<p class="change-note">
-								Note: connections attached to the removed verses can't be reattached and will be
-								deleted either way.
-							</p>
-						{/if}
-					</div>
+					{@render removalEdge('removeEnd', p, p.removeEnd, 'previous')}
 				{/if}
 			</div>
 		{/each}
 	{/if}
 </Modal>
+
+{#snippet removalEdge(edge, p, impact, neighborWord)}
+	<div class="change">
+		<p class="change-title">
+			Removed {impact.count} verse{impact.count === 1 ? '' : 's'} from the {edge === 'removeStart'
+				? 'start'
+				: 'end'}
+			{#if impact.reference}<span class="ref">({impact.reference})</span>{/if}
+		</p>
+		<p class="change-q">
+			Choose what happens to the content anchored to the removed verses. Each choice below
+			applies to every affected item of that kind.
+		</p>
+
+		{#if impact.segments && impact.segments.length}
+			{@render groupControl(edge, p, 'segments', 'Segments', impact.segments, [
+				{ value: 'merge', label: `Merge into the ${neighborWord} segment`, can: impact.segments.some((i) => i.canMerge) },
+				{ value: 'delete', label: 'Delete permanently', can: true }
+			])}
+		{/if}
+
+		{#if impact.sections && impact.sections.length}
+			{@render groupControl(edge, p, 'sections', 'Sections', impact.sections, [
+				{ value: 'merge', label: `Merge commentary into the ${neighborWord} section`, can: impact.sections.some((i) => i.canMerge) },
+				{ value: 'delete', label: 'Delete permanently', can: true }
+			])}
+		{/if}
+
+		{#if impact.columns && impact.columns.length}
+			{@render groupControl(edge, p, 'columns', 'Columns', impact.columns, [
+				{ value: 'merge', label: `Merge commentary into the ${neighborWord} column`, can: impact.columns.some((i) => i.canMerge) },
+				{ value: 'delete', label: 'Delete permanently', can: true }
+			])}
+		{/if}
+
+		{#if impact.connections && impact.connections.length}
+			{@render groupControl(edge, p, 'connections', 'Connections', impact.connections, [
+				{ value: 'reanchor', label: 'Re-anchor to the surviving item (merge if it already exists)', can: impact.connections.some((i) => i.canReanchor) },
+				{ value: 'delete', label: 'Delete permanently', can: true }
+			])}
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet groupControl(edge, p, group, heading, items, choices)}
+	<div class="entity-group">
+		<p class="entity-head">{heading} <span class="entity-count">({items.length})</span></p>
+
+		<!-- Read-only list of the affected items, for context. -->
+		<ul class="entity-list">
+			{#each items as item (item.id)}
+				<li>
+					{#if item.label}<span class="entity-ref">{item.label}</span>{/if}
+					{#if item.summary}<span class="entity-summary">{item.summary}</span>{/if}
+				</li>
+			{/each}
+		</ul>
+
+		<!-- One decision for the whole group. -->
+		<div class="options">
+			{#each choices as choice}
+				{#if choice.can}
+					<label class="opt">
+						<input
+							type="radio"
+							name={`${edge}-${group}-${p.passageId}`}
+							value={choice.value}
+							checked={groupDecision(p.passageId, edge, group) === choice.value}
+							onchange={() => setGroupDecision(p.passageId, edge, group, choice.value)}
+						/>
+						<span>{choice.label}</span>
+					</label>
+				{/if}
+			{/each}
+		</div>
+	</div>
+{/snippet}
+
 
 <style>
 	p.intro {
@@ -340,16 +375,46 @@
 		color: var(--gray-400);
 	}
 
-	.change-loss {
-		margin: 0 0 0.6rem;
-		font-size: 1.4rem;
-		color: var(--red-darker, #8a1f1f);
+	.entity-group {
+		margin-top: 0.9rem;
 	}
 
-	.change-note {
-		margin: 0.6rem 0 0;
+	.entity-head {
+		margin: 0 0 0.3rem;
 		font-size: 1.3rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05rem;
+		color: var(--gray-300);
+	}
+
+	.entity-count {
+		font-weight: 400;
+		text-transform: none;
+		letter-spacing: 0;
+		color: var(--gray-300);
+	}
+
+	.entity-list {
+		margin: 0 0 0.5rem;
+		padding-left: 0.9rem;
+		list-style: none;
+		border-left: 0.2rem solid var(--gray-lighter);
+	}
+
+	.entity-list li {
+		font-size: 1.4rem;
 		line-height: 1.5;
+		color: var(--gray-400);
+	}
+
+	.entity-ref {
+		font-weight: 600;
+		color: var(--black);
+		margin-right: 0.5rem;
+	}
+
+	.entity-summary {
 		color: var(--gray-300);
 	}
 
