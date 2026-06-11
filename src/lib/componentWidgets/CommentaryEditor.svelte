@@ -12,6 +12,8 @@
 	import Highlight from '@tiptap/extension-highlight';
 	import { Footnote } from '$lib/utils/tiptapFootnote.js';
 	import { GlossaryTerm } from '$lib/utils/tiptapGlossaryTerm.js';
+	import { TaggedHighlight } from '$lib/utils/tiptapTaggedHighlight.js';
+
 	import { getMarkRange, isValidUrl } from '$lib/utils/tiptapUtils.js';
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import LinkPopover from './LinkPopover.svelte';
@@ -125,8 +127,10 @@
 				}),
 				Highlight.configure({ multicolor: true }),
 				Footnote,
-				GlossaryTerm
+				GlossaryTerm,
+				TaggedHighlight
 			],
+
 			content: content || '<p></p>',
 
 			editorProps: {
@@ -788,17 +792,127 @@
 	}
 
 	/**
-	 * Insert an inline glossary badge node at the current cursor position.
+	 * Insert an inline glossary term.
+	 *
+	 * Two cases:
+	 *  - NON-EMPTY selection → "tagged highlight": tint the selected text with a
+	 *    soft shade of the term's category color and insert the term pill at the
+	 *    END of the selection, INSIDE the same band (marks wrap inline atoms).
+	 *  - EMPTY selection → insert a bare pill at the cursor (legacy behavior).
+	 *
 	 * @param {string} termId
 	 */
 	function insertInlineTerm(termId) {
+		if (!editor) return;
 		const entry = getTermById(termId);
+		const label = entry?.term || '';
+
+		const { from, to } = editor.state.selection;
+		const hasSelection = to > from;
+
+		if (!hasSelection) {
+			// No selection: insert a bare pill at the cursor (unchanged behavior).
+			editor.chain().focus().setGlossaryTerm({ termId, label }).run();
+			return;
+		}
+
+		// Selection present: insert the pill at the END of the selection, then
+		// apply the tinted band across the whole range (original text + pill).
+		// Inserting at `to` grows the document by 1 position (the atom node), so
+		// the band's end is `to + 1`.
 		editor
-			?.chain()
+			.chain()
 			.focus()
-			.setGlossaryTerm({ termId, label: entry?.term || '' })
+			.insertContentAt(to, { type: 'glossaryTerm', attrs: { termId, label } })
+			.setTextSelection({ from, to: to + 1 })
+			.setTaggedHighlight({ termId })
+			.setTextSelection(to + 1)
 			.run();
 	}
+
+	/**
+	 * Resolve the document position of the glossaryTerm node backing a given pill
+	 * DOM element, then remove its tagged highlight. `posAtDOM` on an inline atom
+	 * can land just inside the node, so we probe a small window of nearby
+	 * positions to find the actual node.
+	 * @param {HTMLElement} pillEl
+	 */
+	function removeTaggedHighlightForPill(pillEl) {
+		if (!editor) return;
+		const { state, view } = editor;
+
+		// Find the glossaryTerm node whose rendered DOM is (or contains) the pill
+		// element. `view.nodeDOM(pos)` gives us the exact DOM node ProseMirror
+		// rendered for the node at `pos`, which is the reliable way to map a click
+		// back to a document position for an inline atom.
+		let foundPos = -1;
+		state.doc.descendants((node, pos) => {
+			if (foundPos !== -1) return false;
+			if (node.type.name !== 'glossaryTerm') return;
+			const dom = view.nodeDOM(pos);
+			if (dom && (dom === pillEl || (dom instanceof HTMLElement && dom.contains(pillEl)))) {
+				foundPos = pos;
+				return false;
+			}
+		});
+
+		if (foundPos !== -1) {
+			removeTaggedHighlightAt(foundPos);
+		}
+	}
+
+
+	/**
+	 * Remove a tagged highlight: delete the term pill at `pillPos` and clear the
+	 * surrounding `taggedHighlight` band. Used when the × on an inline pill that
+	 * lives inside a band is clicked.
+	 * @param {number} pillPos Document position of the glossaryTerm node.
+	 */
+	function removeTaggedHighlightAt(pillPos) {
+		if (!editor) return;
+		const { doc } = editor.state;
+		const node = doc.nodeAt(pillPos);
+		if (!node || node.type.name !== 'glossaryTerm') return;
+
+
+		// Find the extent of the taggedHighlight mark that the pill sits within
+		// (if any), so we can clear the whole band together with the pill.
+		const markType = editor.state.schema.marks.taggedHighlight;
+		let bandFrom = pillPos;
+		let bandTo = pillPos + node.nodeSize;
+
+		if (markType) {
+			// Walk left from the pill while the mark is present on the resolved
+			// node before each position.
+			const hasMarkBefore = (pos) => {
+				const before = doc.resolve(pos).nodeBefore;
+				return before ? markType.isInSet(before.marks) : false;
+			};
+			const hasMarkAfter = (pos) => {
+				const after = doc.resolve(pos).nodeAfter;
+				return after ? markType.isInSet(after.marks) : false;
+			};
+			while (bandFrom > 0 && hasMarkBefore(bandFrom)) {
+				const before = doc.resolve(bandFrom).nodeBefore;
+				bandFrom -= before ? before.nodeSize : 1;
+			}
+			while (bandTo < doc.content.size && hasMarkAfter(bandTo)) {
+				const after = doc.resolve(bandTo).nodeAfter;
+				bandTo += after ? after.nodeSize : 1;
+			}
+
+		}
+
+		editor
+			.chain()
+			.focus()
+			.setTextSelection({ from: bandFrom, to: bandTo })
+			.unsetTaggedHighlight()
+			// Delete just the pill node (it sits at the end of the band).
+			.deleteRange({ from: pillPos, to: pillPos + node.nodeSize })
+			.run();
+	}
+
 
 	/* ---- Bottom tags (persisted via /api/commentary-tags) ---- */
 
@@ -872,6 +986,12 @@
 		if (!editorElement) return;
 
 		const handleEnter = (event) => {
+			// Hovering the × remove control should dismiss the tooltip rather than
+			// keep showing it, so the user can clearly target the remove action.
+			if (event.target.closest?.('[data-glossary-remove]')) {
+				tooltipStore.unpin();
+				return;
+			}
 			const badge = event.target.closest?.('.glossary-term');
 			if (!badge) return;
 			const termId = badge.getAttribute('data-term-id');
@@ -884,6 +1004,7 @@
 				allowHtml: true
 			});
 		};
+
 		const handleLeave = (event) => {
 			if (event.target.closest?.('.glossary-term')) {
 				tooltipStore.hide();
@@ -892,13 +1013,42 @@
 		// Clicking an inline badge pins its tooltip open (selectable for copying)
 		// until the user clicks elsewhere. Stop propagation so the tooltip's own
 		// click-outside handler doesn't immediately close it.
+		// Clicking the × on an inline pill removes the pill and clears any
+		// surrounding tagged-highlight band. We handle this on mousedown (and
+		// preventDefault) so ProseMirror doesn't first turn the click into a
+		// node-selection, which can swallow the subsequent click event.
+		const handleRemoveMousedown = (event) => {
+			const removeBtn = event.target.closest?.('[data-glossary-remove]');
+			if (!removeBtn) return;
+			event.preventDefault();
+			event.stopPropagation();
+			// Dismiss any hover/pinned tooltip tied to the pill we're deleting.
+			tooltipStore.unpin();
+			const pill = removeBtn.closest('.glossary-term');
+			if (pill) removeTaggedHighlightForPill(pill);
+		};
+
 		const handleClick = (event) => {
+			// Safety net: if a click on the × slips through, handle it here too.
+			const removeBtn = event.target.closest?.('[data-glossary-remove]');
+			if (removeBtn) {
+				event.preventDefault();
+				event.stopPropagation();
+				tooltipStore.unpin();
+				const pill = removeBtn.closest('.glossary-term');
+				if (pill) removeTaggedHighlightForPill(pill);
+				return;
+			}
+
+
 			const badge = event.target.closest?.('.glossary-term');
+
 			if (!badge) return;
 			const termId = badge.getAttribute('data-term-id');
 			if (!termId) return;
 			event.stopPropagation();
 			tooltipStore.pin({
+
 				content: getTooltipHtml(termId),
 				targetElement: badge,
 				placement: 'top',
@@ -909,13 +1059,18 @@
 
 		editorElement.addEventListener('mouseover', handleEnter);
 		editorElement.addEventListener('mouseout', handleLeave);
+		// Use capture so we intercept the × before ProseMirror's own mousedown
+		// handler turns it into a node-selection.
+		editorElement.addEventListener('mousedown', handleRemoveMousedown, true);
 		editorElement.addEventListener('click', handleClick);
 
 		return () => {
 			editorElement.removeEventListener('mouseover', handleEnter);
 			editorElement.removeEventListener('mouseout', handleLeave);
+			editorElement.removeEventListener('mousedown', handleRemoveMousedown, true);
 			editorElement.removeEventListener('click', handleClick);
 		};
+
 	});
 
 
@@ -1889,10 +2044,71 @@
 	:global(.tiptap-editor .glossary-term.purple) { background-color: var(--purple-lighter); color: var(--purple-darker); }
 	:global(.tiptap-editor .glossary-term.pink) { background-color: var(--pink-lighter); color: var(--pink-darker); }
 
+	/* Clicking an inline pill pins its tooltip; suppress ProseMirror's default
+	   node-selection outline so it reads like the bottom tags (no blue ring). */
 	:global(.tiptap-editor .ProseMirror-selectednode.glossary-term) {
-		outline: 0.2rem solid var(--blue);
-		outline-offset: 0.1rem;
+		outline: none;
 	}
+
+
+	/* ------------------------------------------------------------------ */
+	/* Tagged Highlight: the inline "×" remove control on a glossary pill */
+	/* ------------------------------------------------------------------ */
+
+	/* The pill label and × sit side by side inside the rounded pill. */
+	:global(.tiptap-editor .glossary-term .glossary-term-label) {
+		vertical-align: baseline;
+	}
+
+	/* The × is hidden by default (read-only renders, see CommentaryPanel) and
+	   revealed only inside the editable editor. */
+	:global(.glossary-term .glossary-term-remove) {
+		display: none;
+	}
+
+	:global(.tiptap-editor .glossary-term .glossary-term-remove) {
+		display: inline-block;
+		margin-left: 0.4rem;
+		font-weight: 700;
+		line-height: 1;
+		opacity: 0.6;
+		cursor: pointer;
+		transition: opacity 0.15s ease;
+	}
+
+	:global(.tiptap-editor .glossary-term .glossary-term-remove:hover) {
+		opacity: 1;
+	}
+
+	/* ------------------------------------------------------------------ */
+	/* Tagged Highlight: the tinted "band" over the selected prose run.    */
+	/* Uses the soft `-light` shade of the term's category color so the    */
+	/* darker pill (which uses `-lighter`) reads clearly on top of it.     */
+	/* ------------------------------------------------------------------ */
+	:global(.tiptap-editor .tagged-highlight),
+	:global(.commentary-display .tagged-highlight) {
+		padding: 0.1rem 0;
+		border-radius: 0.2rem;
+		box-decoration-break: clone;
+		-webkit-box-decoration-break: clone;
+	}
+
+	:global(.tagged-highlight.gray) { background-color: var(--gray-light); }
+	:global(.tagged-highlight.red) { background-color: var(--red-light); }
+	:global(.tagged-highlight.orange) { background-color: var(--orange-light); }
+	:global(.tagged-highlight.yellow) { background-color: var(--yellow-light); }
+	:global(.tagged-highlight.green) { background-color: var(--green-light); }
+	:global(.tagged-highlight.aqua) { background-color: var(--aqua-light); }
+	:global(.tagged-highlight.blue) { background-color: var(--blue-light); }
+	:global(.tagged-highlight.purple) { background-color: var(--purple-light); }
+	:global(.tagged-highlight.pink) { background-color: var(--pink-light); }
+
+	/* Give the trailing pill a touch of left spacing so it doesn't crowd the
+	   highlighted words it follows. */
+	:global(.tagged-highlight .glossary-term) {
+		margin-left: 0.3rem;
+	}
+
 
 	/* Bottom Tags strip */
 	.tags-section {

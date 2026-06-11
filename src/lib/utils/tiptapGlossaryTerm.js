@@ -82,14 +82,29 @@ export const GlossaryTerm = Node.create({
 		const label = entry?.term || node.attrs.label || 'Unknown term';
 		const color = getColorForTermId(termId);
 
+		// The pill carries a remove (×) button. It is rendered for every pill but
+		// only made visible inside the editable editor via CSS (.tiptap-editor),
+		// so read-only renders never show it. Clicking it is handled by delegated
+		// listeners in CommentaryEditor.svelte (which also clears any surrounding
+		// tagged-highlight band).
 		return [
 			'span',
 			mergeAttributes(HTMLAttributes, {
 				class: `glossary-term ${color}`
 			}),
-			label
+			['span', { class: 'glossary-term-label' }, label],
+			[
+				'span',
+				{
+					class: 'glossary-term-remove',
+					'data-glossary-remove': 'true',
+					'aria-hidden': 'true'
+				},
+				'×'
+			]
 		];
 	},
+
 
 	addCommands() {
 		return {
