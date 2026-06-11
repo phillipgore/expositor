@@ -12,7 +12,10 @@
 	 * @property {Function} onSubmittingChange - Callback when submitting state changes
 	 */
 	import { v4 as uuidv4 } from 'uuid';
-	import { enhance } from '$app/forms';
+	import { enhance, applyAction, deserialize } from '$app/forms';
+	import { goto, invalidateAll } from '$app/navigation';
+
+
 	import bibleData from '$lib/data/bible.json';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
@@ -42,13 +45,10 @@
 
 	// --- Edit-mode review flow state ---------------------------------------
 	let formElement = $state(null);
-	let decisionsValue = $state('');
 	let showReviewModal = $state(false);
 	let analyzeReport = $state(null);
 	let isAnalyzing = $state(false);
-	// Once true, the next submit is allowed to proceed to the server without
-	// being intercepted again for analysis.
-	let reviewPassed = $state(false);
+
 
 
 	const testamentData = bibleData[0].testamentData;
@@ -114,20 +114,19 @@
 	});
 
 	/**
-	 * In edit mode, intercept the first submit to analyze the passage changes.
-	 * If the server reports any change that needs a decision (added verses,
-	 * removed content, book replacement), open the Review modal first. Otherwise
-	 * submit straight through. In "new" mode there's nothing to reconcile.
+	 * In edit mode, the first submit must be intercepted so we can analyze the
+	 * passage changes and (if needed) collect the user's decisions in the Review
+	 * modal BEFORE anything is written. We do this from inside `use:enhance` using
+	 * its `cancel()` callback — `event.preventDefault()` from a separate onsubmit
+	 * handler does NOT stop enhance from posting, which previously caused the
+	 * modal to flash while the form submitted anyway.
 	 *
-	 * @param {SubmitEvent} event
+	 * @param {{ cancel: () => void }} param0
 	 */
-	async function handleSubmit(event) {
-		// New studies, or an already-reviewed submit, go straight to the server.
-		if (mode !== 'edit' || reviewPassed || !initialData?.id) {
-			return; // allow native submit (use:enhance handles it)
-		}
+	async function runAnalysisGate({ cancel }) {
+		// Stop this submission; we'll submit programmatically once reviewed.
+		cancel();
 
-		event.preventDefault();
 		if (hasDuplicateTitle || isAnalyzing || isSubmitting) return;
 
 		isAnalyzing = true;
@@ -140,27 +139,77 @@
 
 			if (!res.ok) {
 				// If analysis fails, fall back to a normal submit rather than blocking.
-				reviewPassed = true;
-				formElement?.requestSubmit();
+				await submitReviewed({});
 				return;
 			}
 
 			const report = await res.json();
 			if (report?.requiresReview) {
+				// Pause and wait for the user to confirm in the modal.
 				analyzeReport = report;
 				showReviewModal = true;
 			} else {
 				// Nothing needs a decision — submit with empty decisions.
-				decisionsValue = '';
-				reviewPassed = true;
-				formElement?.requestSubmit();
+				await submitReviewed({});
 			}
 		} catch (err) {
 			console.error('Edit analysis failed:', err);
-			reviewPassed = true;
-			formElement?.requestSubmit();
+			await submitReviewed({});
 		} finally {
 			isAnalyzing = false;
+		}
+	}
+
+	/**
+	 * Submit the edit directly via fetch (NOT through use:enhance / requestSubmit).
+	 *
+	 * Why fetch instead of requestSubmit(): the Review modal is a native
+	 * <dialog> opened with showModal(), which makes the rest of the page inert.
+	 * Programmatic form submission interacts badly with that inert state and the
+	 * dialog close timing — every variation either swallowed the first submit
+	 * (requiring a second Save click) or was blocked entirely. Posting the form
+	 * data directly with fetch is immune to the dialog's inert state, so the
+	 * single "Save Changes" click always works. We then apply the action result
+	 * (which is a redirect to the study page) ourselves.
+	 *
+	 * @param {Object} decisions - keyed by passageId
+	 */
+	async function submitReviewed(decisions) {
+		if (isSubmitting) return;
+		isSubmitting = true;
+		try {
+			const data = new FormData(formElement);
+			data.set('decisions', JSON.stringify(decisions || {}));
+
+			const response = await fetch(formElement.action || window.location.pathname, {
+				method: 'POST',
+				headers: { 'x-sveltekit-action': 'true' },
+				body: data
+			});
+
+			const result = deserialize(await response.text());
+
+			if (result.type === 'redirect') {
+				showReviewModal = false;
+				await goto(result.location, { invalidateAll: true });
+				return;
+			}
+
+			if (result.type === 'error') {
+				console.error('Save failed:', result.error);
+				await applyAction(result);
+				showReviewModal = false;
+				return;
+			}
+
+			// failure / success without redirect: surface via form prop
+			await applyAction(result);
+			await invalidateAll();
+			showReviewModal = false;
+		} catch (err) {
+			console.error('Error saving study:', err);
+		} finally {
+			isSubmitting = false;
 		}
 	}
 
@@ -168,11 +217,8 @@
 	 * The user confirmed their choices in the Review modal.
 	 * @param {Object} decisions - keyed by passageId
 	 */
-	function handleReviewConfirm(decisions) {
-		decisionsValue = JSON.stringify(decisions || {});
-		showReviewModal = false;
-		reviewPassed = true;
-		formElement?.requestSubmit();
+	async function handleReviewConfirm(decisions) {
+		await submitReviewed(decisions);
 	}
 
 	function handleReviewCancel() {
@@ -183,16 +229,24 @@
 <form 
 	bind:this={formElement}
 	method="POST" 
-	onsubmit={handleSubmit}
-	use:enhance={() => {
+	use:enhance={({ cancel }) => {
+		// In edit mode, gate EVERY submit on analysis/review. The analysis step
+		// decides whether to open the modal or submit straight through (both paths
+		// post via fetch in submitReviewed). New studies post normally below.
+		if (mode === 'edit' && initialData?.id) {
+			runAnalysisGate({ cancel });
+			return;
+		}
+
 		isSubmitting = true;
 		return async ({ update }) => {
 			await update();
 			isSubmitting = false;
-			reviewPassed = false;
 		};
 	}}
 >
+
+
 
 	<Heading heading="h1" hasSub={groupName? true : false}>{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading>
 	{#if groupName}
@@ -230,10 +284,8 @@
 	{/if}
 
 	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
-	{#if mode === 'edit'}
-		<input type="hidden" name="decisions" value={decisionsValue} />
-	{/if}
 	{#if groupId}
+
 		<input type="hidden" name="groupId" value={groupId} />
 	{/if}
 
