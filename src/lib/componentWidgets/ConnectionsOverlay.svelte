@@ -1554,12 +1554,15 @@
 		}
 
 		const target = /** @type {Element} */ (event.target);
-		// Only deselect if the click landed inside the analyze content wrapper
-		// (i.e. the passage area), not on toolbar buttons or the commentary panel.
-		const contentWrapper =
-			svgElement?.closest('.analyze-content-wrapper') ??
-			svgElement?.closest('.analyze-content');
+		// Only deselect if the click landed inside the analyze scroll container,
+		// not on toolbar buttons or the commentary panel. Scope to `.analyze-content`
+		// (the full-height scroll container) — matching where columns/sections/segments
+		// deselect — so clicking the empty area below the passage also clears the
+		// connection selection. Using the inner `.analyze-content-wrapper` here would
+		// miss that empty region and leave the connection selected.
+		const contentWrapper = svgElement?.closest('.analyze-content');
 		if (!contentWrapper || !contentWrapper.contains(target)) return;
+
 
 		// If a note is open for editing and the click is inside the passage,
 		// commit the note (equivalent to NoteEditor's isActive-goes-false path).
