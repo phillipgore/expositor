@@ -278,16 +278,14 @@ export const actions = {
 
 			// Redirect to the study view page
 			throw redirect(303, `/study/${studyId}`);
-
-
-		} catch (error) {
+		} catch (err) {
 			// If it's a redirect, re-throw it
-			if (error?.status === 303) {
-				throw error;
+			if (err?.status === 303) {
+				throw err;
 			}
 
-			console.error('Error updating study:', error);
-			return fail(500, { 
+			console.error('Error updating study:', err);
+			return fail(500, {
 				error: 'Failed to update study. Please try again.'
 			});
 		}

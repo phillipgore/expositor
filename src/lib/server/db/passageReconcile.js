@@ -25,7 +25,7 @@ import {
 	commentaryTag
 } from '$lib/server/db/schema.js';
 
-import { eq, inArray, asc } from 'drizzle-orm';
+import { eq, and, inArray, asc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
 import { compareWordIds } from '$lib/server/db/utils.js';
@@ -375,14 +375,20 @@ function computeEdges(old, next) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Build a tag lookup: subjectId -> count, for a set of ids.
+ * Build a set of subjectIds that carry at least one tag of the given type.
+ * @param {Object} dbx
+ * @param {string} subjectType - 'segment'|'section'|'column'|'connection'
+ * @param {string[]} ids
+ * @returns {Promise<Set<string>>}
  */
 async function loadTaggedIds(dbx, subjectType, ids) {
 	if (ids.length === 0) return new Set();
 	const rows = await dbx
 		.select({ subjectId: commentaryTag.subjectId })
 		.from(commentaryTag)
-		.where(inArray(commentaryTag.subjectId, ids));
+		.where(
+			and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids))
+		);
 	const set = new Set();
 	for (const r of rows) set.add(r.subjectId);
 	return set;
@@ -547,12 +553,17 @@ export async function analyzeEdit(dbx, studyId, oldPassages, newPassages) {
 
 /**
  * Delete commentaryTag rows for a set of subject ids of one type.
+ * @param {Object} tx
+ * @param {string} subjectType - 'segment'|'section'|'column'|'connection'
+ * @param {string[]} ids
  */
 async function deleteTagsFor(tx, subjectType, ids) {
 	if (ids.length === 0) return;
 	await tx
 		.delete(commentaryTag)
-		.where(inArray(commentaryTag.subjectId, ids));
+		.where(
+			and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids))
+		);
 }
 
 /**
@@ -636,7 +647,8 @@ async function pruneEmptyContainers(tx, studyId, passageId) {
  * - Headings fill only EMPTY target slots (never overwrite).
  * - note / commentary are appended.
  * - tags are re-pointed (deduped by termId).
- * - layout overrides (height) are dropped.
+ * - layout `height` override fills the target only when the target has none
+ *   (never overwrites an intentional target height).
  */
 async function foldSegmentContent(tx, fromSeg, targetSeg) {
 	const set = {};
@@ -661,6 +673,10 @@ async function foldSegmentContent(tx, fromSeg, targetSeg) {
 			? `${targetSeg.commentary}\n${fromSeg.commentary}`
 			: fromSeg.commentary;
 		targetSeg.commentary = set.commentary;
+	}
+	if (!targetSeg.height && fromSeg.height) {
+		set.height = fromSeg.height;
+		targetSeg.height = fromSeg.height;
 	}
 
 	if (Object.keys(set).length > 0) {
@@ -693,9 +709,12 @@ async function foldSegmentContent(tx, fromSeg, targetSeg) {
 }
 
 /**
- * Re-anchor the very first column/section/segment of a passage to `newFirst`,
- * preserving any intentional mid-verse split only when it still falls inside
- * the new range.
+ * Re-anchor the very first column/section/segment of a passage to `newFirst`.
+ *
+ * Used when the passage's start moves (verses added before the old start, or
+ * trimmed up to a new start). The leading column/section/segment must always
+ * begin at the new first word so no structure dangles outside the range, so the
+ * anchors are set unconditionally (skipping the write only when already equal).
  */
 async function reanchorFirst(tx, passageId, newFirst) {
 	const tree = await loadTree(tx, passageId);
@@ -705,11 +724,8 @@ async function reanchorFirst(tx, passageId, newFirst) {
 	const firstSegment = firstSection ? firstSection.segments[0] : null;
 	const now = new Date();
 
-	if (compareWordIds(firstColumn.startingWordId, newFirst) > 0 || compareWordIds(firstColumn.startingWordId, newFirst) < 0) {
-		// Only move when it doesn't already match.
-		if (firstColumn.startingWordId !== newFirst) {
-			await tx.update(passageColumn).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageColumn.id, firstColumn.id));
-		}
+	if (firstColumn.startingWordId !== newFirst) {
+		await tx.update(passageColumn).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageColumn.id, firstColumn.id));
 	}
 	if (firstSection && firstSection.startingWordId !== newFirst) {
 		await tx.update(passageSection).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageSection.id, firstSection.id));
@@ -952,14 +968,14 @@ export async function applyPassageRangeChange(tx, studyId, old, next, decision =
 
 	// Apply start edge
 	if (edges.addStart) {
-		await applyAddStart(tx, next.id, edges.addStart.newFirst, decision.addStartPlacement || 'segment');
+		await applyAddStart(tx, next.id, edges.addStart.newFirst, decision.addStartPlacement || 'extend');
 	} else if (edges.removeStart) {
 		await applyRemoveStart(tx, studyId, next.id, edges.removeStart.newFirst, decision.removeStartMode || 'delete');
 	}
 
 	// Apply end edge
 	if (edges.addEnd) {
-		await applyAddEnd(tx, next.id, edges.addEnd.firstAddedWord, decision.addEndPlacement || 'segment');
+		await applyAddEnd(tx, next.id, edges.addEnd.firstAddedWord, decision.addEndPlacement || 'extend');
 	} else if (edges.removeEnd) {
 		await applyRemoveEnd(tx, studyId, next.id, edges.removeEnd.newEnd, decision.removeEndMode || 'delete');
 	}

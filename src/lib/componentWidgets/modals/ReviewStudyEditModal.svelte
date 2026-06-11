@@ -40,12 +40,18 @@
 	 */
 	let decisions = $state({});
 
-	const PLACEMENT_OPTIONS = [
+	// The "extend" option is phrased per edge: prepend at the start, append at
+	// the end. The remaining options are identical for both edges.
+	const NEW_OPTIONS = [
 		{ value: 'segment', label: 'New Segment' },
 		{ value: 'section', label: 'New Section' },
-		{ value: 'column', label: 'New Column' },
-		{ value: 'extend', label: 'Extend adjacent segment' }
+		{ value: 'column', label: 'New Column' }
 	];
+	const ADD_START_OPTIONS = [
+		{ value: 'extend', label: 'Prepend to first segment' },
+		...NEW_OPTIONS
+	];
+	const ADD_END_OPTIONS = [{ value: 'extend', label: 'Append to last segment' }, ...NEW_OPTIONS];
 
 	// Seed sensible defaults whenever a new report arrives.
 	$effect(() => {
@@ -54,8 +60,8 @@
 		for (const p of report.passages) {
 			const d = decisions[p.passageId] || {};
 			seeded[p.passageId] = {
-				addStartPlacement: d.addStartPlacement || 'segment',
-				addEndPlacement: d.addEndPlacement || 'segment',
+				addStartPlacement: d.addStartPlacement || 'extend',
+				addEndPlacement: d.addEndPlacement || 'extend',
 				// Merge is the safe default whenever merging is possible; otherwise delete.
 				removeStartMode:
 					d.removeStartMode || (p.removeStart && p.removeStart.canMerge ? 'merge' : 'delete'),
@@ -147,7 +153,7 @@
 						</p>
 						<p class="change-q">Where should these new verses go?</p>
 						<div class="options">
-							{#each PLACEMENT_OPTIONS as opt}
+							{#each ADD_START_OPTIONS as opt}
 								<label class="opt">
 									<input
 										type="radio"
@@ -171,7 +177,7 @@
 						</p>
 						<p class="change-q">Where should these new verses go?</p>
 						<div class="options">
-							{#each PLACEMENT_OPTIONS as opt}
+							{#each ADD_END_OPTIONS as opt}
 								<label class="opt">
 									<input
 										type="radio"
@@ -204,7 +210,7 @@
 										checked={decisions[p.passageId]?.removeStartMode === 'merge'}
 										onchange={() => setDecision(p.passageId, 'removeStartMode', 'merge')}
 									/>
-									<span>Merge content into the next segment (recommended)</span>
+									<span>Merge headings, notes &amp; commentary into the next segment (recommended)</span>
 								</label>
 							{/if}
 							<label class="opt">
@@ -218,6 +224,12 @@
 								<span>Delete it permanently</span>
 							</label>
 						</div>
+						{#if p.removeStart.connections > 0}
+							<p class="change-note">
+								Note: connections attached to the removed verses can't be reattached and will be
+								deleted either way.
+							</p>
+						{/if}
 					</div>
 				{/if}
 
@@ -238,7 +250,7 @@
 										checked={decisions[p.passageId]?.removeEndMode === 'merge'}
 										onchange={() => setDecision(p.passageId, 'removeEndMode', 'merge')}
 									/>
-									<span>Merge content into the previous segment (recommended)</span>
+									<span>Merge headings, notes &amp; commentary into the previous segment (recommended)</span>
 								</label>
 							{/if}
 							<label class="opt">
@@ -252,6 +264,12 @@
 								<span>Delete it permanently</span>
 							</label>
 						</div>
+						{#if p.removeEnd.connections > 0}
+							<p class="change-note">
+								Note: connections attached to the removed verses can't be reattached and will be
+								deleted either way.
+							</p>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -326,6 +344,13 @@
 		margin: 0 0 0.6rem;
 		font-size: 1.4rem;
 		color: var(--red-darker, #8a1f1f);
+	}
+
+	.change-note {
+		margin: 0.6rem 0 0;
+		font-size: 1.3rem;
+		line-height: 1.5;
+		color: var(--gray-300);
 	}
 
 	.options {
