@@ -30,7 +30,8 @@
  *
  * The composable is intended to live at the Analyze page level (it needs to see all
  * `.column` elements and the zoom scale). Individual column elements call
- * `handleRepositionStart` from their right-border drag handle.
+ * `handleRepositionStart` from their left-border drag handle (the handle sits on the
+ * column's left edge — the side of the gap it adjusts).
  *
  * @param {Object} options
  * @param {() => number} options.getScale - Returns the current zoom scale (e.g. 1).
@@ -48,13 +49,14 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 	let activeColumnId = $state(null);
 
 	// Live gap tooltip that follows the drag (viewport-fixed). x tracks the dragged
-	// column's right edge (the handle); y stays at the handle's viewport-centered Y.
+	// column's LEFT edge (where the handle sits); y stays at the handle's viewport-centered Y.
 	// `height` is the CSS-px TOTAL spacing to the column's left (default + offset).
 	let dragTooltip = $state({ visible: false, x: 0, y: 0, height: 0 });
 
 	// Internal (non-reactive) drag bookkeeping.
 	let startX = 0; // pointer X at mousedown (viewport px)
-	let startRightX = 0; // dragged column's right edge (viewport px) at drag start
+	let startEdgeX = 0; // dragged column's LEFT edge (viewport px) at drag start — the
+	// handle sits on this edge, so the tooltip is anchored here and tracks it during the drag.
 	let startMargin = 0; // dragged column's per-side offset (CSS px) at drag start
 	let defaultGap = 0; // the default left gap (CSS px) — the tooltip baseline
 	let maxMargin = 0; // max allowed per-side offset (CSS px)
@@ -204,7 +206,7 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 		startX = event.clientX;
 
 		const rect = colEl.getBoundingClientRect();
-		startRightX = rect.right;
+		startEdgeX = rect.left;
 
 		// Current applied per-side offset (CSS px). For both modes this is the column's
 		// own margin-left (for cross columns the divider mirrors the same value).
@@ -233,7 +235,7 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 
 		dragTooltip = {
 			visible: true,
-			x: startRightX,
+			x: startEdgeX,
 			y: tooltipY,
 			height: Math.round(defaultGap + (activeIsCross ? 2 * startMargin : startMargin))
 		};
@@ -270,11 +272,13 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 
 		liveOffsets = { ...liveOffsets, [activeColumnId]: newMargin };
 
-		// Update the live-gap tooltip to follow the dragged right edge and report the
-		// new TOTAL spacing to the column's left (default + sides·offset).
+		// Update the live-gap tooltip to follow the dragged LEFT edge (where the handle
+		// sits) and report the new TOTAL spacing to the column's left (default + sides·
+		// offset). The left edge shifts right by the same amount as the right edge —
+		// (newMargin − startMargin) × scale × sides — because the column width is fixed.
 		dragTooltip = {
 			visible: true,
-			x: startRightX + (newMargin - startMargin) * scale * sides,
+			x: startEdgeX + (newMargin - startMargin) * scale * sides,
 			y: tooltipY,
 			height: Math.round(defaultGap + sides * newMargin)
 		};

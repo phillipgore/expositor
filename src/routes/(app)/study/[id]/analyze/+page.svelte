@@ -3744,11 +3744,12 @@
 														/>
 													{/if}
 
-													<!-- Column reposition handle: a narrow strip over the RIGHT border of
-													     every column EXCEPT the first in its passage, anchored near the top
-													     of the column. Hovering shows a grab cursor and a vertical three-dot
-													     indicator; mousedown begins a horizontal reposition drag that widens
-													     the gap on this column's LEFT side (the column visually slides right).
+												<!-- Column reposition handle: a narrow strip over the LEFT border of
+												     every column EXCEPT the first in its passage, anchored near the top
+												     of the column — sitting on the same side as the gap it controls.
+												     Hovering shows a grab cursor and a vertical three-dot
+												     indicator; mousedown begins a horizontal reposition drag that widens
+												     the gap on this column's LEFT side (the column visually slides right).
 													     Rendered LAST (it is position:absolute, so DOM order is irrelevant
 													     visually) so it never becomes the column's first child and disturb the
 													     first section's :first-of-type margin. Disabled in
@@ -4073,14 +4074,14 @@
 	}
 
 	/* ============================================================ */
-	/* Column Reposition Handle (right border drag affordance) */
+	/* Column Reposition Handle (left border drag affordance) */
 	/* ============================================================ */
 
-	/* A narrow strip overlapping the RIGHT border of each non-first column. Invisible
-	   until hovered, at which point it shows a grab cursor and a vertical three-dot
-	   indicator so the user knows the column can be dragged horizontally. Anchored near
-	   the TOP of the column (matching the section handle's placement) so it is easy to
-	   find without scrolling through long columns. */
+	/* A narrow strip overlapping the LEFT border of each non-first column — the same
+	   side as the gap it adjusts. Invisible until hovered, at which point it shows a
+	   grab cursor and a vertical three-dot indicator so the user knows the column can be
+	   dragged horizontally. Anchored near the TOP of the column (matching the section
+	   handle's placement) so it is easy to find without scrolling through long columns. */
 	.column-reposition-handle {
 		position: absolute;
 		top: 1.2rem;
@@ -4113,7 +4114,7 @@
 	}
 
 	/* Grab indicator: exactly three dots in a VERTICAL column (the column counterpart
-	   to the section handle's horizontal row), centered over the column's right border. */
+	   to the section handle's horizontal row), centered over the column's left border. */
 	.column-reposition-indicator {
 		display: flex;
 		flex-direction: column;
