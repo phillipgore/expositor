@@ -49,7 +49,6 @@ async function persistPreference(updates) {
  * @property {boolean} canDelete - Whether Delete button should be enabled (has document open)
  * @property {boolean} canEdit - Whether Edit button should be enabled (has selected item)
  * @property {boolean} canFormat - Whether formatting buttons should be enabled (has content/selection)
- * @property {boolean} canToggleComparison - Whether Comparison toggle should be enabled
  * @property {boolean} canToggleFocus - Whether Focus toggle should be enabled
  * @property {boolean} canToggleConnections - Whether Connections toggle should be enabled
  * @property {boolean} canToggleHeadings - Whether Headings toggle should be enabled
@@ -75,7 +74,6 @@ async function persistPreference(updates) {
  * @property {boolean} canUseColorItems - Whether Color menu items should be enabled
  * @property {boolean} studiesPanelOpen - Whether the studies panel is open
  * @property {boolean} commentaryPanelOpen - Whether the commentary panel is open
- * @property {boolean} comparisonsVisible - Whether comparisons are visible
  * @property {boolean} focusMode - Whether focus mode is active
  * @property {boolean} headingsVisible - Whether headings are visible in segments
  * @property {boolean} connectionsVisible - Whether connections are visible (master toggle)
@@ -132,7 +130,6 @@ const defaultState = {
 	canDelete: false,
 	canEdit: false,
 	canFormat: false,
-	canToggleComparison: false,
 	canToggleFocus: false,
 	canToggleConnections: false,
 	canToggleHeadings: false,
@@ -161,7 +158,6 @@ const defaultState = {
 	studiesPanelOpen: true,
 	commentaryPanelOpen: false,
 	headingsVisible: true,
-	comparisonsVisible: false,
 	focusMode: false,
 	columnConnectionsVisible: true,
 	sectionConnectionsVisible: true,
@@ -253,7 +249,6 @@ export function updateToolbarForRoute(pathname) {
 				isDashboardRoute: true,
 				isStudyGroupRoute: false,
 				canFormat: false,
-				canToggleComparison: false,
 				canToggleConnections: false,
 				canToggleHeadings: false,
 				canToggleNotes: false,
@@ -293,7 +288,6 @@ export function updateToolbarForRoute(pathname) {
 				isStudyGroupRoute: false,
 				canFormat: false,
 
-				canToggleComparison: false,
 				canToggleConnections: false,
 				canToggleHeadings: false,
 				canToggleNotes: false,
@@ -363,7 +357,6 @@ export function updateToolbarForRoute(pathname) {
 			isDashboardRoute: false,
 			isStudyGroupRoute: true,
 			canFormat: false,
-			canToggleComparison: false,
 			canToggleConnections: false,
 			canToggleHeadings: false,
 			canToggleNotes: false,
@@ -398,7 +391,6 @@ export function updateToolbarForRoute(pathname) {
 			isDashboardRoute: false,
 			isStudyGroupRoute: false,
 			canFormat: false,
-			canToggleComparison: false,
 			canToggleConnections: false,
 			canToggleHeadings: false,
 			canToggleNotes: false,
@@ -462,7 +454,6 @@ export function onDocumentClose() {
 	toolbarStateStore.update(state => ({
 		...state,
 		canFormat: false,
-		canToggleComparison: false,
 		canToggleConnections: false,
 		canToggleNotes: false,
 		canToggleComment: false,
@@ -552,23 +543,11 @@ export async function toggleStudiesPanel() {
 }
 
 /**
- * Toggle comparisons visibility
- */
-export function toggleComparison() {
-	console.log('🔘 [TOOLBAR] toggleComparison called');
-	toolbarStateStore.update(state => {
-		const newValue = !state.comparisonsVisible;
-		console.log('🔘 [TOOLBAR] comparisonsVisible changing from', state.comparisonsVisible, 'to', newValue);
-		return {
-			...state,
-			comparisonsVisible: newValue
-		};
-	});
-}
-
-/**
  * Toggle focus mode.
- * Functionality to be wired up later.
+ * Focus hides everything except the selected item(s) and their containers/children,
+ * letting the user compare one or more selections side-by-side. Enabled whenever at
+ * least one item (or connection) is selected, except when the selection would reveal
+ * every segment in the study ("All of them").
  */
 export function toggleFocus() {
 	toolbarStateStore.update(state => ({
@@ -991,31 +970,18 @@ export function setActiveSection(hasSection, sectionId = null, isFirst = false) 
 }
 
 /**
- * Set multi-select mode state (enables Compare button when multiple items selected).
- * The Compare button also stays active when connection lines are selected
- * (handled via state.hasActiveConnection so the analyze page never needs to read the
- * store reactively, which would cause a reactive loop).
- * @param {boolean} isMultiSelect - Whether multiple items are currently selected
+ * Set whether the current selection can enter Focus mode (enables the Focus button).
+ * Focus is enabled whenever the user has a "focusable" selection — at least one item
+ * (or connection) selected, but NOT a selection that would reveal every segment in the
+ * study ("All of them"). The analyze page computes this and passes it in. The button
+ * also stays enabled while focus mode is already active so the user can toggle it off.
+ * @param {boolean} isFocusable - Whether the current selection can enter focus mode
  */
-export function setMultiSelectMode(isMultiSelect) {
+export function setFocusEnabled(isFocusable) {
 	toolbarStateStore.update(state => ({
 		...state,
-		// Keep Compare button enabled if: multi-selecting, a connection is selected, or already in compare mode
-		canToggleComparison: isMultiSelect || state.hasActiveConnection || state.comparisonsVisible
-	}));
-}
-
-/**
- * Set single-select mode state (enables Focus button when exactly one item is selected).
- * Mirrors setMultiSelectMode for Compare: the Focus button stays enabled while focus
- * mode is active so the user can toggle it back off.
- * @param {boolean} isSingleSelect - Whether exactly one item (segment/section/column) is selected
- */
-export function setFocusEnabled(isSingleSelect) {
-	toolbarStateStore.update(state => ({
-		...state,
-		// Keep Focus button enabled if: a single item is selected, or focus mode is already active
-		canToggleFocus: isSingleSelect || state.focusMode
+		// Keep Focus button enabled if: the selection is focusable, or focus mode is already active
+		canToggleFocus: isFocusable || state.focusMode
 	}));
 }
 
@@ -1081,8 +1047,13 @@ export function setCaretSegmentBoundary(atStart, atEnd) {
 /**
  * Set the active connection(s) (selected connection lines).
  * Clears the active segment so the commentary panel switches context.
- * Also enables the Compare button when connections are selected so the user can
- * enter compare mode to view the connected elements side-by-side.
+ *
+ * Note: this intentionally does NOT touch `canToggleFocus`. Focus enablement is owned
+ * entirely by the `setFocusEnabled` effect on the analyze page (driven by the
+ * `isFocusableSelection` derived, which already accounts for selected connections). If
+ * this function also wrote `canToggleFocus`, it would clobber that flag every time a
+ * structural item is (de)selected — breaking Focus for multi-item / mixed-type
+ * selections where `isFocusableSelection` stays `true` and the effect doesn't re-run.
  * @param {boolean} hasConnection - Whether one or more connections are currently selected
  * @param {string[]} connectionIds - The IDs of the selected connections
  * @param {boolean} [hasNote] - Whether the selected connection(s) have a quick note
@@ -1095,8 +1066,6 @@ export function setActiveConnection(hasConnection, connectionIds = [], hasNote =
 		activeConnectionHasNote: hasConnection ? hasNote : false,
 		// Deselect segment when a connection is selected, and vice versa
 		hasActiveSegment: hasConnection ? false : state.hasActiveSegment,
-		activeSegmentId: hasConnection ? null : state.activeSegmentId,
-		// Enable Compare button when connections are selected; keep it enabled if already in compare mode
-		canToggleComparison: hasConnection ? true : state.comparisonsVisible
+		activeSegmentId: hasConnection ? null : state.activeSegmentId
 	}));
 }

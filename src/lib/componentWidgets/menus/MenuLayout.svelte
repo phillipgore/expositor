@@ -71,7 +71,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-column-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<IconButton
@@ -83,7 +83,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('reset-column-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<DividerHorizontal />
@@ -97,7 +97,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-column-width'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<IconButton
@@ -109,7 +109,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('reset-column-width'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<DividerHorizontal />
@@ -124,7 +124,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-section-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<IconButton
@@ -136,7 +136,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('reset-section-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<DividerHorizontal />
@@ -150,7 +150,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-segment-height'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<IconButton
@@ -162,7 +162,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('restore-segment-height'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<DividerHorizontal />

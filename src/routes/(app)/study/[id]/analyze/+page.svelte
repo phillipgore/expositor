@@ -25,7 +25,7 @@
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setMultiSelectMode, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
 
 	let { data } = $props();
 
@@ -424,8 +424,13 @@
 	let visibleSectionIds = $state(new Set());
 	let visibleSegmentIds = $state(new Set());
 
-	// Focus mode state — mirrors compare mode but driven by a single selection.
+	// Focus mode state. Focus hides everything except the selected item(s) and their
+	// containers/children, supporting any number of selections (this absorbed the former
+	// "Compare" feature). focusEnteredViaConnections is true when focus was entered from
+	// a connection-line selection, so on exit we restore the connection (not the derived
+	// structural endpoints).
 	let isFocusMode = $state(false);
+	let focusEnteredViaConnections = $state(false);
 	let originalFocusSelection = $state({ columns: [], sections: [], segments: [] });
 
 	// True whenever items should be hidden based on the visible Sets — i.e. in either
@@ -456,11 +461,35 @@
 		return (selections.columns.length + selections.sections.length) > 1;
 	});
 
-	// Derived state: Check if exactly one item is selected (enables the Focus button).
-	// Uses normal selections only — Focus is entered from a single structural selection.
-	let isSingleSelectMode = $derived.by(() => {
-		const totalSelected = activeColumns.length + activeSections.length + activeSegments.length;
-		return totalSelected === 1;
+	// Derived state: whether the current selection can enter Focus mode (enables the
+	// Focus button). Focus hides everything except the selected item(s) and their
+	// containers/children, so it makes sense for ANY selection of one or more items —
+	// EXCEPT a selection that would leave every segment in the study visible
+	// ("All of them"). That happens when all columns, all sections, or all segments are
+	// selected. We measure this by segment coverage: if the segments revealed by the
+	// current selection equal the study's total segment count, Focus is disabled.
+	// A selected connection also enables Focus (entered via its structural endpoints).
+	let isFocusableSelection = $derived.by(() => {
+		const hasStructuralSelection =
+			activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0;
+
+		// A selected connection can always be focused (it never covers every segment).
+		if (!hasStructuralSelection) {
+			return $toolbarState.hasActiveConnection;
+		}
+
+		const totalSegments = getTotalSegmentCountInStudy();
+		if (totalSegments === 0) return false;
+
+		// Reuse the same visibility engine focus mode uses to determine coverage.
+		const visible = calculateVisibleItems({
+			columns: activeColumns,
+			sections: activeSections,
+			segments: activeSegments
+		});
+
+		// Disabled when the selection would reveal every segment (i.e. "All of them").
+		return visible.segments.size < totalSegments;
 	});
 
 
@@ -588,17 +617,13 @@
 		}
 	});
 
-	// Sync multi-select mode to toolbar store (enables Compare button when 2+ items selected).
-	// The store's setMultiSelectMode also incorporates hasActiveConnection internally,
-	// so the Compare button also activates when connection lines are selected — without
-	// introducing reactive reads of the toolbar store here (which would cause loops).
+	// Sync the "can this selection enter Focus?" flag to the toolbar store. Enables the
+	// Focus button whenever one or more items (or a connection) are selected, EXCEPT when
+	// the selection would reveal every segment in the study ("All of them"). See the
+	// isFocusableSelection derived for the full rule. setFocusEnabled also keeps the
+	// button enabled while focus mode is already active so the user can toggle it off.
 	$effect(() => {
-		setMultiSelectMode(isInMultiSelectMode);
-	});
-
-	// Sync single-select mode to toolbar store (enables Focus button when exactly 1 item selected).
-	$effect(() => {
-		setFocusEnabled(isSingleSelectMode);
+		setFocusEnabled(isFocusableSelection);
 	});
 
 	// Clear active segments and word selection when overview mode is enabled.
@@ -696,144 +721,32 @@
 		container.scrollTo(clampedLeft, clampedTop);
 	}
 
-	// Compare mode toggle logic
-	$effect(() => {
-		console.log('🔍 [COMPARE EFFECT] Running - comparisonsVisible:', $toolbarState.comparisonsVisible, 'isCompareMode:', isCompareMode);
-		
-		if ($toolbarState.comparisonsVisible && !isCompareMode) {
-			// ENTERING COMPARE MODE
-			console.log('🔄 ENTERING COMPARE MODE');
-
-			// 1. Save original selection.
-			// When connection lines are selected, derive the comparison items from their
-			// endpoints rather than from the structural selection (segments/sections/columns).
-			// Connections and structural selections are mutually exclusive, so only one
-			// path will ever have data at a time.
-			if ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length > 0) {
-				console.log('🔗 Entering compare mode via connections:', $toolbarState.activeConnectionIds);
-				originalComparisonSelection = buildSelectionFromConnections();
-				compareModeEnteredViaConnections = true;
-			} else {
-				console.log('📦 Entering compare mode via structural selection:', {
-					columns: activeColumns,
-					sections: activeSections,
-					segments: activeSegments.map(s => s.segmentId)
-				});
-				originalComparisonSelection = {
-					columns: [...activeColumns],
-					sections: [...activeSections],
-					segments: [...activeSegments]
-				};
-			}
-
-			console.log('💾 Saved originalComparisonSelection:', {
-				columns: originalComparisonSelection.columns,
-				sections: originalComparisonSelection.sections,
-				segments: originalComparisonSelection.segments.map(s => s.segmentId)
-			});
-			
-			// 2. Calculate visible items
-			const visible = calculateVisibleItems(originalComparisonSelection);
-			console.log('🔍 calculateVisibleItems returned:', {
-				columns: Array.from(visible.columns),
-				sections: Array.from(visible.sections),
-				segments: Array.from(visible.segments)
-			});
-			
-			// Create new Set instances to trigger Svelte reactivity
-			visibleColumnIds = new Set(visible.columns);
-			visibleSectionIds = new Set(visible.sections);
-			visibleSegmentIds = new Set(visible.segments);
-			
-			console.log('✅ Final visible Sets:', {
-				columnIds: Array.from(visibleColumnIds),
-				sectionIds: Array.from(visibleSectionIds),
-				segmentIds: Array.from(visibleSegmentIds)
-			});
-			
-			// 3. Clear word selections
-			selectedWord = null;
-			suppressHoverCaret = null;
-			
-			// 4. Clear visual selection (but keep original stored)
-			activeColumns = [];
-			activeSections = [];
-			activeSegments = [];
-			
-			// 5. Initialize compare-mode selections (empty)
-			compareActiveColumns = [];
-			compareActiveSections = [];
-			compareActiveSegments = [];
-			
-			// 6. Mark we're in compare mode
-			isCompareMode = true;
-
-			// 7. Reset scroll to the top-left corner
-			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
-			
-		} else if (!$toolbarState.comparisonsVisible && isCompareMode) {
-			// EXITING COMPARE MODE
-			console.log('🔄 EXITING COMPARE MODE (via connections:', compareModeEnteredViaConnections, ')');
-			
-			// 1. Clear compare-mode selections
-			compareActiveColumns = [];
-			compareActiveSections = [];
-			compareActiveSegments = [];
-			
-			// 2. Clear visibility filters (show all)
-			visibleColumnIds = new Set();
-			visibleSectionIds = new Set();
-			visibleSegmentIds = new Set();
-			
-			// 3. Restore original selection — but only for structural selections.
-			// When compare mode was entered via a connection selection, the connections
-			// remain selected in the toolbar store; we must NOT restore the derived
-			// structural endpoint items, so structural selections stay empty.
-			if (compareModeEnteredViaConnections) {
-				// Connections are already selected in the store; just clear structural state.
-				activeColumns = [];
-				activeSections = [];
-				activeSegments = [];
-			} else {
-				activeColumns = [...originalComparisonSelection.columns];
-				activeSections = [...originalComparisonSelection.sections];
-				activeSegments = [...originalComparisonSelection.segments];
-			}
-			
-			// 4. Clear original selection storage and the entry-via-connections flag
-			originalComparisonSelection = { columns: [], sections: [], segments: [] };
-			compareModeEnteredViaConnections = false;
-			
-			// 5. Mark we're out of compare mode
-			isCompareMode = false;
-
-			// 6. Scroll the restored selection into view, as centered as possible
-			const restoredSelection = {
-				columns: [...activeColumns],
-				sections: [...activeSections],
-				segments: [...activeSegments]
-			};
-			tick().then(() => scrollSelectionIntoView(restoredSelection));
-		}
-	});
-
-
-
-	// Focus mode toggle logic — mirrors compare mode, but driven by a single selection.
-	// Reuses the same visibleColumnIds/SectionIds/SegmentIds Sets and the compare-hidden
-	// mechanism to hide everything except the focused item (and its containers/children).
+	// Focus mode toggle logic. Focus hides everything except the selected item(s) and
+	// their containers/children. It supports ANY number of selected items (or a selected
+	// connection), and reuses the visibleColumnIds/SectionIds/SegmentIds Sets and the
+	// `compare-hidden` CSS mechanism to perform the hiding. (This absorbed the former
+	// "Compare" feature — the two were merged into a single Focus control.)
 	$effect(() => {
 		if ($toolbarState.focusMode && !isFocusMode) {
 			// ENTERING FOCUS MODE
 
-			// 1. Save the current single selection so it can be restored on exit
-			originalFocusSelection = {
-				columns: [...activeColumns],
-				sections: [...activeSections],
-				segments: [...activeSegments]
-			};
+			// 1. Save the current selection so it can be restored on exit.
+			//    When connection lines are selected, derive the focused items from their
+			//    endpoints rather than from the structural selection. Connections and
+			//    structural selections are mutually exclusive, so only one path has data.
+			if ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length > 0) {
+				originalFocusSelection = buildSelectionFromConnections();
+				focusEnteredViaConnections = true;
+			} else {
+				originalFocusSelection = {
+					columns: [...activeColumns],
+					sections: [...activeSections],
+					segments: [...activeSegments]
+				};
+				focusEnteredViaConnections = false;
+			}
 
-			// 2. Calculate which items remain visible (same rules as compare mode)
+			// 2. Calculate which items remain visible (containers + children of selection)
 			const visible = calculateVisibleItems(originalFocusSelection);
 			visibleColumnIds = new Set(visible.columns);
 			visibleSectionIds = new Set(visible.sections);
@@ -860,10 +773,19 @@
 			visibleSectionIds = new Set();
 			visibleSegmentIds = new Set();
 
-			// 2. Restore the original selection
-			activeColumns = [...originalFocusSelection.columns];
-			activeSections = [...originalFocusSelection.sections];
-			activeSegments = [...originalFocusSelection.segments];
+			// 2. Restore the original selection — but only for structural selections.
+			//    When focus was entered via a connection selection, the connection remains
+			//    selected in the toolbar store; we must NOT restore the derived structural
+			//    endpoint items, so structural selections stay empty.
+			if (focusEnteredViaConnections) {
+				activeColumns = [];
+				activeSections = [];
+				activeSegments = [];
+			} else {
+				activeColumns = [...originalFocusSelection.columns];
+				activeSections = [...originalFocusSelection.sections];
+				activeSegments = [...originalFocusSelection.segments];
+			}
 
 			// 3. Clear saved selection and exit focus mode
 			const restoredSelection = {
@@ -872,6 +794,7 @@
 				segments: [...activeSegments]
 			};
 			originalFocusSelection = { columns: [], sections: [], segments: [] };
+			focusEnteredViaConnections = false;
 			isFocusMode = false;
 
 			// 4. Scroll the restored selection into view, as centered as possible
@@ -2399,6 +2322,27 @@
 			}
 		}
 		return ids;
+	}
+
+	/**
+	 * Count every segment across every passage/column/section in the study.
+	 * Used to decide whether a selection covers "All of them" (which disables Focus):
+	 * if the segments revealed by a selection equal this total, focusing would show the
+	 * entire study, so the Focus button is disabled.
+	 * @returns {number} Total number of segments in the study
+	 */
+	function getTotalSegmentCountInStudy() {
+		if (!data.passagesWithText) return 0;
+		let count = 0;
+		for (const passageText of data.passagesWithText) {
+			if (!passageText.structure?.columns) continue;
+			for (const column of passageText.structure.columns) {
+				for (const section of column.sections) {
+					count += section.segments.length;
+				}
+			}
+		}
+		return count;
 	}
 
 	/**

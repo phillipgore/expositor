@@ -139,7 +139,7 @@ export function getAppToolbarConfig() {
 					underLabel: 'Layout',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledCheck: (state) => !state.canStructure || state.overviewMode || state.comparisonsVisible || state.focusMode
+					disabledCheck: (state) => !state.canStructure || state.overviewMode || state.focusMode
 				},
 				{
 					type: 'menu',
@@ -160,16 +160,6 @@ export function getAppToolbarConfig() {
 			type: 'section',
 			id: 'reading-aids',
 			items: [
-				{
-					type: 'toggle',
-					iconId: 'compare',
-					underLabel: 'Compare',
-					classes: 'toolbar-dark',
-					underLabelClasses: 'light',
-					activeStateProp: 'comparisonsVisible',
-					toggleHandler: 'toggleComparison',
-					disabledStateProp: 'canToggleComparison'
-				},
 				{
 					type: 'toggle',
 					iconId: 'glasses',
