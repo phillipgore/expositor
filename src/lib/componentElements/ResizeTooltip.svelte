@@ -13,13 +13,16 @@
 		/** Vertical anchor (segment bottom edge) in viewport px. */
 		y = 0,
 		/** Height value to display, in CSS px. */
-		height = 0
+		height = 0,
+		/** Optional leading label (e.g. a snapped multiple like "Double"). */
+		label = null
 	} = $props();
 </script>
 
 <div class="resize-tooltip" style:left="{x}px" style:top="{y}px">
-	{height}px
+	{#if label}{label} · {/if}{height}px
 </div>
+
 
 <style>
 	.resize-tooltip {

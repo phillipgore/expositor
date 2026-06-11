@@ -90,8 +90,35 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
+		iconId="column-width"
+		label="Set Column Width"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('set-column-width'));
+		}}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="column-width-reset"
+		label="Reset Column Width"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('reset-column-width'));
+		}}
+		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.comparisonsVisible || $toolbarState.focusMode}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
 		iconId="section-spacing"
 		label="Set Section Spacing"
+
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();

@@ -11,10 +11,13 @@
 	import SetSegmentHeightModal from '$lib/componentWidgets/modals/SetSegmentHeightModal.svelte';
 	import SetSectionSpacingModal from '$lib/componentWidgets/modals/SetSectionSpacingModal.svelte';
 	import SetColumnSpacingModal from '$lib/componentWidgets/modals/SetColumnSpacingModal.svelte';
+	import SetColumnWidthModal from '$lib/componentWidgets/modals/SetColumnWidthModal.svelte';
 
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
 	import { useSectionReposition } from '$lib/composables/useSectionReposition.svelte.js';
 	import { useColumnReposition } from '$lib/composables/useColumnReposition.svelte.js';
+	import { useColumnResize, BASE_WIDTH_WIDE } from '$lib/composables/useColumnResize.svelte.js';
+
 
 
 
@@ -66,8 +69,23 @@
 	// Attach window mousemove/mouseup listeners only while a column drag is active.
 	$effect(() => columnReposition.setupRepositionListeners());
 
+	// ─── Column width resize ──────────────────────────────────────────────────
+	// Lives at page level so it can see all .column elements (for cross-column edge
+	// snapping) and the current zoom scale. Drags the RIGHT edge of a column to widen
+	// or narrow it, with a minimum readable width floor. This is the horizontal
+	// counterpart to the segment height resize.
+	const columnResize = useColumnResize({
+		getScale: () => currentScale,
+		getContainer: () => analyzeContentRef,
+		onPersist: () => invalidate('app:studies')
+	});
+
+	// Attach window mousemove/mouseup listeners only while a width drag is active.
+	$effect(() => columnResize.setupResizeListeners());
+
 
 	// ─── Set-height modal (bulk uniform height for selected segments) ──────────
+
 
 
 	// Opened from Structure → Set Height. Measures the current selection to seed
@@ -298,6 +316,51 @@
 		if (ids.length === 0) return;
 		await columnReposition.resetSpacing(ids);
 	}
+
+	// ─── Set-column-width modal (bulk uniform width for selected columns) ──────
+	// Opened from Layout → Set Column Width. Measures the current selection to seed the
+	// default value (first selected column's current rendered width) and the minimum
+	// allowed value (the composable's readable minimum-width floor) before showing the
+	// modal. Mirrors the segment Set-Height flow but for horizontal column width.
+	let setColumnWidthModalOpen = $state(false);
+	let setColumnWidthIds = $state(/** @type {string[]} */ ([]));
+	let setColumnWidthCurrent = $state(0);
+	let setColumnWidthMin = $state(0);
+
+	/**
+	 * Measure the selected columns and open the Set Column Width modal.
+	 * Every selected column is adjustable (unlike spacing, width has no first-column rule).
+	 */
+	function openSetColumnWidthModal() {
+		const ids = [...activeColumns];
+		if (ids.length === 0) return;
+
+		setColumnWidthIds = ids;
+		setColumnWidthCurrent = Math.round(columnResize.measureCurrentWidth(ids[0]));
+		setColumnWidthMin = Math.ceil(columnResize.minWidth);
+		setColumnWidthModalOpen = true;
+	}
+
+	/**
+	 * Persist a uniform WIDTH across the selected columns, then refresh data.
+	 * @param {number} width
+	 */
+	async function applySetColumnWidth(width) {
+		const ids = setColumnWidthIds;
+		setColumnWidthModalOpen = false;
+		if (ids.length === 0) return;
+		await columnResize.setWidth(ids, width);
+	}
+
+	/**
+	 * Reset the width of all currently selected columns back to the default.
+	 */
+	async function resetColumnWidth() {
+		const ids = [...activeColumns];
+		if (ids.length === 0) return;
+		await columnResize.resetWidth(ids);
+	}
+
 
 
 
@@ -1461,8 +1524,12 @@
 		// Column spacing (Layout menu): open the modal / reset the selection.
 		const handleSetColumnSpacingEvent = () => openSetColumnSpacingModal();
 		const handleResetColumnSpacingEvent = () => resetColumnSpacing();
+		// Column width (Layout menu): open the modal / reset the selection.
+		const handleSetColumnWidthEvent = () => openSetColumnWidthModal();
+		const handleResetColumnWidthEvent = () => resetColumnWidth();
 
 		window.addEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
+
 		window.addEventListener('set-segment-height', handleSetSegmentHeightEvent);
 		window.addEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
 		window.addEventListener('reset-section-position', handleResetSectionPositionEvent);
@@ -1470,12 +1537,11 @@
 		window.addEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
 		window.addEventListener('set-column-spacing', handleSetColumnSpacingEvent);
 		window.addEventListener('reset-column-spacing', handleResetColumnSpacingEvent);
-
-
-
-
+		window.addEventListener('set-column-width', handleSetColumnWidthEvent);
+		window.addEventListener('reset-column-width', handleResetColumnWidthEvent);
 
 		window.addEventListener('insert-connection', handleInsertConnectionEvent);
+
 		window.addEventListener('remove-connection', handleRemoveConnectionEvent);
 		window.addEventListener('insert-column', handleInsertColumnEvent);
 		window.addEventListener('insert-section', handleInsertSectionEvent);
@@ -1512,7 +1578,10 @@
 			window.removeEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
 			window.removeEventListener('set-column-spacing', handleSetColumnSpacingEvent);
 			window.removeEventListener('reset-column-spacing', handleResetColumnSpacingEvent);
+			window.removeEventListener('set-column-width', handleSetColumnWidthEvent);
+			window.removeEventListener('reset-column-width', handleResetColumnWidthEvent);
 			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
+
 
 
 
@@ -3617,16 +3686,32 @@
 										{@const headingReferences = calculateHeadingReferences(allSegments, verseSectionMap, segmentSectionEndIdxMap, passageEndWordId)}
 											{#each passageText.structure.columns as column, columnIndex}
 												{@const columnOffset = columnReposition.getLiveOffset(column.id) ?? column.leftOffset ?? 0}
+												{@const columnLiveWidth = columnResize.getLiveWidth(column.id)}
+												{@const columnResolvedWidth = columnLiveWidth ?? column.width ?? null}
+												<!-- Wide View acts as a MINIMUM width: columns narrower than the wide base
+												     are lifted to it, while wider per-column overrides are preserved. The
+												     stored width is never mutated. While THIS column is actively being
+												     dragged, use the raw live width so the resize tracks the cursor 1:1
+												     (the floor re-applies on release). A null width falls through to the
+												     CSS default, which the `.wide-layout .column` rule already widens. -->
+												{@const columnWidth = columnResize.activeColumnId === column.id
+													? columnLiveWidth
+													: (columnResolvedWidth == null
+														? null
+														: ($toolbarState.wideLayout ? Math.max(columnResolvedWidth, BASE_WIDTH_WIDE) : columnResolvedWidth))}
 												<div
 													class="column"
 													class:not-first-column={columnIndex > 0}
 													class:cross-passage-column={passageIndex > 0 && columnIndex === 0}
 													class:is-repositioning={columnReposition.activeColumnId === column.id}
+													class:is-resizing={columnResize.activeColumnId === column.id}
 													data-column-id="{column.id}"
 
 													class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}
 													style:--column-offset="{columnOffset}px"
+													style:width={columnWidth != null ? `${columnWidth}px` : null}
 												>
+
 													{#if column.sections && column.sections.length > 0}
 
 
@@ -3770,8 +3855,27 @@
 															</span>
 														</div>
 													{/if}
+
+													<!-- Column width resize handle: a narrow strip over the RIGHT edge of
+													     every column. Hovering shows an ew-resize cursor and a vertical bar;
+													     mousedown begins a horizontal resize drag that widens or narrows this
+													     column (down to a readable minimum width). Horizontal counterpart to
+													     the segment height resize handle. Disabled in overview/compare/focus
+													     modes (same gating as the reposition handle). -->
+													{#if !$toolbarState.overviewMode && !isHideMode}
+														<div
+															class="column-resize-handle"
+															role="separator"
+															aria-label="Resize column width"
+															aria-orientation="vertical"
+															onmousedown={(e) => columnResize.handleResizeStart(e, column.id)}
+														>
+															<span class="column-resize-indicator"></span>
+														</div>
+													{/if}
 												</div>
 											{/each}
+
 
 											{/key}
 										{/if}
@@ -3850,9 +3954,35 @@
 		/>
 	{/if}
 
+	<!-- Column width resize snap guide: a yellow VERTICAL line spanning the content
+	     height, shown while a width drag is snapping to another column's left/right edge.
+	     Fixed-positioned because the composable computes its geometry in viewport
+	     coordinates. Reuses .resize-snap-guide but overrides to a vertical orientation. -->
+	{#if columnResize.guideLine.visible}
+		<div
+			class="resize-snap-guide resize-snap-guide-vertical"
+			style:top="{columnResize.guideLine.top}px"
+			style:left="{columnResize.guideLine.left}px"
+			style:height="{columnResize.guideLine.height}px"
+		></div>
+	{/if}
+
+	<!-- Live width tooltip following a column width drag. Reuses the ResizeTooltip
+	     component; here `height` carries the CSS-px WIDTH being applied. -->
+	{#if columnResize.dragTooltip.visible}
+		<ResizeTooltip
+			x={columnResize.dragTooltip.x}
+			y={columnResize.dragTooltip.y}
+			height={columnResize.dragTooltip.height}
+			label={columnResize.dragTooltip.label}
+		/>
+	{/if}
+
+
 
 
 	<!-- Bulk "Set Height" modal (Structure → Set Height). Applies a uniform height
+
 	     across all selected segments, never smaller than the tallest text floor. -->
 	<SetSegmentHeightModal
 		isOpen={setHeightModalOpen}
@@ -3886,6 +4016,18 @@
 		onApply={applySetColumnSpacing}
 		onClose={() => (setColumnSpacingModalOpen = false)}
 	/>
+
+	<!-- Bulk "Set Column Width" modal (Layout → Set Column Width). Applies a uniform
+	     WIDTH to all selected columns, never narrower than the readable minimum width. -->
+	<SetColumnWidthModal
+		isOpen={setColumnWidthModalOpen}
+		columnCount={setColumnWidthIds.length}
+		currentWidth={setColumnWidthCurrent}
+		minWidth={setColumnWidthMin}
+		onApply={applySetColumnWidth}
+		onClose={() => (setColumnWidthModalOpen = false)}
+	/>
+
 
 
 
@@ -4131,6 +4273,65 @@
 		background-color: var(--gray-light);
 		border: 0.1rem solid var(--gray-darker);
 	}
+
+	/* ============================================================ */
+	/* Column Width Resize Handle (right edge drag affordance) */
+	/* ============================================================ */
+
+	/* A narrow strip overlapping the RIGHT edge of each column. Invisible until
+	   hovered, at which point it shows an ew-resize cursor and a vertical bar so the
+	   user knows the column can be dragged to widen/narrow it. Horizontal counterpart
+	   to the segment height resize handle. Spans the full column height so it is easy
+	   to grab anywhere along the right edge. */
+	.column-resize-handle {
+		position: absolute;
+		top: 2.3rem;
+		right: -1.2rem;
+		width: 1.4rem;
+		height: 2.0rem;
+
+		display: flex;
+
+		align-items: center;
+		justify-content: center;
+		cursor: ew-resize;
+		z-index: 16;
+		opacity: 0;
+		transition: opacity 80ms ease-in-out;
+	}
+
+	.column-resize-handle:hover,
+	.column.is-resizing .column-resize-handle {
+		opacity: 1;
+	}
+
+	/* Layout Controls toggle (View menu): when active, reveal the column resize
+	   handles persistently instead of only on hover. */
+	.show-layout-controls .column-resize-handle {
+		opacity: 1;
+	}
+
+	.column.is-resizing .column-resize-handle {
+		cursor: ew-resize;
+	}
+
+	/* Resize indicator: a slim vertical bar centered over the column's right edge,
+	   the visual cue that this edge is draggable. */
+	.column-resize-indicator {
+		width: 0.5rem;
+		height: 2.4rem;
+		border-radius: 0.3rem;
+
+		background-color: var(--gray-light);
+		border: 0.1rem solid var(--gray-darker);
+	}
+
+	/* While actively resizing a column, suppress transitions and lift it above
+	   siblings so it tracks the cursor cleanly. */
+	.column.is-resizing {
+		z-index: 15;
+	}
+
 
 
 	.wide-layout .column {
@@ -4642,6 +4843,15 @@
 		pointer-events: none;
 		z-index: 200;
 	}
+
+	/* Vertical variant of the snap guide, used during a column WIDTH resize when the
+	   dragged right edge aligns with another column's left/right edge. Here the height
+	   is set inline (spanning the content area) and the width is the 1px line. */
+	.resize-snap-guide-vertical {
+		width: 0.1rem;
+		height: auto;
+	}
+
 
 
 	.copyright-notice {

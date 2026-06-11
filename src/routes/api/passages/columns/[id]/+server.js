@@ -74,7 +74,31 @@ export const PATCH = async ({ request, params }) => {
 			return json({ success: true }, { status: 200 });
 		}
 
+		// Handle width update (column width override).
+		// width is the column's WIDTH in CSS px. null = default width (CSS default);
+		// a positive finite number overrides it. The application enforces a minimum
+		// readable width on the client; here we only guard for a finite, positive value.
+		if ('width' in body) {
+			const { width } = body;
+
+			if (width !== null) {
+				if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
+					return json({ error: 'Invalid width' }, { status: 400 });
+				}
+			}
+
+			await db.update(passageColumn)
+				.set({
+					width: width === null ? null : Math.round(width),
+					updatedAt: new Date()
+				})
+				.where(eq(passageColumn.id, columnId));
+
+			return json({ success: true }, { status: 200 });
+		}
+
 		// Handle commentary update
+
 		if ('commentary' in body) {
 
 			const { commentary } = body;

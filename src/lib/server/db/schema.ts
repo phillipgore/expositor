@@ -149,6 +149,13 @@ export const passageColumn = pgTable('passage_column', {
 	 * (default + offset) has no upper limit.
 	 */
 	leftOffset: integer('left_offset'),
+	/**
+	 * User-set column WIDTH in CSS px. NULL = default width (the CSS default,
+	 * currently 27.8rem / 49.8rem in wide layout). A positive integer overrides
+	 * the column's width so the viewer can widen or narrow it. Cannot be smaller
+	 * than the application-enforced minimum readable width.
+	 */
+	width: integer('width'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
@@ -157,6 +164,7 @@ export const passageColumn = pgTable('passage_column', {
 		.notNull()
 }, (table) => ({
 	passageIdIdx: index('passage_column_passage_id_idx').on(table.passageId),
+
 
 	startingWordIdx: index('passage_column_starting_word_idx').on(table.startingWordId)
 }));
