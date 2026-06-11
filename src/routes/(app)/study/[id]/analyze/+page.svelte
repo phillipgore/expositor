@@ -461,6 +461,18 @@
 		return (selections.columns.length + selections.sections.length) > 1;
 	});
 
+	// Derived state: while a Column, Section, or Segment is selected, holding the
+	// Command/Ctrl key temporarily reveals EVERY column/section selection control so
+	// the user can easily add to / remove from the selection. Releasing the key hides
+	// them again (reverting to showing only the active selection's controls).
+	// Gated on an existing selection so pressing the key with nothing selected does
+	// not flash the controls.
+	let showAllSelectorsViaCommand = $derived(
+		isCommandKeyHeld &&
+		(activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0)
+	);
+
+
 	// Derived state: whether the current selection can enter Focus mode (enables the
 	// Focus button). Focus hides everything except the selected item(s) and their
 	// containers/children, so it makes sense for ANY selection of one or more items —
@@ -3215,6 +3227,34 @@
 	}
 
 	/**
+	 * Reset the held Command/Ctrl state.
+	 * If the window loses focus (or the tab is hidden) while Command/Ctrl is held, the
+	 * matching keyup is delivered elsewhere and never fires here, leaving
+	 * isCommandKeyHeld stuck true (and the selection controls stuck visible). Both the
+	 * window `blur` and document `visibilitychange` events call this as a safeguard —
+	 * some OS/browser combos (e.g. Mission Control / Spaces switches) fire
+	 * `visibilitychange` but not `blur`, so we cover both.
+	 */
+	function resetCommandKeyHeld() {
+		if (isCommandKeyHeld) {
+			isCommandKeyHeld = false;
+			console.log('[KEY] Focus/visibility lost - resetting multi-select mode');
+		}
+	}
+
+	/**
+	 * Document visibilitychange handler — reset the held-key state when the tab becomes
+	 * hidden (covers cases where `blur` does not fire).
+	 */
+	function handleVisibilityChange() {
+		if (document.hidden) {
+			resetCommandKeyHeld();
+		}
+	}
+
+
+
+	/**
 	 * Update DOM elements with data-selected, data-position, and data-suppress-hover-caret attributes when selection changes
 	 */
 	$effect(() => {
@@ -3566,7 +3606,10 @@
 	});
 </script>
 
-<svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
+<svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} on:blur={resetCommandKeyHeld} />
+<svelte:document on:visibilitychange={handleVisibilityChange} />
+
+
 
 <div class="container">
 	<!-- Analyze View Content -->
@@ -3722,12 +3765,15 @@
 																	{/each}
 																{/if}
 																
-															<!-- Section toolbar: Command (or multiple column/section selections) shows all even with no
-															     single selection; single-select shows controls only for the active column in this column. -->
+															<!-- Section toolbar: Command (held while a Column/Section/Segment is selected, or
+															     multiple column/section selections) shows all even with no single selection;
+															     single-select shows controls only for the active column in this column. -->
 															{#if $toolbarState.selectorsVisible
+															     || showAllSelectorsViaCommand
 															     || hasMultipleStructuralSelections
 															     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
 																<ToolbarSection 
+
 																	sectionId={section.id}
 																	isActive={activeSections.includes(section.id)}
 																/>
@@ -3760,12 +3806,15 @@
 														{/each}
 													{/if}
 
-													<!-- Column toolbar: Command (or multiple column/section selections) shows all even with no
-													     single selection; single-select shows controls only for the active column in this column. -->
+													<!-- Column toolbar: Command (held while a Column/Section/Segment is selected, or
+													     multiple column/section selections) shows all even with no single selection;
+													     single-select shows controls only for the active column in this column. -->
 													{#if $toolbarState.selectorsVisible
+													     || showAllSelectorsViaCommand
 													     || hasMultipleStructuralSelections
 													     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
 														<ToolbarColumn 
+
 															columnId={column.id} 
 															isActive={activeColumns.includes(column.id)}
 															sectionColor={column.sections[0]?.color}
@@ -4684,27 +4733,8 @@
 		background-color: var(--section-light);
 	}
 
-	/* Enable text selection when Cmd/Ctrl is held */
-	:global(.text-selection-enabled .text) {
-		-webkit-user-select: text;
-		user-select: text;
-		cursor: text;
-	}
-
-	:global(.text-selection-enabled .text .selectable-word) {
-		cursor: text;
-	}
-
-	/* Disable word selection hover effects when in text selection mode */
-	:global(.text-selection-enabled .text .selectable-word:hover) {
-		background-color: transparent !important;
-	}
-
-	:global(.text-selection-enabled .text .selectable-word:hover::before) {
-		content: none !important;
-	}
-
 	/* Word selection styles */
+
 	:global(.text .selectable-word) {
 		position: relative;
 		cursor: pointer;
