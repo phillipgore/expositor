@@ -4024,7 +4024,7 @@
 		font-size: 1.2rem;
 		margin-left: calc(0.2rem + var(--reference-offset, 0px));
 		margin-top: 0.0rem;
-		margin-bottom: 0.9rem;
+		margin-bottom: 1.1rem;
 	}
 
 
@@ -4080,11 +4080,13 @@
 	/* A narrow strip overlapping the LEFT border of each non-first column — the same
 	   side as the gap it adjusts. Invisible until hovered, at which point it shows a
 	   grab cursor and a vertical three-dot indicator so the user knows the column can be
-	   dragged horizontally. Anchored near the TOP of the column (matching the section
-	   handle's placement) so it is easy to find without scrolling through long columns. */
+	   dragged horizontally. Anchored near the top of the column (but pushed down below
+	   the first section's selection radio — which sits at top: 0, ~2.0rem tall — so the
+	   two controls don't overlap on the column's left side) while staying easy to find
+	   without scrolling through long columns. */
 	.column-reposition-handle {
 		position: absolute;
-		top: 1.2rem;
+		top: 2.3rem;
 		left: -1.2rem;
 		width: 1.4rem;
 		height: 2.0rem;
