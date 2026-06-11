@@ -37,7 +37,8 @@ export async function load({ request, depends }) {
 				paragraphBreaksVisible: user.paragraphBreaksVisible,
 				wideLayout: user.wideLayout,
 				overviewMode: user.overviewMode,
-				selectorsVisible: user.selectorsVisible
+				selectorsVisible: user.selectorsVisible,
+				layoutControlsVisible: user.layoutControlsVisible
 			})
 			.from(user)
 			.where(eq(user.id, session.user.id))
@@ -62,6 +63,7 @@ export async function load({ request, depends }) {
 		const wideLayout = userData[0]?.wideLayout ?? false;
 		const overviewMode = userData[0]?.overviewMode ?? false;
 		const selectorsVisible = userData[0]?.selectorsVisible ?? false;
+		const layoutControlsVisible = userData[0]?.layoutControlsVisible ?? false;
 		
 		// Query all groups for the logged-in user
 		const groupsData = await db
@@ -144,7 +146,8 @@ export async function load({ request, depends }) {
 			paragraphBreaksVisible,
 			wideLayout,
 			overviewMode,
-			selectorsVisible
+			selectorsVisible,
+			layoutControlsVisible
 		};
 	} catch (error) {
 		console.error('Error loading studies:', error);

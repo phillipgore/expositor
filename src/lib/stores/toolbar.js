@@ -92,6 +92,7 @@ async function persistPreference(updates) {
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
  * @property {boolean} selectorsVisible - Whether the Column/Section selector buttons are shown without holding Command/Ctrl
+ * @property {boolean} layoutControlsVisible - Whether the Column/Section/Segment layout handles (reposition/resize) are shown without hovering
  * @property {number} zoomLevel - Current zoom level as percentage (25-400)
  * @property {'percentage'|'fit-width'|'fit-study'} zoomMode - Zoom mode: percentage-based or a fit mode
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
@@ -176,6 +177,7 @@ const defaultState = {
 	wideLayout: false,
 	overviewMode: false,
 	selectorsVisible: false,
+	layoutControlsVisible: false,
 	zoomLevel: 100,
 	selectedItem: null,
 	hasWordSelection: false,
@@ -799,6 +801,18 @@ export function toggleSelectors() {
 	const newValue = !get(toolbarStateStore).selectorsVisible;
 	toolbarStateStore.update(state => ({ ...state, selectorsVisible: newValue }));
 	persistPreference({ selectorsVisible: newValue });
+}
+
+/**
+ * Toggle the Column/Section/Segment layout handles.
+ * When on, the layout reposition/resize handles are shown in the Analyze view
+ * without requiring the user to hover over them. When off, they revert to the
+ * prior behaviour of appearing only on hover.
+ */
+export function toggleLayoutControls() {
+	const newValue = !get(toolbarStateStore).layoutControlsVisible;
+	toolbarStateStore.update(state => ({ ...state, layoutControlsVisible: newValue }));
+	persistPreference({ layoutControlsVisible: newValue });
 }
 
 /**

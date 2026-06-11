@@ -44,7 +44,8 @@
 		toggleParagraphBreaks,
 		toggleWide,
 		toggleOverview,
-		toggleSelectors
+		toggleSelectors,
+		toggleLayoutControls
 	} from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuView' } = $props();
@@ -151,6 +152,12 @@
 		label="Selection Controls"
 		isActive={$toolbarState.selectorsVisible}
 		onToggle={toggleSelectors}
+		isDisabled={!$toolbarState.canToggleOverview || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Layout Controls"
+		isActive={$toolbarState.layoutControlsVisible}
+		onToggle={toggleLayoutControls}
 		isDisabled={!$toolbarState.canToggleOverview || $toolbarState.overviewMode}
 	/>
 </Menu>

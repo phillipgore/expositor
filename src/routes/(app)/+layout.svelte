@@ -64,6 +64,9 @@
 		if (data.selectorsVisible !== undefined) {
 			setToolbarState('selectorsVisible', data.selectorsVisible);
 		}
+		if (data.layoutControlsVisible !== undefined) {
+			setToolbarState('layoutControlsVisible', data.layoutControlsVisible);
+		}
 	});
 
 	onMount(() => {

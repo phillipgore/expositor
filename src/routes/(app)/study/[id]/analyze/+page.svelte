@@ -3566,6 +3566,7 @@
 		class:hide-paragraph-breaks={!$toolbarState.paragraphBreaksVisible}
 		class:wide-layout={$toolbarState.wideLayout} 
 		class:overview-mode={$toolbarState.overviewMode}
+		class:show-layout-controls={$toolbarState.layoutControlsVisible}
 		onmousedown={handleMouseDown}
 		onmousemove={handleMouseMove}
 		onmouseup={handleMouseUp}
@@ -4101,6 +4102,12 @@
 		opacity: 1;
 	}
 
+	/* Layout Controls toggle (View menu): when active, reveal the column reposition
+	   handles persistently instead of only on hover. */
+	.show-layout-controls .column-reposition-handle {
+		opacity: 1;
+	}
+
 	.column.is-repositioning .column-reposition-handle {
 		cursor: grabbing;
 	}
@@ -4190,6 +4197,12 @@
 
 	.reposition-handle:hover,
 	.section.is-repositioning .reposition-handle {
+		opacity: 1;
+	}
+
+	/* Layout Controls toggle (View menu): when active, reveal the section reposition
+	   handles persistently instead of only on hover. */
+	.show-layout-controls .reposition-handle {
 		opacity: 1;
 	}
 

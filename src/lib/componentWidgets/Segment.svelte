@@ -185,6 +185,7 @@
      class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.passageNotesVisible)}
      class:compare-hidden={isCompareHidden}
      class:is-resizing={isResizing}
+     class:show-layout-controls={resizeEnabled && $toolbarState.layoutControlsVisible}
      style:min-height={height != null ? `${height}px` : null}
      data-segment-id="{segmentId}">
 
@@ -352,6 +353,12 @@
 	/* Reveal the indicator on hover or while actively dragging this segment. */
 	.resize-handle:hover,
 	.segment.is-resizing .resize-handle {
+		opacity: 1;
+	}
+
+	/* When the "Layout Controls" view toggle is on, reveal the resize handle
+	   persistently instead of only on hover. */
+	.segment.show-layout-controls .resize-handle {
 		opacity: 1;
 	}
 

@@ -30,6 +30,7 @@ export const user = pgTable('user', {
 	wideLayout: boolean('wide_layout').default(false),
 	overviewMode: boolean('overview_mode').default(false),
 	selectorsVisible: boolean('selectors_visible').default(false),
+	layoutControlsVisible: boolean('layout_controls_visible').default(false),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
