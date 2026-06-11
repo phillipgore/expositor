@@ -53,8 +53,8 @@ export const PATCH = async ({ request, params }) => {
 		// Handle left-offset update (horizontal column spacing).
 		// leftOffset is the EXTRA spacing in px added to the gap on the column's
 		// leading (left) side beyond its default gap. null/0 = default spacing;
-		// positive integer = pushed right. Capped at 294px total (255px offset) by
-		// the client; we also guard here.
+		// positive integer = pushed right. There is no upper limit on the spacing;
+		// we only guard that the value is a finite, non-negative number.
 		if ('leftOffset' in body) {
 			const { leftOffset } = body;
 

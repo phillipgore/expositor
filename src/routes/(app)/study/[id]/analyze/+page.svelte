@@ -57,11 +57,10 @@
 	// Lives at page level so it can see all .column elements and the current zoom
 	// scale. Adjusts the gap to the LEFT of a column (distance from the previous
 	// column); the first column in a passage has no left gap and never gets a handle.
-	// The total gap is capped at 294px.
+	// The total gap has no upper limit — viewers can add as much space as they like.
 	const columnReposition = useColumnReposition({
 		getScale: () => currentScale,
-		onPersist: () => invalidate('app:studies'),
-		maxGap: 294
+		onPersist: () => invalidate('app:studies')
 	});
 
 	// Attach window mousemove/mouseup listeners only while a column drag is active.
@@ -228,13 +227,13 @@
 	// ─── Set-column-spacing modal (bulk uniform TOTAL left gap for selected columns) ─
 	// Opened from Layout → Set Column Spacing. Columns that are first in their passage
 	// have no adjustable left gap and are excluded. Seeds the default value from the
-	// first adjustable selected column's current gap, the minimum from the largest
-	// default gap among the selection, and the maximum from the 294px cap.
+	// first adjustable selected column's current gap and the minimum from the largest
+	// default gap among the selection. There is no maximum — viewers can add as much
+	// space as they like.
 	let setColumnSpacingModalOpen = $state(false);
 	let setColumnSpacingIds = $state(/** @type {string[]} */ ([]));
 	let setColumnSpacingCurrent = $state(0);
 	let setColumnSpacingMin = $state(0);
-	const COLUMN_SPACING_MAX = 294;
 
 	/**
 	 * Collect the currently selected column IDs that have an adjustable left gap.
@@ -3878,13 +3877,12 @@
 
 	<!-- Bulk "Set Column Spacing" modal (Layout → Set Column Spacing). Applies a uniform
 	     TOTAL gap to the LEFT of all selected (non-first) columns, never tighter than each
-	     column's default spacing and never wider than 294px. -->
+	     column's default spacing. There is no upper limit on the spacing. -->
 	<SetColumnSpacingModal
 		isOpen={setColumnSpacingModalOpen}
 		columnCount={setColumnSpacingIds.length}
 		currentGap={setColumnSpacingCurrent}
 		minGap={setColumnSpacingMin}
-		maxGap={COLUMN_SPACING_MAX}
 		onApply={applySetColumnSpacing}
 		onClose={() => (setColumnSpacingModalOpen = false)}
 	/>
@@ -4053,7 +4051,7 @@
 	/* User horizontal spacing offset: EXTRA px added to the gap on a column's LEFT side
 	   beyond the container's default 3.9rem gap. Defaults to 0 (no change). Only applied
 	   to non-first columns (the first column in a passage stays fixed). Pushing a column
-	   right widens the gap to its left; the total gap is capped at 294px by the JS. */
+	   right widens the gap to its left; there is no upper limit on the total gap. */
 	.column.not-first-column {
 		margin-left: var(--column-offset, 0px);
 	}

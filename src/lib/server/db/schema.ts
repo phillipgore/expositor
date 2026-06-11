@@ -146,7 +146,7 @@ export const passageColumn = pgTable('passage_column', {
 	 * column to the right so it visually separates from the previous column. Cannot
 	 * make a column tighter than the default — the value is an additive offset on top
 	 * of the CSS default. The first column in a passage is never offset. The total gap
-	 * (default + offset) is capped at 294px.
+	 * (default + offset) has no upper limit.
 	 */
 	leftOffset: integer('left_offset'),
 	createdAt: timestamp('created_at')

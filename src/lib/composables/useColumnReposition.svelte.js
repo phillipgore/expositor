@@ -17,7 +17,8 @@
  * it is additive with a floor at 0, a column can never be pulled tighter than its
  * default spacing — it can only be pushed right. (NULL/0 = default spacing.)
  *
- * The TOTAL gap (default + offset) is capped at 294px.
+ * The TOTAL gap (default + offset) has no upper limit — viewers can add as much
+ * space between columns as they like.
  *
  * Key behaviors (mirrors useSectionReposition, but on the X axis):
  *  - All mouse deltas are divided by the current zoom scale so dragging tracks the
@@ -36,9 +37,9 @@
  * @param {Object} options
  * @param {() => number} options.getScale - Returns the current zoom scale (e.g. 1).
  * @param {() => Promise<void>} options.onPersist - Called after a successful save to refresh data (e.g. invalidate('app:studies')).
- * @param {number} [options.maxGap=294] - Maximum TOTAL gap (default + offset) in CSS px.
+ * @param {number} [options.maxGap=Infinity] - Maximum TOTAL gap (default + offset) in CSS px. Defaults to unbounded.
  */
-export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
+export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) {
 	// Live offset overrides during a drag: columnId -> extra px (pre-zoom) beyond default.
 	// The page merges this over the persisted leftOffset when rendering each column.
 	/** @type {Record<string, number>} */
@@ -69,12 +70,12 @@ export function useColumnReposition({ getScale, onPersist, maxGap = 294 }) {
 	 *
 	 *  - 'within': a normal non-first column. Its gap is measured to the previous
 	 *    column in the same passage; the stored offset is applied as a single
-	 *    margin-left on this column (total gap = default + offset, capped at maxGap).
+	 *    margin-left on this column (total gap = default + offset).
 	 *  - 'cross': the FIRST column of a passage OTHER than the first passage. Its gap
 	 *    spans the passage divider. The stored offset is a PER-SIDE amount X applied
 	 *    symmetrically to BOTH the divider (margin-left X) and this column
-	 *    (margin-left X), so the divider stays centered. Total gap = default + 2X,
-	 *    capped at maxGap. The gap is measured to the previous passage's LAST column.
+	 *    (margin-left X), so the divider stays centered. Total gap = default + 2X.
+	 *    The gap is measured to the previous passage's LAST column.
 	 *  - null: the study's very first column (first column of the first passage). It
 	 *    has no adjustable gap and never gets a handle.
 	 *
