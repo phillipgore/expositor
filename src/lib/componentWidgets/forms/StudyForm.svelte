@@ -23,6 +23,7 @@
 	import PassageSelector from '$lib/componentWidgets/PassageSelector.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
+	import ReviewStudyEditModal from '$lib/componentWidgets/modals/ReviewStudyEditModal.svelte';
 	import messages from '$lib/data/messages.json';
 	import { getAllTranslationsMetadata } from '$lib/utils/translationConfig';
 
@@ -38,6 +39,17 @@
 	} = $props();
 
 	let isSubmitting = $state(false);
+
+	// --- Edit-mode review flow state ---------------------------------------
+	let formElement = $state(null);
+	let decisionsValue = $state('');
+	let showReviewModal = $state(false);
+	let analyzeReport = $state(null);
+	let isAnalyzing = $state(false);
+	// Once true, the next submit is allowed to proceed to the server without
+	// being intercepted again for analysis.
+	let reviewPassed = $state(false);
+
 
 	const testamentData = bibleData[0].testamentData;
 	const ntBookData = testamentData[1].bookData;
@@ -100,18 +112,88 @@
 	$effect(() => {
 		onSubmittingChange?.(isSubmitting);
 	});
+
+	/**
+	 * In edit mode, intercept the first submit to analyze the passage changes.
+	 * If the server reports any change that needs a decision (added verses,
+	 * removed content, book replacement), open the Review modal first. Otherwise
+	 * submit straight through. In "new" mode there's nothing to reconcile.
+	 *
+	 * @param {SubmitEvent} event
+	 */
+	async function handleSubmit(event) {
+		// New studies, or an already-reviewed submit, go straight to the server.
+		if (mode !== 'edit' || reviewPassed || !initialData?.id) {
+			return; // allow native submit (use:enhance handles it)
+		}
+
+		event.preventDefault();
+		if (hasDuplicateTitle || isAnalyzing || isSubmitting) return;
+
+		isAnalyzing = true;
+		try {
+			const res = await fetch(`/api/studies/${initialData.id}/analyze-edit`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ passages })
+			});
+
+			if (!res.ok) {
+				// If analysis fails, fall back to a normal submit rather than blocking.
+				reviewPassed = true;
+				formElement?.requestSubmit();
+				return;
+			}
+
+			const report = await res.json();
+			if (report?.requiresReview) {
+				analyzeReport = report;
+				showReviewModal = true;
+			} else {
+				// Nothing needs a decision — submit with empty decisions.
+				decisionsValue = '';
+				reviewPassed = true;
+				formElement?.requestSubmit();
+			}
+		} catch (err) {
+			console.error('Edit analysis failed:', err);
+			reviewPassed = true;
+			formElement?.requestSubmit();
+		} finally {
+			isAnalyzing = false;
+		}
+	}
+
+	/**
+	 * The user confirmed their choices in the Review modal.
+	 * @param {Object} decisions - keyed by passageId
+	 */
+	function handleReviewConfirm(decisions) {
+		decisionsValue = JSON.stringify(decisions || {});
+		showReviewModal = false;
+		reviewPassed = true;
+		formElement?.requestSubmit();
+	}
+
+	function handleReviewCancel() {
+		showReviewModal = false;
+	}
 </script>
 
 <form 
+	bind:this={formElement}
 	method="POST" 
+	onsubmit={handleSubmit}
 	use:enhance={() => {
 		isSubmitting = true;
 		return async ({ update }) => {
 			await update();
 			isSubmitting = false;
+			reviewPassed = false;
 		};
 	}}
 >
+
 	<Heading heading="h1" hasSub={groupName? true : false}>{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading>
 	{#if groupName}
 		<Heading heading="h2" isMuted notBold>{`To be created in "${groupName}".`}</Heading>
@@ -148,9 +230,13 @@
 	{/if}
 
 	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
+	{#if mode === 'edit'}
+		<input type="hidden" name="decisions" value={decisionsValue} />
+	{/if}
 	{#if groupId}
 		<input type="hidden" name="groupId" value={groupId} />
 	{/if}
+
 
 	<Label text="Passages"></Label>
 
@@ -159,10 +245,21 @@
 	<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 
 	<FormButtonBar>
-		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting}></Button>
-		<Button type="submit" label={isSubmitting ? 'Saving...' : 'Save'} classes="blue" isDisabled={isSubmitting || hasDuplicateTitle}></Button>
+		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting || isAnalyzing}></Button>
+		<Button type="submit" label={isAnalyzing ? 'Checking...' : isSubmitting ? 'Saving...' : 'Save'} classes="blue" isDisabled={isSubmitting || isAnalyzing || hasDuplicateTitle}></Button>
 	</FormButtonBar>
 </form>
+
+{#if mode === 'edit'}
+	<ReviewStudyEditModal
+		isOpen={showReviewModal}
+		report={analyzeReport}
+		isSaving={isSubmitting}
+		onConfirm={handleReviewConfirm}
+		onCancel={handleReviewCancel}
+	/>
+{/if}
+
 
 <style>
 	form {

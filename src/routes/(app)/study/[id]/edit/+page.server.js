@@ -5,7 +5,14 @@ import { study, passage } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
-import { createDefaultPassageStructure } from '$lib/server/db/utils.js';
+import {
+	diffPassages,
+	applyPassageRangeChange,
+	rangeFirstWordId,
+	createDefaultStructureTx
+} from '$lib/server/db/passageReconcile.js';
+
+
 
 /**
  * Get book name from book ID
@@ -123,6 +130,7 @@ export const actions = {
 			const title = formData.get('title');
 			const subtitle = formData.get('subtitle');
 			const passagesJson = formData.get('passages');
+			const decisionsJson = formData.get('decisions');
 
 			// Validate title
 			if (!title || typeof title !== 'string' || title.trim() === '') {
@@ -164,55 +172,113 @@ export const actions = {
 				}
 			}
 
+			// Parse per-passage decisions (keyed by passage id). Optional —
+			// defaults are applied in the reconciliation engine when absent.
+			/** @type {Record<string, any>} */
+			let decisions = {};
+			if (decisionsJson) {
+				try {
+					decisions = JSON.parse(decisionsJson.toString()) || {};
+				} catch {
+					decisions = {};
+				}
+			}
+
 			const now = new Date();
 
-			// Update study
-			await db
-				.update(study)
-				.set({
-					title: title.toString().trim(),
-					subtitle: subtitle && typeof subtitle === 'string' && subtitle.trim() !== '' ? subtitle.toString().trim() : null,
-					updatedAt: now
-				})
-				.where(eq(study.id, studyId));
-
-			// Delete existing passages
-			await db
-				.delete(passage)
+			// Load existing passages so we can diff rather than destroy.
+			const existingPassages = await db
+				.select()
+				.from(passage)
 				.where(eq(passage.studyId, studyId));
 
-			// Insert new passages
-			const passageValues = passagesData.map((p, index) => ({
-				id: p.id || uuidv4(),
-				studyId: studyId,
-				testament: p.testament,
-				bookId: p.book,
-				bookName: getBookName(p.testament, p.book),
-				fromChapter: p.fromChapter,
-				toChapter: p.toChapter,
-				fromVerse: p.fromVerse,
-				toVerse: p.toVerse,
-				displayOrder: index,
-				createdAt: now
-			}));
+			const { added, removed, changed, unchanged } = diffPassages(existingPassages, passagesData);
 
-			await db.insert(passage).values(passageValues);
+			// Build a quick lookup of the new order for displayOrder updates.
+			const orderById = new Map(passagesData.map((p, index) => [p.id, index]));
 
-			// Create default column, section, and segment for each passage
-			// Note: Since we delete all passages above, cascade delete removes their structures
-			// So we need to recreate the default structure for all passages
-			for (const passageValue of passageValues) {
-				await createDefaultPassageStructure(
-					passageValue.id,
-					passageValue.testament,
-					passageValue.bookId,
-					passageValue.fromChapter,
-					passageValue.fromVerse
-				);
-			}
+			// Run everything in a single transaction so a partial failure can't
+			// leave the study in a half-reconciled state.
+			await db.transaction(async (tx) => {
+				// 1. Update study title/subtitle.
+				await tx
+					.update(study)
+					.set({
+						title: title.toString().trim(),
+						subtitle:
+							subtitle && typeof subtitle === 'string' && subtitle.trim() !== ''
+								? subtitle.toString().trim()
+								: null,
+						updatedAt: now
+					})
+					.where(eq(study.id, studyId));
+
+				// 2. Remove passages the user deleted (cascade clears their structure).
+				if (removed.length > 0) {
+					for (const old of removed) {
+						await tx.delete(passage).where(eq(passage.id, old.id));
+					}
+				}
+
+				// 3. Add brand-new passages with a default structure.
+				for (const next of added) {
+					await tx.insert(passage).values({
+						id: next.id || uuidv4(),
+						studyId: studyId,
+						testament: next.testament,
+						bookId: next.book,
+						bookName: getBookName(next.testament, next.book),
+						fromChapter: next.fromChapter,
+						toChapter: next.toChapter,
+						fromVerse: next.fromVerse,
+						toVerse: next.toVerse,
+						displayOrder: orderById.get(next.id) ?? 0,
+						createdAt: now
+					});
+					const firstWord = rangeFirstWordId({
+						testament: next.testament,
+						bookId: next.book,
+						fromChapter: next.fromChapter,
+						fromVerse: next.fromVerse
+					});
+					await createDefaultStructureTx(tx, next.id, firstWord);
+
+				}
+
+				// 4. Reconcile passages whose verse range changed (preserve structure).
+				for (const { old, next } of changed) {
+					await tx
+						.update(passage)
+						.set({
+							testament: next.testament,
+							bookId: next.book,
+							bookName: getBookName(next.testament, next.book),
+							fromChapter: next.fromChapter,
+							toChapter: next.toChapter,
+							fromVerse: next.fromVerse,
+							toVerse: next.toVerse,
+							displayOrder: orderById.get(next.id) ?? old.displayOrder
+						})
+						.where(eq(passage.id, next.id));
+
+					await applyPassageRangeChange(tx, studyId, old, next, decisions[next.id] || {});
+				}
+
+				// 5. Keep displayOrder in sync for unchanged passages (reordering).
+				for (const { old, next } of unchanged) {
+					const newOrder = orderById.get(next.id) ?? old.displayOrder;
+					if (newOrder !== old.displayOrder) {
+						await tx
+							.update(passage)
+							.set({ displayOrder: newOrder })
+							.where(eq(passage.id, next.id));
+					}
+				}
+			});
 
 			// Redirect to the study view page
 			throw redirect(303, `/study/${studyId}`);
+
 
 		} catch (error) {
 			// If it's a redirect, re-throw it
