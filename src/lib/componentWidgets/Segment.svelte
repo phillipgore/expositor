@@ -1,4 +1,4 @@
-<script>
+ <script>
 	import { onMount } from 'svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import HeadingEditor from './HeadingEditor.svelte';
@@ -362,14 +362,15 @@
 		opacity: 1;
 	}
 
-	/* Centered indicator: a short horizontal bar centered on the border, with a
-	   subtle dot feel via rounded ends. */
+	/* Centered indicator: a short horizontal bar centered on the border. Uses the
+	   section's light color for its fill with a darker 1px section-colored border to
+	   match the Column/Section layout-control handles. */
 	.resize-indicator {
 		width: 2.4rem;
-		height: 0.3rem;
+		height: 0.5rem;
 		border-radius: 0.3rem;
-		background-color: var(--section-darker);
-		box-shadow: 0 0 0 0.1rem var(--white);
+		background-color: var(--section-light);
+		border: 0.1rem solid var(--section-darker);
 	}
 
 

@@ -13,7 +13,8 @@
 	 * - Text markers     — References, Notations, Paragraphs
 	 * - Connections      — All / Column / Section / Segment (largest container first)
 	 * - Quick Notes      — All / Passage / Connection
-	 * - View modes       — Wide View, Overview, Selection Controls
+	 * - View modes       — Wide View, Overview
+	 * - Controls         — Selection Controls, Layout Controls
 	 * 
 	 * Usage:
 	 * ```svelte
@@ -148,6 +149,9 @@
 		onToggle={toggleOverview}
 		isDisabled={!$toolbarState.canToggleOverview}
 	/>
+
+	<DividerHorizontal />
+
 	<MenuToggleItem
 		label="Selection Controls"
 		isActive={$toolbarState.selectorsVisible}

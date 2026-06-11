@@ -2659,8 +2659,8 @@
 	.connection-note-handle {
 		position: absolute;
 		display: grid;
-		grid-template-columns: repeat(2, 0.5rem);
-		grid-template-rows: repeat(2, 0.5rem);
+		grid-template-columns: repeat(2, 0.6rem);
+		grid-template-rows: repeat(2, 0.6rem);
 		gap: 0.3rem;
 		cursor: grab;
 		opacity: 0;
@@ -2711,10 +2711,10 @@
 	}
 
 	.connection-note-handle-dot {
-		width: 0.5rem;
-		height: 0.5rem;
+		width: 0.6rem;
+		height: 0.6rem;
 		border-radius: 50%;
-		background-color: var(--gray-darker, #333);
+		background-color: var(--blue);
 	}
 
 	.connection-note-edit {

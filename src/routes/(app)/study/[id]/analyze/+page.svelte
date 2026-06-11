@@ -4084,7 +4084,7 @@
 	.column-reposition-handle {
 		position: absolute;
 		top: 1.2rem;
-		right: -1.2rem;
+		left: -1.2rem;
 		width: 1.4rem;
 		height: 2.0rem;
 		display: flex;
@@ -4122,11 +4122,13 @@
 		gap: 0.3rem;
 	}
 
+	/* Each dot uses a light fill with a darker 1px border. */
 	.column-reposition-dot {
-		width: 0.5rem;
-		height: 0.5rem;
+		width: 0.6rem;
+		height: 0.6rem;
 		border-radius: 50%;
-		background-color: var(--gray-400);
+		background-color: var(--gray-light);
+		border: 0.1rem solid var(--gray-darker);
 	}
 
 
@@ -4219,11 +4221,13 @@
 		gap: 0.3rem;
 	}
 
+	/* Each dot uses the section's light color with a darker 1px border. */
 	.reposition-dot {
-		width: 0.5rem;
-		height: 0.5rem;
+		width: 0.6rem;
+		height: 0.6rem;
 		border-radius: 50%;
-		background-color: var(--section-darker);
+		background-color: var(--section-light);
+		border: 0.1rem solid var(--section-darker);
 	}
 
 
