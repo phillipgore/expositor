@@ -709,9 +709,46 @@ export function toggleConnectionNotes() {
 }
 
 /**
+ * Ensure passage (inline segment) quick notes are visible.
+ * Used when the user adds a passage quick note so the new note is immediately
+ * visible. No-op if they are already shown. Recomputes the master notesVisible
+ * (true only when both passage and connection notes are on) and persists.
+ */
+export function showPassageNotes() {
+	const state = get(toolbarStateStore);
+	if (state.passageNotesVisible) return;
+	const newNotesVisible = state.connectionNotesVisible; // passage now true
+	toolbarStateStore.update(s => ({
+		...s,
+		passageNotesVisible: true,
+		notesVisible: newNotesVisible
+	}));
+	persistPreference({ passageNotesVisible: true, notesVisible: newNotesVisible });
+}
+
+/**
+ * Ensure connection quick notes are visible.
+ * Used when the user adds a connection quick note so the new note is immediately
+ * visible. No-op if they are already shown. Recomputes the master notesVisible
+ * (true only when both passage and connection notes are on) and persists.
+ */
+export function showConnectionNotes() {
+	const state = get(toolbarStateStore);
+	if (state.connectionNotesVisible) return;
+	const newNotesVisible = state.passageNotesVisible; // connection now true
+	toolbarStateStore.update(s => ({
+		...s,
+		connectionNotesVisible: true,
+		notesVisible: newNotesVisible
+	}));
+	persistPreference({ connectionNotesVisible: true, notesVisible: newNotesVisible });
+}
+
+/**
  * Toggle references visibility
  */
 export function toggleReferences() {
+
 	const newValue = !get(toolbarStateStore).referencesVisible;
 	toolbarStateStore.update(state => ({ ...state, referencesVisible: newValue }));
 	persistPreference({ referencesVisible: newValue });

@@ -25,7 +25,8 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
     import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
-	import { toolbarState, setToolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, showPassageNotes, showConnectionNotes } from '$lib/stores/toolbar.js';
+
 
 	let { menuId = 'MenuOutline' } = $props();
 
@@ -87,20 +88,19 @@
 		handleClick={() => {
 			closeMenu();
 			if ($toolbarState.hasActiveConnection) {
-				// Auto-show connection notes if they're hidden
-				if (!$toolbarState.connectionNotesVisible) {
-					setToolbarState('connectionNotesVisible', true);
-				}
+				// Auto-show connection notes if hidden, so the new note is visible.
+				// Recomputes the master notesVisible toggle and persists the preference.
+				showConnectionNotes();
 				// Trigger insert connection note event
 				window.dispatchEvent(new CustomEvent('connection-insert-note'));
 			} else {
-				// Auto-show passage notes if they're hidden
-				if (!$toolbarState.passageNotesVisible) {
-					setToolbarState('passageNotesVisible', true);
-				}
+				// Auto-show passage notes if hidden, so the new note is visible.
+				// Recomputes the master notesVisible toggle and persists the preference.
+				showPassageNotes();
 				// Trigger insert segment note event via custom event
 				window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 			}
+
 		}}
 		isDisabled={
 			!(
