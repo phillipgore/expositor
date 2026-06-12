@@ -31,6 +31,8 @@
 	import messages from '$lib/data/messages.json';
 	import { getAllTranslationsMetadata } from '$lib/utils/translationConfig';
 	import { pendingEditKey, armedKey } from '$lib/utils/pendingEdit.js';
+	import { setStudyEditDirty, clearStudyEditDirty } from '$lib/stores/studyEditDirty.js';
+
 
 
 	let {
@@ -85,6 +87,27 @@
 	let duplicateTitleMessage = $derived(getDuplicateTitleMessage(studyTitle));
 	let hasDuplicateTitle = $derived(duplicateTitleMessage.length > 0);
 
+	// --- Unsaved-changes (dirty) tracking, edit mode only ------------------
+	// Baseline snapshot of the last-saved values. The edit-flow layout watches
+	// the shared `studyEditDirty` store (set below) to decide whether to prompt
+	// before the user navigates away and discards in-progress edits.
+	const savedSnapshot = JSON.stringify({
+		title: initialData?.title || '',
+		subtitle: initialData?.subtitle || '',
+		passages: initialData?.passages || []
+	});
+
+	/** Current form values serialized the same way as `savedSnapshot`. */
+	let currentSnapshot = $derived(
+		JSON.stringify({ title: studyTitle, subtitle: studySubtitle, passages })
+	);
+
+	/** Dirty when editing and the current values differ from the saved baseline. */
+	let isDirty = $derived(
+		mode === 'edit' && !!initialData?.id && currentSnapshot !== savedSnapshot
+	);
+
+
 	/**
 	 * Get duplicate title message if a study with this title already exists
 	 * @param {string} title
@@ -117,6 +140,9 @@
 	 */
 	function clearPendingEdit() {
 		if (mode !== 'edit' || !initialData?.id) return;
+		// Also drop the dirty flag so the edit-flow layout's navigation guard
+		// doesn't prompt on this intentional Cancel.
+		clearStudyEditDirty();
 		try {
 			sessionStorage.removeItem(pendingEditKey(initialData.id));
 			sessionStorage.removeItem(armedKey(initialData.id));
@@ -124,6 +150,7 @@
 			// sessionStorage unavailable — nothing to clear.
 		}
 	}
+
 
 
 	/**
@@ -161,6 +188,18 @@
 	$effect(() => {
 		onSubmittingChange?.(isSubmitting);
 	});
+
+	// Publish dirtiness to the shared store the edit-flow layout reads from its
+	// `beforeNavigate` guard. Cleared on unmount so a stale "true" never lingers
+	// after the form is gone (cancel/save clear it explicitly as well).
+	$effect(() => {
+		setStudyEditDirty(isDirty);
+	});
+
+	onMount(() => {
+		return () => clearStudyEditDirty();
+	});
+
 
 	/**
 	 * In edit mode, the first submit must be intercepted so we can analyze the
@@ -245,9 +284,13 @@
 			const result = deserialize(await response.text());
 
 			if (result.type === 'redirect') {
+				// Saved successfully — drop the dirty flag so the edit-flow layout
+				// won't prompt as we navigate away to the saved study.
+				clearStudyEditDirty();
 				await goto(result.location, { invalidateAll: true });
 				return;
 			}
+
 
 			if (result.type === 'error') {
 				console.error('Save failed:', result.error);

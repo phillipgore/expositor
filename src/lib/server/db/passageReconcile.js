@@ -234,6 +234,12 @@ function flattenSegments(tree) {
 
 /**
  * Does a segment row carry user content worth preserving?
+ *
+ * Layout overrides (`height`) are intentionally excluded: layout belongs to
+ * whatever structure survives an edit and is never a reason to force a
+ * Merge/Delete decision — matching how section `topOffset` and column
+ * `width`/`leftOffset` are already treated.
+ *
  * @param {Object} seg
  * @param {Set<string>} taggedSegmentIds
  * @returns {boolean}
@@ -245,7 +251,6 @@ function segmentHasContent(seg, taggedSegmentIds) {
 			seg.headingThree ||
 			seg.note ||
 			seg.commentary ||
-			seg.height ||
 			taggedSegmentIds.has(seg.id)
 	);
 }
@@ -316,10 +321,30 @@ function computeEdges(old, next) {
 	const t = next.testament;
 	const b = next.book;
 
-	const oldFirst = rangeFirstWordId({ testament: t, bookId: b, fromChapter: old.fromChapter, fromVerse: old.fromVerse });
-	const newFirst = rangeFirstWordId({ testament: t, bookId: b, fromChapter: next.fromChapter, fromVerse: next.fromVerse });
-	const oldEnd = rangeExclusiveEndWordId({ testament: t, bookId: b, toChapter: old.toChapter, toVerse: old.toVerse });
-	const newEnd = rangeExclusiveEndWordId({ testament: t, bookId: b, toChapter: next.toChapter, toVerse: next.toVerse });
+	const oldFirst = rangeFirstWordId({
+		testament: t,
+		bookId: b,
+		fromChapter: old.fromChapter,
+		fromVerse: old.fromVerse
+	});
+	const newFirst = rangeFirstWordId({
+		testament: t,
+		bookId: b,
+		fromChapter: next.fromChapter,
+		fromVerse: next.fromVerse
+	});
+	const oldEnd = rangeExclusiveEndWordId({
+		testament: t,
+		bookId: b,
+		toChapter: old.toChapter,
+		toVerse: old.toVerse
+	});
+	const newEnd = rangeExclusiveEndWordId({
+		testament: t,
+		bookId: b,
+		toChapter: next.toChapter,
+		toVerse: next.toVerse
+	});
 
 	const startCmp = compareWordIds(newFirst, oldFirst);
 	const endCmp = compareWordIds(newEnd, oldEnd);
@@ -386,9 +411,7 @@ async function loadTaggedIds(dbx, subjectType, ids) {
 	const rows = await dbx
 		.select({ subjectId: commentaryTag.subjectId })
 		.from(commentaryTag)
-		.where(
-			and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids))
-		);
+		.where(and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids)));
 	const set = new Set();
 	for (const r of rows) set.add(r.subjectId);
 	return set;
@@ -474,16 +497,15 @@ function wordIdToRef(wordId) {
 /** Short human summary of a segment's authored content. */
 function summarizeSegmentContent(seg, isTagged) {
 	const parts = [];
-	const headings = [seg.headingOne, seg.headingTwo, seg.headingThree].filter(Boolean).length;
-	if (headings) parts.push(`${headings} heading${headings === 1 ? '' : 's'}`);
+	if (seg.headingOne || seg.headingTwo || seg.headingThree) parts.push('headings');
 	if (seg.note) parts.push('note');
-
 	if (seg.commentary) parts.push('commentary');
 	if (isTagged) parts.push('tags');
-	if (seg.height) parts.push('height');
+
+	// Layout (`height`) is intentionally omitted — it belongs to the surviving
+	// structure and is never surfaced as authored content in the review.
 	return parts.join(', ');
 }
-
 
 /** Short summary of a section/column commentary subject. */
 function summarizeCommentarySubject(row, isTagged) {
@@ -503,7 +525,6 @@ function summarizeConnection(conn, isTagged) {
 	return `${conn.fromType} ↔ ${conn.toType}${content}`;
 }
 
-
 /** Read one end of a connection as a {type, id} pair. */
 function connEndpoint(conn, end) {
 	const type = end === 'from' ? conn.fromType : conn.toType;
@@ -522,8 +543,7 @@ function sameEndpoint(a, b) {
 /** True when two endpoint pairs are equal, ignoring direction (A↔B == B↔A). */
 function endpointsKeyEqual(a1, a2, b1, b2) {
 	return (
-		(sameEndpoint(a1, b1) && sameEndpoint(a2, b2)) ||
-		(sameEndpoint(a1, b2) && sameEndpoint(a2, b1))
+		(sameEndpoint(a1, b1) && sameEndpoint(a2, b2)) || (sameEndpoint(a1, b2) && sameEndpoint(a2, b1))
 	);
 }
 
@@ -563,9 +583,21 @@ async function analyzeRemoval(dbx, studyId, passageId, side, boundaryWord) {
 	const { orphanEntries, target, orphanSections, orphanColumns, orphanSegIdSet } = sets;
 	const hasTarget = !!target;
 
-	const taggedSegments = await loadTaggedIds(dbx, 'segment', orphanEntries.map((e) => e.segment.id));
-	const taggedSections = await loadTaggedIds(dbx, 'section', orphanSections.map((s) => s.id));
-	const taggedColumns = await loadTaggedIds(dbx, 'column', orphanColumns.map((c) => c.id));
+	const taggedSegments = await loadTaggedIds(
+		dbx,
+		'segment',
+		orphanEntries.map((e) => e.segment.id)
+	);
+	const taggedSections = await loadTaggedIds(
+		dbx,
+		'section',
+		orphanSections.map((s) => s.id)
+	);
+	const taggedColumns = await loadTaggedIds(
+		dbx,
+		'column',
+		orphanColumns.map((c) => c.id)
+	);
 
 	const segments = orphanEntries
 		.filter((e) => segmentHasContent(e.segment, taggedSegments))
@@ -619,7 +651,11 @@ async function analyzeRemoval(dbx, studyId, passageId, side, boundaryWord) {
 		for (const s of orphanSections) secMap.set(s.id, target.section.id);
 		for (const c of orphanColumns) colMap.set(c.id, target.column.id);
 	}
-	const connTagged = await loadTaggedIds(dbx, 'connection', affected.map((c) => c.id));
+	const connTagged = await loadTaggedIds(
+		dbx,
+		'connection',
+		affected.map((c) => c.id)
+	);
 	const connections = affected.map((c) => {
 		const nf = remapEndpoint(connEndpoint(c, 'from'), segMap, secMap, colMap);
 		const nt = remapEndpoint(connEndpoint(c, 'to'), segMap, secMap, colMap);
@@ -697,12 +733,26 @@ export async function analyzeEdit(dbx, studyId, oldPassages, newPassages) {
 			report.addEnd = { count: edges.addEnd.count, reference: edges.addEnd.reference };
 		}
 		if (edges.removeStart) {
-			const impact = await analyzeRemoval(dbx, studyId, next.id, 'start', edges.removeStart.newFirst);
-			report.removeStart = { ...impact, count: edges.removeStart.count, reference: edges.removeStart.reference };
+			const impact = await analyzeRemoval(
+				dbx,
+				studyId,
+				next.id,
+				'start',
+				edges.removeStart.newFirst
+			);
+			report.removeStart = {
+				...impact,
+				count: edges.removeStart.count,
+				reference: edges.removeStart.reference
+			};
 		}
 		if (edges.removeEnd) {
 			const impact = await analyzeRemoval(dbx, studyId, next.id, 'end', edges.removeEnd.newEnd);
-			report.removeEnd = { ...impact, count: edges.removeEnd.count, reference: edges.removeEnd.reference };
+			report.removeEnd = {
+				...impact,
+				count: edges.removeEnd.count,
+				reference: edges.removeEnd.reference
+			};
 		}
 
 		reports.push(report);
@@ -734,9 +784,7 @@ async function deleteTagsFor(tx, subjectType, ids) {
 	if (ids.length === 0) return;
 	await tx
 		.delete(commentaryTag)
-		.where(
-			and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids))
-		);
+		.where(and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids)));
 }
 
 /**
@@ -755,14 +803,17 @@ async function deleteSegments(tx, studyId, segmentIds) {
 		.where(eq(segmentConnection.studyId, studyId));
 	const segSet = new Set(segmentIds);
 	const connIdsToClean = allConns
-		.filter((c) => (c.fromSegmentId && segSet.has(c.fromSegmentId)) || (c.toSegmentId && segSet.has(c.toSegmentId)))
+		.filter(
+			(c) =>
+				(c.fromSegmentId && segSet.has(c.fromSegmentId)) ||
+				(c.toSegmentId && segSet.has(c.toSegmentId))
+		)
 		.map((c) => c.id);
 
 	await deleteTagsFor(tx, 'connection', connIdsToClean);
 	await deleteTagsFor(tx, 'segment', segmentIds);
 	await tx.delete(passageSegment).where(inArray(passageSegment.id, segmentIds));
 }
-
 
 /**
  * Delete now-empty sections and columns in a passage (no surviving segments),
@@ -820,8 +871,10 @@ async function pruneEmptyContainers(tx, studyId, passageId) {
  * - Headings fill only EMPTY target slots (never overwrite).
  * - note / commentary are appended.
  * - tags are re-pointed (deduped by termId).
- * - layout `height` override fills the target only when the target has none
- *   (never overwrites an intentional target height).
+ *
+ * Layout (`height`) is deliberately NOT carried over: layout belongs to the
+ * surviving structure, so the target keeps its own height and the orphan's is
+ * simply discarded.
  */
 async function foldSegmentContent(tx, fromSeg, targetSeg) {
 	const set = {};
@@ -847,13 +900,10 @@ async function foldSegmentContent(tx, fromSeg, targetSeg) {
 			: fromSeg.commentary;
 		targetSeg.commentary = set.commentary;
 	}
-	if (!targetSeg.height && fromSeg.height) {
-		set.height = fromSeg.height;
-		targetSeg.height = fromSeg.height;
-	}
 
 	if (Object.keys(set).length > 0) {
 		set.updatedAt = new Date();
+
 		await tx.update(passageSegment).set(set).where(eq(passageSegment.id, targetSeg.id));
 	}
 
@@ -867,7 +917,9 @@ async function foldSegmentContent(tx, fromSeg, targetSeg) {
 			.select()
 			.from(commentaryTag)
 			.where(eq(commentaryTag.subjectId, targetSeg.id));
-		const existingTerms = new Set(targetTags.filter((t) => t.subjectType === 'segment').map((t) => t.termId));
+		const existingTerms = new Set(
+			targetTags.filter((t) => t.subjectType === 'segment').map((t) => t.termId)
+		);
 		let order = targetTags.length;
 		for (const tag of fromTags) {
 			if (tag.subjectType !== 'segment') continue;
@@ -1020,9 +1072,7 @@ async function reanchorOrphanConnections(
 			const set = {};
 			if (conn.note) set.note = dup.note ? `${dup.note}\n${conn.note}` : conn.note;
 			if (conn.commentary) {
-				set.commentary = dup.commentary
-					? `${dup.commentary}\n${conn.commentary}`
-					: conn.commentary;
+				set.commentary = dup.commentary ? `${dup.commentary}\n${conn.commentary}` : conn.commentary;
 			}
 			if (Object.keys(set).length > 0) {
 				set.updatedAt = new Date();
@@ -1038,7 +1088,11 @@ async function reanchorOrphanConnections(
 		// No duplicate: re-anchor this row's endpoints in place.
 		await tx
 			.update(segmentConnection)
-			.set({ ...endpointColumns('from', newFrom), ...endpointColumns('to', newTo), updatedAt: new Date() })
+			.set({
+				...endpointColumns('from', newFrom),
+				...endpointColumns('to', newTo),
+				updatedAt: new Date()
+			})
 			.where(eq(segmentConnection.id, conn.id));
 		// This row now occupies its new shape — include it in the survivor pool so
 		// later affected connections can dedup against it.
@@ -1067,13 +1121,22 @@ async function reanchorFirst(tx, passageId, newFirst) {
 	const now = new Date();
 
 	if (firstColumn.startingWordId !== newFirst) {
-		await tx.update(passageColumn).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageColumn.id, firstColumn.id));
+		await tx
+			.update(passageColumn)
+			.set({ startingWordId: newFirst, updatedAt: now })
+			.where(eq(passageColumn.id, firstColumn.id));
 	}
 	if (firstSection && firstSection.startingWordId !== newFirst) {
-		await tx.update(passageSection).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageSection.id, firstSection.id));
+		await tx
+			.update(passageSection)
+			.set({ startingWordId: newFirst, updatedAt: now })
+			.where(eq(passageSection.id, firstSection.id));
 	}
 	if (firstSegment && firstSegment.startingWordId !== newFirst) {
-		await tx.update(passageSegment).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageSegment.id, firstSegment.id));
+		await tx
+			.update(passageSegment)
+			.set({ startingWordId: newFirst, updatedAt: now })
+			.where(eq(passageSegment.id, firstSegment.id));
 	}
 }
 
@@ -1084,10 +1147,29 @@ async function reanchorFirst(tx, passageId, newFirst) {
 async function createDefaultStructureTx(tx, passageId, firstWord) {
 	const now = new Date();
 	const columnId = uuidv4();
-	await tx.insert(passageColumn).values({ id: columnId, passageId, startingWordId: firstWord, createdAt: now, updatedAt: now });
+	await tx
+		.insert(passageColumn)
+		.values({ id: columnId, passageId, startingWordId: firstWord, createdAt: now, updatedAt: now });
 	const sectionId = uuidv4();
-	await tx.insert(passageSection).values({ id: sectionId, passageColumnId: columnId, startingWordId: firstWord, color: 'blue', createdAt: now, updatedAt: now });
-	await tx.insert(passageSegment).values({ id: uuidv4(), passageSectionId: sectionId, startingWordId: firstWord, createdAt: now, updatedAt: now });
+	await tx
+		.insert(passageSection)
+		.values({
+			id: sectionId,
+			passageColumnId: columnId,
+			startingWordId: firstWord,
+			color: 'blue',
+			createdAt: now,
+			updatedAt: now
+		});
+	await tx
+		.insert(passageSegment)
+		.values({
+			id: uuidv4(),
+			passageSectionId: sectionId,
+			startingWordId: firstWord,
+			createdAt: now,
+			updatedAt: now
+		});
 }
 
 /* ------------------------------------------------------------------ */
@@ -1113,26 +1195,85 @@ async function applyAddStart(tx, passageId, newFirst, placement, inheritColor) {
 	if (placement === 'segment') {
 		// New leading segment in the existing first section; move section + column
 		// anchors back to newFirst.
-		await tx.insert(passageSegment).values({ id: uuidv4(), passageSectionId: firstSection.id, startingWordId: newFirst, createdAt: now, updatedAt: now });
-		await tx.update(passageSection).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageSection.id, firstSection.id));
-		await tx.update(passageColumn).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageColumn.id, firstColumn.id));
+		await tx
+			.insert(passageSegment)
+			.values({
+				id: uuidv4(),
+				passageSectionId: firstSection.id,
+				startingWordId: newFirst,
+				createdAt: now,
+				updatedAt: now
+			});
+		await tx
+			.update(passageSection)
+			.set({ startingWordId: newFirst, updatedAt: now })
+			.where(eq(passageSection.id, firstSection.id));
+		await tx
+			.update(passageColumn)
+			.set({ startingWordId: newFirst, updatedAt: now })
+			.where(eq(passageColumn.id, firstColumn.id));
 		return;
 	}
 
 	if (placement === 'section') {
 		const newSectionId = uuidv4();
-		await tx.insert(passageSection).values({ id: newSectionId, passageColumnId: firstColumn.id, startingWordId: newFirst, color, createdAt: now, updatedAt: now });
-		await tx.insert(passageSegment).values({ id: uuidv4(), passageSectionId: newSectionId, startingWordId: newFirst, createdAt: now, updatedAt: now });
-		await tx.update(passageColumn).set({ startingWordId: newFirst, updatedAt: now }).where(eq(passageColumn.id, firstColumn.id));
+		await tx
+			.insert(passageSection)
+			.values({
+				id: newSectionId,
+				passageColumnId: firstColumn.id,
+				startingWordId: newFirst,
+				color,
+				createdAt: now,
+				updatedAt: now
+			});
+		await tx
+			.insert(passageSegment)
+			.values({
+				id: uuidv4(),
+				passageSectionId: newSectionId,
+				startingWordId: newFirst,
+				createdAt: now,
+				updatedAt: now
+			});
+		await tx
+			.update(passageColumn)
+			.set({ startingWordId: newFirst, updatedAt: now })
+			.where(eq(passageColumn.id, firstColumn.id));
 		return;
 	}
 
 	if (placement === 'column') {
 		const newColumnId = uuidv4();
 		const newSectionId = uuidv4();
-		await tx.insert(passageColumn).values({ id: newColumnId, passageId, startingWordId: newFirst, createdAt: now, updatedAt: now });
-		await tx.insert(passageSection).values({ id: newSectionId, passageColumnId: newColumnId, startingWordId: newFirst, color, createdAt: now, updatedAt: now });
-		await tx.insert(passageSegment).values({ id: uuidv4(), passageSectionId: newSectionId, startingWordId: newFirst, createdAt: now, updatedAt: now });
+		await tx
+			.insert(passageColumn)
+			.values({
+				id: newColumnId,
+				passageId,
+				startingWordId: newFirst,
+				createdAt: now,
+				updatedAt: now
+			});
+		await tx
+			.insert(passageSection)
+			.values({
+				id: newSectionId,
+				passageColumnId: newColumnId,
+				startingWordId: newFirst,
+				color,
+				createdAt: now,
+				updatedAt: now
+			});
+		await tx
+			.insert(passageSegment)
+			.values({
+				id: uuidv4(),
+				passageSectionId: newSectionId,
+				startingWordId: newFirst,
+				createdAt: now,
+				updatedAt: now
+			});
 		return;
 	}
 }
@@ -1154,23 +1295,73 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
 	}
 
 	if (placement === 'segment') {
-		await tx.insert(passageSegment).values({ id: uuidv4(), passageSectionId: lastSection.id, startingWordId: firstAddedWord, createdAt: now, updatedAt: now });
+		await tx
+			.insert(passageSegment)
+			.values({
+				id: uuidv4(),
+				passageSectionId: lastSection.id,
+				startingWordId: firstAddedWord,
+				createdAt: now,
+				updatedAt: now
+			});
 		return;
 	}
 
 	if (placement === 'section') {
 		const newSectionId = uuidv4();
-		await tx.insert(passageSection).values({ id: newSectionId, passageColumnId: lastColumn.id, startingWordId: firstAddedWord, color, createdAt: now, updatedAt: now });
-		await tx.insert(passageSegment).values({ id: uuidv4(), passageSectionId: newSectionId, startingWordId: firstAddedWord, createdAt: now, updatedAt: now });
+		await tx
+			.insert(passageSection)
+			.values({
+				id: newSectionId,
+				passageColumnId: lastColumn.id,
+				startingWordId: firstAddedWord,
+				color,
+				createdAt: now,
+				updatedAt: now
+			});
+		await tx
+			.insert(passageSegment)
+			.values({
+				id: uuidv4(),
+				passageSectionId: newSectionId,
+				startingWordId: firstAddedWord,
+				createdAt: now,
+				updatedAt: now
+			});
 		return;
 	}
 
 	if (placement === 'column') {
 		const newColumnId = uuidv4();
 		const newSectionId = uuidv4();
-		await tx.insert(passageColumn).values({ id: newColumnId, passageId, startingWordId: firstAddedWord, createdAt: now, updatedAt: now });
-		await tx.insert(passageSection).values({ id: newSectionId, passageColumnId: newColumnId, startingWordId: firstAddedWord, color, createdAt: now, updatedAt: now });
-		await tx.insert(passageSegment).values({ id: uuidv4(), passageSectionId: newSectionId, startingWordId: firstAddedWord, createdAt: now, updatedAt: now });
+		await tx
+			.insert(passageColumn)
+			.values({
+				id: newColumnId,
+				passageId,
+				startingWordId: firstAddedWord,
+				createdAt: now,
+				updatedAt: now
+			});
+		await tx
+			.insert(passageSection)
+			.values({
+				id: newSectionId,
+				passageColumnId: newColumnId,
+				startingWordId: firstAddedWord,
+				color,
+				createdAt: now,
+				updatedAt: now
+			});
+		await tx
+			.insert(passageSegment)
+			.values({
+				id: uuidv4(),
+				passageSectionId: newSectionId,
+				startingWordId: firstAddedWord,
+				createdAt: now,
+				updatedAt: now
+			});
 		return;
 	}
 }
@@ -1256,7 +1447,11 @@ async function applyRemovalEdge(tx, studyId, passageId, side, boundaryWord, deci
 	);
 
 	// 3. Delete the orphan segments, prune emptied containers, re-anchor.
-	await deleteSegments(tx, studyId, orphanEntries.map((e) => e.segment.id));
+	await deleteSegments(
+		tx,
+		studyId,
+		orphanEntries.map((e) => e.segment.id)
+	);
 	await pruneEmptyContainers(tx, studyId, passageId);
 	if (side === 'start') await reanchorFirst(tx, passageId, boundaryWord);
 }
@@ -1355,18 +1550,41 @@ export async function applyPassageRangeChange(tx, studyId, old, next, decision =
 
 	// Apply start edge
 	if (edges.addStart) {
-		await applyAddStart(tx, next.id, edges.addStart.newFirst, decision.addStartPlacement || 'extend');
+		await applyAddStart(
+			tx,
+			next.id,
+			edges.addStart.newFirst,
+			decision.addStartPlacement || 'extend'
+		);
 	} else if (edges.removeStart) {
-		await applyRemovalEdge(tx, studyId, next.id, 'start', edges.removeStart.newFirst, decision.removeStart || {});
+		await applyRemovalEdge(
+			tx,
+			studyId,
+			next.id,
+			'start',
+			edges.removeStart.newFirst,
+			decision.removeStart || {}
+		);
 	}
 
 	// Apply end edge
 	if (edges.addEnd) {
-		await applyAddEnd(tx, next.id, edges.addEnd.firstAddedWord, decision.addEndPlacement || 'extend');
+		await applyAddEnd(
+			tx,
+			next.id,
+			edges.addEnd.firstAddedWord,
+			decision.addEndPlacement || 'extend'
+		);
 	} else if (edges.removeEnd) {
-		await applyRemovalEdge(tx, studyId, next.id, 'end', edges.removeEnd.newEnd, decision.removeEnd || {});
+		await applyRemovalEdge(
+			tx,
+			studyId,
+			next.id,
+			'end',
+			edges.removeEnd.newEnd,
+			decision.removeEnd || {}
+		);
 	}
 }
 
 export { getBookMeta, rangeFirstWordId, createDefaultStructureTx };
-

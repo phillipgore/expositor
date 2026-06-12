@@ -130,21 +130,29 @@
 			<Alert color="red" look="subtle" message={saveError} />
 		{/if}
 
-		<PassageReview report={pending.report} bind:decisions />
-
-		<FormButtonBar marginTop>
-			<Button label="Cancel" classes="gray" handleClick={handleCancel} isDisabled={isSaving} />
-			<Button label="Back" classes="gray" handleClick={handleBack} isDisabled={isSaving} />
-			<Button
-
-				label={isSaving ? 'Saving...' : 'Save Changes'}
-				classes="blue"
-				handleClick={handleSave}
-				isDisabled={isSaving}
-			/>
-		</FormButtonBar>
+		<!-- The button bar is passed as PassageReview's footer so it renders INSIDE
+		     the passage card grid (as a column-spanning row). That makes its width
+		     track the actual rendered card row, so the right-aligned buttons line
+		     up with the cards' right edge for any number of cards (1, 2, 3+) and
+		     any wrapping — rather than floating to the far edge of this full-width
+		     page. -->
+		<PassageReview report={pending.report} bind:decisions footer={buttonBar} />
 	{/if}
 </div>
+
+{#snippet buttonBar()}
+	<FormButtonBar marginTop>
+		<Button label="Cancel" classes="gray" handleClick={handleCancel} isDisabled={isSaving} />
+		<Button label="Back" classes="gray" handleClick={handleBack} isDisabled={isSaving} />
+		<Button
+			label={isSaving ? 'Saving...' : 'Save Changes'}
+			classes="blue"
+			handleClick={handleSave}
+			isDisabled={isSaving}
+		/>
+	</FormButtonBar>
+{/snippet}
+
 
 <style>
 	/* Full-width so the card grid can fit as many columns as the content area

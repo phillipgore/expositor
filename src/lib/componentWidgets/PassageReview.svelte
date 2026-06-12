@@ -22,6 +22,12 @@
 	 * ## Props
 	 * @property {Object|null} report - { passages: [...], requiresReview } from analyze-edit
 	 * @property {Object} decisions - bindable decisions map keyed by passageId
+	 * @property {import('svelte').Snippet} [footer] - optional content (e.g. an
+	 *   action button bar) rendered as a full-width row INSIDE the passage grid.
+	 *   Because it spans the populated columns, it tracks the actual rendered
+	 *   width of the card row — so right-aligned buttons line up with the cards'
+	 *   right edge regardless of how many cards (1, 2, 3+) are shown or how they
+	 *   wrap, instead of floating to the far edge of a full-width page.
 	 *
 	 * @component
 	 */
@@ -30,7 +36,8 @@
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import { tooltip } from '$lib/composables/useTooltip.svelte.js';
 
-	let { report = null, decisions = $bindable({}) } = $props();
+	let { report = null, decisions = $bindable({}), footer = undefined } = $props();
+
 
 	// The "extend" option is phrased per edge: prepend at the start, append at
 	// the end. The remaining options are identical for both edges.
@@ -268,8 +275,17 @@
 				</div>
 			</div>
 		{/each}
+
+		{#if footer}
+			<!-- Spans the populated grid columns (auto-fit collapses empty trailing
+			     tracks to zero), so this row is exactly as wide as the current card
+			     row — letting right-aligned buttons track the cards' right edge for
+			     any card count or wrap. -->
+			<div class="grid-footer">{@render footer()}</div>
+		{/if}
 	</div>
 {/if}
+
 
 {#snippet removalEdge(edge, p, impact, neighborWord)}
 	{@const cols = splitColumns(buildGroups(impact, neighborWord))}
@@ -339,8 +355,13 @@
 	   column when the content area is too narrow for two 30rem tracks. */
 	.passage-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(30rem, 1fr));
+		/* Cap each passage box at 50rem (500px) so it never stretches to fill the
+		   whole content area; still shrinks to 30rem and wraps on narrow screens.
+		   justify-content keeps capped tracks left-aligned instead of spread out. */
+		grid-template-columns: repeat(auto-fit, minmax(30rem, 50rem));
+		justify-content: start;
 		gap: 2.7rem;
+
 		align-items: start;
 	}
 
@@ -348,6 +369,17 @@
 	.passage-block :global(h3) {
 		margin: 0 0 1.2rem;
 	}
+
+	/* Full-width grid row for the action buttons. Spanning every column (auto-fit
+	   collapses the empty trailing tracks) makes this row exactly as wide as the
+	   current row of cards, so right-aligned buttons sit at the cards' right edge
+	   for 1, 2, 3+ cards and any wrap — never stranded at the page edge. */
+	.grid-footer {
+		grid-column: 1 / -1;
+		display: flex;
+		justify-content: flex-end;
+	}
+
 
 	/* Clean bordered card; colors unchanged from the prior modal treatment. */
 	.passage-card {
