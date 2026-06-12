@@ -476,12 +476,14 @@ function summarizeSegmentContent(seg, isTagged) {
 	const parts = [];
 	const headings = [seg.headingOne, seg.headingTwo, seg.headingThree].filter(Boolean).length;
 	if (headings) parts.push(`${headings} heading${headings === 1 ? '' : 's'}`);
-	if (seg.note) parts.push('a note');
+	if (seg.note) parts.push('note');
+
 	if (seg.commentary) parts.push('commentary');
 	if (isTagged) parts.push('tags');
-	if (seg.height) parts.push('a custom height');
+	if (seg.height) parts.push('height');
 	return parts.join(', ');
 }
+
 
 /** Short summary of a section/column commentary subject. */
 function summarizeCommentarySubject(row, isTagged) {
@@ -494,12 +496,13 @@ function summarizeCommentarySubject(row, isTagged) {
 /** Short summary of a connection (endpoint kinds + any content). */
 function summarizeConnection(conn, isTagged) {
 	const parts = [];
-	if (conn.note) parts.push('a note');
+	if (conn.note) parts.push('note');
 	if (conn.commentary) parts.push('commentary');
 	if (isTagged) parts.push('tags');
-	const content = parts.length ? ` with ${parts.join(', ')}` : '';
+	const content = parts.length ? `, ${parts.join(', ')}` : '';
 	return `${conn.fromType} ↔ ${conn.toType}${content}`;
 }
+
 
 /** Read one end of a connection as a {type, id} pair. */
 function connEndpoint(conn, end) {
@@ -661,10 +664,21 @@ export async function analyzeEdit(dbx, studyId, oldPassages, newPassages) {
 		const edges = computeEdges(old, next);
 		const meta = getBookMeta(next.testament, next.book);
 		const passageLabel = meta ? meta.title : next.book;
+		// Full proposed reference, e.g. "Matthew 5:3-12", for the review heading.
+		const passageReference = refString(
+			next.testament,
+			next.book,
+			next.fromChapter,
+			next.fromVerse,
+			next.toChapter,
+			next.toVerse
+		);
 		const report = {
 			passageId: next.id,
 			label: passageLabel,
+			reference: passageReference,
 			replace: edges.replace,
+
 			addStart: null,
 			addEnd: null,
 			removeStart: null,

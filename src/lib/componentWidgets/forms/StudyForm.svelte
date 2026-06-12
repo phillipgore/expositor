@@ -11,9 +11,11 @@
 	 * @property {Object} form - Form state from SvelteKit form actions
 	 * @property {Function} onSubmittingChange - Callback when submitting state changes
 	 */
+	import { onMount } from 'svelte';
 	import { v4 as uuidv4 } from 'uuid';
 	import { enhance, applyAction, deserialize } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
+
 
 
 	import bibleData from '$lib/data/bible.json';
@@ -26,9 +28,10 @@
 	import PassageSelector from '$lib/componentWidgets/PassageSelector.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
-	import ReviewStudyEditModal from '$lib/componentWidgets/modals/ReviewStudyEditModal.svelte';
 	import messages from '$lib/data/messages.json';
 	import { getAllTranslationsMetadata } from '$lib/utils/translationConfig';
+	import { pendingEditKey, armedKey } from '$lib/utils/pendingEdit.js';
+
 
 	let {
 		mode = 'new',
@@ -45,9 +48,8 @@
 
 	// --- Edit-mode review flow state ---------------------------------------
 	let formElement = $state(null);
-	let showReviewModal = $state(false);
-	let analyzeReport = $state(null);
 	let isAnalyzing = $state(false);
+
 
 
 
@@ -108,6 +110,53 @@
 		passages = updatedPassages;
 	};
 
+	/**
+	 * Discard any in-progress review hand-off payload. Called when the user
+	 * cancels the edit so a later fresh edit session starts from saved data
+	 * rather than rehydrating abandoned changes.
+	 */
+	function clearPendingEdit() {
+		if (mode !== 'edit' || !initialData?.id) return;
+		try {
+			sessionStorage.removeItem(pendingEditKey(initialData.id));
+			sessionStorage.removeItem(armedKey(initialData.id));
+		} catch {
+			// sessionStorage unavailable — nothing to clear.
+		}
+	}
+
+
+	/**
+	 * Restore in-progress edits when the user returns from the full-page review
+	 * via "Back". The review hand-off payload lives in sessionStorage until the
+	 * edit is actually saved, so if it's still present (and the user hasn't yet
+	 * persisted) we rehydrate the title/subtitle/passages they were editing
+	 * rather than resetting to the last-saved `initialData`.
+	 */
+	onMount(() => {
+		if (mode !== 'edit' || !initialData?.id) return;
+		let raw;
+		try {
+			raw = sessionStorage.getItem(pendingEditKey(initialData.id));
+		} catch {
+			return;
+		}
+		if (!raw) return;
+		try {
+			const pending = JSON.parse(raw);
+			if (pending && typeof pending === 'object') {
+				if (typeof pending.title === 'string') studyTitle = pending.title;
+				if (typeof pending.subtitle === 'string') studySubtitle = pending.subtitle;
+				if (Array.isArray(pending.passages) && pending.passages.length) {
+					passages = pending.passages;
+				}
+			}
+		} catch {
+			// Ignore a corrupt payload — fall back to the saved initialData.
+		}
+	});
+
+
 	// Notify parent of submitting state changes
 	$effect(() => {
 		onSubmittingChange?.(isSubmitting);
@@ -115,16 +164,19 @@
 
 	/**
 	 * In edit mode, the first submit must be intercepted so we can analyze the
-	 * passage changes and (if needed) collect the user's decisions in the Review
-	 * modal BEFORE anything is written. We do this from inside `use:enhance` using
-	 * its `cancel()` callback — `event.preventDefault()` from a separate onsubmit
-	 * handler does NOT stop enhance from posting, which previously caused the
-	 * modal to flash while the form submitted anyway.
+	 * passage changes and decide whether the user needs to make decisions before
+	 * anything is written. We do this from inside `use:enhance` using its
+	 * `cancel()` callback — `event.preventDefault()` from a separate onsubmit
+	 * handler does NOT stop enhance from posting.
+	 *
+	 * - If the edit needs review, the proposed edit + report are stashed in
+	 *   sessionStorage and we navigate to the dedicated full-page review.
+	 * - Otherwise the edit is submitted straight through with empty decisions.
 	 *
 	 * @param {{ cancel: () => void }} param0
 	 */
 	async function runAnalysisGate({ cancel }) {
-		// Stop this submission; we'll submit programmatically once reviewed.
+		// Stop this submission; we'll either navigate to review or submit directly.
 		cancel();
 
 		if (hasDuplicateTitle || isAnalyzing || isSubmitting) return;
@@ -139,47 +191,50 @@
 
 			if (!res.ok) {
 				// If analysis fails, fall back to a normal submit rather than blocking.
-				await submitReviewed({});
+				await submitDirect();
 				return;
 			}
 
 			const report = await res.json();
 			if (report?.requiresReview) {
-				// Pause and wait for the user to confirm in the modal.
-				analyzeReport = report;
-				showReviewModal = true;
+				// Hand the pending edit off to the full-page review. The payload is
+				// NOT yet persisted; the "armed" flag is consumed on the review
+				// page's first mount so a refresh redirects back here.
+				const studyId = initialData.id;
+				sessionStorage.setItem(
+					pendingEditKey(studyId),
+					JSON.stringify({
+						title: studyTitle,
+						subtitle: studySubtitle,
+						passages,
+						report
+					})
+				);
+				sessionStorage.setItem(armedKey(studyId), '1');
+				await goto(`/study/${studyId}/edit/review`);
 			} else {
 				// Nothing needs a decision — submit with empty decisions.
-				await submitReviewed({});
+				await submitDirect();
 			}
 		} catch (err) {
 			console.error('Edit analysis failed:', err);
-			await submitReviewed({});
+			await submitDirect();
 		} finally {
 			isAnalyzing = false;
 		}
 	}
 
 	/**
-	 * Submit the edit directly via fetch (NOT through use:enhance / requestSubmit).
-	 *
-	 * Why fetch instead of requestSubmit(): the Review modal is a native
-	 * <dialog> opened with showModal(), which makes the rest of the page inert.
-	 * Programmatic form submission interacts badly with that inert state and the
-	 * dialog close timing — every variation either swallowed the first submit
-	 * (requiring a second Save click) or was blocked entirely. Posting the form
-	 * data directly with fetch is immune to the dialog's inert state, so the
-	 * single "Save Changes" click always works. We then apply the action result
-	 * (which is a redirect to the study page) ourselves.
-	 *
-	 * @param {Object} decisions - keyed by passageId
+	 * Submit the edit directly via fetch with empty decisions (no review needed).
+	 * Posting the form data directly is immune to navigation/enhance edge cases,
+	 * and we apply the redirect result ourselves.
 	 */
-	async function submitReviewed(decisions) {
+	async function submitDirect() {
 		if (isSubmitting) return;
 		isSubmitting = true;
 		try {
 			const data = new FormData(formElement);
-			data.set('decisions', JSON.stringify(decisions || {}));
+			data.set('decisions', JSON.stringify({}));
 
 			const response = await fetch(formElement.action || window.location.pathname, {
 				method: 'POST',
@@ -190,7 +245,6 @@
 			const result = deserialize(await response.text());
 
 			if (result.type === 'redirect') {
-				showReviewModal = false;
 				await goto(result.location, { invalidateAll: true });
 				return;
 			}
@@ -198,42 +252,30 @@
 			if (result.type === 'error') {
 				console.error('Save failed:', result.error);
 				await applyAction(result);
-				showReviewModal = false;
 				return;
 			}
 
 			// failure / success without redirect: surface via form prop
 			await applyAction(result);
 			await invalidateAll();
-			showReviewModal = false;
 		} catch (err) {
 			console.error('Error saving study:', err);
 		} finally {
 			isSubmitting = false;
 		}
 	}
-
-	/**
-	 * The user confirmed their choices in the Review modal.
-	 * @param {Object} decisions - keyed by passageId
-	 */
-	async function handleReviewConfirm(decisions) {
-		await submitReviewed(decisions);
-	}
-
-	function handleReviewCancel() {
-		showReviewModal = false;
-	}
 </script>
+
 
 <form 
 	bind:this={formElement}
 	method="POST" 
 	use:enhance={({ cancel }) => {
 		// In edit mode, gate EVERY submit on analysis/review. The analysis step
-		// decides whether to open the modal or submit straight through (both paths
-		// post via fetch in submitReviewed). New studies post normally below.
+		// decides whether to navigate to the full-page review or submit straight
+		// through. New studies post normally below.
 		if (mode === 'edit' && initialData?.id) {
+
 			runAnalysisGate({ cancel });
 			return;
 		}
@@ -297,23 +339,15 @@
 	<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 
 	<FormButtonBar>
-		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting || isAnalyzing}></Button>
+		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting || isAnalyzing} handleClick={clearPendingEdit}></Button>
+
 		<Button type="submit" label={isAnalyzing ? 'Checking...' : isSubmitting ? 'Saving...' : 'Save'} classes="blue" isDisabled={isSubmitting || isAnalyzing || hasDuplicateTitle}></Button>
 	</FormButtonBar>
 </form>
 
-{#if mode === 'edit'}
-	<ReviewStudyEditModal
-		isOpen={showReviewModal}
-		report={analyzeReport}
-		isSaving={isSubmitting}
-		onConfirm={handleReviewConfirm}
-		onCancel={handleReviewCancel}
-	/>
-{/if}
-
 
 <style>
+
 	form {
 		width: 41.4rem;
 		min-width: 36.0rem;
