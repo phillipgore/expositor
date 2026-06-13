@@ -30,6 +30,7 @@ import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
 import { compareWordIds } from '$lib/server/db/utils.js';
 
+
 /* ------------------------------------------------------------------ */
 /* Bible-data helpers (server-side, work directly off bible.json)      */
 /* ------------------------------------------------------------------ */
@@ -419,7 +420,9 @@ async function loadTaggedIds(dbx, subjectType, ids) {
 
 /* ------------------------------------------------------------------ */
 /* Removal geometry + content-summary helpers (shared by analyze/apply)*/
+
 /* ------------------------------------------------------------------ */
+
 
 /**
  * Resolve the orphaned items and the single surviving "merge target" for a

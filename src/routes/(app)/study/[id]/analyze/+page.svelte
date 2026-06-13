@@ -12,6 +12,8 @@
 	import SetSectionSpacingModal from '$lib/componentWidgets/modals/SetSectionSpacingModal.svelte';
 	import SetColumnSpacingModal from '$lib/componentWidgets/modals/SetColumnSpacingModal.svelte';
 	import SetColumnWidthModal from '$lib/componentWidgets/modals/SetColumnWidthModal.svelte';
+	import JoinConfirmationModal from '$lib/componentWidgets/modals/JoinConfirmationModal.svelte';
+
 
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
 	import { useSectionReposition } from '$lib/composables/useSectionReposition.svelte.js';
@@ -1253,6 +1255,20 @@
 		const handleInsertSegmentEvent = () => {
 			handleInsertSegment();
 		};
+
+		// Listen for join column/section/segment events from MenuStructure. Each
+		// resolves the currently-active item and hands off to the join flow, which
+		// dry-runs first and only shows the confirm modal when content is affected.
+		const handleJoinColumnEvent = () => {
+			if (activeColumns.length > 0) handleJoin('column', activeColumns[0]);
+		};
+		const handleJoinSectionEvent = () => {
+			if (activeSections.length > 0) handleJoin('section', activeSections[0]);
+		};
+		const handleJoinSegmentEvent = () => {
+			if (activeSegments.length > 0) handleJoin('segment', activeSegments[0].segmentId);
+		};
+
 		
 		// Listen for insert heading one event from MenuStructure
 		const handleInsertHeadingOneFromMenuEvent = () => {
@@ -1481,7 +1497,11 @@
 		window.addEventListener('insert-column', handleInsertColumnEvent);
 		window.addEventListener('insert-section', handleInsertSectionEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
+		window.addEventListener('join-column', handleJoinColumnEvent);
+		window.addEventListener('join-section', handleJoinSectionEvent);
+		window.addEventListener('join-segment', handleJoinSegmentEvent);
 		window.addEventListener('move-text-up', handleMoveTextUpEvent);
+
 		window.addEventListener('move-text-down', handleMoveTextDownEvent);
 		window.addEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
 		window.addEventListener('insert-heading-two-from-menu', handleInsertHeadingTwoFromMenuEvent);
@@ -1525,7 +1545,11 @@
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
 			window.removeEventListener('insert-section', handleInsertSectionEvent);
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
+			window.removeEventListener('join-column', handleJoinColumnEvent);
+			window.removeEventListener('join-section', handleJoinSectionEvent);
+			window.removeEventListener('join-segment', handleJoinSegmentEvent);
 			window.removeEventListener('move-text-up', handleMoveTextUpEvent);
+
 			window.removeEventListener('move-text-down', handleMoveTextDownEvent);
 			window.removeEventListener('insert-heading-one-from-menu', handleInsertHeadingOneFromMenuEvent);
 			window.removeEventListener('insert-heading-two-from-menu', handleInsertHeadingTwoFromMenuEvent);
@@ -1541,10 +1565,110 @@
 		};
 	});
 
+	// ─── Join Column / Section / Segment ──────────────────────────────────────
+	// Join collapses the active item INTO the one immediately preceding it. The flow
+	// dry-runs first: an empty item is joined silently, while an item carrying authored
+	// content or affected connections opens a confirm modal offering Merge vs Delete.
+	let joinModalOpen = $state(false);
+	let joinModalType = $state(/** @type {'column'|'section'|'segment'} */ ('segment'));
+	let joinModalSummary = $state('');
+	let joinPending = $state(/** @type {{ type: string, id: string } | null} */ (null));
+
+	const JOIN_ENDPOINT = {
+		column: '/api/passages/columns/join',
+		section: '/api/passages/sections/join',
+		segment: '/api/passages/segments/join'
+	};
+
+	/** Build the join request body for a given item type/id. */
+	function joinBody(type, id, extra = {}) {
+		const key = type === 'column' ? 'columnId' : type === 'section' ? 'sectionId' : 'segmentId';
+		return { [key]: id, ...extra };
+	}
+
+	/**
+	 * Entry point for a Join action. Dry-runs to learn whether content/connections are
+	 * affected: if not, the join runs immediately; if so, the confirm modal opens so the
+	 * user can choose Merge (default) or Delete.
+	 * @param {'column'|'section'|'segment'} type
+	 * @param {string} id
+	 */
+	async function handleJoin(type, id) {
+		try {
+			const dryRes = await fetch(JOIN_ENDPOINT[type], {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(joinBody(type, id, { dryRun: true }))
+			});
+
+			if (!dryRes.ok) {
+				const error = await dryRes.json();
+				console.error('Join dry-run error:', error);
+				alert(`Error: ${error.error || `Failed to join ${type}`}`);
+				return;
+			}
+
+			const { needsDecision, summary } = await dryRes.json();
+			if (needsDecision) {
+				// Defer to the modal: the user picks Merge or Delete.
+				joinModalType = type;
+				joinModalSummary = summary || '';
+				joinPending = { type, id };
+				joinModalOpen = true;
+			} else {
+				// Nothing of value would be folded — join straight away (defaults to merge).
+				await runJoin(type, id, 'merge');
+			}
+		} catch (error) {
+			console.error('Join network error:', error);
+			alert(`Error: ${error.message || `Failed to join ${type}`}`);
+		}
+	}
+
+	/**
+	 * Execute the join for real, then clear selections and refresh.
+	 * @param {'column'|'section'|'segment'} type
+	 * @param {string} id
+	 * @param {'merge'|'delete'} decision
+	 */
+	async function runJoin(type, id, decision) {
+		const response = await fetch(JOIN_ENDPOINT[type], {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(joinBody(type, id, { decision }))
+		});
+
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || `Failed to join ${type}`);
+		}
+
+		// Clear all selections — the joined item no longer exists.
+		selectedWord = null;
+		activeSegments = [];
+		activeColumns = [];
+		activeSections = [];
+		suppressHoverCaret = null;
+		await invalidate('app:studies');
+	}
+
+	/**
+	 * Confirm handler for the Join modal. Runs the pending join with the chosen decision,
+	 * then closes the modal. Errors propagate to the modal so it can show them inline.
+	 * @param {'merge'|'delete'} decision
+	 */
+	async function confirmJoin(decision) {
+		if (!joinPending) return;
+		await runJoin(joinPending.type, joinPending.id, decision);
+		joinModalOpen = false;
+		joinPending = null;
+	}
+
 	/**
 	 * Handle Insert Column button click
 	 */
 	async function handleInsertColumn() {
+
 		console.log('handleInsertColumn called');
 		
 		if (!selectedWord || !data.passagesWithText) {
@@ -4024,10 +4148,25 @@
 
 
 
+	<!-- Join confirmation modal (Structure → Join Column/Section/Segment). Only shown
+	     when the joined item carries authored content or affected connections; offers
+	     Merge (fold content onto the previous item) or Delete (discard the joined item's
+	     own content). Empty items are joined silently without this modal. -->
+	<JoinConfirmationModal
+		isOpen={joinModalOpen}
+		type={joinModalType}
+		summary={joinModalSummary}
+		onConfirm={confirmJoin}
+		onClose={() => { joinModalOpen = false; joinPending = null; }}
+	/>
+
+
+
 	<!-- Copyright Notice -->
 
 
 	<div class="copyright-notice">
+
 
 		{#if data.study.translation === 'esv'}
 			<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.</p>

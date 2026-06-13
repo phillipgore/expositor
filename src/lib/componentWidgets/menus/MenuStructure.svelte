@@ -82,8 +82,13 @@
 		iconId="column-join"
 		label="Join Column"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			// Trigger join column event via custom event
+			window.dispatchEvent(new CustomEvent('join-column'));
+		}}
 		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.isActiveColumnFirstInPassage}
+
 	/>
 
 	<DividerHorizontal />
@@ -106,8 +111,13 @@
 		iconId="section-join"
 		label="Join Section"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			// Trigger join section event via custom event
+			window.dispatchEvent(new CustomEvent('join-section'));
+		}}
 		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.isActiveSectionFirstInPassage}
+
 	/>
 
 	<DividerHorizontal />
@@ -129,8 +139,13 @@
 		iconId="segment-join"
 		label="Join Segment"
 		role="menuitem"
-		handleClick={closeMenu}
+		handleClick={() => {
+			closeMenu();
+			// Trigger join segment event via custom event
+			window.dispatchEvent(new CustomEvent('join-segment'));
+		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.isActiveSegmentFirstInPassage}
+
 	/>
 
 	<DividerHorizontal />
