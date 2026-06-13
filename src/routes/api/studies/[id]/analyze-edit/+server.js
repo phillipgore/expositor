@@ -4,6 +4,7 @@ import { study, passage } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq } from 'drizzle-orm';
 import { analyzeEdit } from '$lib/server/db/passageReconcile.js';
+import { validatePassagesLimits } from '$lib/utils/translationLimits.js';
 
 /**
  * Pre-commit impact analysis for a study edit.
@@ -25,11 +26,7 @@ export const POST = async ({ request, params }) => {
 		const studyId = params.id;
 
 		// Verify ownership.
-		const existing = await db
-			.select()
-			.from(study)
-			.where(eq(study.id, studyId))
-			.limit(1);
+		const existing = await db.select().from(study).where(eq(study.id, studyId)).limit(1);
 		if (existing.length === 0) {
 			return json({ error: 'Study not found' }, { status: 404 });
 		}
@@ -42,8 +39,17 @@ export const POST = async ({ request, params }) => {
 			return json({ error: 'Invalid passages' }, { status: 400 });
 		}
 
+		// Guard against the translation API's per-request limits up front so the
+		// Review flow surfaces an over-limit range immediately, rather than
+		// letting the user proceed and only failing at save/fetch time.
+		const limitCheck = validatePassagesLimits(newPassages, existing[0].translation || 'esv');
+		if (!limitCheck.valid) {
+			return json({ error: limitCheck.error }, { status: 400 });
+		}
+
 		const oldPassages = await db
 			.select()
+
 			.from(passage)
 			.where(eq(passage.studyId, studyId));
 

@@ -1,9 +1,9 @@
 /**
  * Bible Data Utility Module
- * 
+ *
  * Provides utility functions for accessing and manipulating Bible data.
  * Includes error handling for malformed data structures.
- * 
+ *
  * @module bibleData
  */
 
@@ -19,7 +19,7 @@ try {
 	}
 	otBookData = testamentData[0]?.bookData;
 	ntBookData = testamentData[1]?.bookData;
-	
+
 	if (!otBookData || !ntBookData) {
 		throw new Error('Missing Old Testament or New Testament book data');
 	}
@@ -33,7 +33,7 @@ try {
 
 /**
  * Gets the book data for a specified testament.
- * 
+ *
  * @param {('OT'|'NT')} testament - Testament identifier
  * @returns {Array} Array of book objects
  */
@@ -48,7 +48,7 @@ export function getBookData(testament) {
 
 /**
  * Generates radio button properties for testament selection (OT/NT).
- * 
+ *
  * @param {('OT'|'NT')} selectedTestament - Currently selected testament
  * @param {string} passageId - Unique passage ID for element IDs
  * @returns {Array} Array of radio button property objects
@@ -85,7 +85,7 @@ export function getTestaments(selectedTestament, passageId) {
 
 /**
  * Generates select option properties for book selection.
- * 
+ *
  * @param {('OT'|'NT')} testament - Testament to get books from
  * @param {string} selectedBook - Currently selected book ID
  * @returns {Array} Array of book option objects
@@ -93,7 +93,7 @@ export function getTestaments(selectedTestament, passageId) {
 export function getBooks(testament, selectedBook) {
 	try {
 		const bookData = getBookData(testament);
-		
+
 		if (!bookData || !Array.isArray(bookData)) {
 			console.error('Invalid book data structure for testament:', testament);
 			return [];
@@ -124,7 +124,7 @@ export function getBooks(testament, selectedBook) {
 
 /**
  * Gets a specific book object by ID and testament.
- * 
+ *
  * @param {('OT'|'NT')} testament - Testament the book belongs to
  * @param {string} bookId - Book ID to find
  * @returns {Object|null} Book object or null if not found
@@ -133,12 +133,12 @@ export function getBook(testament, bookId) {
 	try {
 		const bookData = getBookData(testament);
 		const book = bookData.find((b) => b._id === bookId);
-		
+
 		if (!book) {
 			console.warn(`Book not found: ${bookId} in ${testament}`);
 			return null;
 		}
-		
+
 		return book;
 	} catch (error) {
 		console.error('Error in getBook:', error);
@@ -148,7 +148,7 @@ export function getBook(testament, bookId) {
 
 /**
  * Generates select option properties for chapter selection.
- * 
+ *
  * @param {('OT'|'NT')} testament - Testament the book belongs to
  * @param {string} bookId - Book ID to get chapters from
  * @param {number} selectedChapter - Currently selected chapter
@@ -158,7 +158,7 @@ export function getBook(testament, bookId) {
 export function getChapters(testament, bookId, selectedChapter, minChapter = 1) {
 	try {
 		const book = getBook(testament, bookId);
-		
+
 		if (!book || typeof book.chapterCount !== 'number') {
 			console.error('Invalid book or missing chapterCount:', book);
 			return [];
@@ -184,7 +184,7 @@ export function getChapters(testament, bookId, selectedChapter, minChapter = 1) 
 
 /**
  * Gets the verse count for a specific chapter.
- * 
+ *
  * @param {('OT'|'NT')} testament - Testament the book belongs to
  * @param {string} bookId - Book ID
  * @param {number} chapterNum - Chapter number
@@ -193,14 +193,14 @@ export function getChapters(testament, bookId, selectedChapter, minChapter = 1) 
 export function getVerseCount(testament, bookId, chapterNum) {
 	try {
 		const book = getBook(testament, bookId);
-		
+
 		if (!book || !book.chapterData || !book.chapterData[0]) {
 			console.error('Invalid book structure or missing chapterData');
 			return 0;
 		}
 
 		const verseCount = book.chapterData[0][chapterNum.toString()];
-		
+
 		if (typeof verseCount !== 'number') {
 			console.warn(`Verse count not found for ${bookId} chapter ${chapterNum}`);
 			return 0;
@@ -214,8 +214,95 @@ export function getVerseCount(testament, bookId, chapterNum) {
 }
 
 /**
+ * Gets the total number of verses in an entire book (sum of all chapters).
+ *
+ * @param {('OT'|'NT')} testament - Testament the book belongs to
+ * @param {string} bookId - Book ID
+ * @returns {number} Total verse count for the book, or 0 if not found
+ */
+export function getBookVerseTotal(testament, bookId) {
+	try {
+		const book = getBook(testament, bookId);
+
+		if (!book || typeof book.chapterCount !== 'number') {
+			console.error('Invalid book or missing chapterCount:', book);
+			return 0;
+		}
+
+		let total = 0;
+		for (let chapter = 1; chapter <= book.chapterCount; chapter++) {
+			total += getVerseCount(testament, bookId, chapter);
+		}
+
+		return total;
+	} catch (error) {
+		console.error('Error in getBookVerseTotal:', error);
+		return 0;
+	}
+}
+
+/**
+ * Counts the number of verses contained in a passage range. The range may span
+ * multiple chapters, but must stay WITHIN A SINGLE BOOK — cross-book ranges are
+ * not supported (callers only ever pass single-book passages). Verse numbers
+ * are clamped to each chapter's actual length so a malformed/out-of-range input
+ * can't inflate the count.
+ *
+ * @param {('OT'|'NT')} testament - Testament the book belongs to
+ * @param {string} bookId - Book ID
+ * @param {number} fromChapter - Starting chapter
+ * @param {number} fromVerse - Starting verse
+ * @param {number} toChapter - Ending chapter
+ * @param {number} toVerse - Ending verse
+ * @returns {number} Number of verses in the range, or 0 if the range is invalid
+ */
+export function countVersesInRange(testament, bookId, fromChapter, fromVerse, toChapter, toVerse) {
+	try {
+		if (
+			typeof fromChapter !== 'number' ||
+			typeof toChapter !== 'number' ||
+			typeof fromVerse !== 'number' ||
+			typeof toVerse !== 'number'
+		) {
+			return 0;
+		}
+
+		if (toChapter < fromChapter) {
+			return 0;
+		}
+
+		// Single chapter range. Clamp the end verse to the chapter's length so an
+		// out-of-range toVerse can't over-count.
+		if (fromChapter === toChapter) {
+			const chapterVerses = getVerseCount(testament, bookId, fromChapter);
+			const clampedTo = chapterVerses > 0 ? Math.min(toVerse, chapterVerses) : toVerse;
+			return Math.max(0, clampedTo - fromVerse + 1);
+		}
+
+		// Verses remaining in the starting chapter (from fromVerse to its end).
+		let count = Math.max(0, getVerseCount(testament, bookId, fromChapter) - fromVerse + 1);
+
+		// Full chapters strictly between the start and end chapters.
+		for (let chapter = fromChapter + 1; chapter < toChapter; chapter++) {
+			count += getVerseCount(testament, bookId, chapter);
+		}
+
+		// Verses consumed in the ending chapter (verse 1 through toVerse), clamped
+		// to the chapter's actual length.
+		const endChapterVerses = getVerseCount(testament, bookId, toChapter);
+		const clampedToVerse = endChapterVerses > 0 ? Math.min(toVerse, endChapterVerses) : toVerse;
+		count += Math.max(0, clampedToVerse);
+
+		return count;
+	} catch (error) {
+		console.error('Error in countVersesInRange:', error);
+		return 0;
+	}
+}
+
+/**
  * Generates select option properties for verse selection.
- * 
+ *
  * @param {('OT'|'NT')} testament - Testament the book belongs to
  * @param {string} bookId - Book ID to get verses from
  * @param {number} chapterNum - Chapter number to get verse count from
@@ -226,7 +313,7 @@ export function getVerseCount(testament, bookId, chapterNum) {
 export function getVerses(testament, bookId, chapterNum, selectedVerse, minVerse = 1) {
 	try {
 		const verseCount = getVerseCount(testament, bookId, chapterNum);
-		
+
 		if (verseCount === 0) {
 			console.error('No verses found for the specified chapter');
 			return [];
@@ -252,13 +339,13 @@ export function getVerses(testament, bookId, chapterNum, selectedVerse, minVerse
 
 /**
  * Gets default passage values for a new passage.
- * 
+ *
  * @returns {Object} Default passage object (without ID)
  */
 export function getDefaultPassageValues() {
 	try {
 		const bookData = getBookData('NT');
-		
+
 		if (!bookData || bookData.length === 0) {
 			console.error('No New Testament books available');
 			return {
@@ -297,7 +384,7 @@ export function getDefaultPassageValues() {
 
 /**
  * Gets the book abbreviation (titleShortAbbreviation) from a book name.
- * 
+ *
  * @param {string} bookName - Full book name (e.g., "Matthew", "Genesis")
  * @returns {string|null} Book abbreviation (e.g., "MT", "GE") or null if not found
  */
@@ -326,7 +413,7 @@ export function getBookAbbreviation(bookName) {
 
 /**
  * Validates that a passage has valid testament, book, chapter, and verse values.
- * 
+ *
  * @param {Object} passage - Passage object to validate
  * @returns {boolean} True if passage is valid
  */
@@ -380,7 +467,7 @@ export function isValidPassage(passage) {
 
 /**
  * Gets the full book name from a 2-letter abbreviation.
- * 
+ *
  * @param {string} bookAbbr - 2-letter book abbreviation (e.g., "MT", "GE")
  * @returns {string|null} Full book name (e.g., "Matthew", "Genesis") or null if not found
  */
@@ -409,7 +496,7 @@ export function getBookNameFromAbbreviation(bookAbbr) {
 
 /**
  * Parses a wordId into its components.
- * 
+ *
  * @param {string} wordId - Word ID in format "BOOK-CHAPTER-VERSE-WORD" (e.g., "JN-001-001-005")
  * @returns {Object|null} Parsed components { bookAbbr, chapter, verse, word } or null if invalid
  */
@@ -440,14 +527,19 @@ export function parseWordId(wordId) {
  * Formats a scripture reference for display using full book name.
  * Supports partial verse notation (a, b, c) for subdivided verses.
  * NOTE: endWordId is treated as an EXCLUSIVE boundary (the first word NOT included in the range)
- * 
+ *
  * @param {string} startWordId - Starting word ID
  * @param {string} [endWordId] - Ending word ID (exclusive boundary - first word NOT in range)
  * @param {string} [startSuffix] - Starting verse suffix (e.g., 'a', 'b', 'c')
  * @param {string} [endSuffix] - Ending verse suffix (e.g., 'a', 'b', 'c')
  * @returns {string} Formatted reference (e.g., "Matthew 5:3", "Matthew 5:3a-12b", "Matthew 5:3b-6:4")
  */
-export function formatScriptureReference(startWordId, endWordId = null, startSuffix = '', endSuffix = '') {
+export function formatScriptureReference(
+	startWordId,
+	endWordId = null,
+	startSuffix = '',
+	endSuffix = ''
+) {
 	try {
 		const start = parseWordId(startWordId);
 		if (!start) {
@@ -477,7 +569,7 @@ export function formatScriptureReference(startWordId, endWordId = null, startSuf
 		// Calculate the actual last verse in the range
 		let actualEndChapter = end.chapter;
 		let actualEndVerse = end.verse - 1; // Decrement by 1 since it's exclusive
-		
+
 		// Handle edge case: if we decremented to verse 0, we need the previous chapter's last verse
 		if (actualEndVerse < 1) {
 			actualEndChapter = end.chapter - 1;

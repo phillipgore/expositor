@@ -6,9 +6,11 @@ import { auth } from '$lib/server/auth.js';
 import { eq, and } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
 import { expandGroupAncestors, createDefaultPassageStructure } from '$lib/server/db/utils.js';
+import { validatePassagesLimits } from '$lib/utils/translationLimits.js';
 
 /**
  * @typedef {Object} PassageData
+
  * @property {string} id
  * @property {string} testament
  * @property {string} book
@@ -25,10 +27,10 @@ import { expandGroupAncestors, createDefaultPassageStructure } from '$lib/server
  * @returns {string}
  */
 function getBookName(testamentId, bookId) {
-	const testament = bibleData[0].testamentData.find(t => t._id === testamentId);
+	const testament = bibleData[0].testamentData.find((t) => t._id === testamentId);
 	if (!testament) return bookId;
-	
-	const book = testament.bookData.find(b => b._id === bookId);
+
+	const book = testament.bookData.find((b) => b._id === bookId);
 	return book ? book.title : bookId;
 }
 
@@ -36,7 +38,7 @@ function getBookName(testamentId, bookId) {
 export async function load({ url, request }) {
 	// Get the current user from session (guaranteed by layout)
 	const session = await auth.api.getSession({ headers: request.headers });
-	
+
 	// Get groupId from URL if provided
 	const groupId = url.searchParams.get('groupId');
 	let group = null;
@@ -46,20 +48,14 @@ export async function load({ url, request }) {
 		const groups = await db
 			.select()
 			.from(studyGroup)
-			.where(and(
-				eq(studyGroup.id, groupId),
-				eq(studyGroup.userId, session.user.id)
-			))
+			.where(and(eq(studyGroup.id, groupId), eq(studyGroup.userId, session.user.id)))
 			.limit(1);
 
 		group = groups[0] || null;
 	}
 
 	// Get all studies for duplicate title checking
-	const studies = await db
-		.select()
-		.from(study)
-		.where(eq(study.userId, session.user.id));
+	const studies = await db.select().from(study).where(eq(study.userId, session.user.id));
 
 	return {
 		studies,
@@ -87,7 +83,7 @@ export const actions = {
 
 			// Validate title
 			if (!title || typeof title !== 'string' || title.trim() === '') {
-				return fail(400, { 
+				return fail(400, {
 					error: 'Title is required',
 					title: title || ''
 				});
@@ -106,10 +102,7 @@ export const actions = {
 				const groups = await db
 					.select()
 					.from(studyGroup)
-					.where(and(
-						eq(studyGroup.id, groupId),
-						eq(studyGroup.userId, session.user.id)
-					))
+					.where(and(eq(studyGroup.id, groupId), eq(studyGroup.userId, session.user.id)))
 					.limit(1);
 
 				if (groups.length === 0) {
@@ -126,14 +119,14 @@ export const actions = {
 			try {
 				passagesData = JSON.parse(passagesJson?.toString() || '[]');
 			} catch {
-				return fail(400, { 
+				return fail(400, {
 					error: 'Invalid passages data',
 					title: title.toString()
 				});
 			}
 
 			if (!Array.isArray(passagesData) || passagesData.length === 0) {
-				return fail(400, { 
+				return fail(400, {
 					error: 'At least one passage is required',
 					title: title.toString()
 				});
@@ -141,27 +134,46 @@ export const actions = {
 
 			// Validate each passage
 			for (const p of passagesData) {
-				if (!p.testament || !p.book || 
-					typeof p.fromChapter !== 'number' || 
+				if (
+					!p.testament ||
+					!p.book ||
+					typeof p.fromChapter !== 'number' ||
 					typeof p.toChapter !== 'number' ||
-					typeof p.fromVerse !== 'number' || 
-					typeof p.toVerse !== 'number') {
-					return fail(400, { 
+					typeof p.fromVerse !== 'number' ||
+					typeof p.toVerse !== 'number'
+				) {
+					return fail(400, {
 						error: 'Invalid passage data',
 						title: title.toString()
 					});
 				}
 			}
 
+			// Guard against the translation API's per-request limits (e.g. ESV's
+			// 500-verse / half-a-book cap). Each passage maps to one API request,
+			// so an over-limit range would be rejected by the provider. Reject it
+			// here with a clear message before anything is written or fetched.
+			const limitCheck = validatePassagesLimits(passagesData, translation.toString());
+			if (!limitCheck.valid) {
+				return fail(400, {
+					error: limitCheck.error,
+					title: title.toString()
+				});
+			}
+
 			// Create study and passages in a transaction
 			const studyId = uuidv4();
+
 			const now = new Date();
 
 			// Insert study with groupId and translation
 			await db.insert(study).values({
 				id: studyId,
 				title: title.toString().trim(),
-				subtitle: subtitle && typeof subtitle === 'string' && subtitle.trim() !== '' ? subtitle.toString().trim() : null,
+				subtitle:
+					subtitle && typeof subtitle === 'string' && subtitle.trim() !== ''
+						? subtitle.toString().trim()
+						: null,
 				translation: translation.toString(),
 				userId: session.user.id,
 				groupId: groupId && typeof groupId === 'string' && groupId.trim() !== '' ? groupId : null,
@@ -204,7 +216,6 @@ export const actions = {
 
 			// Redirect to the study view page (adjust URL as needed)
 			throw redirect(303, `/study/${studyId}`);
-
 		} catch (error) {
 			// If it's a redirect, re-throw it
 			if (error?.status === 303) {
@@ -212,7 +223,7 @@ export const actions = {
 			}
 
 			console.error('Error creating study:', error);
-			return fail(500, { 
+			return fail(500, {
 				error: 'Failed to create study. Please try again.'
 			});
 		}
