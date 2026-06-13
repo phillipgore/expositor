@@ -22,9 +22,20 @@ import { getColorForTermId } from '$lib/data/glossaryIndex.js';
 export const TaggedHighlight = Mark.create({
 	name: 'taggedHighlight',
 
+	// Parse with a HIGHER priority than the stock `@tiptap/extension-highlight`
+	// (default 100). Highlight's parse rule is a bare `{ tag: 'mark' }`, which
+	// also matches the `<mark class="tagged-highlight" data-term-id="...">`
+	// elements we emit. Without a higher priority, on reload the generic
+	// Highlight rule can claim our band first — and since our mark carries no
+	// `data-color`/inline background, it resolves to no color and renders as the
+	// browser's default yellow. A higher priority ensures our specific
+	// `mark.tagged-highlight` / `mark[data-term-id]` rules win.
+	priority: 200,
+
 	// Keep this mark from bleeding onto text typed at its edges so the band has
 	// crisp, intentional boundaries.
 	inclusive: false,
+
 
 	addAttributes() {
 		return {
