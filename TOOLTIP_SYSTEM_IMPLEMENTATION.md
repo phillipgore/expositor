@@ -36,8 +36,10 @@ The `use:tooltip` action has been integrated into `src/lib/componentElements/but
 ## Features
 
 ### ✅ Core Features
-- **Delayed Show**: 500ms delay before tooltip appears (configurable)
-- **Instant Hide**: Immediate hide on mouse leave
+- **Delayed Show**: 500ms delay before tooltip appears (configurable via the shared `TOOLTIP_SHOW_DELAY` constant in `tooltipStore.svelte.js`)
+- **Consistent across paths**: Both button tooltips (`use:tooltip`) and glossary‑badge hovers use the same delay, so all hover tooltips feel alike
+- **Instant Hide**: Immediate hide on mouse leave (also cancels any pending delayed show)
+
 - **Smooth Fade**: CSS transitions for polished UX
 - **Smart Positioning**: Auto-calculates best position (top, bottom, left, right)
 - **Collision Detection**: Flips position if tooltip would overflow viewport

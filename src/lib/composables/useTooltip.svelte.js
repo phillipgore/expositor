@@ -1,4 +1,7 @@
 import * as tooltipStore from '$lib/stores/tooltipStore.svelte.js';
+import { TOOLTIP_SHOW_DELAY } from '$lib/stores/tooltipStore.svelte.js';
+
+
 
 /**
  * # Tooltip Action
@@ -38,7 +41,8 @@ import * as tooltipStore from '$lib/stores/tooltipStore.svelte.js';
  * @typedef {Object} TooltipOptions
  * @property {string} [content] - Tooltip content (overrides title attribute)
  * @property {string} [placement='auto'] - Preferred placement: top, bottom, left, right, auto
- * @property {number} [delay=1000] - Delay in ms before showing tooltip
+ * @property {number} [delay=TOOLTIP_SHOW_DELAY] - Delay in ms before showing tooltip (default 500)
+
  * @property {number} [offset=0] - Distance from target element in pixels
  * @property {boolean} [allowHtml=false] - Allow HTML in tooltip content
  * 
@@ -72,7 +76,8 @@ export function tooltip(node, options = {}) {
 	// Auto-detect placement for passage toolbar buttons
 	const hasPassageToolbarClass = node.classList.contains('passage-toolbar');
 	const placement = options.placement || (hasPassageToolbarClass ? 'right' : 'auto');
-	const delay = options.delay ?? 1000;
+	const delay = options.delay ?? TOOLTIP_SHOW_DELAY;
+
 	const offset = options.offset ?? 0;
 	const allowHtml = options.allowHtml || false;
 

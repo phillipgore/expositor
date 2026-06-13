@@ -13,8 +13,15 @@ import { writable, get } from 'svelte/store';
  * disturb the pinned content.
  */
 
+/**
+ * Default delay (ms) before a hover tooltip appears. Shared by the `use:tooltip`
+ * action and the glossary-badge hovers so all hover tooltips feel consistent.
+ */
+export const TOOLTIP_SHOW_DELAY = 500;
+
 const tooltipState = writable({
 	isVisible: false,
+
 	content: '',
 	targetElement: null,
 	placement: 'auto',
@@ -53,8 +60,10 @@ export function show({ content, targetElement, placement = 'auto', offset = 0, a
  * No-op while a tooltip is pinned — use {@link unpin} to close a pinned tooltip.
  */
 export function hide() {
+	cancelScheduledShow();
 	tooltipState.update((state) => (state.isPinned ? state : { ...state, isVisible: false }));
 }
+
 
 /**
  * Pin a tooltip open. It stays visible and becomes interactive (selectable)
@@ -77,10 +86,40 @@ export function pin({ content, targetElement, placement = 'auto', offset = 0, al
  * Close a pinned tooltip (and hide it).
  */
 export function unpin() {
+	cancelScheduledShow();
 	tooltipState.update((state) => ({ ...state, isVisible: false, isPinned: false }));
+}
+
+/** Pending timer id for a delayed (scheduled) hover show. */
+let showTimeoutId;
+
+/**
+ * Schedule a hover tooltip to appear after a delay. Used by hover triggers
+ * (glossary badges) so they share the same delayed-show behavior as the
+ * `use:tooltip` action. Any previously scheduled show is cancelled first.
+ * @param {Object} options - Tooltip options (see {@link show})
+ * @param {number} [delay=TOOLTIP_SHOW_DELAY] - Delay in ms before showing
+ */
+export function scheduleShow(options, delay = TOOLTIP_SHOW_DELAY) {
+	cancelScheduledShow();
+	showTimeoutId = setTimeout(() => {
+		showTimeoutId = undefined;
+		show(options);
+	}, delay);
+}
+
+/**
+ * Cancel a pending {@link scheduleShow} timer, if any.
+ */
+export function cancelScheduledShow() {
+	if (showTimeoutId !== undefined) {
+		clearTimeout(showTimeoutId);
+		showTimeoutId = undefined;
+	}
 }
 
 /**
  * Export the store itself for component subscriptions
  */
 export default tooltipState;
+

@@ -34,7 +34,9 @@
 
 	function showTooltip() {
 		if (!badgeElement) return;
-		tooltipStore.show({
+		// Delayed show (shared delay) so a quick mouse pass over a badge doesn't
+		// flash the definition. Matches the `use:tooltip` action's behavior.
+		tooltipStore.scheduleShow({
 			content: getTooltipHtml(termId),
 			targetElement: badgeElement,
 			placement: 'top',
@@ -42,6 +44,7 @@
 			allowHtml: true
 		});
 	}
+
 
 	function hideTooltip() {
 		tooltipStore.hide();

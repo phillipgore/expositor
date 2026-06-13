@@ -947,9 +947,10 @@
 			if (!badge) return;
 			const termId = badge.getAttribute('data-term-id');
 			if (!termId) return;
-			tooltipStore.show({
+			tooltipStore.scheduleShow({
 				content: getTooltipHtml(termId),
 				targetElement: badge,
+
 				placement: 'top',
 				offset: 2,
 				allowHtml: true
