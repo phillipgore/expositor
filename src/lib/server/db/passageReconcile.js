@@ -4,7 +4,7 @@
  * When a study is edited, passages may be added, removed, reordered, or have
  * their verse range changed. This module makes editing NON-DESTRUCTIVE: instead
  * of deleting and recreating every passage's structure (which wiped all
- * columns/sections/segments/connections/headings/notes/commentary/tags), it
+ * columns/sections/segments/connections/headings/notes/commentary), it
  * diffs the old vs. new passages by id and only touches what actually changed.
  *
  * Structure is anchored solely by `startingWordId` (BOOK-CHAP-VERSE-WORD). An
@@ -12,20 +12,18 @@
  * of the passage. Segments may begin mid-verse and span multiple verses, so all
  * boundary math is done with word IDs (via compareWordIds), never raw verses.
  *
- * `commentaryTag` rows are polymorphic with NO foreign key, so they are never
- * auto-deleted by cascade — this module cleans them up manually whenever a
- * column/section/segment/connection is removed.
+ * Glossary terms live inline inside commentary prose (not as separate rows), so
+ * there is no item-level tag table to clean up when structure is removed.
  */
 
 import {
 	passageColumn,
 	passageSection,
 	passageSegment,
-	segmentConnection,
-	commentaryTag
+	segmentConnection
 } from '$lib/server/db/schema.js';
 
-import { eq, and, inArray, asc } from 'drizzle-orm';
+import { eq, inArray, asc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
 import { compareWordIds } from '$lib/server/db/utils.js';
@@ -243,17 +241,11 @@ function flattenSegments(tree) {
  * `width`/`leftOffset` are already treated.
  *
  * @param {Object} seg
- * @param {Set<string>} taggedSegmentIds
  * @returns {boolean}
  */
-function segmentHasContent(seg, taggedSegmentIds) {
+function segmentHasContent(seg) {
 	return Boolean(
-		seg.headingOne ||
-			seg.headingTwo ||
-			seg.headingThree ||
-			seg.note ||
-			seg.commentary ||
-			taggedSegmentIds.has(seg.id)
+		seg.headingOne || seg.headingTwo || seg.headingThree || seg.note || seg.commentary
 	);
 }
 
@@ -401,24 +393,6 @@ function computeEdges(old, next) {
 /* Impact analysis (drives the Review modal)                           */
 /* ------------------------------------------------------------------ */
 
-/**
- * Build a set of subjectIds that carry at least one tag of the given type.
- * @param {Object} dbx
- * @param {string} subjectType - 'segment'|'section'|'column'|'connection'
- * @param {string[]} ids
- * @returns {Promise<Set<string>>}
- */
-async function loadTaggedIds(dbx, subjectType, ids) {
-	if (ids.length === 0) return new Set();
-	const rows = await dbx
-		.select({ subjectId: commentaryTag.subjectId })
-		.from(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids)));
-	const set = new Set();
-	for (const r of rows) set.add(r.subjectId);
-	return set;
-}
-
 /* ------------------------------------------------------------------ */
 /* Removal geometry + content-summary helpers (shared by analyze/apply)*/
 
@@ -499,12 +473,11 @@ function wordIdToRef(wordId) {
 }
 
 /** Short human summary of a segment's authored content. */
-function summarizeSegmentContent(seg, isTagged) {
+function summarizeSegmentContent(seg) {
 	const parts = [];
 	if (seg.headingOne || seg.headingTwo || seg.headingThree) parts.push('headings');
 	if (seg.note) parts.push('note');
 	if (seg.commentary) parts.push('commentary');
-	if (isTagged) parts.push('tags');
 
 	// Layout (`height`) is intentionally omitted — it belongs to the surviving
 	// structure and is never surfaced as authored content in the review.
@@ -512,19 +485,17 @@ function summarizeSegmentContent(seg, isTagged) {
 }
 
 /** Short summary of a section/column commentary subject. */
-function summarizeCommentarySubject(row, isTagged) {
+function summarizeCommentarySubject(row) {
 	const parts = [];
 	if (row.commentary) parts.push('commentary');
-	if (isTagged) parts.push('tags');
 	return parts.join(', ');
 }
 
 /** Short summary of a connection (endpoint kinds + any content). */
-function summarizeConnection(conn, isTagged) {
+function summarizeConnection(conn) {
 	const parts = [];
 	if (conn.note) parts.push('note');
 	if (conn.commentary) parts.push('commentary');
-	if (isTagged) parts.push('tags');
 	const content = parts.length ? `, ${parts.join(', ')}` : '';
 	return `${conn.fromType} ↔ ${conn.toType}${content}`;
 }
@@ -587,44 +558,28 @@ async function analyzeRemoval(dbx, studyId, passageId, side, boundaryWord) {
 	const { orphanEntries, target, orphanSections, orphanColumns, orphanSegIdSet } = sets;
 	const hasTarget = !!target;
 
-	const taggedSegments = await loadTaggedIds(
-		dbx,
-		'segment',
-		orphanEntries.map((e) => e.segment.id)
-	);
-	const taggedSections = await loadTaggedIds(
-		dbx,
-		'section',
-		orphanSections.map((s) => s.id)
-	);
-	const taggedColumns = await loadTaggedIds(
-		dbx,
-		'column',
-		orphanColumns.map((c) => c.id)
-	);
-
 	const segments = orphanEntries
-		.filter((e) => segmentHasContent(e.segment, taggedSegments))
+		.filter((e) => segmentHasContent(e.segment))
 		.map((e) => ({
 			id: e.segment.id,
 			label: wordIdToRef(e.segment.startingWordId),
-			summary: summarizeSegmentContent(e.segment, taggedSegments.has(e.segment.id)),
+			summary: summarizeSegmentContent(e.segment),
 			canMerge: hasTarget
 		}));
 
 	const sections = orphanSections
-		.filter((s) => s.commentary || taggedSections.has(s.id))
+		.filter((s) => s.commentary)
 		.map((s) => ({
 			id: s.id,
-			summary: summarizeCommentarySubject(s, taggedSections.has(s.id)),
+			summary: summarizeCommentarySubject(s),
 			canMerge: hasTarget
 		}));
 
 	const columns = orphanColumns
-		.filter((c) => c.commentary || taggedColumns.has(c.id))
+		.filter((c) => c.commentary)
 		.map((c) => ({
 			id: c.id,
-			summary: summarizeCommentarySubject(c, taggedColumns.has(c.id)),
+			summary: summarizeCommentarySubject(c),
 			canMerge: hasTarget
 		}));
 
@@ -655,18 +610,13 @@ async function analyzeRemoval(dbx, studyId, passageId, side, boundaryWord) {
 		for (const s of orphanSections) secMap.set(s.id, target.section.id);
 		for (const c of orphanColumns) colMap.set(c.id, target.column.id);
 	}
-	const connTagged = await loadTaggedIds(
-		dbx,
-		'connection',
-		affected.map((c) => c.id)
-	);
 	const connections = affected.map((c) => {
 		const nf = remapEndpoint(connEndpoint(c, 'from'), segMap, secMap, colMap);
 		const nt = remapEndpoint(connEndpoint(c, 'to'), segMap, secMap, colMap);
 		const selfLoop = sameEndpoint(nf, nt);
 		return {
 			id: c.id,
-			summary: summarizeConnection(c, connTagged.has(c.id)),
+			summary: summarizeConnection(c),
 			canReanchor: hasTarget && !selfLoop
 		};
 	});
@@ -779,51 +729,19 @@ export async function analyzeEdit(dbx, studyId, oldPassages, newPassages) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Delete commentaryTag rows for a set of subject ids of one type.
- * @param {Object} tx
- * @param {string} subjectType - 'segment'|'section'|'column'|'connection'
- * @param {string[]} ids
+ * Delete a set of segments (by id). Connections referencing them are
+ * cascade-deleted by FK.
  */
-async function deleteTagsFor(tx, subjectType, ids) {
-	if (ids.length === 0) return;
-	await tx
-		.delete(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids)));
-}
-
-/**
- * Delete a set of segments (by id) plus their connections and tags.
- * Connections are cascade-deleted by FK, but we first collect their ids so we
- * can clean their (FK-less) tags.
- */
-async function deleteSegments(tx, studyId, segmentIds) {
+async function deleteSegments(tx, segmentIds) {
 	if (segmentIds.length === 0) return;
-
-	// Connections referencing these segments will be cascade-deleted — collect
-	// their ids first so we can clean their (FK-less) commentary tags.
-	const allConns = await tx
-		.select()
-		.from(segmentConnection)
-		.where(eq(segmentConnection.studyId, studyId));
-	const segSet = new Set(segmentIds);
-	const connIdsToClean = allConns
-		.filter(
-			(c) =>
-				(c.fromSegmentId && segSet.has(c.fromSegmentId)) ||
-				(c.toSegmentId && segSet.has(c.toSegmentId))
-		)
-		.map((c) => c.id);
-
-	await deleteTagsFor(tx, 'connection', connIdsToClean);
-	await deleteTagsFor(tx, 'segment', segmentIds);
 	await tx.delete(passageSegment).where(inArray(passageSegment.id, segmentIds));
 }
 
 /**
- * Delete now-empty sections and columns in a passage (no surviving segments),
- * cleaning their tags and connections.
+ * Delete now-empty sections and columns in a passage (no surviving segments).
+ * Connections referencing them are cascade-deleted by FK.
  */
-async function pruneEmptyContainers(tx, studyId, passageId) {
+async function pruneEmptyContainers(tx, passageId) {
 	const tree = await loadTree(tx, passageId);
 
 	const emptySectionIds = [];
@@ -839,29 +757,6 @@ async function pruneEmptyContainers(tx, studyId, passageId) {
 		}
 	}
 
-	if (emptySectionIds.length > 0 || emptyColumnIds.length > 0) {
-		// Clean connections referencing these sections/columns (cascade will
-		// delete the connections themselves).
-		const allConns = await tx
-			.select()
-			.from(segmentConnection)
-			.where(eq(segmentConnection.studyId, studyId));
-		const secSet = new Set(emptySectionIds);
-		const colSet = new Set(emptyColumnIds);
-		const connIdsToClean = allConns
-			.filter(
-				(c) =>
-					(c.fromSectionId && secSet.has(c.fromSectionId)) ||
-					(c.toSectionId && secSet.has(c.toSectionId)) ||
-					(c.fromColumnId && colSet.has(c.fromColumnId)) ||
-					(c.toColumnId && colSet.has(c.toColumnId))
-			)
-			.map((c) => c.id);
-		await deleteTagsFor(tx, 'connection', connIdsToClean);
-		await deleteTagsFor(tx, 'section', emptySectionIds);
-		await deleteTagsFor(tx, 'column', emptyColumnIds);
-	}
-
 	if (emptySectionIds.length > 0) {
 		await tx.delete(passageSection).where(inArray(passageSection.id, emptySectionIds));
 	}
@@ -874,7 +769,6 @@ async function pruneEmptyContainers(tx, studyId, passageId) {
  * Fold an orphan segment's content into a surviving target segment.
  * - Headings fill only EMPTY target slots (never overwrite).
  * - note / commentary are appended.
- * - tags are re-pointed (deduped by termId).
  *
  * Layout (`height`) is deliberately NOT carried over: layout belongs to the
  * surviving structure, so the target keeps its own height and the orphan's is
@@ -914,67 +808,11 @@ async function foldSegmentContent(tx, fromSeg, targetSeg) {
 
 		await tx.update(passageSegment).set(set).where(eq(passageSegment.id, targetSeg.id));
 	}
-
-	// Move tags from the orphan segment onto the target, deduped by termId.
-	const fromTags = await tx
-		.select()
-		.from(commentaryTag)
-		.where(eq(commentaryTag.subjectId, fromSeg.id));
-	if (fromTags.length > 0) {
-		const targetTags = await tx
-			.select()
-			.from(commentaryTag)
-			.where(eq(commentaryTag.subjectId, targetSeg.id));
-		const existingTerms = new Set(
-			targetTags.filter((t) => t.subjectType === 'segment').map((t) => t.termId)
-		);
-		let order = targetTags.length;
-		for (const tag of fromTags) {
-			if (tag.subjectType !== 'segment') continue;
-			if (existingTerms.has(tag.termId)) continue;
-			await tx
-				.update(commentaryTag)
-				.set({ subjectId: targetSeg.id, displayOrder: order++ })
-				.where(eq(commentaryTag.id, tag.id));
-			existingTerms.add(tag.termId);
-		}
-	}
 }
 
 /**
- * Move all tags from one subject onto another of the same type, deduped by
- * termId. Tags whose termId already exists on the target are deleted (not
- * duplicated). Used when folding a section/column/connection into its target.
- */
-async function moveTagsDedup(tx, subjectType, fromId, toId) {
-	const fromTags = await tx
-		.select()
-		.from(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, subjectType), eq(commentaryTag.subjectId, fromId)));
-	if (fromTags.length === 0) return;
-
-	const targetTags = await tx
-		.select()
-		.from(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, subjectType), eq(commentaryTag.subjectId, toId)));
-	const existingTerms = new Set(targetTags.map((t) => t.termId));
-	let order = targetTags.length;
-	for (const tag of fromTags) {
-		if (existingTerms.has(tag.termId)) {
-			await tx.delete(commentaryTag).where(eq(commentaryTag.id, tag.id));
-			continue;
-		}
-		await tx
-			.update(commentaryTag)
-			.set({ subjectId: toId, displayOrder: order++ })
-			.where(eq(commentaryTag.id, tag.id));
-		existingTerms.add(tag.termId);
-	}
-}
-
-/**
- * Fold an orphan section's commentary + tags into a surviving target section.
- * Commentary is appended; tags are deduped by termId.
+ * Fold an orphan section's commentary into a surviving target section.
+ * Commentary is appended (inline glossary terms ride along with it).
  */
 async function foldCommentarySubject(tx, table, subjectType, fromRow, targetRow) {
 	if (fromRow.commentary) {
@@ -987,7 +825,6 @@ async function foldCommentarySubject(tx, table, subjectType, fromRow, targetRow)
 			.set({ commentary: merged, updatedAt: new Date() })
 			.where(eq(table.id, targetRow.id));
 	}
-	await moveTagsDedup(tx, subjectType, fromRow.id, targetRow.id);
 }
 
 /**
@@ -1000,11 +837,11 @@ async function foldCommentarySubject(tx, table, subjectType, fromRow, targetRow)
  *   - If both ends collapse onto the same target (self-loop), it is dropped
  *     (auto-fallback — a self-loop can't be re-anchored).
  *   - If the re-anchored shape duplicates an existing connection (same unordered
- *     endpoint pair), this one's note/commentary/tags fold into that existing
+ *     endpoint pair), this one's note/commentary fold into that existing
  *     connection and this row is deleted (no duplicate created).
  *   - Otherwise its endpoints are updated in place.
  * When the choice is 'delete' (or no surviving target exists), every affected
- * connection (and its tags) is removed outright.
+ * connection is removed outright.
  *
  * Must run BEFORE the orphan segments are deleted (so FK cascade doesn't remove
  * connections we intend to re-anchor).
@@ -1057,7 +894,6 @@ async function reanchorOrphanConnections(
 
 	for (const conn of affected) {
 		if (connChoice === 'delete' || !target) {
-			await deleteTagsFor(tx, 'connection', [conn.id]);
 			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
 			continue;
 		}
@@ -1067,7 +903,6 @@ async function reanchorOrphanConnections(
 
 		// Self-loop: both ends collapsed to the same target — meaningless, drop it.
 		if (sameEndpoint(newFrom, newTo)) {
-			await deleteTagsFor(tx, 'connection', [conn.id]);
 			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
 			continue;
 		}
@@ -1092,7 +927,6 @@ async function reanchorOrphanConnections(
 				if ('note' in set) dup.note = set.note;
 				if ('commentary' in set) dup.commentary = set.commentary;
 			}
-			await moveTagsDedup(tx, 'connection', conn.id, dup.id);
 			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
 			continue;
 		}
@@ -1432,14 +1266,14 @@ async function applyRemovalEdge(tx, studyId, passageId, side, boundaryWord, deci
 			await foldSegmentContent(tx, entry.segment, target.segment);
 		}
 	}
-	// 1b. Fold orphan SECTION commentary/tags.
+	// 1b. Fold orphan SECTION commentary.
 	if (target && secChoice === 'merge') {
 		for (const sec of orphanSections) {
 			if (sec.id === target.section.id) continue;
 			await foldCommentarySubject(tx, passageSection, 'section', sec, target.section);
 		}
 	}
-	// 1c. Fold orphan COLUMN commentary/tags.
+	// 1c. Fold orphan COLUMN commentary.
 	if (target && colChoice === 'merge') {
 		for (const col of orphanColumns) {
 			if (col.id === target.column.id) continue;
@@ -1461,53 +1295,20 @@ async function applyRemovalEdge(tx, studyId, passageId, side, boundaryWord, deci
 	// 3. Delete the orphan segments, prune emptied containers, re-anchor.
 	await deleteSegments(
 		tx,
-		studyId,
 		orphanEntries.map((e) => e.segment.id)
 	);
-	await pruneEmptyContainers(tx, studyId, passageId);
+	await pruneEmptyContainers(tx, passageId);
 	if (side === 'start') await reanchorFirst(tx, passageId, boundaryWord);
 }
 
 /**
  * Replace a passage's entire structure (used when book/testament changes).
+ * Deleting the columns cascade-deletes their sections, segments, and any
+ * connections that referenced them.
  */
-async function applyReplace(tx, studyId, passageId, newFirstWord) {
+async function applyReplace(tx, passageId, newFirstWord) {
 	const tree = await loadTree(tx, passageId);
-	const segmentIds = [];
-	const sectionIds = [];
-	const columnIds = [];
-	for (const column of tree) {
-		columnIds.push(column.id);
-		for (const section of column.sections) {
-			sectionIds.push(section.id);
-			for (const segment of section.segments) segmentIds.push(segment.id);
-		}
-	}
-
-	// Clean connection tags (connections cascade-deleted when segments/sections/columns go)
-	const allConns = await tx
-		.select()
-		.from(segmentConnection)
-		.where(eq(segmentConnection.studyId, studyId));
-	const segSet = new Set(segmentIds);
-	const secSet = new Set(sectionIds);
-	const colSet = new Set(columnIds);
-	const connIdsToClean = allConns
-		.filter(
-			(c) =>
-				(c.fromSegmentId && segSet.has(c.fromSegmentId)) ||
-				(c.toSegmentId && segSet.has(c.toSegmentId)) ||
-				(c.fromSectionId && secSet.has(c.fromSectionId)) ||
-				(c.toSectionId && secSet.has(c.toSectionId)) ||
-				(c.fromColumnId && colSet.has(c.fromColumnId)) ||
-				(c.toColumnId && colSet.has(c.toColumnId))
-		)
-		.map((c) => c.id);
-
-	await deleteTagsFor(tx, 'connection', connIdsToClean);
-	await deleteTagsFor(tx, 'segment', segmentIds);
-	await deleteTagsFor(tx, 'section', sectionIds);
-	await deleteTagsFor(tx, 'column', columnIds);
+	const columnIds = tree.map((column) => column.id);
 
 	if (columnIds.length > 0) {
 		await tx.delete(passageColumn).where(inArray(passageColumn.id, columnIds));
@@ -1556,7 +1357,7 @@ export async function applyPassageRangeChange(tx, studyId, old, next, decision =
 			fromChapter: next.fromChapter,
 			fromVerse: next.fromVerse
 		});
-		await applyReplace(tx, studyId, next.id, newFirst);
+		await applyReplace(tx, next.id, newFirst);
 		return;
 	}
 

@@ -8,17 +8,17 @@
  *     (the previous segment keeps its anchor; the active segment is deleted, so
  *     its words now belong to the previous segment, which runs until the next).
  *   - Join Section: the active section's segments re-parent to the previous
- *     section; the active section's own commentary/tags fold into it; the now
+ *     section; the active section's own commentary folds into it; the now
  *     empty section is deleted.
  *   - Join Column: the active column's sections re-parent to the previous
- *     column; the active column's own commentary/tags fold into it; the now
+ *     column; the active column's own commentary folds into it; the now
  *     empty column is deleted.
  *
  * "merge" (default) folds the joined item's authored content onto the target
  * using the shared fold helpers (headings fill empty slots, note/commentary
- * append, tags dedupe, connections re-anchor). "delete" discards the joined
- * item's OWN content/connections — but structural children (a section's
- * segments, a column's sections) ALWAYS re-parent and are never lost.
+ * append, connections re-anchor). "delete" discards the joined item's OWN
+ * content/connections — but structural children (a section's segments, a
+ * column's sections) ALWAYS re-parent and are never lost.
  *
  * The menu guards already disable Join for the first item in a passage; the
  * server re-validates (no preceding sibling ⇒ error) as defense in depth.
@@ -30,18 +30,16 @@ import {
 	passageColumn,
 	passageSection,
 	passageSegment,
-	segmentConnection,
-	commentaryTag
+	segmentConnection
 } from '$lib/server/db/schema.js';
 
-import { eq, and, inArray, asc } from 'drizzle-orm';
+import { eq, inArray, asc } from 'drizzle-orm';
 import { compareWordIds } from '$lib/server/db/utils.js';
 import { mergedNoteWillTruncate } from '$lib/constants/notes.js';
 import {
 	foldSegmentContent,
 	foldCommentarySubject,
-	reanchorConnectionsOnto,
-	deleteTagsFor
+	reanchorConnectionsOnto
 } from '$lib/server/db/passageFold.js';
 
 /* ------------------------------------------------------------------ */
@@ -189,16 +187,6 @@ async function countTouchingConnections(dbx, studyId, type, itemId) {
 	}).length;
 }
 
-/** Does the item carry at least one commentary tag? */
-async function hasTags(dbx, type, itemId) {
-	const rows = await dbx
-		.select({ id: commentaryTag.id })
-		.from(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, type), eq(commentaryTag.subjectId, itemId)))
-		.limit(1);
-	return rows.length > 0;
-}
-
 /* ------------------------------------------------------------------ */
 /* Analyze (server-side dry run that drives the confirm modal)         */
 /* ------------------------------------------------------------------ */
@@ -237,7 +225,6 @@ export async function analyzeJoin(dbx, userId, type, itemId) {
 		if (seg.headingOne || seg.headingTwo || seg.headingThree) parts.push('headings');
 		if (seg.note) parts.push('note');
 		if (seg.commentary) parts.push('commentary');
-		if (await hasTags(dbx, 'segment', itemId)) parts.push('tags');
 		// Folding appends the active note onto the target's existing note.
 		noteWillTruncate = mergedNoteWillTruncate(targetSeg.note, seg.note);
 	} else if (type === 'section') {
@@ -248,7 +235,6 @@ export async function analyzeJoin(dbx, userId, type, itemId) {
 		hasTarget = true;
 		const sec = flat[idx].section;
 		if (sec.commentary) parts.push('commentary');
-		if (await hasTags(dbx, 'section', itemId)) parts.push('tags');
 	} else if (type === 'column') {
 		const idx = tree.findIndex((c) => c.id === itemId);
 		if (idx < 0) throw new Error('Column not found');
@@ -256,7 +242,6 @@ export async function analyzeJoin(dbx, userId, type, itemId) {
 		hasTarget = true;
 		const col = tree[idx];
 		if (col.commentary) parts.push('commentary');
-		if (await hasTags(dbx, 'column', itemId)) parts.push('tags');
 	} else {
 		throw new Error('Invalid join type');
 	}
@@ -329,29 +314,8 @@ async function reanchorAndPrune(tx, studyId, passageId) {
 		}
 	}
 
-	if (emptySectionIds.length > 0 || emptyColumnIds.length > 0) {
-		// Clean connections referencing the to-be-removed sections/columns (the
-		// connections themselves cascade-delete with the rows).
-		const allConns = await tx
-			.select()
-			.from(segmentConnection)
-			.where(eq(segmentConnection.studyId, studyId));
-		const secSet = new Set(emptySectionIds);
-		const colSet = new Set(emptyColumnIds);
-		const connIdsToClean = allConns
-			.filter(
-				(c) =>
-					(c.fromSectionId && secSet.has(c.fromSectionId)) ||
-					(c.toSectionId && secSet.has(c.toSectionId)) ||
-					(c.fromColumnId && colSet.has(c.fromColumnId)) ||
-					(c.toColumnId && colSet.has(c.toColumnId))
-			)
-			.map((c) => c.id);
-		await deleteTagsFor(tx, 'connection', connIdsToClean);
-		await deleteTagsFor(tx, 'section', emptySectionIds);
-		await deleteTagsFor(tx, 'column', emptyColumnIds);
-	}
-
+	// Connections referencing removed sections/columns cascade-delete with the
+	// rows, so no manual cleanup is needed here.
 	if (emptySectionIds.length > 0) {
 		await tx.delete(passageSection).where(inArray(passageSection.id, emptySectionIds));
 	}
@@ -406,8 +370,7 @@ export async function joinSegment(dbInstance, userId, segmentId, decision = 'mer
 			decision === 'delete' ? 'delete' : 'reanchor'
 		);
 
-		// 3. Delete the active segment + its tags.
-		await deleteTagsFor(tx, 'segment', [segmentId]);
+		// 3. Delete the active segment.
 		await tx.delete(passageSegment).where(eq(passageSegment.id, segmentId));
 
 		// 4. Re-anchor parents and prune anything left empty.
@@ -422,7 +385,7 @@ export async function joinSegment(dbInstance, userId, segmentId, decision = 'mer
 /**
  * Join a section into the section immediately preceding it. The active
  * section's segments re-parent to the previous section; its own commentary/
- * tags/connections merge or are deleted; the emptied section is removed.
+ * connections merge or are deleted; the emptied section is removed.
  * @param {Object} dbInstance
  * @param {string} userId
  * @param {string} sectionId
@@ -448,11 +411,9 @@ export async function joinSection(dbInstance, userId, sectionId, decision = 'mer
 		};
 		const now = new Date();
 
-		// 1. Fold the active section's own commentary/tags (merge only).
+		// 1. Fold the active section's own commentary (merge only).
 		if (decision === 'merge') {
 			await foldCommentarySubject(tx, passageSection, 'section', active.section, target.section);
-		} else {
-			await deleteTagsFor(tx, 'section', [sectionId]);
 		}
 
 		// 2. Reconcile connections that point at the section itself.
@@ -490,8 +451,8 @@ export async function joinSection(dbInstance, userId, sectionId, decision = 'mer
 
 /**
  * Join a column into the column immediately preceding it. The active column's
- * sections re-parent to the previous column; its own commentary/tags/
- * connections merge or are deleted; the emptied column is removed.
+ * sections re-parent to the previous column; its own commentary/connections
+ * merge or are deleted; the emptied column is removed.
  * @param {Object} dbInstance
  * @param {string} userId
  * @param {string} columnId
@@ -516,11 +477,9 @@ export async function joinColumn(dbInstance, userId, columnId, decision = 'merge
 		};
 		const now = new Date();
 
-		// 1. Fold the active column's own commentary/tags (merge only).
+		// 1. Fold the active column's own commentary (merge only).
 		if (decision === 'merge') {
 			await foldCommentarySubject(tx, passageColumn, 'column', active, targetColumn);
-		} else {
-			await deleteTagsFor(tx, 'column', [columnId]);
 		}
 
 		// 2. Reconcile connections that point at the column itself.

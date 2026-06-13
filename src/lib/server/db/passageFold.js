@@ -8,23 +8,22 @@
  *
  *   - Headings fill only EMPTY target slots (never overwrite).
  *   - note / commentary are appended with a newline.
- *   - tags are re-pointed onto the target, deduped by termId.
  *   - connections are re-anchored onto the target (merging into a duplicate or
  *     dropping a resulting self-loop), or deleted outright.
  *
- * `commentaryTag` rows are polymorphic with NO foreign key, so they are cleaned
- * up manually here whenever an item is removed.
+ * Glossary terms are no longer a persisted, item-level concept: they live
+ * purely inline inside the commentary prose, so they fold automatically when
+ * commentary is appended and need no separate handling here.
  */
 
 import {
 	passageColumn,
 	passageSection,
 	passageSegment,
-	segmentConnection,
-	commentaryTag
+	segmentConnection
 } from '$lib/server/db/schema.js';
 
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { truncateNote } from '$lib/constants/notes.js';
 
 /* ------------------------------------------------------------------ */
@@ -73,54 +72,6 @@ export function endpointColumns(end, ep) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Tag helpers                                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Delete commentaryTag rows for a set of subject ids of one type.
- * @param {Object} tx
- * @param {string} subjectType - 'segment'|'section'|'column'|'connection'
- * @param {string[]} ids
- */
-export async function deleteTagsFor(tx, subjectType, ids) {
-	if (ids.length === 0) return;
-	await tx
-		.delete(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids)));
-}
-
-/**
- * Move all tags from one subject onto another of the same type, deduped by
- * termId. Tags whose termId already exists on the target are deleted (not
- * duplicated). Used when folding a section/column/connection into its target.
- */
-export async function moveTagsDedup(tx, subjectType, fromId, toId) {
-	const fromTags = await tx
-		.select()
-		.from(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, subjectType), eq(commentaryTag.subjectId, fromId)));
-	if (fromTags.length === 0) return;
-
-	const targetTags = await tx
-		.select()
-		.from(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, subjectType), eq(commentaryTag.subjectId, toId)));
-	const existingTerms = new Set(targetTags.map((t) => t.termId));
-	let order = targetTags.length;
-	for (const tag of fromTags) {
-		if (existingTerms.has(tag.termId)) {
-			await tx.delete(commentaryTag).where(eq(commentaryTag.id, tag.id));
-			continue;
-		}
-		await tx
-			.update(commentaryTag)
-			.set({ subjectId: toId, displayOrder: order++ })
-			.where(eq(commentaryTag.id, tag.id));
-		existingTerms.add(tag.termId);
-	}
-}
-
-/* ------------------------------------------------------------------ */
 /* Content fold helpers                                                */
 /* ------------------------------------------------------------------ */
 
@@ -128,7 +79,6 @@ export async function moveTagsDedup(tx, subjectType, fromId, toId) {
  * Fold an orphan segment's content into a surviving target segment.
  * - Headings fill only EMPTY target slots (never overwrite).
  * - note / commentary are appended.
- * - tags are re-pointed (deduped by termId).
  *
  * Layout (`height`) is deliberately NOT carried over: layout belongs to the
  * surviving structure, so the target keeps its own height and the orphan's is
@@ -168,36 +118,11 @@ export async function foldSegmentContent(tx, fromSeg, targetSeg) {
 
 		await tx.update(passageSegment).set(set).where(eq(passageSegment.id, targetSeg.id));
 	}
-
-	// Move tags from the orphan segment onto the target, deduped by termId.
-	const fromTags = await tx
-		.select()
-		.from(commentaryTag)
-		.where(eq(commentaryTag.subjectId, fromSeg.id));
-	if (fromTags.length > 0) {
-		const targetTags = await tx
-			.select()
-			.from(commentaryTag)
-			.where(eq(commentaryTag.subjectId, targetSeg.id));
-		const existingTerms = new Set(
-			targetTags.filter((t) => t.subjectType === 'segment').map((t) => t.termId)
-		);
-		let order = targetTags.length;
-		for (const tag of fromTags) {
-			if (tag.subjectType !== 'segment') continue;
-			if (existingTerms.has(tag.termId)) continue;
-			await tx
-				.update(commentaryTag)
-				.set({ subjectId: targetSeg.id, displayOrder: order++ })
-				.where(eq(commentaryTag.id, tag.id));
-			existingTerms.add(tag.termId);
-		}
-	}
 }
 
 /**
- * Fold an orphan section/column's commentary + tags into a surviving target of
- * the same kind. Commentary is appended; tags are deduped by termId.
+ * Fold an orphan section/column's commentary into a surviving target of the
+ * same kind. Commentary is appended (inline glossary terms ride along with it).
  */
 export async function foldCommentarySubject(tx, table, subjectType, fromRow, targetRow) {
 	if (fromRow.commentary) {
@@ -210,7 +135,6 @@ export async function foldCommentarySubject(tx, table, subjectType, fromRow, tar
 			.set({ commentary: merged, updatedAt: new Date() })
 			.where(eq(table.id, targetRow.id));
 	}
-	await moveTagsDedup(tx, subjectType, fromRow.id, targetRow.id);
 }
 
 /* ------------------------------------------------------------------ */
@@ -226,11 +150,11 @@ export async function foldCommentarySubject(tx, table, subjectType, fromRow, tar
  *     surviving target of the same kind.
  *   - If both ends collapse onto the same target (self-loop), it is dropped.
  *   - If the re-anchored shape duplicates an existing connection (same unordered
- *     endpoint pair), this one's note/commentary/tags fold into that existing
+ *     endpoint pair), this one's note/commentary fold into that existing
  *     connection and this row is deleted (no duplicate created).
  *   - Otherwise its endpoints are updated in place.
  * When `connChoice` is 'delete' (or no surviving target exists), every affected
- * connection (and its tags) is removed outright.
+ * connection is removed outright.
  *
  * Must run BEFORE the orphan segments are deleted (so FK cascade doesn't remove
  * a connection we intend to re-anchor).
@@ -288,7 +212,6 @@ export async function reanchorConnectionsOnto(
 
 	for (const conn of affected) {
 		if (connChoice === 'delete' || !target) {
-			await deleteTagsFor(tx, 'connection', [conn.id]);
 			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
 			continue;
 		}
@@ -298,7 +221,6 @@ export async function reanchorConnectionsOnto(
 
 		// Self-loop: both ends collapsed to the same target — meaningless, drop it.
 		if (sameEndpoint(newFrom, newTo)) {
-			await deleteTagsFor(tx, 'connection', [conn.id]);
 			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
 			continue;
 		}
@@ -323,7 +245,6 @@ export async function reanchorConnectionsOnto(
 				if ('note' in set) dup.note = set.note;
 				if ('commentary' in set) dup.commentary = set.commentary;
 			}
-			await moveTagsDedup(tx, 'connection', conn.id, dup.id);
 			await tx.delete(segmentConnection).where(eq(segmentConnection.id, conn.id));
 			continue;
 		}
@@ -352,52 +273,31 @@ export async function reanchorConnectionsOnto(
 /* ------------------------------------------------------------------ */
 
 /** Short human summary of a segment's authored content. */
-export function summarizeSegmentContent(seg, isTagged) {
+export function summarizeSegmentContent(seg) {
 	const parts = [];
 	if (seg.headingOne || seg.headingTwo || seg.headingThree) parts.push('headings');
 	if (seg.note) parts.push('note');
 	if (seg.commentary) parts.push('commentary');
-	if (isTagged) parts.push('tags');
 	// Layout (`height`) is intentionally omitted — it belongs to the surviving
 	// structure and is never surfaced as authored content.
 	return parts.join(', ');
 }
 
 /** Short summary of a section/column commentary subject. */
-export function summarizeCommentarySubject(row, isTagged) {
+export function summarizeCommentarySubject(row) {
 	const parts = [];
 	if (row.commentary) parts.push('commentary');
-	if (isTagged) parts.push('tags');
 	return parts.join(', ');
 }
 
 /** Short summary of a connection (endpoint kinds + any content). */
-export function summarizeConnection(conn, isTagged) {
+export function summarizeConnection(conn) {
 	const parts = [];
 	if (conn.note) parts.push('note');
 	if (conn.commentary) parts.push('commentary');
-	if (isTagged) parts.push('tags');
 	const content = parts.length ? `, ${parts.join(', ')}` : '';
 	return `${conn.fromType} ↔ ${conn.toType}${content}`;
 }
 
-/**
- * Build a set of subjectIds that carry at least one tag of the given type.
- * @param {Object} dbx
- * @param {string} subjectType - 'segment'|'section'|'column'|'connection'
- * @param {string[]} ids
- * @returns {Promise<Set<string>>}
- */
-export async function loadTaggedIds(dbx, subjectType, ids) {
-	if (ids.length === 0) return new Set();
-	const rows = await dbx
-		.select({ subjectId: commentaryTag.subjectId })
-		.from(commentaryTag)
-		.where(and(eq(commentaryTag.subjectType, subjectType), inArray(commentaryTag.subjectId, ids)));
-	const set = new Set();
-	for (const r of rows) set.add(r.subjectId);
-	return set;
-}
-
 // Re-export table refs so consumers can pass them to foldCommentarySubject.
-export { passageColumn, passageSection, passageSegment, segmentConnection, commentaryTag };
+export { passageColumn, passageSection, passageSegment, segmentConnection };

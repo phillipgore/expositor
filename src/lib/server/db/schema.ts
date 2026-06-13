@@ -281,28 +281,3 @@ export const segmentConnection = pgTable('segment_connection', {
 	toColumnIdIdx: index('segment_connection_to_column_id_idx').on(table.toColumnId)
 }));
 
-/**
- * Glossary "tags" applied to the whole commentary subject (segment, section,
- * column, or connection). Polymorphic by (subjectType, subjectId).
- *
- * `termId` references a STATIC glossary term `_id` from glossary.json — there is
- * intentionally no foreign key, since the glossary is bundled JSON, not a table.
- * The display label/definition/examples are resolved live from the JSON.
- */
-export const commentaryTag = pgTable('commentary_tag', {
-	id: text('id').primaryKey(),
-	/** 'segment' | 'section' | 'column' | 'connection' */
-	subjectType: text('subject_type').notNull(),
-	subjectId: text('subject_id').notNull(),
-	/** Glossary term _id, e.g. 'ls-chiasm' */
-	termId: text('term_id').notNull(),
-	displayOrder: integer('display_order').notNull().default(0),
-	createdAt: timestamp('created_at')
-		.$defaultFn(() => /* @__PURE__ */ new Date())
-		.notNull()
-}, (table) => ({
-	subjectIdx: index('commentary_tag_subject_idx').on(table.subjectType, table.subjectId),
-	termIdIdx: index('commentary_tag_term_id_idx').on(table.termId),
-	subjectTypeCheck: sql`CHECK (subject_type IN ('segment', 'section', 'column', 'connection'))`
-}));
-

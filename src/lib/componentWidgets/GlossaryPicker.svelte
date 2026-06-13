@@ -3,9 +3,7 @@
 	 * GlossaryPicker Component
 	 *
 	 * A popover with a search box and a category-grouped, keyboard-navigable list
-	 * of glossary terms. Used by BOTH entry points:
-	 *  - inserting an inline glossary badge into commentary
-	 *  - adding a bottom "tag" to the item being commented on
+	 * of glossary terms. Used to insert an inline glossary badge into commentary.
 	 *
 	 * Emits the chosen term's id via `onSelect(termId)`. Caller positions the
 	 * popover via the `position` prop and closes it via `onClose`.
@@ -41,7 +39,7 @@
 	let results = $derived(searchGlossary(query));
 	let groups = $derived(groupByCategory(results));
 
-	// Keep the active index in range as results change
+	// Keep the active index in range as results change.
 	$effect(() => {
 		if (activeIndex >= results.length) {
 			activeIndex = Math.max(0, results.length - 1);
@@ -66,17 +64,26 @@
 		onSelect(termId);
 	}
 
+	/**
+	 * Move the active index by `step`, wrapping around the list.
+	 * @param {1|-1} step
+	 */
+	function moveActive(step) {
+		const len = results.length;
+		if (!len) return;
+		activeIndex = (activeIndex + step + len) % len;
+		scrollActiveIntoView();
+	}
+
 	function handleKeydown(event) {
 		switch (event.key) {
 			case 'ArrowDown':
 				event.preventDefault();
-				if (results.length) activeIndex = (activeIndex + 1) % results.length;
-				scrollActiveIntoView();
+				moveActive(1);
 				break;
 			case 'ArrowUp':
 				event.preventDefault();
-				if (results.length) activeIndex = (activeIndex - 1 + results.length) % results.length;
-				scrollActiveIntoView();
+				moveActive(-1);
 				break;
 			case 'Enter':
 				event.preventDefault();
@@ -133,7 +140,9 @@
 							type="button"
 							class="glossary-option {entry.color}"
 							class:active={flatIndex === activeIndex}
-							onmouseenter={() => (activeIndex = flatIndex)}
+							onmouseenter={() => {
+								activeIndex = flatIndex;
+							}}
 							onclick={() => choose(entry._id)}
 						>
 							<span class="option-term">{entry.term}</span>

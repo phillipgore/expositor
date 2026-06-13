@@ -77,11 +77,10 @@
 		{ name: 'Pink', value: 'var(--pink-light)' }
 	];
 
-	// Glossary picker state. `glossaryMode` distinguishes the two entry points:
-	//  - 'inline' → insert a badge into the prose at the cursor
-	//  - 'tag'    → add a bottom tag for the whole subject
+	// Glossary picker state. The picker now has a single entry point: inserting
+	// an inline badge into the prose at the cursor. The bottom "tags" strip is a
+	// read-only reflection of the glossary terms used inline (see `inlineTermIds`).
 	let showGlossaryPicker = $state(false);
-	let glossaryMode = $state('inline');
 	let glossaryPickerPosition = $state({ top: 0, left: 0, arrowPosition: 'bottom', arrowOffset: 0, maxHeight: 0 });
 
 
@@ -89,10 +88,6 @@
 	// Remember the element that opened the picker so we can reposition it when
 	// the window is resized while the picker is open.
 	let glossaryTriggerEl = null;
-
-
-	// Bottom "tags" for the whole subject (loaded from /api/commentary-tags).
-	let tags = $state([]);
 
 
 	// Zoom state
@@ -513,6 +508,12 @@
 	// Extract footnotes from editor content
 	let footnotes = $state([]);
 
+	// Set of glossary term ids currently present as inline pills in the document,
+	// in first-appearance order. The bottom "tags" strip is a pure reflection of
+	// this set — there is no separate persisted tag list. A term is removed from
+	// the strip simply by deleting its inline pill from the prose.
+	let inlineTermIds = $state([]);
+
 	// Extract footnotes when editor updates
 	$effect(() => {
 		if (!editor) {
@@ -527,9 +528,11 @@
 			const json = editor.getJSON();
 			console.log('[FOOTNOTES] Editor JSON:', json);
 			const notes = [];
+			const seen = new Set();
+			const termIds = [];
 			
-			// Recursively search for footnote nodes
-			const extractFootnotes = (node) => {
+			// Recursively search for footnote + inline glossaryTerm nodes
+			const walk = (node) => {
 				if (node.type === 'footnote' && node.attrs) {
 					console.log('[FOOTNOTES] Found footnote:', node.attrs);
 					notes.push({
@@ -537,15 +540,22 @@
 						content: node.attrs.content
 					});
 				}
+				if (node.type === 'glossaryTerm' && node.attrs?.termId && !seen.has(node.attrs.termId)) {
+					seen.add(node.attrs.termId);
+					termIds.push(node.attrs.termId);
+				}
 				if (node.content) {
-					node.content.forEach(extractFootnotes);
+					node.content.forEach(walk);
 				}
 			};
 			
-			extractFootnotes(json);
+			walk(json);
 			console.log('[FOOTNOTES] Total found:', notes.length, notes);
 			// Keep footnotes in document order (don't sort by ID)
 			footnotes = notes;
+			// The bottom "tags" strip is a pure reflection of the glossary terms
+			// used inline, in first-appearance order.
+			inlineTermIds = termIds;
 		};
 		
 		// Extract on mount
@@ -756,18 +766,6 @@
 	 * Open the picker to insert an inline glossary badge at the cursor.
 	 */
 	function openGlossaryInline(event) {
-		glossaryMode = 'inline';
-		glossaryTriggerEl = event.currentTarget;
-		positionPickerFor(event.currentTarget);
-		showGlossaryPicker = true;
-	}
-
-
-	/**
-	 * Open the picker to add a bottom tag for the whole subject.
-	 */
-	function openGlossaryTag(event) {
-		glossaryMode = 'tag';
 		glossaryTriggerEl = event.currentTarget;
 		positionPickerFor(event.currentTarget);
 		showGlossaryPicker = true;
@@ -779,15 +777,12 @@
 	}
 
 	/**
-	 * Handle a term chosen from the picker, routing to the active mode.
+	 * Handle a term chosen from the picker: insert it inline at the cursor. The
+	 * bottom "tags" strip updates automatically since it reflects inline terms.
 	 * @param {string} termId
 	 */
 	function handleGlossarySelect(termId) {
-		if (glossaryMode === 'inline') {
-			insertInlineTerm(termId);
-		} else {
-			addTag(termId);
-		}
+		insertInlineTerm(termId);
 		closeGlossaryPicker();
 	}
 
@@ -813,21 +808,22 @@
 		if (!hasSelection) {
 			// No selection: insert a bare pill at the cursor (unchanged behavior).
 			editor.chain().focus().setGlossaryTerm({ termId, label }).run();
-			return;
+		} else {
+			// Selection present: insert the pill at the END of the selection, then
+			// apply the tinted band across the whole range (original text + pill).
+			// Inserting at `to` grows the document by 1 position (the atom node), so
+			// the band's end is `to + 1`.
+			editor
+				.chain()
+				.focus()
+				.insertContentAt(to, { type: 'glossaryTerm', attrs: { termId, label } })
+				.setTextSelection({ from, to: to + 1 })
+				.setTaggedHighlight({ termId })
+				.setTextSelection(to + 1)
+				.run();
 		}
-
-		// Selection present: insert the pill at the END of the selection, then
-		// apply the tinted band across the whole range (original text + pill).
-		// Inserting at `to` grows the document by 1 position (the atom node), so
-		// the band's end is `to + 1`.
-		editor
-			.chain()
-			.focus()
-			.insertContentAt(to, { type: 'glossaryTerm', attrs: { termId, label } })
-			.setTextSelection({ from, to: to + 1 })
-			.setTaggedHighlight({ termId })
-			.setTextSelection(to + 1)
-			.run();
+		// The bottom "tags" strip reflects inline terms automatically (it derives
+		// from `inlineTermIds`), so there's nothing else to persist here.
 	}
 
 	/**
@@ -914,70 +910,15 @@
 	}
 
 
-	/* ---- Bottom tags (persisted via /api/commentary-tags) ---- */
-
+	/* ---- Bottom tags (derived purely from the inline glossary terms) ----
+	 *
+	 * The bottom strip is a read-only reflection of the glossary terms used
+	 * inline in the commentary prose. There is no separate persisted tag list
+	 * and no "add a tag" entry point: a term appears here as soon as its pill is
+	 * inserted, and disappears when the pill is removed. `inlineTermIds` is kept
+	 * up to date by the document-walk in the footnote extraction effect.
+	 */
 	let hasSubject = $derived(!!subjectType && !!subjectId);
-
-	async function loadTags() {
-		if (!subjectType || !subjectId) {
-			tags = [];
-			return;
-		}
-		try {
-			const res = await fetch(
-				`/api/commentary-tags?subjectType=${encodeURIComponent(subjectType)}&subjectId=${encodeURIComponent(subjectId)}`
-			);
-			if (res.ok) {
-				const data = await res.json();
-				tags = data.tags || [];
-			} else {
-				tags = [];
-			}
-		} catch (error) {
-			console.error('[TAGS] Failed to load tags:', error);
-			tags = [];
-		}
-	}
-
-	async function addTag(termId) {
-		if (!subjectType || !subjectId) return;
-		// Optimistic: skip if already present
-		if (tags.some((t) => t.termId === termId)) return;
-		try {
-			const res = await fetch('/api/commentary-tags', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ subjectType, subjectId, termId })
-			});
-			if (res.ok) {
-				const data = await res.json();
-				if (data.tag) tags = [...tags, data.tag];
-			}
-		} catch (error) {
-			console.error('[TAGS] Failed to add tag:', error);
-		}
-	}
-
-	async function removeTag(tag) {
-		try {
-			const res = await fetch(`/api/commentary-tags?id=${encodeURIComponent(tag.id)}`, {
-				method: 'DELETE'
-			});
-			if (res.ok) {
-				tags = tags.filter((t) => t.id !== tag.id);
-			}
-		} catch (error) {
-			console.error('[TAGS] Failed to remove tag:', error);
-		}
-	}
-
-	// Load tags whenever the subject changes
-	$effect(() => {
-		// Reference reactive deps explicitly
-		const _type = subjectType;
-		const _id = subjectId;
-		loadTags();
-	});
 
 	// Wire hover tooltips for inline glossary badges rendered inside Tiptap.
 	// Delegated listeners on the editor element (the `use:tooltip` action can't
@@ -1465,32 +1406,16 @@
 	<div class="editor-content" style="transform: scale({zoomScale}); transform-origin: top left;" onclick={handleEditorContentClick}>
 		<div bind:this={editorElement}></div>
 		
-		{#if hasSubject}
+		{#if hasSubject && inlineTermIds.length > 0}
 			<div class="tags-section">
 				<div class="tags-box">
-				<div class="tags-row">
-					<div class="tags-list">
-						{#each tags as tag (tag.id)}
-							<GlossaryBadge
-								termId={tag.termId}
-								removable={true}
-								onRemove={() => removeTag(tag)}
-							/>
-						{/each}
+					<div class="tags-row">
+						<div class="tags-list">
+							{#each inlineTermIds as termId (termId)}
+								<GlossaryBadge {termId} removable={false} />
+							{/each}
+						</div>
 					</div>
-					<div class="tags-actions">
-						<button
-							type="button"
-							class="tag-add-button"
-							onmousedown={(e) => e.preventDefault()}
-							onclick={openGlossaryTag}
-							aria-label="Add Glossary Term"
-						>
-							Add Glossary Term
-						</button>
-
-					</div>
-				</div>
 				</div>
 			</div>
 		{/if}
@@ -2129,58 +2054,11 @@
 		gap: 0.9rem;
 	}
 
-	.tags-actions {
-		display: flex;
-		justify-content: flex-end;
-	}
-
-
-	.tags-label {
-		flex-shrink: 0;
-		font-size: 1.1rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--gray-400);
-		padding-top: 0.4rem;
-	}
-
 	.tags-list {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.6rem;
 	}
-
-	.tag-add-button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		height: 2.8rem;
-		padding: 0 0.9rem;
-		border: none;
-		border-radius: 0.3rem;
-		background-color: var(--gray-light);
-		color: var(--gray-darker);
-		font-size: 1.2rem;
-		font-weight: 600;
-		font-family: inherit;
-		line-height: 1;
-		white-space: nowrap;
-		cursor: pointer;
-		transition: all 0.15s ease;
-	}
-
-	.tag-add-button:hover {
-		background-color: var(--gray-light);
-		border-color: var(--gray-500);
-	}
-
-	.tag-add-button:active {
-		background-color: var(--gray-dark);
-		color: var(--white);
-	}
-
-
 </style>
 
