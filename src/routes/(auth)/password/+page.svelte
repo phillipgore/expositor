@@ -2,6 +2,7 @@
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import InputField from '$lib/componentWidgets/InputField.svelte';
 	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
 	import InstructionText from '$lib/componentElements/InstructionText.svelte';
@@ -92,12 +93,13 @@
 		/>
 
 		<FormButtonBar>
-			<Button 
-				type="submit" 
-				label={isLoading ? "Sending..." : "Send Link"}
-				classes="blue"
-				isDisabled={isLoading}
-			/>
+			<Button type="submit" classes="blue" isDisabled={isLoading}>
+				{#if isLoading}
+					<Spinner size="sm" inline color="var(--white)" label="Sending…" showLabel />
+				{:else}
+					Send Link
+				{/if}
+			</Button>
 		</FormButtonBar>
 	{/if}
 </form>

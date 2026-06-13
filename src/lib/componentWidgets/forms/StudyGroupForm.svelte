@@ -13,6 +13,7 @@
 	 */
 	import { enhance } from '$app/forms';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import InputField from '$lib/componentWidgets/InputField.svelte';
 	import TextareaField from '$lib/componentWidgets/TextareaField.svelte';
@@ -119,7 +120,13 @@
 
 	<FormButtonBar>
 		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting}></Button>
-		<Button type="submit" label={isSubmitting ? 'Saving...' : 'Save'} classes="blue" isDisabled={isSubmitting || hasDuplicateName}></Button>
+		<Button type="submit" classes="blue" isDisabled={isSubmitting || hasDuplicateName}>
+			{#if isSubmitting}
+				<Spinner size="sm" inline color="var(--white)" label="Saving…" showLabel />
+			{:else}
+				Save
+			{/if}
+		</Button>
 	</FormButtonBar>
 </form>
 

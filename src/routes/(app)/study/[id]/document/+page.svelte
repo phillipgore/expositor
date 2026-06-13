@@ -3,8 +3,47 @@
 	import { onMount } from 'svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
+	import { setStudyContentLoading } from '$lib/stores/loading.js';
 
-	let { data } = $props();
+	let { data: rawData } = $props();
+
+	// The heavy passage text/structure is streamed from the server (see
+	// +layout.server.js). Resolve it into local state and expose a derived `data`
+	// that merges it back in, so all existing `data.passagesWithText` references
+	// keep working unchanged — they simply read `undefined` until the stream lands.
+	let streamedContent = $state(/** @type {{ passagesWithText: any[], connections: any[] } | null} */ (null));
+
+	$effect(() => {
+		// Re-runs whenever a navigation hands us a new streamed promise. Clear the
+		// previous study's resolved content immediately and flag the global loader so
+		// the single navigation Spinner stays up continuously until the new stream
+		// lands (rather than handing off to a separate in-page spinner).
+		const promise = rawData.streamed?.content;
+		streamedContent = null;
+		setStudyContentLoading(true);
+
+		let cancelled = false;
+		promise?.then((c) => {
+			if (!cancelled) {
+				streamedContent = c;
+				setStudyContentLoading(false);
+			}
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	// Clear the global loading flag if this page is torn down mid-stream (e.g. the
+	// user navigates away before the content resolves), so the overlay never sticks.
+	onMount(() => () => setStudyContentLoading(false));
+
+	let data = $derived({
+		...rawData,
+		passagesWithText: streamedContent?.passagesWithText,
+		connections: streamedContent?.connections
+	});
+
 
 	// Invalidate studies list when study is accessed
 	onMount(() => {
@@ -58,8 +97,11 @@
 	</div>
 	
 	<!-- Document View Content -->
+	<!-- While the streamed content resolves, the single global NavigationIndicator
+	     overlay covers the wait (see stores/loading.js), so there is no in-page
+	     spinner here. -->
 	<div class="document-content">
-		{#if data.passagesWithText && data.passagesWithText.length > 0}
+		{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 			{#each data.passagesWithText as passageText}
 				{#if passageText.error}
 					<div class="error-message">
@@ -81,6 +123,10 @@
 					<p>Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved.</p>
 				{/if}
 			</div>
+		{:else if !streamedContent}
+			<!-- Still streaming: render nothing. The global NavigationIndicator overlay
+			     covers this wait; showing the "No passages available" placeholder here
+			     would flash misleading text before the content lands. -->
 		{:else}
 			<p class="placeholder-text">No passages available for this study.</p>
 		{/if}

@@ -4,6 +4,7 @@
 	import { initializeAuth, isLoading } from '$lib/stores/auth.js';
 	import ViewportWarning from '$lib/componentWidgets/ViewportWarning.svelte';
 	import Tooltip from '$lib/componentElements/Tooltip.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 
 	onMount(async () => {
 		// CSS Anchor Positioning polyfill (client-side only)
@@ -21,7 +22,9 @@
 <Tooltip />
 
 {#if $isLoading}
-	<div class="loading">Loading...</div>
+	<div class="loading">
+		<Spinner size="lg" label="Loading…" />
+	</div>
 {:else}
 	<slot />
 {/if}
@@ -32,6 +35,5 @@
 		justify-content: center;
 		align-items: center;
 		height: 100vh;
-		font-size: 1.2rem;
 	}
 </style>

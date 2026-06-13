@@ -2,13 +2,31 @@
 	import { isAuthenticated } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { navigating } from '$app/stores';
 	import { onMount } from 'svelte';
 	import ToolbarApp from '$lib/componentWidgets/ToolbarApp.svelte';
 	import StudiesPanel from '$lib/componentWidgets/StudiesPanel.svelte';
 	import CommentaryPanel from '$lib/componentWidgets/CommentaryPanel.svelte';
+	import NavigationIndicator from '$lib/componentWidgets/NavigationIndicator.svelte';
 	import { toolbarState, setToolbarState } from '$lib/stores/toolbar.js';
+	import { setStudyContentLoading } from '$lib/stores/loading.js';
 
 	let { data, children } = $props();
+
+	// Pre-arm the study content loader the moment a navigation toward a study route
+	// begins. The study pages STREAM their heavy passage data, so `navigating` clears
+	// as soon as the light `load` returns — slightly BEFORE the destination page's
+	// own effect can flip `studyContentLoading` on. Setting it here (while the nav is
+	// still in flight) closes that gap so the single overlay never blinks off between
+	// the navigation and streaming phases. The destination page clears the flag once
+	// its streamed content resolves.
+	$effect(() => {
+		const target = $navigating?.to?.url?.pathname ?? '';
+		if (/\/study\/[^/]+\/(document|analyze)/.test(target)) {
+			setStudyContentLoading(true);
+		}
+	});
+
 
 	// Initialize toolbar state with persisted preferences
 	$effect(() => {
@@ -84,6 +102,7 @@
 </script>
 
 {#if $isAuthenticated}
+	<NavigationIndicator delay={120} />
 	<ToolbarApp groups={data.groups || []}></ToolbarApp>
 	<div class="app-container">
 		<StudiesPanel 

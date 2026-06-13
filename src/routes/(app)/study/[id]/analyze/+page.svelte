@@ -28,10 +28,51 @@
 
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings } from '$lib/stores/toolbar.js';
+	import { setStudyContentLoading } from '$lib/stores/loading.js';
 
 
 
-	let { data } = $props();
+	let { data: rawData } = $props();
+
+	// The heavy passage text/structure + connections are streamed from the server
+	// (see +layout.server.js) so the page shell, toolbar, and sidebar render
+	// instantly even for large studies on slow connections. We resolve the streamed
+	// promise into local state and expose a derived `data` that merges it back in,
+	// so every existing `data.passagesWithText` / `data.connections` reference in
+	// this (large) component keeps working unchanged — those reads simply see
+	// `undefined`/`[]` until the stream lands, which all the existing guards handle.
+	let streamedContent = $state(/** @type {{ passagesWithText: any[], connections: any[] } | null} */ (null));
+
+	$effect(() => {
+		// Re-runs whenever a navigation hands us a new streamed promise. Clear the
+		// previous study's resolved content immediately and flag the global loader so
+		// the single navigation Spinner stays up continuously until the new stream
+		// lands (rather than handing off to a separate in-page spinner).
+		const promise = rawData.streamed?.content;
+		streamedContent = null;
+		setStudyContentLoading(true);
+
+		let cancelled = false;
+		promise?.then((c) => {
+			if (!cancelled) {
+				streamedContent = c;
+				setStudyContentLoading(false);
+			}
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	// Clear the global loading flag if this page is torn down mid-stream (e.g. the
+	// user navigates away before the content resolves), so the overlay never sticks.
+	onMount(() => () => setStudyContentLoading(false));
+
+	let data = $derived({
+		...rawData,
+		passagesWithText: streamedContent?.passagesWithText,
+		connections: streamedContent?.connections
+	});
 
 	// ─── Segment height resize ────────────────────────────────────────────────
 	// Lives at page level so it can see all .segment elements (for cross-page
@@ -3798,8 +3839,11 @@
 					<ConnectionsOverlay connections={data.connections || []} scale={currentScale} />
 				</div>
 
+				<!-- While the streamed content resolves, the single global
+				     NavigationIndicator overlay covers the wait (see stores/loading.js),
+				     so there is no in-page spinner here. -->
 				<div class="passage-wrapper">
-					{#if data.passagesWithText && data.passagesWithText.length > 0}
+					{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}
 							{@const firstColumn = ('structure' in passageText) ? passageText.structure?.columns?.[0] : null}
 							{@const referenceOffset = firstColumn ? (columnReposition.getLiveOffset(firstColumn.id) ?? firstColumn.leftOffset ?? 0) : 0}
@@ -4034,6 +4078,11 @@
 							<div class="passage-divider" style:--divider-offset="{dividerOffset}px" class:compare-hidden={isHideMode && (!passageHasVisibleItems(passageText) || data.passagesWithText.slice(passageIndex + 1).every(p => !passageHasVisibleItems(p)))}></div>
 
 						{/each}
+					{:else if !streamedContent}
+						<!-- Still streaming: render nothing. The global NavigationIndicator
+						     overlay covers this wait; showing the "No passages available"
+						     placeholder here would flash misleading text before the content
+						     lands. -->
 					{:else}
 						<p class="placeholder-text">No passages available for this study.</p>
 					{/if}

@@ -19,6 +19,7 @@
 	import { deserialize } from '$app/forms';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import PassageReview from '$lib/componentWidgets/PassageReview.svelte';
@@ -144,12 +145,13 @@
 	<FormButtonBar marginTop>
 		<Button label="Cancel" classes="gray" handleClick={handleCancel} isDisabled={isSaving} />
 		<Button label="Back" classes="gray" handleClick={handleBack} isDisabled={isSaving} />
-		<Button
-			label={isSaving ? 'Saving...' : 'Save Changes'}
-			classes="blue"
-			handleClick={handleSave}
-			isDisabled={isSaving}
-		/>
+		<Button classes="blue" handleClick={handleSave} isDisabled={isSaving}>
+			{#if isSaving}
+				<Spinner size="sm" inline color="var(--white)" label="Saving…" showLabel />
+			{:else}
+				Save Changes
+			{/if}
+		</Button>
 	</FormButtonBar>
 {/snippet}
 

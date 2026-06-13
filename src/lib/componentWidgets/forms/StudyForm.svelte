@@ -20,6 +20,7 @@
 
 	import bibleData from '$lib/data/bible.json';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Label from '$lib/componentElements/Label.svelte';
@@ -384,7 +385,15 @@
 	<FormButtonBar>
 		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting || isAnalyzing} handleClick={clearPendingEdit}></Button>
 
-		<Button type="submit" label={isAnalyzing ? 'Checking...' : isSubmitting ? 'Saving...' : 'Save'} classes="blue" isDisabled={isSubmitting || isAnalyzing || hasDuplicateTitle}></Button>
+		<Button type="submit" classes="blue" isDisabled={isSubmitting || isAnalyzing || hasDuplicateTitle}>
+			{#if isAnalyzing}
+				<Spinner size="sm" inline color="var(--white)" label="Checking…" showLabel />
+			{:else if isSubmitting}
+				<Spinner size="sm" inline color="var(--white)" label="Saving…" showLabel />
+			{:else}
+				Save
+			{/if}
+		</Button>
 	</FormButtonBar>
 </form>
 
