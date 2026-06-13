@@ -3583,11 +3583,21 @@
 	});
 
 	/**
-	 * Reset scroll position when study changes
+	 * Reset scroll position when study changes.
+	 *
+	 * Track the previous study ID so this only fires on a REAL study switch.
+	 * `data` is a reactive prop replaced with a brand-new object every time the
+	 * page `load` re-runs (e.g. after `invalidate('app:studies')` on a Quick Note
+	 * auto-save). Without the ID guard the effect would re-run on every such
+	 * invalidation — even though the study is unchanged — and jump the user back
+	 * to the top of the passage while they're editing a note.
 	 */
+	let previousScrollStudyId = $state(null);
 	$effect(() => {
-		// Reset scroll to top when study ID changes
-		if (data.study?.id) {
+		const studyId = data.study?.id;
+		// Reset scroll to top only when the study ID actually changes
+		if (studyId && studyId !== previousScrollStudyId) {
+			previousScrollStudyId = studyId;
 			// Get the actual scroll container (.analyze-content)
 			const scrollContainer = contentInnerRef?.parentElement?.parentElement;
 			if (scrollContainer) {
@@ -3595,6 +3605,7 @@
 			}
 		}
 	});
+
 
 	/**
 	 * Determine if header should be visible based on zoom level or fit scale

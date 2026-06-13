@@ -22,6 +22,7 @@
 	 */
 
 
+	import { onMount } from 'svelte';
 	import { searchGlossary, groupByCategory } from '$lib/data/glossaryIndex.js';
 
 	let {
@@ -47,11 +48,18 @@
 		}
 	});
 
-	// Autofocus the search input when mounted
-	$effect(() => {
-		if (inputElement) {
-			inputElement.focus();
-		}
+	// Autofocus the search input when the picker opens.
+	//
+	// The picker mounts in the same tick as the click that opened it (e.g. the
+	// "Add Glossary Term" button), so focusing synchronously can lose out to the
+	// trigger button keeping focus. Defer to the next animation frame — after the
+	// popover has been positioned and painted — so the focus reliably lands on
+	// the search box.
+	onMount(() => {
+		const raf = requestAnimationFrame(() => {
+			inputElement?.focus({ preventScroll: true });
+		});
+		return () => cancelAnimationFrame(raf);
 	});
 
 	function choose(termId) {
