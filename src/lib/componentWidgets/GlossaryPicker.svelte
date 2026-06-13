@@ -468,15 +468,16 @@
 	}
 
 	/* Each option uses the same background the resulting tag/badge will have. */
-	.glossary-option.gray { background-color: var(--gray-lighter); }
-	.glossary-option.red { background-color: var(--red-lighter); }
-	.glossary-option.orange { background-color: var(--orange-lighter); }
-	.glossary-option.yellow { background-color: var(--yellow-lighter); }
-	.glossary-option.green { background-color: var(--green-lighter); }
-	.glossary-option.aqua { background-color: var(--aqua-lighter); }
-	.glossary-option.blue { background-color: var(--blue-lighter); }
-	.glossary-option.purple { background-color: var(--purple-lighter); }
-	.glossary-option.pink { background-color: var(--pink-lighter); }
+	.glossary-option.gray { background-color: var(--gray-light); }
+	.glossary-option.red { background-color: var(--red-light); }
+	.glossary-option.orange { background-color: var(--orange-light); }
+	.glossary-option.yellow { background-color: var(--yellow-light); }
+	.glossary-option.green { background-color: var(--green-light); }
+	.glossary-option.aqua { background-color: var(--aqua-light); }
+	.glossary-option.blue { background-color: var(--blue-light); }
+	.glossary-option.purple { background-color: var(--purple-light); }
+	.glossary-option.pink { background-color: var(--pink-light); }
+
 
 	/* Keyboard / hover highlight: a 1px inset border in a darker shade of the
 	   option's own background color so the tag color still shows through. */

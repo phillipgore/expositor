@@ -36,6 +36,19 @@ export const TaggedHighlight = Mark.create({
 	// crisp, intentional boundaries.
 	inclusive: false,
 
+	// Tagged highlights always win over regular highlights. Declaring the
+	// exclusion here means:
+	//  (a) applying a tagged highlight strips any regular `highlight` mark in its
+	//      range, and
+	//  (b) a regular highlight applied over an existing tagged band is rejected
+	//      on the tagged positions (it still applies to the rest of the
+	//      selection, flowing around the band) — so the two never stack into
+	//      nested <mark>s with doubled padding/ambiguous color.
+	// Listing 'taggedHighlight' keeps the default self-exclusion (two tagged
+	// bands won't stack their marks).
+	excludes: 'highlight taggedHighlight',
+
+
 
 	addAttributes() {
 		return {

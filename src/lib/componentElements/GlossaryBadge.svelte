@@ -98,8 +98,9 @@
 		align-items: center;
 		gap: 0.3rem;
 		padding: 0.2rem 0.7rem;
-		border-radius: 999em;
+		border-radius: 0.4rem;
 		font-size: 1.2rem;
+
 		font-weight: 500;
 		line-height: 1.4;
 		white-space: nowrap;
@@ -107,13 +108,15 @@
 		vertical-align: baseline;
 	}
 
-	/* Domain shapes: exegesis = pill (default), homiletics = rounded rectangle. */
+	/* All tags use a rounded-rectangle shape (both domain shape classes resolve
+	   to the same radius for now). */
 	.glossary-badge.shape-pill {
-		border-radius: 999em;
+		border-radius: 0.4rem;
 	}
 	.glossary-badge.shape-rounded {
 		border-radius: 0.4rem;
 	}
+
 
 	.glossary-badge:focus-visible {
 		outline: 0.2rem solid var(--blue);
@@ -144,41 +147,43 @@
 		background-color: var(--black-alpha);
 	}
 
-	/* Category colors (subtle look — light background, dark text) */
+	/* Category colors (the tag uses the deeper `-light` shade, with dark text,
+	   so it reads as the anchor against the fainter `-lighter` highlight band). */
 	.glossary-badge.gray {
-		background-color: var(--gray-lighter);
+		background-color: var(--gray-light);
 		color: var(--gray-darker);
 	}
 	.glossary-badge.red {
-		background-color: var(--red-lighter);
+		background-color: var(--red-light);
 		color: var(--red-darker);
 	}
 	.glossary-badge.orange {
-		background-color: var(--orange-lighter);
+		background-color: var(--orange-light);
 		color: var(--orange-darker);
 	}
 	.glossary-badge.yellow {
-		background-color: var(--yellow-lighter);
+		background-color: var(--yellow-light);
 		color: var(--yellow-darker);
 	}
 	.glossary-badge.green {
-		background-color: var(--green-lighter);
+		background-color: var(--green-light);
 		color: var(--green-darker);
 	}
 	.glossary-badge.aqua {
-		background-color: var(--aqua-lighter);
+		background-color: var(--aqua-light);
 		color: var(--aqua-darker);
 	}
 	.glossary-badge.blue {
-		background-color: var(--blue-lighter);
+		background-color: var(--blue-light);
 		color: var(--blue-darker);
 	}
 	.glossary-badge.purple {
-		background-color: var(--purple-lighter);
+		background-color: var(--purple-light);
 		color: var(--purple-darker);
 	}
 	.glossary-badge.pink {
-		background-color: var(--pink-lighter);
+		background-color: var(--pink-light);
 		color: var(--pink-darker);
 	}
+
 </style>

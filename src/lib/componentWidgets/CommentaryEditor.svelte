@@ -61,21 +61,12 @@
 	let showInsertMenu = $state(false);
 	let insertMenuElement = $state(null);
 
-	// Highlight color dropdown state
-	let showHighlightMenu = $state(false);
-	let highlightMenuElement = $state(null);
+	// Regular highlight uses a SINGLE reserved color (the same pale yellow tint as
+	// the yellow tag band) so it reads as a distinct, conventional "highlighter"
+	// mark and never visually collides with the multi-hue tagged-highlight bands.
+	const HIGHLIGHT_COLOR = 'var(--yellow-lighter)';
 
-	// The 8 app colors offered for highlighting (uses the `-light` shade).
-	const highlightColors = [
-		{ name: 'Red', value: 'var(--red-light)' },
-		{ name: 'Orange', value: 'var(--orange-light)' },
-		{ name: 'Yellow', value: 'var(--yellow-light)' },
-		{ name: 'Green', value: 'var(--green-light)' },
-		{ name: 'Aqua', value: 'var(--aqua-light)' },
-		{ name: 'Blue', value: 'var(--blue-light)' },
-		{ name: 'Purple', value: 'var(--purple-light)' },
-		{ name: 'Pink', value: 'var(--pink-light)' }
-	];
+
 
 	// Glossary picker state. The picker now has a single entry point: inserting
 	// an inline badge into the prose at the cursor. The bottom "tags" strip is a
@@ -186,22 +177,19 @@
 		editor?.chain().focus().toggleUnderline().run();
 	}
 
-	/** Apply a highlight in the given color and close the menu. */
-	function setHighlight(color) {
-		editor?.chain().focus().setHighlight({ color }).run();
-		showHighlightMenu = false;
+	/**
+	 * Toggle the single reserved highlight color. If the selection is already
+	 * highlighted, remove it; otherwise apply the one yellow highlight color.
+	 */
+	function toggleHighlight() {
+		if (!editor) return;
+		if (editor.isActive('highlight')) {
+			editor.chain().focus().unsetHighlight().run();
+		} else {
+			editor.chain().focus().setHighlight({ color: HIGHLIGHT_COLOR }).run();
+		}
 	}
 
-	/** Remove any highlight from the selection and close the menu. */
-	function removeHighlight() {
-		editor?.chain().focus().unsetHighlight().run();
-		showHighlightMenu = false;
-	}
-
-	/** Toggle the Highlight color dropdown menu open/closed. */
-	function toggleHighlightMenu() {
-		showHighlightMenu = !showHighlightMenu;
-	}
 
 	function toggleBulletList() {
 		editor?.chain().focus().toggleBulletList().run();
@@ -699,24 +687,8 @@
 		}
 	});
 
-	// Click-outside detection for the Highlight color dropdown menu
-	$effect(() => {
-		if (showHighlightMenu) {
-			const handleClickOutside = (event) => {
-				if (highlightMenuElement && !highlightMenuElement.contains(event.target)) {
-					showHighlightMenu = false;
-				}
-			};
-			setTimeout(() => {
-				window.addEventListener('click', handleClickOutside);
-			}, 0);
-			return () => {
-				window.removeEventListener('click', handleClickOutside);
-			};
-		}
-	});
-
 	/* ----------------------------------------------------------------------
+
 	 * Glossary: inline insertion + bottom tags
 	 * -------------------------------------------------------------------- */
 
@@ -826,19 +798,40 @@
 			// No selection: insert a bare pill at the cursor (unchanged behavior).
 			editor.chain().focus().setGlossaryTerm({ termId, label }).run();
 		} else {
-			// Selection present: insert the pill at the END of the selection, then
-			// apply the tinted band across the whole range (original text + pill).
-			// Inserting at `to` grows the document by 1 position (the atom node), so
-			// the band's end is `to + 1`.
-			editor
-				.chain()
-				.focus()
-				.insertContentAt(to, { type: 'glossaryTerm', attrs: { termId, label } })
-				.setTextSelection({ from, to: to + 1 })
+			// Re-tagging an already-tagged run: collect any existing glossary pills
+			// that fall within the selection so we can remove them first. The
+			// `taggedHighlight` mark itself is recolored in place by
+			// `setTaggedHighlight` below (setMark overwrites same-type mark attrs),
+			// but the pill atoms are separate nodes — without this they'd be left
+			// orphaned inside the new band.
+			const pillPositions = [];
+			editor.state.doc.nodesBetween(from, to, (node, pos) => {
+				if (node.type.name === 'glossaryTerm') pillPositions.push(pos);
+			});
+
+			// Build a single chain so the whole operation is one undo step. Delete
+			// existing pills right-to-left (each is an inline atom of size 1) so
+			// earlier positions stay valid; every removal shrinks the selection end.
+			let chain = editor.chain().focus();
+			for (let i = pillPositions.length - 1; i >= 0; i--) {
+				const pos = pillPositions[i];
+				chain = chain.deleteRange({ from: pos, to: pos + 1 });
+			}
+
+			// Insert the new pill at the (adjusted) END of the selection, then apply
+			// the tinted band across the whole range (original text + pill).
+			// Inserting grows the doc by 1 position (the atom node), so the band's
+			// end is `adjustedTo + 1`. When no pills were removed, `adjustedTo === to`
+			// and this matches the original behavior.
+			const adjustedTo = to - pillPositions.length;
+			chain
+				.insertContentAt(adjustedTo, { type: 'glossaryTerm', attrs: { termId, label } })
+				.setTextSelection({ from, to: adjustedTo + 1 })
 				.setTaggedHighlight({ termId })
-				.setTextSelection(to + 1)
+				.setTextSelection(adjustedTo + 1)
 				.run();
 		}
+
 		// The bottom "tags" strip reflects inline terms automatically (it derives
 		// from `inlineTermIds`), so there's nothing else to persist here.
 	}
@@ -1178,50 +1171,20 @@
 			>
 				<Icon iconId="underline" />
 			</button>
-			<div class="dropdown-group">
-				<button
-					use:tooltip
-					type="button"
-					class="toolbar-button has-caret"
-					class:active={isActive('highlight')}
-					onmousedown={(e) => e.preventDefault()}
-					onclick={toggleHighlightMenu}
-					title="Highlight"
-					aria-label="Highlight"
-					aria-haspopup="menu"
-					aria-expanded={showHighlightMenu}
-				>
-					<Icon iconId="highlight" />
-					<Icon iconId="caret-down" classes="menu-caret" />
-				</button>
+			<button
+				use:tooltip
+				type="button"
+				class="toolbar-button"
+				class:active={isActive('highlight')}
+				onmousedown={(e) => e.preventDefault()}
+				onclick={toggleHighlight}
+				title="Highlight"
+				aria-label="Highlight"
+				aria-pressed={isActive('highlight')}
+			>
+				<Icon iconId="highlight" />
+			</button>
 
-				{#if showHighlightMenu}
-					<div class="dropdown-menu" role="menu" bind:this={highlightMenuElement}>
-						{#each highlightColors as color (color.name)}
-							<button
-								type="button"
-								class="dropdown-menu-item"
-								class:active={isActive('highlight', { color: color.value })}
-								role="menuitem"
-								onmousedown={(e) => e.preventDefault()}
-								onclick={() => setHighlight(color.value)}
-							>
-								{color.name}
-							</button>
-						{/each}
-						<div class="dropdown-divider" role="separator"></div>
-						<button
-							type="button"
-							class="dropdown-menu-item"
-							role="menuitem"
-							onmousedown={(e) => e.preventDefault()}
-							onclick={removeHighlight}
-						>
-							Remove Highlight
-						</button>
-					</div>
-				{/if}
-			</div>
 		</div>
 
 		<!-- <div class="toolbar-divider"></div> -->
@@ -1742,10 +1705,14 @@
 		min-height: 100%;
 		font-family: inherit;
 		font-size: 1.4rem;
-		line-height: 1.6;
+		/* Slightly taller line-height grows the line box symmetrically (no risk of
+		   padding overlap), so the tagged-highlight band matches the inline tag's
+		   height while the tag keeps its original size. */
+		line-height: 1.7;
 		color: var(--black);
 		padding: 1.8rem;
 	}
+
 
 	:global(.tiptap-editor p) {
 		margin: 0 0 1.2rem 0;
@@ -1856,10 +1823,16 @@
 		margin: 2.4rem 0;
 	}
 
+	/* Normal (toolbar) highlight matches the tagged-highlight band exactly: same
+	   vertical padding, rounded-rectangle corners, and box-decoration-break so it
+	   renders as one continuous gap-free block across wrapped lines. */
 	:global(.tiptap-editor mark) {
-		padding: 0.1rem 0.3rem;
-		border-radius: 0.2rem;
+		padding: 0.5rem 0;
+		border-radius: 0.4rem;
+		box-decoration-break: clone;
+		-webkit-box-decoration-break: clone;
 	}
+
 
 	:global(.tiptap-editor a) {
 		color: var(--blue);
@@ -1966,8 +1939,12 @@
 	/* Inline Glossary Term badges (rendered by the Tiptap GlossaryTerm node) */
 	:global(.tiptap-editor .glossary-term) {
 		display: inline-block;
-		padding: 0.1rem 0.6rem;
-		border-radius: 999em;
+		padding: 0.4rem 0.6rem;
+
+
+
+		border-radius: 0.4rem;
+
 		font-size: 0.9em;
 		font-weight: 500;
 		line-height: 1.4;
@@ -1976,24 +1953,26 @@
 		vertical-align: baseline;
 	}
 
-	/* Domain shapes: exegesis = pill (default), homiletics = rounded rectangle.
-	   Applied globally so read-only renders match the editable view. */
+
+	/* All tags use a rounded-rectangle shape (both domain shape classes resolve
+	   to the same radius for now). */
 	:global(.glossary-term.shape-pill) {
-		border-radius: 999em;
+		border-radius: 0.4rem;
 	}
 	:global(.glossary-term.shape-rounded) {
 		border-radius: 0.4rem;
 	}
 
-	:global(.tiptap-editor .glossary-term.gray) { background-color: var(--gray-lighter); color: var(--gray-darker); }
-	:global(.tiptap-editor .glossary-term.red) { background-color: var(--red-lighter); color: var(--red-darker); }
-	:global(.tiptap-editor .glossary-term.orange) { background-color: var(--orange-lighter); color: var(--orange-darker); }
-	:global(.tiptap-editor .glossary-term.yellow) { background-color: var(--yellow-lighter); color: var(--yellow-darker); }
-	:global(.tiptap-editor .glossary-term.green) { background-color: var(--green-lighter); color: var(--green-darker); }
-	:global(.tiptap-editor .glossary-term.aqua) { background-color: var(--aqua-lighter); color: var(--aqua-darker); }
-	:global(.tiptap-editor .glossary-term.blue) { background-color: var(--blue-lighter); color: var(--blue-darker); }
-	:global(.tiptap-editor .glossary-term.purple) { background-color: var(--purple-lighter); color: var(--purple-darker); }
-	:global(.tiptap-editor .glossary-term.pink) { background-color: var(--pink-lighter); color: var(--pink-darker); }
+
+	:global(.tiptap-editor .glossary-term.gray) { background-color: var(--gray-light); color: var(--gray-darker); }
+	:global(.tiptap-editor .glossary-term.red) { background-color: var(--red-light); color: var(--red-darker); }
+	:global(.tiptap-editor .glossary-term.orange) { background-color: var(--orange-light); color: var(--orange-darker); }
+	:global(.tiptap-editor .glossary-term.yellow) { background-color: var(--yellow-light); color: var(--yellow-darker); }
+	:global(.tiptap-editor .glossary-term.green) { background-color: var(--green-light); color: var(--green-darker); }
+	:global(.tiptap-editor .glossary-term.aqua) { background-color: var(--aqua-light); color: var(--aqua-darker); }
+	:global(.tiptap-editor .glossary-term.blue) { background-color: var(--blue-light); color: var(--blue-darker); }
+	:global(.tiptap-editor .glossary-term.purple) { background-color: var(--purple-light); color: var(--purple-darker); }
+	:global(.tiptap-editor .glossary-term.pink) { background-color: var(--pink-light); color: var(--pink-darker); }
 
 	/* Clicking an inline pill pins its tooltip; suppress ProseMirror's default
 	   node-selection outline so it reads like the bottom tags (no blue ring). */
@@ -2033,31 +2012,51 @@
 
 	/* ------------------------------------------------------------------ */
 	/* Tagged Highlight: the tinted "band" over the selected prose run.    */
-	/* Uses the soft `-light` shade of the term's category color so the    */
-	/* darker pill (which uses `-lighter`) reads clearly on top of it.     */
+	/* Uses the faint `-lighter` shade of the term's category color so the */
+	/* deeper pill (which uses `-light`) stands out as the anchor on top.  */
 	/* ------------------------------------------------------------------ */
+
+	/* The band's vertical padding is sized to span the line's leading so that,
+	   with box-decoration-break: clone, each wrapped line's solid background meets
+	   the next — rendering a multi-line tagged passage as one continuous block of
+	   color with no white gaps between rows. Rounded-rectangle corners to match
+	   the tags. (The -lighter shades are opaque, so overlapping rows merge cleanly.) */
 	:global(.tiptap-editor .tagged-highlight),
 	:global(.commentary-display .tagged-highlight) {
-		padding: 0.1rem 0;
-		border-radius: 0.2rem;
+		padding: 0.5rem 0;
+		border-radius: 0.4rem;
 		box-decoration-break: clone;
 		-webkit-box-decoration-break: clone;
 	}
 
-	:global(.tagged-highlight.gray) { background-color: var(--gray-light); }
-	:global(.tagged-highlight.red) { background-color: var(--red-light); }
-	:global(.tagged-highlight.orange) { background-color: var(--orange-light); }
-	:global(.tagged-highlight.yellow) { background-color: var(--yellow-light); }
-	:global(.tagged-highlight.green) { background-color: var(--green-light); }
-	:global(.tagged-highlight.aqua) { background-color: var(--aqua-light); }
-	:global(.tagged-highlight.blue) { background-color: var(--blue-light); }
-	:global(.tagged-highlight.purple) { background-color: var(--purple-light); }
-	:global(.tagged-highlight.pink) { background-color: var(--pink-light); }
+
+
+	/* When the band ends with a trailing glossary pill, round its right edge to
+	   match the tag so the tint tucks neatly under the tag instead of showing as
+	   a flat strip past the tag's right side. */
+	:global(.tiptap-editor .tagged-highlight:has(> .glossary-term:last-child)),
+	:global(.commentary-display .tagged-highlight:has(> .glossary-term:last-child)) {
+		border-top-right-radius: 0.4rem;
+		border-bottom-right-radius: 0.4rem;
+	}
+
+
+	:global(.tagged-highlight.gray) { background-color: var(--gray-lighter); }
+	:global(.tagged-highlight.red) { background-color: var(--red-lighter); }
+	:global(.tagged-highlight.orange) { background-color: var(--orange-lighter); }
+	:global(.tagged-highlight.yellow) { background-color: var(--yellow-lighter); }
+	:global(.tagged-highlight.green) { background-color: var(--green-lighter); }
+	:global(.tagged-highlight.aqua) { background-color: var(--aqua-lighter); }
+	:global(.tagged-highlight.blue) { background-color: var(--blue-lighter); }
+	:global(.tagged-highlight.purple) { background-color: var(--purple-lighter); }
+	:global(.tagged-highlight.pink) { background-color: var(--pink-lighter); }
 
 	/* Give the trailing pill a touch of left spacing so it doesn't crowd the
-	   highlighted words it follows. */
+	   highlighted words it follows. The -1px right margin pulls the pill flush
+	   with the band's rounded right edge so no sliver of tint bleeds through. */
 	:global(.tagged-highlight .glossary-term) {
 		margin-left: 0.3rem;
+		margin-right: -1px;
 	}
 
 
