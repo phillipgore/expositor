@@ -25,7 +25,8 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
     import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
-	import { toolbarState, showPassageNotes, showConnectionNotes } from '$lib/stores/toolbar.js';
+	import { toolbarState, showPassageNotes, showConnectionNotes, showHeadings } from '$lib/stores/toolbar.js';
+
 
 
 	let { menuId = 'MenuOutline' } = $props();
@@ -46,8 +47,11 @@
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
+			// Auto-show headings if hidden, so the new heading is visible.
+			showHeadings();
 			// Trigger insert heading one event via custom event
 			window.dispatchEvent(new CustomEvent('insert-heading-one-from-menu'));
+
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingOne}
 	/>
@@ -72,8 +76,11 @@
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
+			// Auto-show headings if hidden, so the new heading is visible.
+			showHeadings();
 			// Trigger insert heading three event via custom event
 			window.dispatchEvent(new CustomEvent('insert-heading-three-from-menu'));
+
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingThree}
 	/>

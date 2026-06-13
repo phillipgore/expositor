@@ -116,6 +116,8 @@ async function persistPreference(updates) {
  * @property {boolean} activeConnectionHasNote - Whether the currently selected connection has a quick note
  * @property {boolean} hasActiveHeadingOrNoteEditor - Whether a heading or note editor is in input mode
  * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
+ * @property {string|null} activeHeadingOrNoteEditorKey - Unique key of the active editor (e.g. `${segmentId}-${type}`); identifies the specific owning editor so a stale editor's cleanup can't clear another editor's state
+
  * @property {boolean} isWordInFirstSegment - Whether the selected word is in the first segment of its passage
  * @property {boolean} isWordInLastSegment - Whether the selected word is in the last segment of its passage
  * @property {boolean} isCaretAtSegmentStart - Whether the caret is before the first word of its segment (nothing to move up)
@@ -198,7 +200,9 @@ const defaultState = {
 	activeConnectionHasNote: false,
 	hasActiveHeadingOrNoteEditor: false,
 	activeHeadingOrNoteType: null,
+	activeHeadingOrNoteEditorKey: null,
 	isWordInFirstSegment: false,
+
 	isWordInLastSegment: false,
 	isCaretAtSegmentStart: false,
 	isCaretAtSegmentEnd: false
@@ -566,6 +570,18 @@ export function toggleHeadings() {
 }
 
 /**
+ * Ensure headings are visible. Used when the user adds a heading so the new
+ * heading is immediately visible. No-op if headings are already shown.
+ * Persists the preference.
+ */
+export function showHeadings() {
+	const state = get(toolbarStateStore);
+	if (state.headingsVisible) return;
+	toolbarStateStore.update(s => ({ ...s, headingsVisible: true }));
+	persistPreference({ headingsVisible: true });
+}
+
+/**
  * Toggle all connections visibility (master toggle).
  * When turning off: unchecks all three individual types.
  * When turning on: checks all three individual types.
@@ -745,9 +761,57 @@ export function showConnectionNotes() {
 }
 
 /**
+ * Ensure the connection-visibility toggle for a connection of the given from/to
+ * types is on. Used when the user adds a connection (or a connection quick note)
+ * so the new connection is immediately visible. Mirrors the type→toggle mapping
+ * used to render connections:
+ *   - different types (cross-item) → crossItemConnectionsVisible
+ *   - section ↔ section            → sectionConnectionsVisible
+ *   - column ↔ column              → columnConnectionsVisible
+ *   - segment ↔ segment            → segmentConnectionsVisible
+ * No-op if the relevant toggle is already on. Recomputes the master
+ * connectionsVisible (true only when all four are on) and persists.
+ * @param {string} fromType - 'segment' | 'section' | 'column'
+ * @param {string} toType - 'segment' | 'section' | 'column'
+ */
+export function showConnectionsForTypes(fromType, toType) {
+	// Determine which individual toggle governs this connection's visibility.
+	/** @type {'segmentConnectionsVisible'|'sectionConnectionsVisible'|'columnConnectionsVisible'|'crossItemConnectionsVisible'} */
+	let key;
+	if (fromType !== toType) {
+		key = 'crossItemConnectionsVisible';
+	} else if (fromType === 'section') {
+		key = 'sectionConnectionsVisible';
+	} else if (fromType === 'column') {
+		key = 'columnConnectionsVisible';
+	} else {
+		key = 'segmentConnectionsVisible';
+	}
+
+	const state = get(toolbarStateStore);
+	if (state[key]) return; // already visible
+
+	// Recompute the master toggle (true only when all four individual types are on).
+	const next = { ...state, [key]: true };
+	const newConnectionsVisible =
+		next.columnConnectionsVisible &&
+		next.sectionConnectionsVisible &&
+		next.segmentConnectionsVisible &&
+		next.crossItemConnectionsVisible;
+
+	toolbarStateStore.update(s => ({
+		...s,
+		[key]: true,
+		connectionsVisible: newConnectionsVisible
+	}));
+	persistPreference({ [key]: true, connectionsVisible: newConnectionsVisible });
+}
+
+/**
  * Toggle references visibility
  */
 export function toggleReferences() {
+
 
 	const newValue = !get(toolbarStateStore).referencesVisible;
 	toolbarStateStore.update(state => ({ ...state, referencesVisible: newValue }));
@@ -1038,17 +1102,50 @@ export function setConnectionButtonStates(canInsert, canRemove) {
 /**
  * Set whether a heading or note editor is currently in input mode.
  * Used to enable the Delete button only when the user is actively editing a specific
- * heading or note. Also tracks which type is active so only that one is deleted.
+ * heading or note. Also tracks which type is active so only that one is deleted, and
+ * (optionally) a unique editor key identifying the specific owning editor instance.
  * @param {boolean} isActive - Whether a heading/note editor is in edit mode
- * @param {string|null} type - Which type is active: 'one', 'two', 'three', 'note', or null
+ * @param {string|null} type - Which type is active: 'one', 'two', 'three', 'note', 'connection-note', or null
+ * @param {string|null} [key] - Unique key for the specific editor instance (e.g. `${segmentId}-${type}`)
  */
-export function setHeadingOrNoteEditorActive(isActive, type = null) {
+export function setHeadingOrNoteEditorActive(isActive, type = null, key = null) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveHeadingOrNoteEditor: isActive,
-		activeHeadingOrNoteType: isActive ? type : null
+		activeHeadingOrNoteType: isActive ? type : null,
+		activeHeadingOrNoteEditorKey: isActive ? key : null
 	}));
 }
+
+/**
+ * Clear the active heading/note editor state, but ONLY if the currently-active
+ * editor key matches the one being cleared.
+ *
+ * The three HeadingEditors (one/two/three) and the NoteEditor (in every segment), plus
+ * the connection-note editor, all write to the same shared `hasActiveHeadingOrNoteEditor`
+ * fields. Each editor's effect-cleanup would otherwise reset those fields to false/null.
+ * When focus moves from one editor to another, Svelte flushes the effects, so a stale
+ * editor's cleanup (running after the newly-activated editor set its state) could clobber
+ * the fresh active state — leaving the Delete button disabled until the user clicks out
+ * and back in. This is visible both when switching between different heading types AND
+ * when rapidly adding the SAME heading type across multiple segments (where a type-only
+ * guard isn't unique enough). Scoping the clear to the unique editor KEY ensures a stale
+ * editor can only clear the store if it still owns the active editor.
+ * @param {string|null} key - The unique editor key whose state should be cleared
+ */
+export function clearHeadingOrNoteEditorActiveKey(key) {
+	toolbarStateStore.update(state => {
+		if (state.activeHeadingOrNoteEditorKey !== key) return state;
+		return {
+			...state,
+			hasActiveHeadingOrNoteEditor: false,
+			activeHeadingOrNoteType: null,
+			activeHeadingOrNoteEditorKey: null
+		};
+	});
+}
+
+
 
 /**
  * Set whether the selected word is in the first or last segment of its passage.

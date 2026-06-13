@@ -50,7 +50,10 @@
 
 	import { onMount, onDestroy } from 'svelte';
 	import { invalidate } from '$app/navigation';
-	import { toolbarState, setActiveConnection, setHeadingOrNoteEditorActive, setToolbarState, clearSelectedItem, setActiveSegment, setActiveSection, setActiveColumn } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveConnection, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey, setToolbarState, clearSelectedItem, setActiveSegment, setActiveSection, setActiveColumn, showConnectionsForTypes } from '$lib/stores/toolbar.js';
+	import { QUICK_NOTE_MAX_CHARS } from '$lib/constants/notes.js';
+
+
 
 	let { connections = [], scale = 1 } = $props();
 
@@ -133,8 +136,8 @@
 	/** Debounce timer for auto-save while typing. @type {ReturnType<typeof setTimeout>|null} */
 	let noteSaveTimeout = null;
 
-	/** Maximum characters allowed in a connection note. */
-	const MAX_NOTE_CHARS = 280;
+	/** Maximum characters allowed in a connection note (shared; also enforced server-side on merge). */
+	const MAX_NOTE_CHARS = QUICK_NOTE_MAX_CHARS;
 
 	/** Reference to the note textarea for auto-grow. @type {HTMLTextAreaElement|null} */
 	let noteTextareaRef = $state(null);
@@ -530,6 +533,68 @@
 			y: a * y0 + b * cy1 + c * cy2 + d * y1
 		};
 	}
+
+	/**
+	 * Compute a cubic-bezier control handle for ONE end of a connection.
+	 *
+	 * The anchor POSITION is fixed by the element type / edge (column = top edge,
+	 * section = top/bottom edge, segment = left/right edge) and is never moved by
+	 * this function.  What we choose here is only the DIRECTION the line leaves
+	 * that anchor — its exit tangent — which is free to point anywhere on the full
+	 * 360° around the anchor.  Hard "J"/jag hooks happened because the old code
+	 * locked each edge to a single fixed exit direction (column = always straight
+	 * down, segment = always straight sideways, …); when the partner endpoint sat
+	 * off in another direction the curve had to whip back on itself to reach an
+	 * anchor that insisted on the wrong tangent.
+	 *
+	 * Instead we blend two influences:
+	 *   • a component PERPENDICULAR to the anchor's edge (so the line still reads
+	 *     as cleanly "attached" to the element), whose sign follows the opposite
+	 *     endpoint (it leaves toward, never away from, its partner), and
+	 *   • a component aimed straight AT the opposite anchor.
+	 * The result always has a positive component toward the partner, so the curve
+	 * can never reverse into a hook, while the perpendicular bias keeps the
+	 * familiar "exits square from the edge" look.  The handle length scales with
+	 * the distance between the two anchors so long lines arc gently and short ones
+	 * stay tight.
+	 *
+	 * @param {'top'|'bottom'|'left'|'right'} edge — this anchor's edge
+	 * @param {number} ax @param {number} ay — this anchor point
+	 * @param {number} ox @param {number} oy — the OPPOSITE anchor point
+	 * @returns {{ cx: number, cy: number }}
+	 */
+	function controlHandle(edge, ax, ay, ox, oy) {
+		const dx = ox - ax;
+		const dy = oy - ay;
+		const dist = Math.hypot(dx, dy) || 1;
+		const ux = dx / dist; // unit vector toward the opposite anchor
+		const uy = dy / dist;
+
+		// Edge-perpendicular axis, signed toward the opposite endpoint. When the
+		// opposite end sits (nearly) ON the edge line — so the perpendicular sign is
+		// ambiguous — fall back to the edge's natural outward direction (top/bottom
+		// edges droop downward like before; side edges bow away from the element).
+		let nx = 0;
+		let ny = 0;
+		if (edge === 'top' || edge === 'bottom') {
+			ny = Math.abs(uy) < 1e-3 ? 1 : Math.sign(uy);
+		} else {
+			nx = Math.abs(ux) < 1e-3 ? (edge === 'right' ? 1 : -1) : Math.sign(ux);
+		}
+
+		// Blend perpendicular-to-edge attachment with aim-at-partner. BIAS weights
+		// the perpendicular component; the remainder aims at the opposite anchor.
+		const BIAS = 0.55;
+		let hx = nx * BIAS + ux * (1 - BIAS);
+		let hy = ny * BIAS + uy * (1 - BIAS);
+		const hl = Math.hypot(hx, hy) || 1;
+		hx /= hl;
+		hy /= hl;
+
+		const len = Math.max(20, dist * 0.4);
+		return { cx: ax + hx * len, cy: ay + hy * len };
+	}
+
 
 	// ─── Line style determination ─────────────────────────────────────────────
 
@@ -957,7 +1022,8 @@
 
 		// ── Pass C: build the bezier path for each connection ─────────────────
 		for (const r of resolved) {
-			const { connection, fromType, toType, fromCX, toCX, sameCol, fromEdge, toEdge } = r;
+			const { connection, fromType, toType, sameCol, fromEdge, toEdge } = r;
+
 			const from = anchorMap.get(`${connection.id}|from`);
 			const to   = anchorMap.get(`${connection.id}|to`);
 			if (!from || !to) continue;
@@ -972,96 +1038,23 @@
 			const dx = Math.abs(to.x - from.x);
 			const dy = Math.abs(to.y - from.y);
 
-			// Control points for the cubic bezier (used both for `d` and midpoint)
-			let cx1, cy1, cx2, cy2;
+			// ── Tangent-aware control points (no hard "J" hooks) ──────────────
+			// The anchor POSITIONS (from / to) are fixed by Pass A/B per element
+			// type — columns on the top edge, sections on top/bottom, segments on
+			// the side.  Only the EXIT DIRECTION of the line at each anchor is free
+			// here: controlHandle() points each handle from its anchor toward the
+			// opposite endpoint (blended with a light edge-perpendicular bias), so
+			// the line always leaves at the best angle on the full 360° around the
+			// anchor instead of a single hard-coded direction.  That guarantees a
+			// smooth S/C curve — the old per-edge fixed directions are what whipped
+			// the line back on itself into a "J" whenever the partner sat off in an
+			// unexpected direction.
+			const h1 = controlHandle(fromEdge, from.x, from.y, to.x, to.y);
+			const h2 = controlHandle(toEdge,   to.x,   to.y,   from.x, from.y);
+			let cx1 = h1.cx, cy1 = h1.cy;
+			let cx2 = h2.cx, cy2 = h2.cy;
 			let d;
 
-			if (fromTop && toTop) {
-				// Column ↔ Column — both top anchors, arch droops downward
-				if (dy < 5) {
-					const curvature = Math.max(10, dx * 0.12);
-					cx1 = from.x; cy1 = from.y + curvature;
-					cx2 = to.x;   cy2 = to.y + curvature;
-				} else {
-					const vCurve = Math.max(20, dy * 0.4);
-					if (from.y < to.y) {
-						cx1 = from.x; cy1 = from.y + vCurve;
-						cx2 = to.x;   cy2 = to.y - vCurve;
-					} else {
-						cx1 = from.x; cy1 = from.y - vCurve;
-						cx2 = to.x;   cy2 = to.y + vCurve;
-					}
-				}
-			} else if (fromBottom && toBottom) {
-				// Section ↔ Section — both bottom anchors, arch extends downward
-				if (dy < 5) {
-					const curvature = Math.max(10, dx * 0.12);
-					cx1 = from.x; cy1 = from.y + curvature;
-					cx2 = to.x;   cy2 = to.y + curvature;
-				} else {
-					const vCurve = Math.max(20, dy * 0.4);
-					if (from.y < to.y) {
-						cx1 = from.x; cy1 = from.y + vCurve;
-						cx2 = to.x;   cy2 = to.y - vCurve;
-					} else {
-						cx1 = from.x; cy1 = from.y - vCurve;
-						cx2 = to.x;   cy2 = to.y + vCurve;
-					}
-				}
-			} else if ((fromTop && toBottom) || (fromBottom && toTop)) {
-				// Column ↔ Section — top anchor to bottom anchor (or vice versa)
-				const vCurve = Math.max(20, Math.max(dy, dx) * 0.35);
-				cx1 = from.x; cy1 = from.y + vCurve;
-				cx2 = to.x;   cy2 = to.y + vCurve;
-			} else if (fromSide2 && toSide2) {
-				// Segment ↔ Segment — both side anchors, horizontal bezier
-				if (sameCol) {
-					const loopOut = Math.max(16, dy * 0.1);
-					cx1 = from.x + loopOut; cy1 = from.y;
-					cx2 = to.x   + loopOut; cy2 = to.y;
-				} else {
-					const curvature = Math.max(30, dx * 0.4);
-					if (fromCX < toCX) {
-						cx1 = from.x + curvature; cy1 = from.y;
-						cx2 = to.x   - curvature; cy2 = to.y;
-					} else {
-						cx1 = from.x - curvature; cy1 = from.y;
-						cx2 = to.x   + curvature; cy2 = to.y;
-					}
-				}
-			} else if (fromTop && toSide2) {
-				// Column → Segment
-				const vCurve = Math.max(30, dy * 0.4);
-				const hCurve = Math.max(30, dx * 0.4);
-				cx1 = from.x;
-				cy1 = from.y + vCurve;
-				cx2 = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
-				cy2 = to.y;
-			} else if (fromSide2 && toTop) {
-				// Segment → Column
-				const vCurve = Math.max(30, dy * 0.4);
-				const hCurve = Math.max(30, dx * 0.4);
-				cx1 = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
-				cy1 = from.y;
-				cx2 = to.x;
-				cy2 = to.y + vCurve;
-			} else if (fromBottom && toSide2) {
-				// Section → Segment
-				const vCurve = Math.max(30, dy * 0.4);
-				const hCurve = Math.max(30, dx * 0.4);
-				cx1 = from.x;
-				cy1 = from.y + vCurve;
-				cx2 = toCX < fromCX ? to.x + hCurve : to.x - hCurve;
-				cy2 = to.y;
-			} else {
-				// Segment → Section
-				const vCurve = Math.max(30, dy * 0.4);
-				const hCurve = Math.max(30, dx * 0.4);
-				cx1 = fromCX < toCX ? from.x + hCurve : from.x - hCurve;
-				cy1 = from.y;
-				cx2 = to.x;
-				cy2 = to.y + vCurve;
-			}
 
 		// ── Note placement (user-controlled, persisted) ──────────────────────
 		// The note's anchor DOT rides the bezier curve at parameter `noteAnchorT`
@@ -1667,9 +1660,12 @@
 	// synchronously in commitNoteEdit schedules the store update as a microtask,
 	// so the Delete button's click still sees hasActiveHeadingOrNoteEditor=true.
 	$effect(() => {
-		setHeadingOrNoteEditorActive(noteEditorActive, noteEditorActive ? 'connection-note' : null);
-		return () => setHeadingOrNoteEditorActive(false, null);
+		if (noteEditorActive) {
+			setHeadingOrNoteEditorActive(true, 'connection-note', 'connection-note');
+			return () => clearHeadingOrNoteEditorActiveKey('connection-note');
+		}
 	});
+
 
 	// ── React to external editor-state clearing (e.g. Studies panel click) ──
 	// When the toolbar store's hasActiveHeadingOrNoteEditor is set to false by
@@ -1710,6 +1706,13 @@
 		noteSelectedId = connectionId;
 		noteEditingId = connectionId;
 		noteEditorActive = true;       // drives setHeadingOrNoteEditorActive via $effect
+
+		// Make sure the connection-visibility toggle that governs this connection's
+		// type is on. A connection note is only rendered along its VISIBLE path
+		// (see visiblePaths); if the connection's type toggle was off the note editor
+		// would never appear even though Connection Quick Notes is enabled.
+		showConnectionsForTypes(conn.fromType, conn.toType);
+
 
 		// Deactivate everything else in the study
 		clearSelectedItem();           // Studies panel: selected → active-only

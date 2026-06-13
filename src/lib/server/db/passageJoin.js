@@ -36,6 +36,7 @@ import {
 
 import { eq, and, inArray, asc } from 'drizzle-orm';
 import { compareWordIds } from '$lib/server/db/utils.js';
+import { mergedNoteWillTruncate } from '$lib/constants/notes.js';
 import {
 	foldSegmentContent,
 	foldCommentarySubject,
@@ -211,7 +212,7 @@ async function hasTags(dbx, type, itemId) {
  * @param {string} userId
  * @param {'column'|'section'|'segment'} type
  * @param {string} itemId
- * @returns {Promise<{ needsDecision: boolean, summary: string, hasTarget: boolean }>}
+ * @returns {Promise<{ needsDecision: boolean, summary: string, hasTarget: boolean, noteWillTruncate: boolean }>}
  */
 export async function analyzeJoin(dbx, userId, type, itemId) {
 	const { studyId, passageId } = await loadContext(dbx, userId, type, itemId);
@@ -219,6 +220,11 @@ export async function analyzeJoin(dbx, userId, type, itemId) {
 
 	const parts = [];
 	let hasTarget = false;
+	// True when the Quick Note that results from this merge would exceed the cap
+	// and be truncated (with an ellipsis). Drives a heads-up in the confirm modal.
+	// Only segment Quick Notes are capped here; section/column carry only
+	// commentary, which is intentionally NOT capped.
+	let noteWillTruncate = false;
 
 	if (type === 'segment') {
 		const flat = flattenSegments(tree);
@@ -227,10 +233,13 @@ export async function analyzeJoin(dbx, userId, type, itemId) {
 		if (idx === 0) throw new Error('Cannot join the first segment in a passage');
 		hasTarget = true;
 		const seg = flat[idx].segment;
+		const targetSeg = flat[idx - 1].segment;
 		if (seg.headingOne || seg.headingTwo || seg.headingThree) parts.push('headings');
 		if (seg.note) parts.push('note');
 		if (seg.commentary) parts.push('commentary');
 		if (await hasTags(dbx, 'segment', itemId)) parts.push('tags');
+		// Folding appends the active note onto the target's existing note.
+		noteWillTruncate = mergedNoteWillTruncate(targetSeg.note, seg.note);
 	} else if (type === 'section') {
 		const flat = flattenSections(tree);
 		const idx = flat.findIndex((e) => e.section.id === itemId);
@@ -263,7 +272,8 @@ export async function analyzeJoin(dbx, userId, type, itemId) {
 	return {
 		needsDecision: parts.length > 0,
 		summary: parts.join(', '),
-		hasTarget
+		hasTarget,
+		noteWillTruncate
 	};
 }
 

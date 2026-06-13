@@ -17,6 +17,9 @@
 	 * @property {boolean} isOpen - Whether the modal is open
 	 * @property {'column'|'section'|'segment'} type - What is being joined
 	 * @property {string} summary - Human summary of affected content (e.g. "headings, note, 2 connections")
+	 * @property {boolean} noteWillTruncate - Whether Merging would exceed the Quick
+	 *   Note character cap (the merged note would be truncated with an ellipsis).
+	 *   Only surfaced as a heads-up under the Merge option; the join still proceeds.
 	 * @property {Function} onConfirm - async (decision: 'merge'|'delete') => void
 	 * @property {Function} onClose - Callback when modal closes/cancels
 	 * @property {boolean} openedViaKeyboard - Focus the cancel button on open
@@ -29,6 +32,7 @@
 		isOpen = false,
 		type = 'segment',
 		summary = '',
+		noteWillTruncate = false,
 		onConfirm,
 		onClose,
 		openedViaKeyboard = false
@@ -101,6 +105,17 @@
 		</label>
 	</div>
 
+	<!-- Quick Notes are capped; merging two long notes overflows the limit. We
+	     still allow the Merge (no data is lost to a failed write) but warn that the
+	     combined note will be shortened with an ellipsis so the user isn't
+	     surprised. Only relevant while Merge is the chosen decision. -->
+	{#if noteWillTruncate && decision === 'merge'}
+		<p class="truncate-warning">
+			The combined note exceeds the character limit and will be shortened (…) when merged.
+		</p>
+	{/if}
+
+
 	{#if joinError}
 		<p class="modal-message error">{joinError}</p>
 	{/if}
@@ -143,6 +158,16 @@
 	.opt input:focus,
 	.opt input:focus-visible {
 		box-shadow: 0rem 0rem 0rem 0rem;
+	}
+
+	/* Soft amber heads-up that the merged note will be truncated. Informational
+	   (not an error) — the join still succeeds. */
+	.truncate-warning {
+		margin: 0.9rem 0 0;
+		font-size: 1.3rem;
+		line-height: 1.5;
+		color: var(--gray-400);
+		font-style: italic;
 	}
 
 	p.modal-message.error {

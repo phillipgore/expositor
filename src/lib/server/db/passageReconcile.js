@@ -29,6 +29,7 @@ import { eq, and, inArray, asc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
 import { compareWordIds } from '$lib/server/db/utils.js';
+import { truncateNote, mergedNoteWillTruncate } from '$lib/constants/notes.js';
 
 
 /* ------------------------------------------------------------------ */
@@ -894,7 +895,11 @@ async function foldSegmentContent(tx, fromSeg, targetSeg) {
 		targetSeg.headingThree = fromSeg.headingThree;
 	}
 	if (fromSeg.note) {
-		set.note = targetSeg.note ? `${targetSeg.note}\n${fromSeg.note}` : fromSeg.note;
+		// Quick Notes are capped; a merge that would overflow is truncated (with an
+		// ellipsis) rather than silently storing an over-limit note. Commentary is
+		// intentionally NOT capped, so it is appended in full below.
+		const merged = targetSeg.note ? `${targetSeg.note}\n${fromSeg.note}` : fromSeg.note;
+		set.note = truncateNote(merged);
 		targetSeg.note = set.note;
 	}
 	if (fromSeg.commentary) {
@@ -1073,7 +1078,11 @@ async function reanchorOrphanConnections(
 		);
 		if (dup) {
 			const set = {};
-			if (conn.note) set.note = dup.note ? `${dup.note}\n${conn.note}` : conn.note;
+			if (conn.note) {
+				// Connection Quick Notes share the same cap — truncate on overflow.
+				const mergedNote = dup.note ? `${dup.note}\n${conn.note}` : conn.note;
+				set.note = truncateNote(mergedNote);
+			}
 			if (conn.commentary) {
 				set.commentary = dup.commentary ? `${dup.commentary}\n${conn.commentary}` : conn.commentary;
 			}

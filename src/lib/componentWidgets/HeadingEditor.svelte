@@ -4,7 +4,9 @@
 	import { slide } from 'svelte/transition';
 	import Input from '$lib/componentElements/Input.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
-	import { toolbarState, setActiveSegment, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveSegment, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey } from '$lib/stores/toolbar.js';
+
+
 
 	let { 
 		headingType = 'one', // 'one', 'two', or 'three'
@@ -66,6 +68,10 @@
 
 	const config = $derived(headingConfig[headingType]);
 	const inputId = $derived(`heading-${headingType}-input-${segmentId}`);
+	// Unique key identifying THIS editor instance (segment + heading type). Used so a
+	// stale editor's cleanup can only clear the toolbar state if it still owns it.
+	const editorKey = $derived(`${segmentId}-${headingType}`);
+
 
 	/**
 	 * Auto-save heading to database (debounced)
@@ -146,16 +152,25 @@
 			// This updates CSS classes in Segment.svelte which depend on props
 			if (Boolean(newValue) !== Boolean(headingValue)) {
 				await invalidate('app:studies');
-				
-				// Update toolbar state to reflect new heading status
-				const updatedOptions = {
-					hasHeadingOne: headingType === 'one' ? Boolean(newValue) : $toolbarState.activeSegmentHasHeadingOne,
-					hasHeadingTwo: headingType === 'two' ? Boolean(newValue) : $toolbarState.activeSegmentHasHeadingTwo,
-					hasHeadingThree: headingType === 'three' ? Boolean(newValue) : $toolbarState.activeSegmentHasHeadingThree,
-					hasNote: $toolbarState.activeSegmentHasNote
-				};
-				setActiveSegment(true, segmentId, updatedOptions);
+
+				// Update toolbar state to reflect new heading status — but ONLY if this
+				// segment is still the active one. commitChanges() is async (awaits the
+				// save + invalidate), so by the time it resolves the user may have already
+				// clicked a different segment, which set the toolbar's active-segment flags
+				// to THAT segment. Writing this (now-stale) segment's flags would clobber
+				// them — disabling the new segment's matching heading menu item even though
+				// it has no such heading. The DB save above still runs regardless (no data loss).
+				if ($toolbarState.activeSegmentId === segmentId) {
+					const updatedOptions = {
+						hasHeadingOne: headingType === 'one' ? Boolean(newValue) : $toolbarState.activeSegmentHasHeadingOne,
+						hasHeadingTwo: headingType === 'two' ? Boolean(newValue) : $toolbarState.activeSegmentHasHeadingTwo,
+						hasHeadingThree: headingType === 'three' ? Boolean(newValue) : $toolbarState.activeSegmentHasHeadingThree,
+						hasNote: $toolbarState.activeSegmentHasNote
+					};
+					setActiveSegment(true, segmentId, updatedOptions);
+				}
 			}
+
 		}
 	}
 
@@ -209,14 +224,20 @@
 				// Clear optimistic state once real data arrives
 				optimisticValue = undefined;
 				
-				// Update toolbar state immediately to reflect heading removal
-				const updatedOptions = {
-					hasHeadingOne: headingType === 'one' ? false : $toolbarState.activeSegmentHasHeadingOne,
-					hasHeadingTwo: headingType === 'two' ? false : $toolbarState.activeSegmentHasHeadingTwo,
-					hasHeadingThree: headingType === 'three' ? false : $toolbarState.activeSegmentHasHeadingThree,
-					hasNote: $toolbarState.activeSegmentHasNote
-				};
-				setActiveSegment(true, segmentId, updatedOptions);
+				// Update toolbar state immediately to reflect heading removal — but ONLY if
+				// this segment is still the active one. handleDelete() awaits the API call +
+				// invalidate, so the user may have clicked a different segment in the meantime;
+				// writing this stale segment's flags would clobber the new segment's state.
+				if ($toolbarState.activeSegmentId === segmentId) {
+					const updatedOptions = {
+						hasHeadingOne: headingType === 'one' ? false : $toolbarState.activeSegmentHasHeadingOne,
+						hasHeadingTwo: headingType === 'two' ? false : $toolbarState.activeSegmentHasHeadingTwo,
+						hasHeadingThree: headingType === 'three' ? false : $toolbarState.activeSegmentHasHeadingThree,
+						hasNote: $toolbarState.activeSegmentHasNote
+					};
+					setActiveSegment(true, segmentId, updatedOptions);
+				}
+
 				
 				// Dispatch success event
 				window.dispatchEvent(new CustomEvent(`remove-heading-${headingType}-success`));
@@ -256,12 +277,25 @@
 
 
 	/**
-	 * Sync isInputMode → toolbar so the Delete button enables only while editing
+	 * Sync isInputMode → toolbar so the Delete button enables only while editing.
+	 *
+	 * The three HeadingEditors (one/two/three) and the NoteEditor (across every segment)
+	 * all share the same toolbar fields. Only register the active state while THIS editor
+	 * is in input mode, and scope the cleanup to this editor's UNIQUE key (segment + type)
+	 * so a stale editor's cleanup can't clobber another editor's freshly-set active state.
+	 * This covers both switching between heading types AND rapidly adding the same heading
+	 * type across multiple segments (where a type-only guard isn't unique enough), which
+	 * previously left the Delete button disabled until clicking out and back in.
 	 */
 	$effect(() => {
-		setHeadingOrNoteEditorActive(isInputMode, headingType);
-		return () => setHeadingOrNoteEditorActive(false, null);
+		if (isInputMode) {
+			const key = editorKey;
+			setHeadingOrNoteEditorActive(true, headingType, key);
+			return () => clearHeadingOrNoteEditorActiveKey(key);
+		}
 	});
+
+
 
 	/**
 	 * Reset hasInitialized when exiting input mode

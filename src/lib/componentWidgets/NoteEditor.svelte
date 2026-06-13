@@ -4,7 +4,10 @@
 	import { slide } from 'svelte/transition';
 	import Textarea from '$lib/componentElements/Textarea.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
-	import { toolbarState, setActiveSegment, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveSegment, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey } from '$lib/stores/toolbar.js';
+	import { QUICK_NOTE_MAX_CHARS } from '$lib/constants/notes.js';
+
+
 
 	let { 
 		noteValue = null,
@@ -17,8 +20,8 @@
 		hasNote = false
 	} = $props();
 
-	// Character limit
-	const MAX_CHARS = 280;
+	// Character limit (shared source of truth; also enforced server-side on merge).
+	const MAX_CHARS = QUICK_NOTE_MAX_CHARS;
 
 	// Input state
 	let inputValue = $state('');
@@ -46,6 +49,10 @@
 	let isAtLimit = $derived(charCount >= MAX_CHARS);
 
 	const inputId = $derived(`note-input-${segmentId}`);
+	// Unique key identifying THIS editor instance (segment + 'note'). Used so a stale
+	// editor's cleanup can only clear the toolbar state if it still owns it.
+	const editorKey = $derived(`${segmentId}-note`);
+
 
 	/**
 	 * Auto-save note to database (debounced)
@@ -125,16 +132,23 @@
 			// This updates CSS classes in Segment.svelte which depend on props
 			if (Boolean(newValue) !== Boolean(noteValue)) {
 				await invalidate('app:studies');
-				
-				// Update toolbar state to reflect new note status
-				const updatedOptions = {
-					hasHeadingOne: $toolbarState.activeSegmentHasHeadingOne,
-					hasHeadingTwo: $toolbarState.activeSegmentHasHeadingTwo,
-					hasHeadingThree: $toolbarState.activeSegmentHasHeadingThree,
-					hasNote: Boolean(newValue)
-				};
-				setActiveSegment(true, segmentId, updatedOptions);
+
+				// Update toolbar state to reflect new note status — but ONLY if this segment
+				// is still the active one. commitChanges() awaits the save + invalidate, so by
+				// the time it resolves the user may have clicked a different segment, which set
+				// the toolbar's active-segment flags to THAT segment. Writing this stale
+				// segment's flags would clobber them. The DB save still runs (no data loss).
+				if ($toolbarState.activeSegmentId === segmentId) {
+					const updatedOptions = {
+						hasHeadingOne: $toolbarState.activeSegmentHasHeadingOne,
+						hasHeadingTwo: $toolbarState.activeSegmentHasHeadingTwo,
+						hasHeadingThree: $toolbarState.activeSegmentHasHeadingThree,
+						hasNote: Boolean(newValue)
+					};
+					setActiveSegment(true, segmentId, updatedOptions);
+				}
 			}
+
 		}
 	}
 
@@ -187,14 +201,20 @@
 				// Clear optimistic state once real data arrives
 				optimisticValue = undefined;
 				
-				// Update toolbar state immediately to reflect note removal
-				const updatedOptions = {
-					hasHeadingOne: $toolbarState.activeSegmentHasHeadingOne,
-					hasHeadingTwo: $toolbarState.activeSegmentHasHeadingTwo,
-					hasHeadingThree: $toolbarState.activeSegmentHasHeadingThree,
-					hasNote: false
-				};
-				setActiveSegment(true, segmentId, updatedOptions);
+				// Update toolbar state immediately to reflect note removal — but ONLY if this
+				// segment is still the active one. handleDelete() awaits the API call +
+				// invalidate, so the user may have clicked a different segment in the meantime;
+				// writing this stale segment's flags would clobber the new segment's state.
+				if ($toolbarState.activeSegmentId === segmentId) {
+					const updatedOptions = {
+						hasHeadingOne: $toolbarState.activeSegmentHasHeadingOne,
+						hasHeadingTwo: $toolbarState.activeSegmentHasHeadingTwo,
+						hasHeadingThree: $toolbarState.activeSegmentHasHeadingThree,
+						hasNote: false
+					};
+					setActiveSegment(true, segmentId, updatedOptions);
+				}
+
 				
 				// Dispatch success event
 				window.dispatchEvent(new CustomEvent('remove-note-success'));
@@ -221,12 +241,22 @@
 
 
 	/**
-	 * Sync isInputMode → toolbar so the Delete button enables only while editing
+	 * Sync isInputMode → toolbar so the Delete button enables only while editing.
+	 *
+	 * The three HeadingEditors (one/two/three) and the NoteEditor (across every segment)
+	 * all share the same toolbar fields. Only register the active state while THIS editor
+	 * is in input mode, and scope the cleanup to this editor's UNIQUE key (segment + 'note')
+	 * so a stale editor's cleanup can't clobber another editor's freshly-set active state.
 	 */
 	$effect(() => {
-		setHeadingOrNoteEditorActive(isInputMode, 'note');
-		return () => setHeadingOrNoteEditorActive(false, null);
+		if (isInputMode) {
+			const key = editorKey;
+			setHeadingOrNoteEditorActive(true, 'note', key);
+			return () => clearHeadingOrNoteEditorActiveKey(key);
+		}
 	});
+
+
 
 	/**
 	 * Reset hasInitialized when exiting input mode

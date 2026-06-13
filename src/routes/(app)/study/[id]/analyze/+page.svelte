@@ -27,7 +27,9 @@
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings } from '$lib/stores/toolbar.js';
+
+
 
 	let { data } = $props();
 
@@ -1181,6 +1183,10 @@
 				body: JSON.stringify(body)
 			});
 			if (response.ok) {
+				// Auto-show the connection-visibility toggle that governs this connection's
+				// type (segment/section/column or cross-item) so the newly created connection
+				// is immediately visible even if its View-menu toggle was previously off.
+				showConnectionsForTypes(itemA.type, itemB.type);
 				await invalidate('app:studies');
 			} else {
 				const err = await response.json();
@@ -1190,6 +1196,7 @@
 			console.error('Insert connection network error:', error);
 		}
 	}
+
 
 	/**
 	 * Handle Remove Connection action.
@@ -1285,23 +1292,29 @@
 		const handleInsertHeadingTwoFromMenuEvent = () => {
 			// Find the first active segment and dispatch event with its ID
 			if (activeSegments.length > 0) {
+				// Auto-show headings if hidden, so the new heading is visible.
+				showHeadings();
 				const firstSegment = activeSegments[0];
 				window.dispatchEvent(new CustomEvent('insert-heading-two', {
 					detail: { segmentId: firstSegment.segmentId }
 				}));
 			}
 		};
+
 		
 		// Listen for insert heading three event from MenuStructure
 		const handleInsertHeadingThreeFromMenuEvent = () => {
 			// Find the first active segment and dispatch event with its ID
 			if (activeSegments.length > 0) {
+				// Auto-show headings if hidden, so the new heading is visible.
+				showHeadings();
 				const firstSegment = activeSegments[0];
 				window.dispatchEvent(new CustomEvent('insert-heading-three', {
 					detail: { segmentId: firstSegment.segmentId }
 				}));
 			}
 		};
+
 		
 		// Listen for insert note event from MenuStructure
 		const handleInsertNoteFromMenuEvent = () => {
@@ -1572,6 +1585,9 @@
 	let joinModalOpen = $state(false);
 	let joinModalType = $state(/** @type {'column'|'section'|'segment'} */ ('segment'));
 	let joinModalSummary = $state('');
+	// Heads-up flag: the merge would push the resulting Quick Note over the cap,
+	// so it will be truncated. Surfaced by the confirm modal (see analyzeJoin).
+	let joinModalNoteWillTruncate = $state(false);
 	let joinPending = $state(/** @type {{ type: string, id: string } | null} */ (null));
 
 	const JOIN_ENDPOINT = {
@@ -1608,11 +1624,12 @@
 				return;
 			}
 
-			const { needsDecision, summary } = await dryRes.json();
+			const { needsDecision, summary, noteWillTruncate } = await dryRes.json();
 			if (needsDecision) {
 				// Defer to the modal: the user picks Merge or Delete.
 				joinModalType = type;
 				joinModalSummary = summary || '';
+				joinModalNoteWillTruncate = !!noteWillTruncate;
 				joinPending = { type, id };
 				joinModalOpen = true;
 			} else {
@@ -4156,6 +4173,7 @@
 		isOpen={joinModalOpen}
 		type={joinModalType}
 		summary={joinModalSummary}
+		noteWillTruncate={joinModalNoteWillTruncate}
 		onConfirm={confirmJoin}
 		onClose={() => { joinModalOpen = false; joinPending = null; }}
 	/>

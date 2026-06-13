@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
 import { updateSegmentNote } from '$lib/server/db/utils.js';
 import { auth } from '$lib/server/auth.js';
+import { QUICK_NOTE_MAX_CHARS } from '$lib/constants/notes.js';
 
 /**
  * Update a segment's note
@@ -23,10 +24,14 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Missing required field: segmentId' }, { status: 400 });
 		}
 
-		// Validate note length (280 character limit)
-		if (noteText && noteText.length > 280) {
-			return json({ error: 'Note exceeds 280 character limit' }, { status: 400 });
+		// Validate note length against the shared Quick Note character cap.
+		if (noteText && noteText.length > QUICK_NOTE_MAX_CHARS) {
+			return json(
+				{ error: `Note exceeds ${QUICK_NOTE_MAX_CHARS} character limit` },
+				{ status: 400 }
+			);
 		}
+
 
 		// Perform the note update
 		await updateSegmentNote(db, session.user.id, segmentId, noteText);
