@@ -752,9 +752,9 @@
 			maxHeight = spaceBelow;
 		}
 
-		// Keep horizontally within viewport (picker is 34rem ≈ 340px, half = 170)
+		// Keep horizontally within viewport (picker is 46rem ≈ 460px, half = 230)
 		let left = centerLeft;
-		const half = 170;
+		const half = 230;
 		if (left - half < MARGIN) left = half + MARGIN;
 		else if (left + half > window.innerWidth - MARGIN) left = window.innerWidth - half - MARGIN;
 
@@ -1347,10 +1347,10 @@
 				class="toolbar-button"
 				onmousedown={(e) => e.preventDefault()}
 				onclick={openGlossaryInline}
-				title="Insert Glossary Term"
-				aria-label="Insert Glossary Term"
+				title="Insert Glossary Tag"
+				aria-label="Insert Glossary Tag"
 			>
-				<Icon iconId="glossary" />
+				<Icon iconId="tag" />
 			</button>
 
 

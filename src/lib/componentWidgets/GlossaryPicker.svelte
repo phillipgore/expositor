@@ -79,6 +79,13 @@
 		activeDomain = domainId;
 		activeIndex = 0;
 		inputElement?.focus({ preventScroll: true });
+		// Scroll the results list back to the top so the user starts at the first
+		// category of the newly selected domain (mirrors the /glossary page).
+		// Defer until the DOM reflects the new domain's groups.
+		setTimeout(() => {
+			const list = popoverElement?.querySelector(".picker-results");
+			list?.scrollTo({ top: 0 });
+		}, 0);
 	}
 
 	/**
@@ -120,6 +127,20 @@
 			el?.scrollIntoView({ block: 'nearest' });
 		}, 0);
 	}
+
+	/**
+	 * Smooth-scroll the results list to a category section when its jump-nav
+	 * link is clicked. Mirrors the /glossary page's jump-nav, but scrolls WITHIN
+	 * the picker's own scroll container (`.picker-results`) rather than the
+	 * window. Focus returns to the search box to preserve the picker's
+	 * keyboard-first flow.
+	 * @param {string} categoryId
+	 */
+	function jumpTo(categoryId) {
+		const el = popoverElement?.querySelector(`#picker-category-${categoryId}`);
+		el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		inputElement?.focus({ preventScroll: true });
+	}
 </script>
 
 <div
@@ -127,7 +148,6 @@
 	class:arrow-top={position.arrowPosition === 'top'}
 	bind:this={popoverElement}
 	style="top: {position.top}px; left: {position.left}px; --arrow-offset: {position.arrowOffset ?? 0}px; --picker-max-height: {position.maxHeight ? position.maxHeight + 'px' : 'calc(100vh - 8rem)'};"
-
 >
 	<div class="popover-arrow"></div>
 
@@ -160,39 +180,63 @@
 	</div>
 
 
-	<div class="picker-results">
-		{#if results.length === 0}
+	{#if results.length === 0}
+		<div class="picker-results">
 			<p class="picker-empty">No terms match “{query}”.</p>
-		{:else}
-			{#each groups as group (group.categoryId)}
-				<div class="picker-group">
-					<div class="picker-group-title">{group.category}</div>
-					{#each group.entries as entry (entry._id)}
-						{@const flatIndex = results.indexOf(entry)}
-						<button
-							type="button"
-							class="glossary-option {entry.color}"
-							class:active={flatIndex === activeIndex}
-							onmouseenter={() => {
-								activeIndex = flatIndex;
-							}}
-							onclick={() => choose(entry._id)}
-						>
-							<span class="option-term">{entry.term}</span>
-							<span class="option-def">{entry.definition}</span>
-						</button>
+		</div>
+	{:else}
+		<div class="picker-body">
+			<!-- Category jump-nav — mirrors the /glossary page's jump-nav, scoped
+			     to the active domain's categories. Clicking a link smooth-scrolls
+			     the results list to that category section. -->
+			<nav class="picker-nav" aria-label="Glossary categories">
+				<ul>
+					{#each groups as group (group.categoryId)}
+						<li>
+							<button
+								type="button"
+								class="picker-nav-link"
+								onclick={() => jumpTo(group.categoryId)}
+							>
+								<span class="picker-nav-dot {group.color}"></span>
+								<span class="picker-nav-label">{group.category}</span>
+							</button>
+						</li>
 					{/each}
-				</div>
-			{/each}
-		{/if}
-	</div>
+				</ul>
+			</nav>
+
+			<div class="picker-results">
+				{#each groups as group (group.categoryId)}
+					<div class="picker-group" id="picker-category-{group.categoryId}">
+						<div class="picker-group-title">{group.category}</div>
+						{#each group.entries as entry (entry._id)}
+							{@const flatIndex = results.indexOf(entry)}
+							<button
+								type="button"
+								class="glossary-option {entry.color}"
+								class:active={flatIndex === activeIndex}
+								onmouseenter={() => {
+									activeIndex = flatIndex;
+								}}
+								onclick={() => choose(entry._id)}
+							>
+								<span class="option-term">{entry.term}</span>
+								<span class="option-def">{entry.definition}</span>
+							</button>
+						{/each}
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
 	.glossary-picker {
 		position: fixed;
 		transform: translate(-50%, -100%);
-		width: 34rem;
+		width: 46rem;
 		max-height: var(--picker-max-height, calc(100vh - 8rem));
 		display: flex;
 
@@ -295,6 +339,88 @@
 		border-color: var(--blue);
 		box-shadow: 0rem 0rem 0.6rem var(--blue-alpha);
 	}
+
+	/* Body row: jump-nav on the left + scrollable results on the right, mirroring
+	   the two-column layout of the /glossary reference page. */
+	.picker-body {
+		flex: 1;
+		display: flex;
+		gap: 0.9rem;
+		min-height: 0;
+	}
+
+	/* ============================================
+	   CATEGORY JUMP-NAV
+	   Mirrors the /glossary page's .glossary-nav: a column of colored-dot links,
+	   sized down to the picker's compact scale.
+	   ============================================ */
+	.picker-nav {
+		flex-shrink: 0;
+		width: 13rem;
+		overflow-y: auto;
+		min-height: 0;
+	}
+
+	.picker-nav ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+
+	.picker-nav-link {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		width: 100%;
+		padding: 0.5rem 0.6rem;
+		border: none;
+		border-radius: 0.3rem;
+		background: transparent;
+		text-align: left;
+		font-family: inherit;
+		font-size: 1.2rem;
+		font-weight: 500;
+		color: var(--gray-darker);
+		cursor: pointer;
+		transition: background-color 0.15s ease;
+	}
+
+	.picker-nav-link:hover {
+		background-color: var(--gray-lighter);
+	}
+
+	.picker-nav-link:focus-visible {
+		outline: none;
+		box-shadow: 0rem 0rem 0.6rem var(--blue-alpha);
+	}
+
+	.picker-nav-dot {
+		display: inline-block;
+		flex-shrink: 0;
+		width: 0.9rem;
+		height: 0.9rem;
+		border-radius: 999em;
+	}
+
+	.picker-nav-label {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.picker-nav-dot.gray { background-color: var(--gray); }
+	.picker-nav-dot.red { background-color: var(--red); }
+	.picker-nav-dot.orange { background-color: var(--orange); }
+	.picker-nav-dot.yellow { background-color: var(--yellow); }
+	.picker-nav-dot.green { background-color: var(--green); }
+	.picker-nav-dot.aqua { background-color: var(--aqua); }
+	.picker-nav-dot.blue { background-color: var(--blue); }
+	.picker-nav-dot.purple { background-color: var(--purple); }
+	.picker-nav-dot.pink { background-color: var(--pink); }
 
 	.picker-results {
 		flex: 1;
