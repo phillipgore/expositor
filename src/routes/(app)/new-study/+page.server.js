@@ -7,6 +7,7 @@ import { eq, and } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
 import { expandGroupAncestors, createDefaultPassageStructure } from '$lib/server/db/utils.js';
 import { validatePassagesLimits } from '$lib/utils/translationLimits.js';
+import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 
 /**
  * @typedef {Object} PassageData
@@ -212,6 +213,23 @@ export const actions = {
 			// If study was created in a group, expand that group and all ancestors
 			if (groupId && typeof groupId === 'string' && groupId.trim() !== '') {
 				await expandGroupAncestors(groupId, session.user.id);
+			}
+
+			// Warm the per-passage text cache so the very first study load is fast
+			// instead of fetching the whole study from the translation API. This is
+			// best-effort: any failure here is swallowed and the passage simply
+			// lazy-fills on first load (it starts with cachedText = null).
+			try {
+				await fetchPassagesTextWithCache(passageValues, translation.toString(), {
+					onFetched: async (passageRow, result) => {
+						await db
+							.update(passage)
+							.set({ cachedText: result.text, textCachedAt: new Date() })
+							.where(eq(passage.id, passageRow.id));
+					}
+				});
+			} catch (cacheError) {
+				console.error('Failed to warm passage text cache for new study:', cacheError);
 			}
 
 			// Redirect to the study view page (adjust URL as needed)

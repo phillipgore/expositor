@@ -369,7 +369,7 @@ export async function fetchPassageText(passage, translation) {
 }
 
 /**
- * Fetch text for multiple passages.
+ * Determine how many passage requests may run concurrently for a translation.
  *
  * Rather than firing every request at once (which could trip the provider's
  * rate limit on studies with many passages), we cap how many requests run
@@ -378,21 +378,73 @@ export async function fetchPassageText(passage, translation) {
  * default, and is further clamped down if a provider's published per-minute
  * limit happens to be lower than our default.
  *
- * @param {Array<Object>} passages - Array of passage objects from database
  * @param {string} translation - Translation ID (e.g., 'esv', 'net')
- * @returns {Promise<Array<{reference: string, text: string, error?: string}>>}
+ * @returns {number} Maximum number of concurrent requests
  */
-export async function fetchPassagesText(passages, translation) {
+function getFetchConcurrency(translation) {
 	// Default burst-concurrency cap; conservative so we stay well-behaved.
 	const DEFAULT_CONCURRENCY = 5;
 
 	const { perMinute } = getRateLimits(translation);
 	// Never run more concurrent requests than the provider's per-minute limit
 	// (when it's lower than our default), and keep our small ceiling otherwise.
-	const concurrency = perMinute
-		? Math.max(1, Math.min(DEFAULT_CONCURRENCY, perMinute))
-		: DEFAULT_CONCURRENCY;
+	return perMinute ? Math.max(1, Math.min(DEFAULT_CONCURRENCY, perMinute)) : DEFAULT_CONCURRENCY;
+}
 
+/**
+ * Fetch text for multiple passages, always hitting the translation API.
+ *
+ * @param {Array<Object>} passages - Array of passage objects from database
+ * @param {string} translation - Translation ID (e.g., 'esv', 'net')
+ * @returns {Promise<Array<{reference: string, text: string, error?: string}>>}
+ */
+export async function fetchPassagesText(passages, translation) {
 	const tasks = passages.map((passage) => () => fetchPassageText(passage, translation));
-	return runWithConcurrency(tasks, concurrency);
+	return runWithConcurrency(tasks, getFetchConcurrency(translation));
+}
+
+/**
+ * Like {@link fetchPassagesText}, but serves any passage that already has cached
+ * text (`passage.cachedText`) without hitting the API. Passages whose cache is
+ * empty are fetched live; for each successful live fetch the optional
+ * `onFetched` callback is invoked so the caller can persist the result back to
+ * the cache (lazy backfill).
+ *
+ * Transient/failed fetches (error set, or empty text) are NOT passed to
+ * `onFetched`, so failures aren't cached and will be retried on the next load.
+ *
+ * @param {Array<Object>} passages - Passage rows; may include a `cachedText` field
+ * @param {string} translation - Translation ID (e.g., 'esv', 'net')
+ * @param {Object} [options]
+ * @param {(passage: Object, result: {reference: string, text: string}) => (void|Promise<void>)} [options.onFetched]
+ *   - Called after a successful live fetch so the caller can persist the text.
+ * @returns {Promise<Array<{reference: string, text: string, error?: string, fromCache: boolean}>>}
+ */
+export async function fetchPassagesTextWithCache(passages, translation, { onFetched } = {}) {
+	const tasks = passages.map((passage) => async () => {
+		if (passage.cachedText) {
+			return {
+				reference: buildPassageReference(passage),
+				text: passage.cachedText,
+				fromCache: true
+			};
+		}
+
+		const result = await fetchPassageText(passage, translation);
+
+		// Only persist genuine results so transient failures aren't cached.
+		if (onFetched && !result.error && result.text) {
+			try {
+				await onFetched(passage, result);
+			} catch (err) {
+				// A cache-write failure must not break the page load; we just
+				// fall back to fetching live again next time.
+				console.error('Failed to cache passage text:', err);
+			}
+		}
+
+		return { ...result, fromCache: false };
+	});
+
+	return runWithConcurrency(tasks, getFetchConcurrency(translation));
 }

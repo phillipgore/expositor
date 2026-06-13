@@ -128,6 +128,12 @@ export const passage = pgTable('passage', {
 	fromVerse: integer('from_verse').notNull(),
 	toVerse: integer('to_verse').notNull(),
 	displayOrder: integer('display_order').notNull().default(0),
+	// Cached, fully-processed passage text (post-wrapWords HTML). NULL = not yet
+	// cached; the loader fetches live and lazily backfills this on first read. The
+	// verse range + study translation fully identify the content, so this is a
+	// complete cache key — invalidated on range change in the edit flow.
+	cachedText: text('cached_text'),
+	textCachedAt: timestamp('text_cached_at'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()

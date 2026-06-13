@@ -115,9 +115,9 @@
       },
       "rateLimits": null,
       "requestLimits": {
-        "maxVerses": null,
-        "maxBookPortion": null,
-        "description": "No explicit limits specified"
+        "maxVerses": 500,
+        "maxBookPortion": 0.5,
+        "description": "No explicit limits published by the NET API; we apply the same 500-verse / half-book cap as the ESV so a single passage request stays a reasonable size"
       },
       "queryParameters": {
         "passage": "passage",

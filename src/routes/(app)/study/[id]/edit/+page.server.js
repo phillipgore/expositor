@@ -247,6 +247,10 @@ export const actions = {
 				}
 
 				// 4. Reconcile passages whose verse range changed (preserve structure).
+				//    The verse range changed, so the cached text is now stale —
+				//    clear it. The study loader will lazily re-fetch and re-cache it
+				//    on the next view. (Added passages already start with a null
+				//    cache; unchanged passages keep theirs.)
 				for (const { old, next } of changed) {
 					await tx
 						.update(passage)
@@ -258,7 +262,9 @@ export const actions = {
 							toChapter: next.toChapter,
 							fromVerse: next.fromVerse,
 							toVerse: next.toVerse,
-							displayOrder: orderById.get(next.id) ?? old.displayOrder
+							displayOrder: orderById.get(next.id) ?? old.displayOrder,
+							cachedText: null,
+							textCachedAt: null
 						})
 						.where(eq(passage.id, next.id));
 
