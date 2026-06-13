@@ -16,7 +16,7 @@
  * drives the global tooltip store. See CommentaryEditor.svelte.
  */
 import { Node, mergeAttributes } from '@tiptap/core';
-import { getTermById, getColorForTermId } from '$lib/data/glossaryIndex.js';
+import { getTermById, getColorForTermId, shapeForDomain } from '$lib/data/glossaryIndex.js';
 
 export const GlossaryTerm = Node.create({
 	name: 'glossaryTerm',
@@ -81,6 +81,9 @@ export const GlossaryTerm = Node.create({
 		const entry = termId ? getTermById(termId) : null;
 		const label = entry?.term || node.attrs.label || 'Unknown term';
 		const color = getColorForTermId(termId);
+		// Shape distinguishes the domain: exegesis = pill, homiletics = rounded
+		// rectangle. Resolved live from the term's domain (falls back to pill).
+		const shape = entry?.shape || shapeForDomain(entry?.domain);
 
 		// The pill carries a remove (×) button. It is rendered for every pill but
 		// only made visible inside the editable editor via CSS (.tiptap-editor),
@@ -90,7 +93,7 @@ export const GlossaryTerm = Node.create({
 		return [
 			'span',
 			mergeAttributes(HTMLAttributes, {
-				class: `glossary-term ${color}`
+				class: `glossary-term ${color} shape-${shape}`
 			}),
 			['span', { class: 'glossary-term-label' }, label],
 			[

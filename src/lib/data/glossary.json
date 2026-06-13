@@ -1,6 +1,7 @@
 [
   {
     "_id": "literary-structures",
+    "domain": "exegesis",
     "title": "Literary Structures",
     "terms": [
       {
@@ -22,7 +23,8 @@
       {
         "_id": "ls-epic",
         "term": "Epic",
-        "definition": "A long narrative, often in elevated style, combining many episodes. The Exodus account (Exodus through Deuteronomy) functions as a biblical epic, though uniquely focused on God's acts rather than human exploits."
+        "definition": "A long narrative, often in elevated style, combining many episodes. The Exodus account (Exodus through Deuteronomy) functions as a biblical epic, though uniquely focused on God's acts rather than human exploits.",
+        "enabled": false
       },
       {
         "_id": "ls-inclusio",
@@ -33,7 +35,8 @@
       {
         "_id": "ls-intensification",
         "term": "Intensification (Climactic Parallelism)",
-        "definition": "Building progression where each line increases in force or meaning, creating a sense of mounting importance or urgency."
+        "definition": "Building progression where each line increases in force or meaning, creating a sense of mounting importance or urgency.",
+        "enabled": false
       },
       {
         "_id": "ls-parallelism",
@@ -66,18 +69,21 @@
       {
         "_id": "ls-ring-composition",
         "term": "Ring Composition",
-        "definition": "A narrative or argument that circles back to its beginning, often on a larger scale than chiasm, creating a sense of completeness."
+        "definition": "A narrative or argument that circles back to its beginning, often on a larger scale than chiasm, creating a sense of completeness.",
+        "enabled": false
       },
       {
         "_id": "ls-type-scene",
         "term": "Type Scene",
         "definition": "Recurring narrative patterns used to convey familiar situations.",
-        "examples": "Betrothal stories at wells (Genesis 24, 29; Exodus 2) or annunciation narratives"
+        "examples": "Betrothal stories at wells (Genesis 24, 29; Exodus 2) or annunciation narratives",
+        "enabled": false
       }
     ]
   },
   {
     "_id": "figures-of-speech",
+    "domain": "exegesis",
     "title": "Figures of Speech",
     "terms": [
       {
@@ -104,12 +110,14 @@
       {
         "_id": "fos-anthropopathism",
         "term": "Anthropopathism",
-        "definition": "Attribution of human emotions or passions to God (anger, joy, regret, jealousy). A subset of anthropomorphism focusing specifically on feelings and psychological states."
+        "definition": "Attribution of human emotions or passions to God (anger, joy, regret, jealousy). A subset of anthropomorphism focusing specifically on feelings and psychological states.",
+        "enabled": false
       },
       {
         "_id": "fos-assonance",
         "term": "Assonance",
-        "definition": "Repetition of the same internal sounds of adjacent or nearby words, used for narrative effect. Primarily recognizable in original languages."
+        "definition": "Repetition of the same internal sounds of adjacent or nearby words, used for narrative effect. Primarily recognizable in original languages.",
+        "enabled": false
       },
       {
         "_id": "fos-euphemism",
@@ -126,7 +134,8 @@
       {
         "_id": "fos-hypocatastasis",
         "term": "Hypocatastasis",
-        "definition": "An implied comparison without using 'like' or 'as' and without explicitly stating both elements being compared. More subtle than direct metaphor."
+        "definition": "An implied comparison without using 'like' or 'as' and without explicitly stating both elements being compared. More subtle than direct metaphor.",
+        "enabled": false
       },
       {
         "_id": "fos-idiom",
@@ -144,7 +153,8 @@
         "_id": "fos-litotes",
         "term": "Litotes",
         "definition": "Deliberate understatement for effect, often using negative construction.",
-        "example": "Paul calling himself 'not inferior to the most eminent apostles' (2 Corinthians 11:5)"
+        "example": "Paul calling himself 'not inferior to the most eminent apostles' (2 Corinthians 11:5)",
+        "enabled": false
       },
       {
         "_id": "fos-merism",
@@ -208,6 +218,7 @@
   },
   {
     "_id": "rhetorical-devices",
+    "domain": "exegesis",
     "title": "Rhetorical Devices",
     "terms": [
       {
@@ -230,7 +241,8 @@
       {
         "_id": "rd-greater-to-lesser",
         "term": "Greater to Lesser",
-        "definition": "Making an inference from a greater established reality to a lesser one."
+        "definition": "Making an inference from a greater established reality to a lesser one.",
+        "enabled": false
       },
       {
         "_id": "rd-rhetorical-question",
@@ -247,17 +259,20 @@
   },
   {
     "_id": "narrative-elements",
+    "domain": "exegesis",
     "title": "Narrative Elements",
     "terms": [
       {
         "_id": "ne-comparison",
         "term": "Comparison",
-        "definition": "Showing two or more things to be similar, helping readers understand one thing in terms of another."
+        "definition": "Showing two or more things to be similar, helping readers understand one thing in terms of another.",
+        "enabled": false
       },
       {
         "_id": "ne-contrast",
         "term": "Contrast",
-        "definition": "Showing two or more things to be different from one another, often using 'but' to highlight differences."
+        "definition": "Showing two or more things to be different from one another, often using 'but' to highlight differences.",
+        "enabled": false
       },
       {
         "_id": "ne-dialogue",
@@ -267,7 +282,8 @@
       {
         "_id": "ne-explanation-analysis",
         "term": "Explanation/Analysis",
-        "definition": "Presenting an idea or event followed by its interpretation, helping readers understand significance."
+        "definition": "Presenting an idea or event followed by its interpretation, helping readers understand significance.",
+        "enabled": false
       },
       {
         "_id": "ne-point-of-view",
@@ -277,7 +293,8 @@
       {
         "_id": "ne-preparation-introduction",
         "term": "Preparation/Introduction",
-        "definition": "Background or setting for events or ideas that will be presented, providing necessary context."
+        "definition": "Background or setting for events or ideas that will be presented, providing necessary context.",
+        "enabled": false
       },
       {
         "_id": "ne-scene",
@@ -288,83 +305,99 @@
   },
   {
     "_id": "genres",
+    "domain": "exegesis",
     "title": "Genres",
     "terms": [
       {
         "_id": "gn-epistle",
         "term": "Epistle (Letter)",
-        "definition": "Correspondence addressing specific situations in early churches, containing doctrine, instruction, and pastoral care."
+        "definition": "Correspondence addressing specific situations in early churches, containing doctrine, instruction, and pastoral care.",
+        "enabled": false
       },
       {
         "_id": "gn-gospel",
         "term": "Gospel",
-        "definition": "Unique literary form presenting the good news about Jesus Christ. Highly episodic and different from other ancient biographical genres."
+        "definition": "Unique literary form presenting the good news about Jesus Christ. Highly episodic and different from other ancient biographical genres.",
+        "enabled": false
       },
       {
         "_id": "gn-law",
         "term": "Law",
-        "definition": "Legal codes, commandments, and covenant stipulations governing Israel's relationship with God and community life."
+        "definition": "Legal codes, commandments, and covenant stipulations governing Israel's relationship with God and community life.",
+        "enabled": false
       },
       {
         "_id": "gn-narrative-history",
         "term": "Narrative History",
-        "definition": "Story-telling that records God's redemptive work. The most common literary form in the Bible, operating on multiple levels from individual stories to the ultimate narrative of God's kingdom."
+        "definition": "Story-telling that records God's redemptive work. The most common literary form in the Bible, operating on multiple levels from individual stories to the ultimate narrative of God's kingdom.",
+        "enabled": false
       },
       {
         "_id": "gn-oratory",
         "term": "Oratory",
-        "definition": "Speeches and sermons delivered to audiences, recorded in both testaments."
+        "definition": "Speeches and sermons delivered to audiences, recorded in both testaments.",
+        "enabled": false
       },
       {
         "_id": "gn-poetry",
         "term": "Poetry",
-        "definition": "Uses parallelism, imagery, figurative language, and terseness rather than rhyme and meter. Found throughout Scripture, especially in Psalms, Song of Songs, and prophetic literature."
+        "definition": "Uses parallelism, imagery, figurative language, and terseness rather than rhyme and meter. Found throughout Scripture, especially in Psalms, Song of Songs, and prophetic literature.",
+        "enabled": false
       },
       {
         "_id": "gn-prophecy",
         "term": "Prophecy",
-        "definition": "Messages from God delivered through prophets, including judgment oracles, promises of restoration, and visions of the future."
+        "definition": "Messages from God delivered through prophets, including judgment oracles, promises of restoration, and visions of the future.",
+        "enabled": false
       },
       {
         "_id": "gn-wisdom-literature",
         "term": "Wisdom Literature",
-        "definition": "Practical and philosophical reflections on life, righteousness, and the fear of the Lord. Includes Job, Proverbs, Ecclesiastes."
+        "definition": "Practical and philosophical reflections on life, righteousness, and the fear of the Lord. Includes Job, Proverbs, Ecclesiastes.",
+        "enabled": false
       }
     ]
   },
   {
     "_id": "hermeneutical-terms",
+    "domain": "exegesis",
     "title": "Hermeneutical Terms",
     "terms": [
       {
         "_id": "ht-exegesis",
         "term": "Exegesis",
-        "definition": "The process of explaining or drawing out the meaning of a text. Critical analysis to determine what the original author intended to communicate."
+        "definition": "The process of explaining or drawing out the meaning of a text. Critical analysis to determine what the original author intended to communicate.",
+        "enabled": false
       },
       {
         "_id": "ht-hermeneutics",
         "term": "Hermeneutics",
-        "definition": "The science and art of biblical interpretation. The principles and methods used to understand and apply Scripture correctly."
+        "definition": "The science and art of biblical interpretation. The principles and methods used to understand and apply Scripture correctly.",
+        "enabled": false
       },
       {
         "_id": "ht-historical-grammatical-method",
         "term": "Historical-Grammatical Method",
-        "definition": "Interpretive approach that seeks the meaning intended by the original author through examining the historical context and grammatical structure."
+        "definition": "Interpretive approach that seeks the meaning intended by the original author through examining the historical context and grammatical structure.",
+        "enabled": false
       },
       {
         "_id": "ht-literal-meaning",
         "term": "Literal Meaning",
-        "definition": "The normal or customary usage of a word or expression. The plain meaning intended by the author within its genre and context."
+        "definition": "The normal or customary usage of a word or expression. The plain meaning intended by the author within its genre and context.",
+        "enabled": false
       },
       {
         "_id": "ht-figurative-meaning",
         "term": "Figurative Meaning",
-        "definition": "Meaning that refers to a concept represented in terms of another, departing from literal usage for rhetorical or theological purposes."
+        "definition": "Meaning that refers to a concept represented in terms of another, departing from literal usage for rhetorical or theological purposes.",
+        "enabled": false
       },
       {
         "_id": "ht-literary-context",
         "term": "Literary Context",
-        "definition": "The surrounding text that helps determine how a passage should be interpreted. Includes the verses before and after, the chapter, the book, and the broader biblical narrative."
+        "definition": "The surrounding text that helps determine how a passage should be interpreted. Includes the verses before and after, the chapter, the book, and the broader biblical narrative.",
+        "enabled": false
       },
       {
         "_id": "ht-theophany",
@@ -375,12 +408,14 @@
   },
   {
     "_id": "specialized-terms",
+    "domain": "exegesis",
     "title": "Specialized Terms",
     "terms": [
       {
         "_id": "st-apocalyptic",
         "term": "Apocalyptic",
-        "definition": "A genre of revelatory literature using highly symbolic imagery, visions, and cosmic imagery to reveal divine mysteries about the end times and God's ultimate victory. Found in Daniel and Revelation."
+        "definition": "A genre of revelatory literature using highly symbolic imagery, visions, and cosmic imagery to reveal divine mysteries about the end times and God's ultimate victory. Found in Daniel and Revelation.",
+        "enabled": false
       },
       {
         "_id": "st-numerical-patterns",
@@ -393,6 +428,349 @@
         "term": "Wordplay/Puns",
         "definition": "Witty use of word meanings and ambiguities, often visible only in original languages.",
         "example": "'Adam' from 'adamah' (man from ground)"
+      }
+    ]
+  },
+  {
+    "_id": "method-structure",
+    "domain": "homiletics",
+    "title": "Method & Structure",
+    "terms": [
+      {
+        "_id": "em-expository-preaching",
+        "term": "Expository Preaching",
+        "definition": "A method of preaching in which the main idea, structure, and application of the sermon arise from and are controlled by the biblical text. The text drives the message rather than serving as a springboard for the preacher's own ideas."
+      },
+      {
+        "_id": "em-textual-preaching",
+        "term": "Textual Preaching",
+        "definition": "A form of expository preaching in which the main points of the sermon are drawn from a single, shorter passage, often a verse or two. The scope of the text is narrow but the handling is exegetically grounded."
+      },
+      {
+        "_id": "em-topical-preaching",
+        "term": "Topical Preaching",
+        "definition": "A preaching method organized around a topic or theme, drawing from multiple texts. At its best each text is handled exegetically; at its weakest, texts are used as proof-texts for a predetermined conclusion."
+      },
+      {
+        "_id": "em-lectio-continua",
+        "term": "Lectio Continua",
+        "definition": "The practice of preaching through a biblical book sequentially, passage by passage, over a series of weeks or months. A discipline for ensuring the congregation hears the whole counsel of God rather than only the preacher's favorite themes."
+      },
+      {
+        "_id": "em-pericope",
+        "term": "Pericope",
+        "definition": "A discrete passage or unit of Scripture selected for reading or preaching, with identifiable beginning and ending markers determined by the flow of the text."
+      },
+      {
+        "_id": "em-redemptive-historical",
+        "term": "Redemptive-Historical Preaching",
+        "definition": "An approach that situates every passage within the overarching story of redemption, tracing how the text relates to God's saving purposes culminating in Christ. Guards against both moralism and proof-texting."
+      },
+      {
+        "_id": "em-christocentric",
+        "term": "Christocentric Interpretation",
+        "definition": "The hermeneutical and homiletical principle that all Scripture ultimately points to, prepares for, or reflects Christ. Contrasted with moralizing application that bypasses the gospel and treats biblical characters as mere examples to imitate."
+      },
+      {
+        "_id": "em-oia",
+        "term": "Observation–Interpretation–Application (OIA)",
+        "definition": "A three-stage method of Bible study and sermon preparation: what does the text say? (observation), what does it mean? (interpretation), how does it apply? (application). Each stage depends on the one before it."
+      },
+      {
+        "_id": "em-hermeneutical-bridge",
+        "term": "Hermeneutical Bridge",
+        "definition": "The conceptual move from the meaning of a text in its original historical and cultural context to its meaning and application for today's audience. Requires identifying the timeless principle beneath the culturally specific form."
+      },
+      {
+        "_id": "ss-proposition",
+        "term": "Proposition (Central Idea / Big Idea)",
+        "definition": "The single, unifying statement that captures the sermon's main point in one complete declarative sentence. Typically composed of a subject and complement, the proposition controls the entire message and ensures unity of theme."
+      },
+      {
+        "_id": "ss-subject",
+        "term": "Subject",
+        "definition": "The broad topic of a sermon or passage — what the text is generally about. The subject is incomplete on its own and must be narrowed by the complement to form a full proposition.",
+        "enabled": false
+      },
+      {
+        "_id": "ss-complement",
+        "term": "Complement",
+        "definition": "What the text specifically says about the subject. Together, the subject and complement form the complete proposition of the sermon.",
+        "enabled": false
+      },
+      {
+        "_id": "ss-sermon-outline",
+        "term": "Sermon Outline",
+        "definition": "The structural skeleton of a sermon, organizing main points and subpoints in a logical, memorable sequence. May be deductive (proposition stated first) or inductive (proposition delayed or implied)."
+      },
+      {
+        "_id": "ss-main-point",
+        "term": "Main Point (Division)",
+        "definition": "A major supporting idea that develops or proves the sermon's proposition. Most sermons contain two to five main points, each of which must relate directly to the proposition."
+      },
+      {
+        "_id": "ss-subpoint",
+        "term": "Subpoint",
+        "definition": "A subordinate idea that develops, explains, or supports a main point. Subpoints provide the detail and texture that make main points persuasive and clear."
+      },
+      {
+        "_id": "ss-deductive-sermon",
+        "term": "Deductive Sermon",
+        "definition": "A sermon structure in which the proposition is stated at the outset and then developed and defended through the body of the message. The audience knows where the sermon is going from the beginning."
+      },
+      {
+        "_id": "ss-inductive-sermon",
+        "term": "Inductive Sermon",
+        "definition": "A sermon structure in which the conclusion (proposition) is withheld until the end, building toward it through a series of observations, questions, or narrative movements. Creates suspense and engagement."
+      },
+      {
+        "_id": "ss-homiletical-outline",
+        "term": "Homiletical Outline",
+        "definition": "A sermon outline in which the points are stated in contemporary language accessible to the audience, as distinct from an exegetical outline that follows the text's own structural language."
+      },
+      {
+        "_id": "ss-exegetical-outline",
+        "term": "Exegetical Outline",
+        "definition": "An outline that traces the logical or structural movement of the biblical text itself, often serving as an intermediate step before developing the homiletical outline for delivery.",
+        "enabled": false
+      },
+      {
+        "_id": "ss-interrogative",
+        "term": "Interrogative",
+        "definition": "The guiding question used to generate the main points of a sermon (e.g., 'Why?', 'What?', 'How?'). The interrogative ensures unity and logical development throughout the message.",
+        "example": "A proposition stating 'We should trust God in trials' combined with the interrogative 'Why?' yields main points beginning with reasons."
+      },
+      {
+        "_id": "ss-developmental-question",
+        "term": "Developmental Question",
+        "definition": "The question used to develop a single main point within the sermon, as opposed to the interrogative which governs the sermon as a whole. Keeps each individual section focused and internally coherent.",
+        "enabled": false
+      },
+      {
+        "_id": "ss-transition",
+        "term": "Transition",
+        "definition": "A connecting statement between sermon units (introduction to body, point to point, body to conclusion) that signals movement, summarizes what has been established, and previews what is coming."
+      },
+      {
+        "_id": "ss-internal-summary",
+        "term": "Internal Summary",
+        "definition": "A brief restatement of what has been covered at a transition point within the sermon, reinforcing retention and aiding comprehension before moving to the next section.",
+        "enabled": false
+      },
+      {
+        "_id": "ic-introduction",
+        "term": "Introduction",
+        "definition": "The opening portion of a sermon designed to gain attention, create need, and orient the audience to the passage and proposition. Should move the listener from where they are to where the text wants to take them."
+      },
+      {
+        "_id": "ic-hook",
+        "term": "Hook",
+        "definition": "An opening element — a question, story, striking statement, or tension — designed to capture the audience's attention and draw them into the message before orienting them to the text."
+      },
+      {
+        "_id": "ic-orienting-question",
+        "term": "Orienting Question",
+        "definition": "A question posed in the introduction that the sermon will answer, creating a felt need and a sense of direction. Invites the audience into the problem the text addresses.",
+        "enabled": false
+      },
+      {
+        "_id": "ic-conclusion",
+        "term": "Conclusion",
+        "definition": "The closing portion of a sermon, typically summarizing the proposition, driving home the application, and calling for a response. Often the most important moment for retention and life-change; should not introduce new material."
+      },
+      {
+        "_id": "ic-call-to-action",
+        "term": "Call to Action",
+        "definition": "A specific, concrete invitation or charge given at the close of a sermon calling the audience to respond in a particular way — to believe, repent, obey, pray, or act. Should be the natural culmination of the sermon's application."
+      },
+      {
+        "_id": "ic-peroration",
+        "term": "Peroration",
+        "definition": "In classical rhetoric, the conclusion of a speech — typically a summary of the argument and an emotional appeal designed to move the audience to decision. The sermonic conclusion corresponds to the peroration.",
+        "enabled": false
+      }
+    ]
+  },
+  {
+    "_id": "explanation",
+    "domain": "homiletics",
+    "title": "Explanation",
+    "terms": [
+      {
+        "_id": "ex-restatement",
+        "term": "Re-Statement",
+        "definition": "Expressing the meaning of a text or sermon point in different words, often simpler or more concrete, to aid comprehension. A tool for ensuring that what was said was actually heard and understood."
+      },
+      {
+        "_id": "ex-definition",
+        "term": "Definition",
+        "definition": "Clarifying the precise meaning of a key term, word, or concept in the sermon, often drawing on the original languages, lexicons, or historical context to establish meaning before applying it."
+      },
+      {
+        "_id": "ex-word-study",
+        "term": "Word Study",
+        "definition": "An examination of a key biblical term in its original language, tracing its usage across the biblical corpus and relevant literature to clarify its specific meaning in a given context."
+      },
+      {
+        "_id": "ex-historical-background",
+        "term": "Background / Historical Context",
+        "definition": "Information about the cultural, historical, geographical, or social setting of a text that illuminates its original meaning and helps the audience understand what the text would have communicated to its first readers."
+      },
+      {
+        "_id": "ex-grammatical-analysis",
+        "term": "Grammatical Analysis",
+        "definition": "Examination of the syntactical structure of a text — the function of words, phrases, and clauses — to determine meaning. Includes attention to verb tense and mood, conjunctions, subordinate clauses, and sentence flow."
+      }
+    ]
+  },
+  {
+    "_id": "illustration",
+    "domain": "homiletics",
+    "title": "Illustration",
+    "terms": [
+      {
+        "_id": "il-illustration",
+        "term": "Illustration",
+        "definition": "A story, example, analogy, or image used to make an abstract truth concrete and memorable. Illustrations function as windows that let light into an idea, not ornaments added after the fact."
+      },
+      {
+        "_id": "il-analogy",
+        "term": "Analogy",
+        "definition": "An explanation of something unfamiliar by comparing it to something familiar. Functions as a bridge between the known and the unknown, enabling the audience to grasp a concept through a parallel they already understand."
+      },
+      {
+        "_id": "il-anecdote",
+        "term": "Anecdote",
+        "definition": "A brief, often personal or biographical story used to introduce, reinforce, or conclude a point. Should be tightly connected to the idea being illustrated and not draw more attention to the storyteller than to the truth."
+      },
+      {
+        "_id": "il-extended-illustration",
+        "term": "Extended Illustration",
+        "definition": "A longer narrative or scenario developed in enough detail to carry sustained explanatory or emotional weight. More powerful than a brief anecdote but requires careful pacing and relevance.",
+        "enabled": false
+      },
+      {
+        "_id": "il-negative-illustration",
+        "term": "Negative Illustration",
+        "definition": "An illustration that shows what a concept is not, clarifying truth by contrast. Helps define the boundaries of an idea by demonstrating its opposite or its distortion.",
+        "enabled": false
+      },
+      {
+        "_id": "il-object-lesson",
+        "term": "Object Lesson",
+        "definition": "A concrete, physical object used to illustrate a spiritual or theological truth. Engages sensory attention and makes abstract ideas tangible, particularly effective in teaching contexts."
+      },
+      {
+        "_id": "il-historical-illustration",
+        "term": "Historical Illustration",
+        "definition": "A story or example drawn from church history, world history, or biography to illuminate a point. Adds credibility and depth, connecting the congregation to the broader story of God's work across time.",
+        "enabled": false
+      }
+    ]
+  },
+  {
+    "_id": "application",
+    "domain": "homiletics",
+    "title": "Application",
+    "terms": [
+      {
+        "_id": "ap-application",
+        "term": "Application",
+        "definition": "The bridge from the meaning of the text to the life of the listener — what the text demands, invites, or promises in concrete, contemporary terms. The 'so what' of preaching. Application should flow from interpretation, not precede it."
+      },
+      {
+        "_id": "ap-principalization",
+        "term": "Principalization",
+        "definition": "The process of moving from a culturally specific biblical command, narrative, or example to the timeless principle it embodies, as a necessary step toward valid contemporary application."
+      },
+      {
+        "_id": "ap-timeless-principle",
+        "term": "Timeless Principle",
+        "definition": "A truth derived from a biblical text that transcends its original historical setting and applies across all cultures and times. The stable theological or moral content beneath the culturally conditioned form."
+      },
+      {
+        "_id": "ap-behavioral-application",
+        "term": "Behavioral Application",
+        "definition": "Application that specifies concrete actions or changes in behavior the listener should make in response to the text. Addresses the question: what should I do differently?"
+      },
+      {
+        "_id": "ap-attitudinal-application",
+        "term": "Attitudinal Application",
+        "definition": "Application that targets internal dispositions, mindsets, or affections — the way one thinks or feels — rather than only external behavior. Addresses the question: what should I believe or value differently?"
+      },
+      {
+        "_id": "ap-exhortation",
+        "term": "Exhortation",
+        "definition": "A direct appeal calling the audience to act on or respond to what has been taught. Often the concluding movement of a sermon, urging the congregation toward obedience, faith, or repentance."
+      },
+      {
+        "_id": "ap-implication",
+        "term": "Implication",
+        "definition": "A truth or demand that is not explicitly stated in the text but necessarily follows from what is stated. Good preaching draws out implications without treating them as having the same authority as direct biblical assertions."
+      },
+      {
+        "_id": "ap-felt-need",
+        "term": "Felt Need",
+        "definition": "The conscious burden, question, or struggle the audience brings to the sermon. Effective preaching addresses felt needs as entry points, then connects them to the deeper diagnosis and remedy the text provides."
+      },
+      {
+        "_id": "ap-soteriological-application",
+        "term": "Soteriological Application",
+        "definition": "Application that specifically addresses the gospel — how the text relates to salvation, justification, sanctification, or the person and work of Christ. Guards against moralistic preaching that demands change without providing the gospel's resources for it."
+      }
+    ]
+  },
+  {
+    "_id": "delivery-communication",
+    "domain": "homiletics",
+    "title": "Delivery & Communication",
+    "terms": [
+      {
+        "_id": "tc-audience-analysis",
+        "term": "Audience Analysis",
+        "definition": "Intentional consideration of the specific listeners — their knowledge, needs, struggles, level of biblical understanding, and cultural context — in order to pitch the sermon at the right level with the right emphases."
+      },
+      {
+        "_id": "tc-kerygma",
+        "term": "Kerygma",
+        "definition": "The core proclamation of the gospel, particularly as identified in NT scholarship: the death, burial, resurrection, and Lordship of Christ. Distinct from didache (ongoing teaching/doctrine), though the two are closely related.",
+        "example": "The apostolic sermons in Acts (2:14–36; 13:16–41) represent the kerygma in its most concentrated form."
+      },
+      {
+        "_id": "tc-didache",
+        "term": "Didache",
+        "definition": "Christian teaching or instruction, as distinguished from the initial gospel proclamation (kerygma). Addresses the ethical formation, doctrinal grounding, and discipleship of those who have already received the kerygma."
+      },
+      {
+        "_id": "tc-paraenesis",
+        "term": "Paraenesis",
+        "definition": "Moral exhortation or ethical instruction in a biblical text, particularly in the epistles. Identifying paraenetic sections is important for accurate application, as they often assume a doctrinal foundation laid earlier in the letter."
+      },
+      {
+        "_id": "tc-propositional-truth",
+        "term": "Propositional Truth",
+        "definition": "A truth claim that can be stated as a declarative sentence with a definite meaning — either true or false. The backbone of doctrinal and expository preaching, affirming that Scripture communicates objective content, not merely experience."
+      },
+      {
+        "_id": "tc-diatribe",
+        "term": "Diatribe",
+        "definition": "A rhetorical technique common in Hellenistic philosophy and Paul's letters involving an imaginary dialogue with an interlocutor — raising objections and answering them. Critical for interpreting passages such as Romans 2–3 and 6.",
+        "example": "'What shall we say then? Are we to continue in sin so that grace may abound? By no means!' (Romans 6:1–2)"
+      },
+      {
+        "_id": "dr-ethos",
+        "term": "Ethos",
+        "definition": "The credibility, character, and trustworthiness of the speaker as perceived by the audience. In classical rhetoric, one of the three primary modes of persuasion. A preacher's ethos shapes whether listeners receive the message."
+      },
+      {
+        "_id": "dr-pathos",
+        "term": "Pathos",
+        "definition": "The emotional dimension of communication — the speaker's ability to move, stir, or connect with the audience's feelings. One of Aristotle's three modes of persuasion. Authentic pathos arises from genuine belief in and engagement with the text."
+      },
+      {
+        "_id": "dr-logos",
+        "term": "Logos",
+        "definition": "The logical, rational content of the argument — the quality of the reasoning and evidence. One of Aristotle's three modes of persuasion. In preaching, logos corresponds to the careful exegetical and theological substance of the message."
       }
     ]
   }

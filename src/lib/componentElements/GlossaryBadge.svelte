@@ -25,6 +25,10 @@
 	let entry = $derived(getTermById(termId));
 	let label = $derived(entry?.term || fallbackLabel || 'Unknown term');
 	let color = $derived(entry?.color || 'gray');
+	// Shape differentiates the two glossary domains: exegesis terms render as
+	// fully-rounded pills, preaching/teaching terms as rounded rectangles.
+	let shape = $derived(entry?.shape || 'pill');
+
 
 	let badgeElement = $state(null);
 
@@ -61,7 +65,7 @@
 
 <span
 	bind:this={badgeElement}
-	class="glossary-badge {color}"
+	class="glossary-badge {color} shape-{shape}"
 	role="note"
 	tabindex="0"
 	onmouseenter={showTooltip}
@@ -101,6 +105,14 @@
 		white-space: nowrap;
 		cursor: default;
 		vertical-align: baseline;
+	}
+
+	/* Domain shapes: exegesis = pill (default), homiletics = rounded rectangle. */
+	.glossary-badge.shape-pill {
+		border-radius: 999em;
+	}
+	.glossary-badge.shape-rounded {
+		border-radius: 0.4rem;
 	}
 
 	.glossary-badge:focus-visible {

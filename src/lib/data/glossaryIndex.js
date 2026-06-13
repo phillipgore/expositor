@@ -15,19 +15,54 @@ import glossary from './glossary.json';
  * Map each glossary category id to a Badge color.
  * Badge supports: gray | red | orange | yellow | green | aqua | blue | purple | pink
  * (yellow/gray intentionally avoided for contrast/neutral reasons).
+ *
+ * Colors may repeat ACROSS domains (exegesis vs. homiletics) because the badge
+ * shape (pill vs. rounded rectangle) and the domain filter already distinguish
+ * the two domains visually.
  * @type {Record<string, string>}
  */
 export const CATEGORY_COLORS = {
+	// Exegesis & Literary domain
 	'literary-structures': 'blue',
 	'figures-of-speech': 'purple',
 	'rhetorical-devices': 'green',
 	'narrative-elements': 'orange',
 	genres: 'aqua',
 	'hermeneutical-terms': 'red',
-	'specialized-terms': 'pink'
+	'specialized-terms': 'pink',
+	// Preaching & Teaching domain
+	'method-structure': 'blue',
+	explanation: 'red',
+	illustration: 'orange',
+	application: 'green',
+	'delivery-communication': 'purple'
 };
 
 const DEFAULT_COLOR = 'gray';
+
+/**
+ * The two top-level glossary domains and their human-readable labels. The
+ * domain controls the badge SHAPE and drives the domain filter/tabs in the
+ * picker and the glossary page.
+ * @type {{ id: string, label: string }[]}
+ */
+export const DOMAINS = [
+	{ id: 'exegesis', label: 'Exegesis & Literary' },
+	{ id: 'homiletics', label: 'Preaching & Teaching' }
+];
+
+const DEFAULT_DOMAIN = 'exegesis';
+
+/**
+ * Map a domain id to the badge shape it renders with.
+ * - exegesis  → 'pill'    (fully rounded)
+ * - homiletics → 'rounded' (rounded rectangle)
+ * @param {string} domain
+ * @returns {'pill'|'rounded'}
+ */
+export function shapeForDomain(domain) {
+	return domain === 'homiletics' ? 'rounded' : 'pill';
+}
 
 /**
  * Normalize a term's example data into a single array of strings.
@@ -112,28 +147,43 @@ function usesPluralNotes(term) {
  * @property {string} category - Human-readable category title
  * @property {string} categoryId - Category `_id`
  * @property {string} color - Badge color for this category
+ * @property {string} domain - Domain id ("exegesis" | "homiletics")
+ * @property {'pill'|'rounded'} shape - Badge shape, derived from the domain
+ * @property {boolean} enabled - Whether the term is active (shown in the app)
  */
 
 
 /**
- * Flattened, denormalized list of every glossary term.
+ * Flattened, denormalized list of every ENABLED glossary term.
+ *
+ * Terms may be soft-disabled in `glossary.json` with `"enabled": false` rather
+ * than deleted (keeps the definition for easy re-enabling and avoids orphaning
+ * any already-placed tags). We filter them out here at the single source, so
+ * disabled terms disappear from EVERYWHERE downstream at once — search,
+ * id-lookup, the picker, the /glossary page, grouping, and tooltips. A term with
+ * no `enabled` key is treated as enabled by default.
  * @type {GlossaryEntry[]}
  */
-export const glossaryIndex = glossary.flatMap((category) =>
-	(category.terms || []).map((term) => ({
-		_id: term._id,
-		term: term.term,
-		definition: term.definition || '',
-		examples: normalizeExamples(term),
-		examplesPlural: usesPluralExamples(term),
-		notes: normalizeNotes(term),
-		notesPlural: usesPluralNotes(term),
-		category: category.title,
-		categoryId: category._id,
-		color: CATEGORY_COLORS[category._id] || DEFAULT_COLOR
-	}))
-
-);
+export const glossaryIndex = glossary.flatMap((category) => {
+	const domain = category.domain || DEFAULT_DOMAIN;
+	return (category.terms || [])
+		.filter((term) => term.enabled !== false)
+		.map((term) => ({
+			_id: term._id,
+			term: term.term,
+			definition: term.definition || '',
+			examples: normalizeExamples(term),
+			examplesPlural: usesPluralExamples(term),
+			notes: normalizeNotes(term),
+			notesPlural: usesPluralNotes(term),
+			category: category.title,
+			categoryId: category._id,
+			color: CATEGORY_COLORS[category._id] || DEFAULT_COLOR,
+			domain,
+			shape: shapeForDomain(domain),
+			enabled: term.enabled !== false
+		}));
+});
 
 
 /**

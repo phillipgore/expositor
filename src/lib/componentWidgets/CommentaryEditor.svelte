@@ -88,6 +88,11 @@
 	// Remember the element that opened the picker so we can reposition it when
 	// the window is resized while the picker is open.
 	let glossaryTriggerEl = null;
+	// Selection range captured when the picker opens. The picker autofocuses its
+	// search input, which blurs the editor and collapses ProseMirror's selection,
+	// so we snapshot {from,to} here and restore it before inserting the term —
+	// otherwise a tagged-highlight over selected prose would be lost.
+	let savedSelection = null;
 
 
 	// Zoom state
@@ -767,6 +772,14 @@
 	 */
 	function openGlossaryInline(event) {
 		glossaryTriggerEl = event.currentTarget;
+		// Snapshot the current editor selection BEFORE the picker opens and steals
+		// focus (its search box autofocuses, collapsing ProseMirror's selection).
+		// We restore this range in insertInlineTerm so a tagged-highlight over the
+		// selected prose is preserved.
+		if (editor) {
+			const { from, to } = editor.state.selection;
+			savedSelection = { from, to };
+		}
 		positionPickerFor(event.currentTarget);
 		showGlossaryPicker = true;
 	}
@@ -802,7 +815,11 @@
 		const entry = getTermById(termId);
 		const label = entry?.term || '';
 
-		const { from, to } = editor.state.selection;
+		// Prefer the selection captured when the picker opened (the live editor
+		// selection has since collapsed because the picker's search box took
+		// focus). Fall back to the current selection if no snapshot exists.
+		const { from, to } = savedSelection ?? editor.state.selection;
+		savedSelection = null;
 		const hasSelection = to > from;
 
 		if (!hasSelection) {
@@ -1957,6 +1974,15 @@
 		white-space: nowrap;
 		cursor: default;
 		vertical-align: baseline;
+	}
+
+	/* Domain shapes: exegesis = pill (default), homiletics = rounded rectangle.
+	   Applied globally so read-only renders match the editable view. */
+	:global(.glossary-term.shape-pill) {
+		border-radius: 999em;
+	}
+	:global(.glossary-term.shape-rounded) {
+		border-radius: 0.4rem;
 	}
 
 	:global(.tiptap-editor .glossary-term.gray) { background-color: var(--gray-lighter); color: var(--gray-darker); }

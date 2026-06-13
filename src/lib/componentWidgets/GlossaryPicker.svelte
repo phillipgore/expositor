@@ -21,7 +21,7 @@
 
 
 	import { onMount } from 'svelte';
-	import { searchGlossary, groupByCategory } from '$lib/data/glossaryIndex.js';
+	import { searchGlossary, groupByCategory, DOMAINS } from '$lib/data/glossaryIndex.js';
 
 	let {
 		/** @type {PickerPosition} */
@@ -34,9 +34,14 @@
 	let query = $state('');
 	let inputElement = $state(null);
 	let activeIndex = $state(0);
+	// Active domain tab — terms are inserted from one domain at a time.
+	let activeDomain = $state(DOMAINS[0].id);
 
-	// Flat (for keyboard nav) + grouped (for display) results
-	let results = $derived(searchGlossary(query));
+	// Flat (for keyboard nav) + grouped (for display) results, scoped to the
+	// active domain so the picker only shows one domain's categories at a time.
+	let results = $derived(
+		searchGlossary(query).filter((entry) => entry.domain === activeDomain)
+	);
 	let groups = $derived(groupByCategory(results));
 
 	// Keep the active index in range as results change.
@@ -62,6 +67,18 @@
 
 	function choose(termId) {
 		onSelect(termId);
+	}
+
+	/**
+	 * Switch the active domain tab, resetting keyboard navigation to the top of
+	 * the newly shown list and returning focus to the search box.
+	 * @param {string} domainId
+	 */
+	function selectDomain(domainId) {
+		if (domainId === activeDomain) return;
+		activeDomain = domainId;
+		activeIndex = 0;
+		inputElement?.focus({ preventScroll: true });
 	}
 
 	/**
@@ -113,6 +130,22 @@
 
 >
 	<div class="popover-arrow"></div>
+
+
+	<div class="picker-domains" role="tablist" aria-label="Glossary domain">
+		{#each DOMAINS as domain (domain.id)}
+			<button
+				type="button"
+				role="tab"
+				aria-selected={activeDomain === domain.id}
+				class="picker-domain-tab"
+				class:active={activeDomain === domain.id}
+				onclick={() => selectDomain(domain.id)}
+			>
+				{domain.label}
+			</button>
+		{/each}
+	</div>
 
 
 	<div class="picker-search">
@@ -199,6 +232,44 @@
 		border-bottom: 1px solid var(--gray-700);
 		border-left: none;
 		border-top: none;
+	}
+
+	.picker-domains {
+		flex-shrink: 0;
+		display: flex;
+		gap: 0.4rem;
+		margin-bottom: 0.6rem;
+	}
+
+	.picker-domain-tab {
+		flex: 1;
+		padding: 0.5rem 0.8rem;
+		border: 0.1rem solid var(--gray-700);
+		border-radius: 0.4rem;
+		background-color: var(--white);
+		font-family: inherit;
+		font-size: 1.3rem;
+		font-weight: 500;
+		color: var(--gray-400);
+		cursor: pointer;
+		transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.picker-domain-tab:hover {
+		color: var(--black);
+		border-color: var(--gray-400);
+	}
+
+	.picker-domain-tab.active {
+		color: var(--blue-darker);
+		border-color: var(--blue);
+		background-color: var(--blue-lighter);
+	}
+
+	.picker-domain-tab:focus-visible {
+		outline: none;
+		border-color: var(--blue);
+		box-shadow: 0rem 0rem 0.6rem var(--blue-alpha);
 	}
 
 	.picker-search {

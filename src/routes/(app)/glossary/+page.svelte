@@ -17,12 +17,18 @@
 	 * mode" here (only Finder, Studies, and Analyze/Document remain usable),
 	 * driven by the `/glossary` branch in the toolbar store.
 	 */
-	import { searchGlossary, groupByCategory } from '$lib/data/glossaryIndex.js';
+	import { searchGlossary, groupByCategory, DOMAINS } from '$lib/data/glossaryIndex.js';
+	import { tick } from 'svelte';
 
 	let query = $state('');
+	// Active domain tab — the page shows one domain's categories at a time.
+	let activeDomain = $state(DOMAINS[0].id);
 
-	// Flat (for counts) + grouped (for display) results — identical helpers to the picker.
-	let results = $derived(searchGlossary(query));
+	// Flat (for counts) + grouped (for display) results — identical helpers to the
+	// picker, scoped to the active domain.
+	let results = $derived(
+		searchGlossary(query).filter((entry) => entry.domain === activeDomain)
+	);
 	let groups = $derived(groupByCategory(results));
 
 	/**
@@ -33,20 +39,65 @@
 		const el = document.getElementById(`category-${categoryId}`);
 		el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
+
+	/**
+	 * Switch the active domain and scroll back to the top, so the user starts at
+	 * the first category of the newly selected domain rather than mid-page.
+	 *
+	 * We await `tick()` so the scroll runs AFTER Svelte swaps in the new domain's
+	 * sections. Otherwise the scroll fires against the OLD (often taller/shorter)
+	 * content; when the height then changes the browser clamps the smooth-scroll,
+	 * which made it work in one direction but not the other.
+	 * @param {string} domainId
+	 */
+	async function selectDomain(domainId) {
+		activeDomain = domainId;
+		await tick();
+		// The page itself scrolls inside the app's content area; walk up from the
+		// page root to whichever ancestor is actually scrollable and reset it.
+		const scroller = pageEl?.closest('.content-wrapper') ?? null;
+		if (scroller) {
+			scroller.scrollTo({ top: 0, behavior: 'smooth' });
+		} else {
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		}
+	}
+
+	// Bound to the page root so we can find the scrollable ancestor on tab switch.
+	let pageEl = $state(null);
 </script>
 
-<div class="glossary-page">
+<div class="glossary-page" bind:this={pageEl}>
 	<header class="glossary-header">
 		<h1 class="glossary-title">Glossary</h1>
 	</header>
 
-	<div class="glossary-search">
-		<input
-			type="search"
-			bind:value={query}
-			placeholder="Search"
-			aria-label="Search glossary terms"
-		/>
+	<!-- Domain tabs + search stick together so jumping to a category never
+	     scrolls the domain switcher out of view. -->
+	<div class="glossary-sticky">
+		<div class="glossary-domains" role="tablist" aria-label="Glossary domain">
+			{#each DOMAINS as domain (domain.id)}
+				<button
+					type="button"
+					role="tab"
+					aria-selected={activeDomain === domain.id}
+					class="glossary-domain-tab"
+					class:active={activeDomain === domain.id}
+					onclick={() => selectDomain(domain.id)}
+				>
+					{domain.label}
+				</button>
+			{/each}
+		</div>
+
+		<div class="glossary-search">
+			<input
+				type="search"
+				bind:value={query}
+				placeholder="Search"
+				aria-label="Search glossary terms"
+			/>
+		</div>
 	</div>
 
 
@@ -136,10 +187,53 @@
 		color: var(--black);
 	}
 
-	.glossary-search {
+	/* The domain tabs + search bar stick to the top together as one unit, so
+	   jumping to a category never scrolls the domain switcher out of view. */
+	.glossary-sticky {
 		position: sticky;
 		top: 0;
 		z-index: 10;
+		padding-top: 0.4rem;
+		background-color: var(--white);
+	}
+
+	.glossary-domains {
+		display: flex;
+		gap: 0.8rem;
+		margin-bottom: 0.4rem;
+	}
+
+	.glossary-domain-tab {
+		padding: 0.7rem 1.4rem;
+		border: 0.1rem solid var(--gray-700);
+		border-radius: 0.4rem;
+		background-color: var(--white);
+		font-family: inherit;
+		font-size: 1.4rem;
+		font-weight: 500;
+		color: var(--gray-400);
+		cursor: pointer;
+		transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.glossary-domain-tab:hover {
+		color: var(--black);
+		border-color: var(--gray-400);
+	}
+
+	.glossary-domain-tab.active {
+		color: var(--blue-darker);
+		border-color: var(--blue);
+		background-color: var(--blue-lighter);
+	}
+
+	.glossary-domain-tab:focus-visible {
+		outline: none;
+		border-color: var(--blue);
+		box-shadow: 0 0 0.6rem var(--blue-alpha);
+	}
+
+	.glossary-search {
 		padding: 1.2rem 0;
 		background-color: var(--white);
 	}
@@ -182,8 +276,8 @@
 
 	.glossary-nav {
 		position: sticky;
-		/* Clear the sticky search bar (3.6rem input + 1.2rem top/bottom padding = 6rem) */
-		top: 6rem;
+		/* Clear the sticky header (domain tabs ~3.4rem + search 6rem ≈ 9.4rem). */
+		top: 10rem;
 	}
 
 	.glossary-nav ul {
@@ -238,7 +332,9 @@
 	}
 
 	.glossary-section {
-		scroll-margin-top: 2.4rem;
+		/* Offset the scroll target so a jumped-to section lands BELOW the sticky
+		   header (domain tabs + search) instead of underneath it. */
+		scroll-margin-top: 10rem;
 	}
 
 	.section-title {
