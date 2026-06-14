@@ -1,7 +1,10 @@
 <script>
 	import { invalidate } from '$app/navigation';
+	import { navigating } from '$app/stores';
 	import { onMount, tick } from 'svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
+
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
 	import ConnectionsOverlay from '$lib/componentWidgets/ConnectionsOverlay.svelte';
@@ -28,7 +31,8 @@
 
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings } from '$lib/stores/toolbar.js';
-	import { setStudyContentLoading } from '$lib/stores/loading.js';
+	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
+
 
 
 
@@ -2975,20 +2979,62 @@
 	 * @param {Object} verseOccurrences - Tracker for current verse occurrences
 	 * @returns {string} Extracted HTML
 	 */
-	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex, verseSectionMap, verseOccurrences) {
-		if (!fullHtml) return '';
-		
+	/** @type {Map<string, { words: Element[], indexById: Map<string, number> }>} */
+	const _parsedPassageCache = new Map();
+
+	/**
+	 * Parse a passage's full HTML once and return its ordered word elements plus an
+	 * index lookup (wordId → position). Cached by the HTML string so every segment of
+	 * the passage (and re-renders that don't change the text) reuse the same parse
+	 * instead of re-parsing — the dominant render cost on large studies, especially in
+	 * Safari. A small FIFO cap keeps the cache from growing unbounded across study switches.
+	 * @param {string} fullHtml
+	 * @returns {{ words: Element[], indexById: Map<string, number> }}
+	 */
+	function getParsedPassage(fullHtml) {
+		const cached = _parsedPassageCache.get(fullHtml);
+		if (cached) return cached;
+
 		const tempDiv = document.createElement('div');
 		tempDiv.innerHTML = fullHtml;
-		
-		// Get all words in the passage
-		const allWords = tempDiv.querySelectorAll('.word[data-word-id]');
+		const words = Array.from(tempDiv.querySelectorAll('.word[data-word-id]'));
+
+		/** @type {Map<string, number>} */
+		const indexById = new Map();
+		for (let i = 0; i < words.length; i++) {
+			const id = /** @type {HTMLElement} */ (words[i]).dataset.wordId;
+			if (id !== undefined && !indexById.has(id)) indexById.set(id, i);
+		}
+
+		const entry = { words, indexById };
+		if (_parsedPassageCache.size > 24) {
+			const oldestKey = _parsedPassageCache.keys().next().value;
+			if (oldestKey !== undefined) _parsedPassageCache.delete(oldestKey);
+		}
+		_parsedPassageCache.set(fullHtml, entry);
+		return entry;
+	}
+
+	function extractSegmentText(fullHtml, startWordId, endWordId, passageIndex, verseSectionMap, verseOccurrences) {
+		if (!fullHtml) return '';
+
+		// Reuse the per-passage parse (parsed once, cached by HTML string) instead of
+		// re-parsing the entire passage for every segment — the dominant render cost on
+		// large studies. See getParsedPassage().
+		const { words: allWords, indexById } = getParsedPassage(fullHtml);
+
+		// Jump straight to this segment's first word rather than scanning the whole
+		// passage from index 0. Capturing only ever begins at startWordId, so skipping
+		// the earlier words is behavior-preserving. A missing start (no match) falls
+		// back to 0, matching the original "capture nothing" outcome.
+		const startIndex = indexById.get(startWordId) ?? 0;
+
 		let capturing = false;
 		const capturedHTML = [];
 		let currentVerseId = null;
 		let verseBuffer = []; // Buffer to collect elements within a verse
 		
-		for (let i = 0; i < allWords.length; i++) {
+		for (let i = startIndex; i < allWords.length; i++) {
 			const word = allWords[i];
 			const wordId = word.dataset.wordId;
 			
@@ -4090,10 +4136,25 @@
 			</div>
 		</div>
 	</div>
-			
+
+	<!-- Streamed-content loading overlay. SERVER-RENDERED so on a fresh load / refresh
+	     the spinner is present in the very first paint — before client JS hydrates and
+	     before `$navigating`/`studyContentLoading` (which the global NavigationIndicator
+	     depends on) exist. That closes the Safari first-load "blank, no spinner" gap on
+	     large studies. Placed here as a sibling of `.analyze-content` (outside the
+	     zoom-transformed inner wrapper) so it is never scaled and stays centered.
+	     Suppressed while `$navigating` OR the global content loader is active, so in-app
+	     navigations show only the single global overlay rather than two spinners. -->
+	{#if !streamedContent && !$navigating && !$studyContentLoading}
+		<div class="content-loading">
+			<Spinner size="lg" label="Loading study…" />
+		</div>
+	{/if}
+
 	<!-- Segment resize snap guide: a yellow line spanning the content width, shown
 	     while a resize drag is snapping to another segment's edge. Fixed-positioned
 	     because the composable computes its geometry in viewport coordinates. -->
+
 	{#if segmentResize.guideLine.visible}
 		<div
 			class="resize-snap-guide"
@@ -4289,12 +4350,33 @@
 		padding: 3.6rem 0;
 	}
 
+	/* Centered in-page loading overlay shown while streamed content resolves. Absolute
+	   inside the position:relative .container so it covers the content area and stays
+	   centered regardless of the (empty) scroll content behind it. */
+	.content-loading {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		pointer-events: none;
+	}
+
 	.analyze-content {
+
 		flex-grow: 1;
 		overflow-x: auto;
 		overflow-y: auto;
 		touch-action: pan-x pan-y pinch-zoom;
+		/* Safari scroll-paint hints (Fix B). Momentum scrolling + telling the
+		   engine scroll-position will change lets WebKit keep the scrolled content
+		   on the compositor and translate it rather than re-running layout/paint
+		   each frame — which is what made large studies fall behind repainting
+		   newly-revealed text while scrolling. */
+		-webkit-overflow-scrolling: touch;
+		will-change: scroll-position;
 	}
+
 
 	.analyze-content-wrapper {
 		/* Wrapper defines the scrollable area size based on scaled dimensions */

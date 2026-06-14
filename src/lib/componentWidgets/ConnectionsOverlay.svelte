@@ -2069,9 +2069,18 @@
 		}
 
 		scrollContainer = /** @type {HTMLElement|null} */ (svgElement.closest('.analyze-content'));
-		if (scrollContainer) {
-			scrollContainer.addEventListener('scroll', scheduleCalculate, { passive: true });
-		}
+		// NOTE: We intentionally do NOT recompute paths on scroll. The SVG overlay
+		// lives INSIDE the scrolling content (.connections-container is absolutely
+		// positioned within .analyze-content-inner), so it scrolls together with the
+		// segments. Every path coordinate is computed relative to the SVG's own rect,
+		// so a scroll leaves all segment-relative positions unchanged and calculatePaths()
+		// would produce the identical result. On large studies that recompute measured
+		// every segment's bounding box on every scroll frame — a major main-thread stall
+		// that made Safari fall behind repainting newly-revealed text. The remaining
+		// triggers (resize, zoom transitionend, layout-changed, spacing drags) cover
+		// every case where geometry actually changes. scrollContainer is still retained
+		// for the document-click deselect scoping below.
+
 
 		// Re-calculate paths after the zoom CSS transition finishes so anchor points
 		// and connection lines land at their correct positions rather than staying at

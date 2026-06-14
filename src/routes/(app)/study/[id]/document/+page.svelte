@@ -1,9 +1,12 @@
 <script>
 	import { invalidate } from '$app/navigation';
+	import { navigating } from '$app/stores';
 	import { onMount } from 'svelte';
 	import Heading from '$lib/componentElements/Heading.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
-	import { setStudyContentLoading } from '$lib/stores/loading.js';
+	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
+
 
 	let { data: rawData } = $props();
 
@@ -97,10 +100,15 @@
 	</div>
 	
 	<!-- Document View Content -->
-	<!-- While the streamed content resolves, the single global NavigationIndicator
-	     overlay covers the wait (see stores/loading.js), so there is no in-page
-	     spinner here. -->
+	<!-- While the streamed content resolves, an in-page Spinner covers the wait.
+	     This branch is SERVER-RENDERED, so on a fresh load / refresh the spinner is
+	     present in the very first paint — before client JS hydrates and before
+	     `$navigating`/`studyContentLoading` (which the global NavigationIndicator
+	     depends on) exist. That closes the Safari first-load "blank, no spinner"
+	     gap. During in-app navigations the global overlay already shows, so we hide
+	     this one when `$navigating` is active to avoid two spinners at once. -->
 	<div class="document-content">
+
 		{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 			{#each data.passagesWithText as passageText}
 				{#if passageText.error}
@@ -124,12 +132,20 @@
 				{/if}
 			</div>
 		{:else if !streamedContent}
-			<!-- Still streaming: render nothing. The global NavigationIndicator overlay
-			     covers this wait; showing the "No passages available" placeholder here
-			     would flash misleading text before the content lands. -->
+			<!-- Still streaming: show an in-page spinner. Server-rendered so it appears
+			     in the first paint on a fresh load (covering the pre-hydration gap that
+			     the client-only global overlay can't). Suppressed while `$navigating`
+			     OR the global content loader is active, so in-app navigations show only
+			     the single global overlay rather than two spinners. -->
+			{#if !$navigating && !$studyContentLoading}
+				<div class="content-loading">
+					<Spinner size="lg" label="Loading study…" />
+				</div>
+			{/if}
 		{:else}
 			<p class="placeholder-text">No passages available for this study.</p>
 		{/if}
+
 	</div>
 </div>
 
@@ -181,7 +197,16 @@
 		padding: 3.6rem 0;
 	}
 
+	/* Centered in-page loading state shown while streamed content resolves. */
+	.content-loading {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		padding: 7.2rem 0;
+	}
+
 	.passage-section {
+
 		margin-bottom: 3.6rem;
 	}
 
