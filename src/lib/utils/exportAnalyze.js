@@ -26,6 +26,18 @@
  * (and pin the scroll-area wrapper to the natural size) before capturing, then
  * restore everything afterward.
  *
+ * ## Why we show a curtain during capture
+ * Clearing the zoom transform mutates the LIVE DOM, so for the capture window the
+ * on-screen content visibly snaps to its natural 100% size (and the overlay
+ * recomputes) and then snaps back when we restore — a jarring flash whenever the
+ * study is zoomed to anything other than 100%. To hide it we drop a full-viewport
+ * "curtain" overlay (`showExportCurtain`) over the page for the duration of the
+ * capture. The curtain is appended to `<body>`, OUTSIDE the captured
+ * `.analyze-content-inner`, so it is never part of the exported image — it only
+ * masks the live flash. It fades in, shows a spinner, and is removed in a
+ * `finally` so it can never get stuck if the export throws.
+
+ *
  * ## Toggle behavior
  * Everything that is toggled on/off in the View menu is just a CSS class on the
  * live DOM we capture, so whatever is visible at export time is included and
@@ -154,6 +166,110 @@ function triggerDownload(url, filename) {
 	link.click();
 	document.body.removeChild(link);
 }
+
+/**
+ * Show a full-viewport "curtain" over the page to mask the live DOM flash that
+ * happens while we strip the zoom transform for capture (the on-screen study
+ * momentarily snaps to natural 100% and back).
+ *
+ * The curtain is appended to `<body>`, OUTSIDE the captured
+ * `.analyze-content-inner`, so it is NEVER part of the exported image — it only
+ * hides the flash from the user.
+ *
+ * Returns:
+ *  - `ready`: a promise that resolves once the curtain has reached FULL opacity.
+ *    Callers MUST await this before mutating the live DOM, otherwise the zoom
+ *    snap-flash happens while the curtain is still mid-fade and shows through.
+ *  - `hide()`: fades the curtain out and removes it; always call from a `finally`
+ *    so it can't get stuck.
+ *
+ * @returns {{ ready: Promise<void>, hide: () => void }}
+ */
+function showExportCurtain() {
+
+	const curtain = document.createElement('div');
+	curtain.setAttribute('data-export-curtain', '');
+	curtain.setAttribute('role', 'progressbar');
+	curtain.setAttribute('aria-busy', 'true');
+	curtain.setAttribute('aria-label', 'Preparing export…');
+	Object.assign(curtain.style, {
+		position: 'fixed',
+		inset: '0',
+		zIndex: '2147483647',
+		display: 'flex',
+		alignItems: 'center',
+		justifyContent: 'center',
+		// FULLY OPAQUE: the whole point is to completely hide the live zoom
+		// snap-to-100%-and-back flash behind it. Any translucency lets the jump
+		// show through (see bug report), so use a solid surface matching the app.
+		background: '#ffffff',
+		// Fade in so the curtain itself doesn't flash.
+		opacity: '0',
+		transition: 'opacity 120ms ease',
+
+		cursor: 'progress',
+		// Swallow interaction while exporting.
+		pointerEvents: 'auto'
+	});
+
+	const spinner = document.createElement('div');
+	Object.assign(spinner.style, {
+		width: '28px',
+		height: '28px',
+		border: '3px solid rgba(0, 0, 0, 0.15)',
+		borderTopColor: 'rgba(0, 0, 0, 0.55)',
+		borderRadius: '50%',
+		animation: 'expositor-export-spin 0.7s linear infinite'
+	});
+
+	// Keyframes are injected once and shared across exports.
+	const KEYFRAME_ID = 'expositor-export-curtain-style';
+	if (!document.getElementById(KEYFRAME_ID)) {
+		const style = document.createElement('style');
+		style.id = KEYFRAME_ID;
+		style.textContent =
+			'@keyframes expositor-export-spin { to { transform: rotate(360deg); } }';
+		document.head.appendChild(style);
+	}
+
+	curtain.appendChild(spinner);
+	document.body.appendChild(curtain);
+
+	// Force a reflow then fade in (so the opacity transition actually runs).
+	void curtain.offsetWidth;
+	curtain.style.opacity = '1';
+
+	// Resolve `ready` only once the fade-in has finished and the curtain is fully
+	// opaque, so callers never start the DOM-mutating capture while the jump could
+	// still be seen through a partially-transparent curtain. A timeout backstops
+	// the `transitionend` in case it doesn't fire (e.g. reduced-motion, bg tab).
+	const ready = new Promise((resolve) => {
+		let done = false;
+		const finish = () => {
+			if (done) return;
+			done = true;
+			resolve();
+		};
+		curtain.addEventListener('transitionend', finish, { once: true });
+		setTimeout(finish, 180);
+	});
+
+	let removed = false;
+
+	const hide = () => {
+		if (removed) return;
+		removed = true;
+		curtain.style.opacity = '0';
+		const cleanup = () => curtain.remove();
+		curtain.addEventListener('transitionend', cleanup, { once: true });
+		// Safety net in case the transition never fires (e.g. tab backgrounded).
+		setTimeout(cleanup, 300);
+	};
+
+	return { ready, hide };
+}
+
+
 
 /**
  * Temporarily neutralize the zoom transform on the inner element and pin the
@@ -326,15 +442,28 @@ export async function exportAnalyzeView({ element, title, format }) {
 
 	const fileBase = sanitizeFileName(title);
 
-	switch (format) {
-		case 'png':
-			await exportPng(element, fileBase);
-			break;
-		case 'pdf':
+	// Drop the curtain BEFORE any capture work mutates the live DOM, and give it
+	// a couple of frames to reach full opacity so the user never sees the zoom
+	// snap-to-100% flash underneath it. It is removed in `finally` no matter what.
+	const curtain = showExportCurtain();
+	try {
+		// Wait until the curtain is FULLY opaque before any capture work mutates
+		// the live DOM, so the zoom snap-to-100% jump happens entirely hidden.
+		await curtain.ready;
 
-			await exportPdf(element, fileBase);
-			break;
-		default:
-			throw new Error(`Export failed: unsupported format "${format}".`);
+		switch (format) {
+
+			case 'png':
+				await exportPng(element, fileBase);
+				break;
+			case 'pdf':
+				await exportPdf(element, fileBase);
+				break;
+			default:
+				throw new Error(`Export failed: unsupported format "${format}".`);
+		}
+	} finally {
+		curtain.hide();
 	}
 }
+
