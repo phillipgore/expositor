@@ -3914,12 +3914,18 @@
 				     coordinate origin (see the connections-container comment above). -->
 				<div class="analyze-content-padded">
 				{#if showHeader}
-					<div class="study-header">
+					<!-- Title + subtitle form a single titling block. The subtitle is a
+					     tagline for the title, NOT a new outline section, so it lives in an
+					     <hgroup> as a <p> rather than a heading. This keeps the study's
+					     accessible outline clean: the title is the page's single <h1>, and
+					     the next real heading is the passage reference (<h2>) below. The
+					     visual appearance is unchanged. -->
+					<hgroup class="study-header">
 						<Heading heading="h1" classes="h3 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
 						{#if data.study.subtitle}
-							<Heading heading="h2" classes="h4 subheading" isMuted>{data.study.subtitle}</Heading>
+							<p class="subheading">{data.study.subtitle}</p>
 						{/if}
-					</div>
+					</hgroup>
 				{/if}
 
 				<!-- While the streamed content resolves, the single global
@@ -3938,7 +3944,11 @@
 										<Alert color="red" look="subtle" message={`Error loading ${passageText.reference}`} />
 									</div>
 								{:else if passageText.text && passageText.structure}
-									<Heading heading="h3" classes="reference">{passageText.reference} [{translationAbbr}]</Heading>
+									<!-- Passage reference is the top-level heading of the document body
+									     (directly under the study title h1), so it is an <h2>. The visual
+									     size is unchanged — it comes from the `reference` class (see the
+									     h2.reference rule in the styles below). -->
+									<Heading heading="h2" classes="reference">{passageText.reference} [{translationAbbr}]</Heading>
 									<div class="passage-container">
 										{#if passageText.structure.columns && passageText.structure.columns.length > 0}
 											{@const allSegments = passageText.structure.columns.flatMap(col => col.sections.flatMap(section => section.segments))}
@@ -4383,7 +4393,12 @@
 		white-space: nowrap;
 	}
 
-	.study-header :global(.subheading) {
+	/* The subtitle is now a plain <p> (it used to be a <Heading classes="h4">). The
+	   font-size/weight that the h4 size-class provided are restored here so the visual
+	   appearance is unchanged. */
+	.study-header .subheading {
+		font-size: 1.4rem;
+		font-weight: 700;
 		margin: 0.6rem 0.0rem 0.0rem;
 		padding: 0.0rem;
 		color: var(--gray-400);
@@ -4531,8 +4546,9 @@
 	   per-side offset (--reference-offset, mirrored from the column's --column-offset),
 	   we add that same offset here so the reference tracks the column 1:1 — both during
 	   a live drag and after the offset is persisted. Defaults to 0. */
-	:global(h3.reference) {
+	:global(h2.reference) {
 		font-size: 1.2rem;
+		font-weight: 700;
 		margin-left: calc(0.2rem + var(--reference-offset, 0px));
 		margin-top: 0.0rem;
 		margin-bottom: 1.1rem;

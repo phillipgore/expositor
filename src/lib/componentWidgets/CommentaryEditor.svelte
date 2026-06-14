@@ -49,10 +49,6 @@
 	// cursor moves, not just when document content changes.
 	let editorState = $state(0);
 
-	// Heading dropdown (H4–H6) state
-	let showHeadingMenu = $state(false);
-	let headingMenuElement = $state(null);
-
 	// Lists dropdown (Bullet / Numbered) state
 	let showListsMenu = $state(false);
 	let listsMenuElement = $state(null);
@@ -101,9 +97,11 @@
 			editable: true,
 			extensions: [
 				StarterKit.configure({
-					// Limit headings to H4–H6 so they stay semantically distinct
-					// from the H1–H3 used by the passage/segment structure.
-					heading: { levels: [4, 5, 6] },
+					// Headings are disabled entirely. The document's heading outline
+					// (h1 study title → h2 passage reference → h3–h5 passage-text
+					// headings) is owned by the Analyze view; commentary is headingless
+					// rich text so it can't introduce competing/duplicate heading levels.
+					heading: false,
 					code: false,
 					codeBlock: false,
 					strike: false
@@ -219,21 +217,6 @@
 	/** Toggle the Insert dropdown menu open/closed. */
 	function toggleInsertMenu() {
 		showInsertMenu = !showInsertMenu;
-	}
-
-	/**
-	 * Toggle a heading at the given level (4, 5 or 6). Toggling an already-active
-	 * level turns the block back into a paragraph.
-	 * @param {4|5|6} level
-	 */
-	function toggleHeading(level) {
-		editor?.chain().focus().toggleHeading({ level }).run();
-		showHeadingMenu = false;
-	}
-
-	/** Toggle the H4–H6 dropdown menu open/closed. */
-	function toggleHeadingMenu() {
-		showHeadingMenu = !showHeadingMenu;
 	}
 
 	let autoSaveTimeout;
@@ -634,24 +617,6 @@
 		editorState;
 		return editor?.isActive(type, attrs) ?? false;
 	}
-
-	// Click-outside detection for the heading (H4–H6) dropdown menu
-	$effect(() => {
-		if (showHeadingMenu) {
-			const handleClickOutside = (event) => {
-				if (headingMenuElement && !headingMenuElement.contains(event.target)) {
-					showHeadingMenu = false;
-				}
-			};
-			// Small delay to avoid immediate close from the opening click
-			setTimeout(() => {
-				window.addEventListener('click', handleClickOutside);
-			}, 0);
-			return () => {
-				window.removeEventListener('click', handleClickOutside);
-			};
-		}
-	});
 
 	// Click-outside detection for the Lists dropdown menu
 	$effect(() => {
@@ -1081,63 +1046,10 @@
 
 <div class="commentary-editor">
 	<div class="editor-toolbar">
-		<div class="toolbar-group dropdown-group">
-			<button
-				use:tooltip
-				type="button"
-				class="toolbar-button has-caret"
-				class:active={isActive('heading', { level: 4 }) ||
-					isActive('heading', { level: 5 }) ||
-					isActive('heading', { level: 6 })}
-				onmousedown={(e) => e.preventDefault()}
-				onclick={toggleHeadingMenu}
-				title="Heading"
-				aria-label="Heading"
-				aria-haspopup="menu"
-				aria-expanded={showHeadingMenu}
-			>
-				<Icon iconId="headings" />
-				<Icon iconId="caret-down" classes="menu-caret" />
-			</button>
-
-			{#if showHeadingMenu}
-				<div class="dropdown-menu" role="menu" bind:this={headingMenuElement}>
-					<button
-						type="button"
-						class="dropdown-menu-item"
-						class:active={isActive('heading', { level: 4 })}
-						role="menuitem"
-						onmousedown={(e) => e.preventDefault()}
-						onclick={() => toggleHeading(4)}
-					>
-						Heading 4
-					</button>
-					<button
-						type="button"
-						class="dropdown-menu-item"
-						class:active={isActive('heading', { level: 5 })}
-						role="menuitem"
-						onmousedown={(e) => e.preventDefault()}
-						onclick={() => toggleHeading(5)}
-					>
-						Heading 5
-					</button>
-					<button
-						type="button"
-						class="dropdown-menu-item"
-						class:active={isActive('heading', { level: 6 })}
-						role="menuitem"
-						onmousedown={(e) => e.preventDefault()}
-						onclick={() => toggleHeading(6)}
-					>
-						Heading 6
-					</button>
-				</div>
-			{/if}
-		</div>
-
-		<!-- <div class="toolbar-divider"></div> -->
-
+		<!-- Heading controls intentionally removed. Commentary is headingless rich
+		     text: the document's heading outline (h1 study title, h2 passage reference,
+		     h3–h5 passage-text headings) is owned by the Analyze view, and commentary
+		     prose must not introduce competing heading levels. -->
 		<div class="toolbar-group">
 			<button
 				use:tooltip

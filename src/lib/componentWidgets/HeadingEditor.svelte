@@ -45,26 +45,39 @@
 	let displayValue = $derived(optimisticValue !== undefined ? optimisticValue : headingValue);
 
 	// Heading type configuration
+	//
+	// `tag` is the SEMANTIC heading level emitted to the DOM; `class` is the VISUAL
+	// style. These are intentionally decoupled. The study outline is:
+	//   h1 = Study Title, h2 = Passage Reference, then the three passage-text
+	//   heading types map to h3/h4/h5 (one/two/three respectively). The size/look
+	//   is driven entirely by the `heading-one/two/three` classes below, so changing
+	//   the tag here does NOT change the rendered appearance.
+	//
+	// Note: the three types can be added independently, so a segment may render an
+	// h5 (Heading Three) with no h3/h4 above it — an intentional skipped level. This
+	// is acceptable: the heading TYPE is how users mark up the text's structure, and
+	// the level is a fixed property of the type, never recomputed from context.
 	const headingConfig = {
 		one: { 
-			tag: 'h4', 
+			tag: 'h3', 
 			class: 'heading-one',
 			inputClass: 'heading-one-input',
 			eventName: 'insert-heading-one'
 		},
 		two: { 
-			tag: 'h5', 
+			tag: 'h4', 
 			class: 'heading-two',
 			inputClass: 'heading-two-input',
 			eventName: 'insert-heading-two'
 		},
 		three: { 
-			tag: 'h6', 
+			tag: 'h5', 
 			class: 'heading-three',
 			inputClass: 'heading-three-input',
 			eventName: 'insert-heading-three'
 		}
 	};
+
 
 	const config = $derived(headingConfig[headingType]);
 	const inputId = $derived(`heading-${headingType}-input-${segmentId}`);
