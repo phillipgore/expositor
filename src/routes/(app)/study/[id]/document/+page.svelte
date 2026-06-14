@@ -123,14 +123,17 @@
 				{/if}
 			{/each}
 			
-			<!-- Copyright Notice -->
+			<!-- Copyright Notice — required Scripture attribution. Sits at the bottom of the
+			     document via margin-top:auto: pinned to the bottom of the viewport for short
+			     studies, and flowing below the content for tall ones. -->
 			<div class="copyright-notice">
 				{#if data.study.translation === 'esv'}
-					<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.</p>
+					<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved. <a href="https://www.esv.org" target="_blank" rel="noopener noreferrer">www.esv.org</a></p>
 				{:else if data.study.translation === 'net'}
-					<p>Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved.</p>
+					<p>Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved. <a href="https://netbible.org" target="_blank" rel="noopener noreferrer">netbible.org</a></p>
 				{/if}
 			</div>
+
 		{:else if !streamedContent}
 			<!-- Still streaming: show an in-page spinner. Server-rendered so it appears
 			     in the first paint on a fresh load (covering the pre-hydration gap that
@@ -155,7 +158,13 @@
 		flex-direction: column;
 		align-items: center;
 		margin-top: 3.6rem;
+		/* Fill the scroll container's height so the copyright notice can sit at the very
+		   bottom of the viewport on short studies (via .document-content's margin-top:auto
+		   footer below). flex:1 0 auto lets it grow to fill spare space but still expand
+		   past the viewport for tall studies so the notice scrolls below the content. */
+		flex: 1 0 auto;
 	}
+
 
 	.study-header {
 		max-width: 60rem;
@@ -188,7 +197,14 @@
 		max-width: 60rem;
 		width: 100%;
 		margin-top: 2.7rem;
+		/* Flex column so the copyright notice (margin-top:auto) is pushed to the bottom,
+		   pinning it to the very bottom of the viewport for short studies while still
+		   flowing below the content for tall ones. flex-grow fills the container height. */
+		display: flex;
+		flex-direction: column;
+		flex: 1 0 auto;
 	}
+
 
 	.placeholder-text {
 		font-size: 1.4rem;
@@ -240,11 +256,16 @@
 		margin: 0;
 	}
 
+	/* margin-top:auto consumes the .document-content flex column's spare vertical space,
+	   pushing this notice to the very bottom of the viewport on short studies. On tall
+	   studies there is no spare space, so it simply follows the content (and scrolls).
+	   The top padding/border keep a visible separator above the notice in both cases. */
 	.copyright-notice {
-		margin-top: 4.5rem;
+		margin-top: auto;
 		padding-top: 2.7rem;
 		border-top: 1px solid var(--gray-700);
 	}
+
 
 	.copyright-notice p {
 		font-size: 1.2rem;
@@ -253,4 +274,11 @@
 		text-align: center;
 		margin: 0;
 	}
+
+
+	.copyright-notice a {
+		color: var(--gray-500);
+		text-decoration: underline;
+	}
+
 </style>

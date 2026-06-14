@@ -4135,9 +4135,26 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- Copyright Notice — required Scripture attribution. Rendered in normal flow at
+		     the bottom of the scroll container (OUTSIDE the zoom-transformed
+		     .analyze-content-inner) so it stays a constant, readable size at any zoom
+		     level. The .analyze-content flex column + the wrapper's flex-grow make this a
+		     sticky footer: it pins to the bottom of the viewport for short studies and
+		     scrolls below the content for tall ones — never overlapping the scripture. -->
+		{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
+			<div class="copyright-notice">
+				{#if data.study.translation === 'esv'}
+					<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved. <a href="https://www.esv.org" target="_blank" rel="noopener noreferrer">www.esv.org</a></p>
+				{:else if data.study.translation === 'net'}
+					<p>Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved. <a href="https://netbible.org" target="_blank" rel="noopener noreferrer">netbible.org</a></p>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<!-- Streamed-content loading overlay. SERVER-RENDERED so on a fresh load / refresh
+
 	     the spinner is present in the very first paint — before client JS hydrates and
 	     before `$navigating`/`studyContentLoading` (which the global NavigationIndicator
 	     depends on) exist. That closes the Safari first-load "blank, no spinner" gap on
@@ -4298,22 +4315,8 @@
 		onConfirm={confirmJoin}
 		onClose={() => { joinModalOpen = false; joinPending = null; }}
 	/>
-
-
-
-	<!-- Copyright Notice -->
-
-
-	<div class="copyright-notice">
-
-
-		{#if data.study.translation === 'esv'}
-			<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.</p>
-		{:else if data.study.translation === 'net'}
-			<p>Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved.</p>
-		{/if}
-	</div>
 </div>
+
 
 <style>
 	.container {
@@ -4375,6 +4378,13 @@
 		overflow-x: auto;
 		overflow-y: auto;
 		touch-action: pan-x pan-y pinch-zoom;
+		/* Lay the scroll content out as a flex column so the copyright notice can act as
+		   a sticky footer: the wrapper grows to fill any spare vertical space (pushing the
+		   notice to the very bottom of the viewport on short studies) while the notice
+		   itself never shrinks and sits below the content on tall studies. */
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
 		/* Safari scroll-paint hints (Fix B). Momentum scrolling + telling the
 		   engine scroll-position will change lets WebKit keep the scrolled content
 		   on the compositor and translate it rather than re-running layout/paint
@@ -4388,7 +4398,12 @@
 	.analyze-content-wrapper {
 		/* Wrapper defines the scrollable area size based on scaled dimensions */
 		position: relative;
+		/* Grow to fill spare vertical space so the copyright-notice footer is pushed to
+		   the very bottom of the viewport when the study is short, but keep its natural
+		   (content) height when the study is tall so the footer scrolls below it. */
+		flex: 1 0 auto;
 	}
+
 
 	.analyze-content-inner {
 		position: relative;
@@ -5134,16 +5149,17 @@
 
 
 
-	.copyright-notice {
-		position: absolute;
+	/* In-flow sticky footer for the required Scripture attribution. align-self:stretch
+	   makes it span the full scroll width (the parent uses align-items:flex-start), and
+	   flex-shrink:0 keeps it from being squeezed. The wrapper's flex-grow pushes this to
+	   the very bottom of the viewport on short studies; on tall studies it scrolls in
+	   below the content. Center-aligned at the bottom of the study. */
 
+	.copyright-notice {
+		align-self: stretch;
+		flex-shrink: 0;
 		text-align: center;
-		width: 33.3rem;
-		bottom: 0.9rem;
-		right: 0.9rem;
-		background: var(--white-alpha);
-		border-radius: 0.3rem;
-		z-index: 100;
+		padding: 1.2rem 4.4rem 1.8rem;
 	}
 
 	.copyright-notice p {
@@ -5153,5 +5169,12 @@
 		text-align: center;
 		margin: 0;
 	}
+
+
+	.copyright-notice a {
+		color: var(--gray-500);
+		text-decoration: underline;
+	}
+
 
 </style>
