@@ -6,6 +6,7 @@
 	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
+	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
 
 
 	let { data: rawData } = $props();
@@ -60,6 +61,71 @@
 		const metadata = getTranslationMetadata(data.study.translation || 'esv');
 		return metadata?.abbreviation || data.study.translation?.toUpperCase() || 'ESV';
 	});
+
+	/**
+	 * Flatten a passage's structure (columns → sections → segments) into a single
+	 * ordered list of segments. The loader already returns segments in
+	 * startingWordId order, so a straight depth-first walk yields reading order.
+	 * @param {Object} passageText - A passagesWithText entry
+	 * @returns {Array<{ id: string, startingWordId: string, headingOne: string|null, headingTwo: string|null, headingThree: string|null }>}
+	 */
+	function flattenSegments(passageText) {
+		const cols = passageText?.structure?.columns;
+		if (!cols?.length) return [];
+		const out = [];
+		for (const column of cols) {
+			for (const section of column.sections ?? []) {
+				for (const segment of section.segments ?? []) {
+					out.push(segment);
+				}
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * Build the read-only document rendering for one passage: an ordered list of
+	 * blocks, each carrying any authored headings (h3/h4/h5 for Heading One/Two/Three)
+	 * plus that segment's sliced HTML text. Headings are interleaved exactly where the
+	 * author placed them, mirroring the Analyze view but without the column/section
+	 * grid, color bands, scripture-refs, or editing affordances.
+	 *
+	 * Returns null when the passage has no usable structure, signalling the template to
+	 * fall back to rendering the whole passage HTML so text is never lost.
+	 * @param {Object} passageText
+	 * @returns {Array<{ id: string, headingOne: string|null, headingTwo: string|null, headingThree: string|null, html: string }> | null}
+	 */
+	function buildDocumentBlocks(passageText) {
+		const segments = flattenSegments(passageText);
+		if (segments.length === 0 || !passageText.text) return null;
+
+		// Verse-suffix bookkeeping must span the whole passage so a verse split across
+		// multiple segments numbers consistently (16a, 16b, …) — same as Analyze.
+		const verseSectionMap = buildVerseSectionMap(segments);
+		/** @type {Object<string, number>} */
+		const verseOccurrences = {};
+
+		return segments.map((segment, i) => {
+			// A segment's text runs up to the NEXT segment's first word (exclusive), or
+			// to the end of the passage for the final segment.
+			const endWordId = segments[i + 1]?.startingWordId ?? null;
+			const html = extractSegmentText(
+				passageText.text,
+				segment.startingWordId,
+				endWordId,
+				0,
+				verseSectionMap,
+				verseOccurrences
+			);
+			return {
+				id: segment.id,
+				headingOne: segment.headingOne,
+				headingTwo: segment.headingTwo,
+				headingThree: segment.headingThree,
+				html
+			};
+		});
+	}
 
 	/**
 	 * Format a passage reference for display
@@ -117,9 +183,31 @@
 						<p>Error loading {passageText.reference}: {passageText.error}</p>
 					</div>
 				{:else if passageText.text}
+					{@const blocks = buildDocumentBlocks(passageText)}
 					<div class="passage-section">
 						<h2 class="passage-reference">{passageText.reference}</h2>
-						<div class="passage-text">{@html passageText.text}</div>
+						{#if blocks}
+							<!-- Interleave the author's headings with each segment's sliced text so
+							     the reading document reflects the structure built in Analyze. Heading
+							     One/Two/Three render as h3/h4/h5 (semantic levels below the passage
+							     h2); scripture-refs are intentionally omitted for a clean read. -->
+							{#each blocks as block (block.id)}
+								{#if block.headingOne}
+									<h3 class="doc-heading doc-heading-one">{block.headingOne}</h3>
+								{/if}
+								{#if block.headingTwo}
+									<h4 class="doc-heading doc-heading-two">{block.headingTwo}</h4>
+								{/if}
+								{#if block.headingThree}
+									<h5 class="doc-heading doc-heading-three">{block.headingThree}</h5>
+								{/if}
+								<div class="passage-text">{@html block.html}</div>
+							{/each}
+						{:else}
+							<!-- Fallback: a passage with no usable structure renders whole, so text
+							     is never lost (legacy/edge studies). -->
+							<div class="passage-text">{@html passageText.text}</div>
+						{/if}
 					</div>
 				{/if}
 			{/each}
@@ -281,6 +369,52 @@
 		color: var(--gray-100);
 		white-space: pre-wrap;
 		text-align: left;
+	}
+
+	/* ============================================
+	   DOCUMENT HEADINGS — the author's Heading One/Two/Three (rendered h3/h4/h5)
+	   interleaved with the passage text. This is a clean reading layout, so the
+	   headings are simple left-aligned type with a clear size/weight hierarchy —
+	   NOT the Analyze "banner" look (centered color bands tied to the column grid).
+	   The top margin opens space above each heading to separate it from the
+	   preceding text; the first heading in a passage loses that gap so it sits
+	   directly under the passage reference.
+	   ============================================ */
+	.doc-heading {
+		text-align: left;
+		color: var(--gray-100);
+		margin: 2.7rem 0 0.9rem;
+	}
+
+	.doc-heading:first-child {
+		margin-top: 0;
+	}
+
+	/* Heading One — the most prominent section heading. */
+	.doc-heading-one {
+		font-size: 2.0rem;
+		font-weight: 700;
+		line-height: 1.3;
+	}
+
+	/* Heading Two — secondary heading, slightly smaller. */
+	.doc-heading-two {
+		font-size: 1.7rem;
+		font-weight: 700;
+		line-height: 1.3;
+	}
+
+	/* Heading Three — the finest level: smaller and set apart with weight only. */
+	.doc-heading-three {
+		font-size: 1.6rem;
+		font-weight: 600;
+		line-height: 1.3;
+		color: var(--gray-300);
+	}
+
+	/* A heading directly followed by its segment text should hug that text. */
+	.doc-heading + .passage-text {
+		margin-top: 0;
 	}
 
 	.error-message {
