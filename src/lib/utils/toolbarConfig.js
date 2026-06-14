@@ -217,6 +217,31 @@ export function getAppToolbarConfig() {
 			]
 		},
 		{
+			// Fixed spacer separating Zoom from Export within the view cluster.
+			type: 'spacer',
+			variant: 'fixed',
+		},
+		{
+			type: 'section',
+			id: 'export',
+			items: [
+				{
+					// Export the visual Analyze view (the .analyze-content) to an
+					// image/vector/PDF file. Only meaningful on a study route, where
+					// the analyze page is mounted to receive the export event.
+					type: 'menu',
+					iconId: 'export',
+					menuId: 'MenuExport',
+					underLabel: 'Export',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledCheck: (state) => !state.isStudyRoute
+				}
+			]
+		},
+
+
+		{
 			type: 'spacer',
 			variant: 'flex'
 		},

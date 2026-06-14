@@ -55,10 +55,31 @@
 
 
 
-	let { connections = [], scale = 1 } = $props();
+	let { connections = [], scale: scaleProp = 1 } = $props();
+
+	/**
+	 * Temporary scale override used ONLY during image/PDF export.
+	 *
+	 * The export utility (exportAnalyze.js) strips the on-screen zoom transform
+	 * from `.analyze-content-inner` so the FULL study is captured at natural size
+	 * (effective scale = 1).  All of our path math divides client-rect distances
+	 * by `scale`, so while the transform is removed we must measure with scale = 1
+	 * — otherwise every coordinate is divided by the stale on-screen zoom (e.g.
+	 * 0.5) and anchors/notes scatter while lines fly off-canvas.  When null, the
+	 * live `scaleProp` (the real zoom) is used.
+	 * @type {number|null}
+	 */
+	let exportScaleOverride = $state(/** @type {number|null} */ (null));
+
+	/**
+	 * Effective scale used by every measurement/render below.  Equals the live
+	 * zoom normally, or 1 while an export capture is in progress.
+	 */
+	let scale = $derived(exportScaleOverride ?? scaleProp);
 
 	/** @type {SVGSVGElement | null} */
 	let svgElement = $state(null);
+
 
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
@@ -217,8 +238,198 @@
 	 */
 	const handleLayoutChanged = () => scheduleCalculate();
 
+	/**
+	 * Export coordination (image / PDF capture).
+	 *
+	 * exportAnalyze.js strips the zoom transform from `.analyze-content-inner` so
+	 * the FULL study is captured at natural size, then dispatches these window
+	 * events around the snapshot:
+	 *
+	 *   'analyze-export-prepare' → force the overlay to recompute with scale = 1
+	 *      (matching the now-untransformed DOM) so every anchor, line and note dot
+	 *      lands on its true natural-size coordinate INSTEAD of being divided by
+	 *      the stale on-screen zoom.  We recompute synchronously here (not via the
+	 *      rAF coalescer) so the paths are in the DOM the moment the util's own
+	 *      rAF fires and html-to-image snapshots.
+	 *
+	 *   'analyze-export-cleanup' → drop the override and recompute for the
+	 *      restored on-screen zoom.
+	 */
+	/**
+	 * Inline color overrides applied to the SVG shapes during export so their
+	 * resting (gray) colors survive the html-to-image snapshot. Kept so cleanup
+	 * can remove exactly what it added. @type {SVGElement[]}
+	 */
+	let exportColorEls = /** @type {SVGElement[]} */ ([]);
+
+	/**
+	 * Overlay SVGs we pinned with an explicit viewBox/width/height during export.
+	 * Tracked so cleanup can restore them to their live width:100%/height:100%
+	 * (no viewBox) state. @type {SVGElement[]}
+	 */
+	let exportViewBoxEls = /** @type {SVGElement[]} */ ([]);
+
+	/**
+	 * Pin both overlay SVGs to an explicit pixel `width`/`height` + matching
+	 * `viewBox` so html-to-image maps their user units 1:1 to CSS px from the
+	 * top-left origin during capture.
+	 *
+	 * Why: the two sibling overlay SVGs (.connections-overlay for lines/nodes and
+	 * .connections-dots-overlay for note dots) both use width:100%/height:100% and
+	 * NO viewBox. html-to-image clones each SVG and, lacking an explicit intrinsic
+	 * size + coordinate system, can resolve their user-unit origin inconsistently —
+	 * so the note dots (and the plain HTML note cards) land correctly while the
+	 * lines and endpoint nodes are shifted, even though every coordinate comes from
+	 * the SAME paths array in the SAME space. Giving both SVGs `viewBox="0 0 W H"`
+	 * with width=W/height=H (W,H = natural content size) makes their user units map
+	 * exactly to the layout pixels the HTML cards already use, so lines, nodes,
+	 * dots and cards all align. cleanup() removes these so the live overlay returns
+	 * to its responsive width:100%/height:100% (no viewBox).
+	 */
+	function applyExportViewBox() {
+		if (!svgElement) return;
+		const layer = svgElement.closest('.connections-layer');
+		if (!layer) return;
+		// Natural content size: the layer is width:100%/height:100% of the now
+		// untransformed .analyze-content-inner, so its rect IS the natural size.
+		const rect = layer.getBoundingClientRect();
+		const w = Math.round(rect.width);
+		const h = Math.round(rect.height);
+		if (w === 0 || h === 0) return;
+
+		/** @type {SVGElement[]} */
+		const pinned = [];
+		layer.querySelectorAll('.connections-overlay, .connections-dots-overlay').forEach((el) => {
+			const svg = /** @type {SVGElement} */ (el);
+			svg.setAttribute('width', String(w));
+			svg.setAttribute('height', String(h));
+			svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+			pinned.push(svg);
+		});
+		exportViewBoxEls = pinned;
+	}
+
+	/** Restore both overlay SVGs to their live responsive (no-viewBox) state. */
+	function clearExportViewBox() {
+		for (const el of exportViewBoxEls) {
+			el.removeAttribute('width');
+			el.removeAttribute('height');
+			el.removeAttribute('viewBox');
+		}
+		exportViewBoxEls = [];
+	}
+
+
+
+	/**
+	 * Bake resolved theme colors as inline `style` onto every overlay SVG shape.
+	 *
+	 * html-to-image clones the DOM to serialize it, and CSS custom properties
+	 * (var(--gray-300), …) used in the component's SCOPED stylesheet are NOT
+	 * carried onto the cloned SVG presentation attributes. The browser then falls
+	 * back to each property's SVG initial value — fill = black, stroke = none — so
+	 * in the capture the endpoint nodes/dots turn solid black and the connection
+	 * lines (fill:none + variable stroke) vanish entirely.
+	 *
+	 * Resolving the variables to concrete hsl() strings and writing them as inline
+	 * styles (which DO survive the clone, and outrank the scoped CSS) fixes both.
+	 * We bake the RESTING appearance — solid gray lines and gray nodes — since the
+	 * export is a static snapshot; hover/selection highlight colors are intentionally
+	 * not carried over. cleanup() removes every inline style we set.
+	 */
+	function applyExportColors() {
+		if (!svgElement) return;
+		const root = getComputedStyle(document.documentElement);
+		const c = (name, fallback) => (root.getPropertyValue(name).trim() || fallback);
+		const lineColor = c('--gray-300', '#545251');
+		const nodeFill  = c('--gray-600', '#94908d');
+		const nodeStroke = c('--gray-300', '#545251');
+		const dotFill   = c('--gray-400', '#716e6c');
+
+		const layer = svgElement.closest('.connections-layer');
+		if (!layer) return;
+
+		/** @type {SVGElement[]} */
+		const touched = [];
+		// Connection lines: solid gray stroke, no fill.
+		layer.querySelectorAll('.connection-path').forEach((el) => {
+			const svg = /** @type {SVGElement} */ (el);
+			svg.style.setProperty('stroke', lineColor);
+			svg.style.setProperty('stroke-width', '2');
+			svg.style.setProperty('fill', 'none');
+			touched.push(svg);
+		});
+		// Endpoint nodes (square / diamond / circle): gray fill + lighter stroke.
+		layer.querySelectorAll('.connection-node').forEach((el) => {
+			const svg = /** @type {SVGElement} */ (el);
+			svg.style.setProperty('fill', nodeFill);
+			svg.style.setProperty('stroke', nodeStroke);
+			touched.push(svg);
+		});
+		// Note anchor dots: gray fill.
+		layer.querySelectorAll('.connection-note-dot').forEach((el) => {
+			const svg = /** @type {SVGElement} */ (el);
+			svg.style.setProperty('fill', dotFill);
+			touched.push(svg);
+		});
+		// Invisible helper geometry (the large grab-target circle behind each note
+		// dot, and the fat line hit-targets) get their invisibility ONLY from
+		// scoped CSS (fill:transparent / stroke:transparent) with no SVG attribute.
+		// html-to-image drops those scoped values on clone, so they'd otherwise
+		// fall back to the SVG defaults (fill:black) and paint as big black discs
+		// over the real anchors. Force them transparent inline so they stay unseen.
+		layer.querySelectorAll('.connection-note-dot-target').forEach((el) => {
+			const svg = /** @type {SVGElement} */ (el);
+			svg.style.setProperty('fill', 'transparent');
+			svg.style.setProperty('stroke', 'none');
+			touched.push(svg);
+		});
+		layer.querySelectorAll('.connection-hit-target').forEach((el) => {
+			const svg = /** @type {SVGElement} */ (el);
+			svg.style.setProperty('fill', 'none');
+			svg.style.setProperty('stroke', 'transparent');
+			touched.push(svg);
+		});
+		exportColorEls = touched;
+
+
+	}
+
+	/** Remove every inline color override applied by applyExportColors(). */
+	function clearExportColors() {
+		for (const el of exportColorEls) {
+			const s = /** @type {SVGElement} */ (el).style;
+			s.removeProperty('stroke');
+			s.removeProperty('stroke-width');
+			s.removeProperty('fill');
+		}
+		exportColorEls = [];
+	}
+
+	const handleExportPrepare = () => {
+		exportScaleOverride = 1;
+		calculatePaths();
+		// Pin both overlay SVGs to an explicit size + viewBox so html-to-image's
+		// foreignObject rasterizer maps their user units 1:1 (lines/nodes/dots all
+		// align). Done here (after the scale=1 recompute, while the DOM is at
+		// natural size) so the layer rect we read is the natural content size.
+		applyExportViewBox();
+		// Bake colors AFTER the recompute so the freshly-rendered shapes are styled.
+		requestAnimationFrame(() => applyExportColors());
+	};
+
+	const handleExportCleanup = () => {
+		clearExportColors();
+		clearExportViewBox();
+		exportScaleOverride = null;
+		calculatePaths();
+	};
+
+
+
 
 	// ─── Coordinate helpers ────────────────────────────────────────────────────
+
 
 	function toSvgCoords(clientX, clientY) {
 		if (!svgElement) return { x: 0, y: 0 };
@@ -2110,8 +2321,13 @@
 		window.addEventListener('reset-column-spacing', handleLayoutChanged);
 		window.addEventListener('reset-section-position', handleLayoutChanged);
 
+		// Export capture coordination (image / PDF). See handleExportPrepare/Cleanup.
+		window.addEventListener('analyze-export-prepare', handleExportPrepare);
+		window.addEventListener('analyze-export-cleanup', handleExportCleanup);
+
 		requestAnimationFrame(calculatePaths);
 	});
+
 
 	onDestroy(() => {
 		resizeObserver?.disconnect();

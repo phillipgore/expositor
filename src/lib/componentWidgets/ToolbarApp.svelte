@@ -66,7 +66,9 @@
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
 	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
 	import MenuView from '$lib/componentWidgets/menus/MenuView.svelte';
+	import MenuExport from '$lib/componentWidgets/menus/MenuExport.svelte';
 	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
+
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
 	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleFocus, toggleHeadings, toggleConnections, toggleNotes, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview, toggleCommentary, setZoomLevel, setZoomMode } from '$lib/stores/toolbar.js';
@@ -471,7 +473,9 @@
 <MenuOutline menuId="MenuOutline" />
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
 <MenuView menuId="MenuView" />
+<MenuExport menuId="MenuExport" />
 <MenuSettings menuId="MenuSettings" alignment="end" />
+
 <MenuActions 
 	menuId="MenuActions" 
 	{groups}

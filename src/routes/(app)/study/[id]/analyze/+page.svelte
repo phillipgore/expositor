@@ -27,7 +27,9 @@
 
 
 
+	import { exportAnalyzeView } from '$lib/utils/exportAnalyze.js';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
+
 
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings } from '$lib/stores/toolbar.js';
@@ -1537,9 +1539,29 @@
 		const handleSetColumnWidthEvent = () => openSetColumnWidthModal();
 		const handleResetColumnWidthEvent = () => resetColumnWidth();
 
+		// Export (Export menu): capture the visual analyze content (the zoom-transformed
+		// .analyze-content-inner) to the requested format and download it. The util
+		// temporarily neutralizes the zoom transform so the FULL study is exported at
+		// natural resolution regardless of the current zoom level or scroll position.
+		const handleExportAnalyzeEvent = (event) => {
+			const format = event.detail?.format;
+			if (!format) return;
+			exportAnalyzeView({
+				element: contentInnerRef,
+				title: data.study?.title,
+				format
+			}).catch((error) => {
+				console.error('Export failed:', error);
+				alert(`Export failed: ${error?.message || 'Unknown error'}`);
+			});
+		};
+
 		window.addEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
 
+		window.addEventListener('export-analyze', handleExportAnalyzeEvent);
+
 		window.addEventListener('set-segment-height', handleSetSegmentHeightEvent);
+
 		window.addEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
 		window.addEventListener('reset-section-position', handleResetSectionPositionEvent);
 		window.addEventListener('set-section-spacing', handleSetSectionSpacingEvent);
@@ -1584,7 +1606,9 @@
 
 		return () => {
 			window.removeEventListener('clear-analyze-selections', handleClearAnalyzeSelections);
+			window.removeEventListener('export-analyze', handleExportAnalyzeEvent);
 			window.removeEventListener('set-segment-height', handleSetSegmentHeightEvent);
+
 			window.removeEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
 			window.removeEventListener('reset-section-position', handleResetSectionPositionEvent);
 			window.removeEventListener('set-section-spacing', handleSetSectionSpacingEvent);

@@ -54,6 +54,8 @@
 		"bcryptjs": "^3.0.2",
 		"better-auth": "^1.2.12",
 		"drizzle-orm": "^0.44.2",
+		"html-to-image": "^1.11.13",
+		"jspdf": "^4.2.1",
 		"postgres": "^3.4.7",
 		"svelte-tiptap": "^3.0.1",
 		"uuid": "^11.1.0"
