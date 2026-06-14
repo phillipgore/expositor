@@ -83,7 +83,8 @@
 	}
 </script>
 
-<div class="container">
+<div class="document-gutter">
+	<div class="page">
 	<div class="study-header">
 		<Heading heading="h1" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
 		{#if data.study.subtitle}
@@ -150,27 +151,67 @@
 		{/if}
 
 	</div>
+	</div>
 </div>
 
 <style>
-	.container {
+	/* ============================================
+	   PAGE LAYOUT — 8.5" × 11" "Google Docs" pages
+	   --------------------------------------------
+	   The base stylesheet sets font-size: 62.5%, so 1rem = 10px. At the standard
+	   print/screen resolution of 96 DPI, 1 inch = 96px = 9.6rem. US Letter is
+	   therefore 81.6rem × 105.6rem, and a 1" margin is 9.6rem.
+
+	   Phase 1 (this commit) establishes the visual page shell: a gray "gutter"
+	   behind one white Letter-sized page with 1" padding (the margins). True
+	   multi-page flow (splitting content across successive .page elements) is a
+	   follow-up — for now all content lives in a single page that simply grows
+	   taller than 11" when the study is long.
+	   ============================================ */
+
+	/* Page geometry — single source of truth for the dimensions/margins so the
+	   future paginator and the @media print rules can reference the same values. */
+	:root {
+		--page-width: 81.6rem;   /* 8.5in × 9.6rem/in */
+		--page-height: 105.6rem; /* 11in  × 9.6rem/in */
+		--page-margin: 9.6rem;   /* 1in on all sides  */
+		--page-gap: 2.4rem;      /* vertical space between stacked pages */
+	}
+
+	/* The gutter is the gray surface the pages float on (Google Docs style). It
+	   fills the scroll container and centers the page column horizontally. */
+	.document-gutter {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		margin-top: 3.6rem;
-		/* Fill the scroll container's height so the copyright notice can sit at the very
-		   bottom of the viewport on short studies (via .document-content's margin-top:auto
-		   footer below). flex:1 0 auto lets it grow to fill spare space but still expand
-		   past the viewport for tall studies so the notice scrolls below the content. */
+		gap: var(--page-gap);
 		flex: 1 0 auto;
+		padding: var(--page-gap) var(--page-gap) 6rem;
+		background-color: var(--gray-900);
+	}
+
+	/* A single physical page: fixed Letter width, at least Letter height (grows for
+	   long studies until the paginator splits it), white surface, 1" padding for
+	   the margins, and a subtle shadow to lift it off the gutter. */
+	.page {
+		box-sizing: border-box;
+		width: var(--page-width);
+		min-height: var(--page-height);
+		padding: var(--page-margin);
+		background-color: var(--white);
+		box-shadow: 0 0.1rem 0.6rem var(--black-alpha);
+		/* Flex column so the copyright notice (margin-top:auto) is pushed to the
+		   bottom margin of the page on short studies. */
+		display: flex;
+		flex-direction: column;
 	}
 
 
 	.study-header {
-		max-width: 60rem;
 		width: 100%;
 		text-align: center;
 	}
+
 
 	.study-subtitle {
 		font-size: 1.6rem;
@@ -194,16 +235,16 @@
 	}
 
 	.document-content {
-		max-width: 60rem;
 		width: 100%;
 		margin-top: 2.7rem;
-		/* Flex column so the copyright notice (margin-top:auto) is pushed to the bottom,
-		   pinning it to the very bottom of the viewport for short studies while still
-		   flowing below the content for tall ones. flex-grow fills the container height. */
+		/* Flex column so the copyright notice (margin-top:auto) is pushed to the bottom
+		   margin of the page on short studies while still flowing below the content for
+		   tall ones. flex-grow fills the remaining page height. */
 		display: flex;
 		flex-direction: column;
 		flex: 1 0 auto;
 	}
+
 
 
 	.placeholder-text {
@@ -281,4 +322,39 @@
 		text-decoration: underline;
 	}
 
+	/* ============================================
+	   PRINT — let the browser's paginator produce the real output.
+	   --------------------------------------------
+	   On paper there is no gutter or drop shadow: the page IS the sheet. We declare
+	   the physical Letter sheet with 1" margins via @page, then strip the on-screen
+	   page chrome so content flows directly onto the printed sheets. The browser
+	   handles page breaks natively, which is the source of truth for PDF export.
+	   ============================================ */
+	@media print {
+		.document-gutter {
+			display: block;
+			padding: 0;
+			gap: 0;
+			background: none;
+		}
+
+		.page {
+			width: auto;
+			min-height: 0;
+			padding: 0;        /* margins now come from @page below */
+			box-shadow: none;
+			background: none;
+		}
+	}
 </style>
+
+<svelte:head>
+	<!-- Physical sheet definition for printing/PDF export: US Letter with 1"
+	     margins, matching the on-screen 81.6rem × 105.6rem / 9.6rem geometry. -->
+	<style>
+		@page {
+			size: 8.5in 11in;
+			margin: 1in;
+		}
+	</style>
+</svelte:head>
