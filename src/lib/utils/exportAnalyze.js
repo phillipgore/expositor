@@ -45,8 +45,28 @@
  * and the capture so Svelte flushes the recomputed `<path>`/`<circle>` geometry
  * into the DOM first.
  *
+ * ## Why anchors used to drift left/up (and why they no longer do)
+ * The connections overlay (`.connections-container`) is `position: absolute;
+ * inset: 0` and bakes every anchor/line coordinate from its containing block's
+ * top-left. Previously `.analyze-content-inner` carried the layout PADDING
+ * (≈26px top/bottom, 44px left/right), so the overlay's SVG origin sat at the
+ * inner's PADDING box. On screen that was consistent, but html-to-image clones
+ * the SVG into a `<foreignObject>` and resolves its origin at the BORDER box,
+ * dropping the padding translation — so the lines/nodes painted shifted
+ * up-and-left while the reflowed HTML note cards stayed put.
+ *
+ * That is now fixed structurally in the markup: `.analyze-content-inner` carries
+ * NO padding (so its border box == padding box == the overlay's origin) and the
+ * visual spacing lives on an inner `.analyze-content-padded` child. Border box
+ * and padding box coincide, so the clone and the live DOM resolve the overlay to
+ * the SAME origin and exported anchors stay welded to their elements. This util
+ * therefore only needs to neutralize the zoom transform and add a uniform export
+ * frame; it no longer has to relocate any padding.
+ *
  * @module exportAnalyze
  */
+
+
 
 
 import { toPng } from 'html-to-image';
@@ -56,8 +76,35 @@ import { jsPDF } from 'jspdf';
 /** Pixel density for raster (PNG / PDF) capture — 2× keeps text & lines crisp. */
 const PIXEL_RATIO = 2;
 
-/** Padding (CSS px, at natural scale) added around the study in the export. */
+/**
+ * Extra breathing margin (CSS px, at natural scale) added AROUND the study in
+ * the export so the content (and its connection arcs, which can bow slightly
+ * outside the content box) is never flush against the image edge.
+ */
 const EXPORT_PADDING = 24;
+
+/**
+ * Compute the final padded capture dimensions: the natural content size plus the
+ * uniform EXPORT_PADDING frame on every side. Shared by buildOptions and
+ * exportPdf so the html-to-image canvas and the jsPDF page can never disagree.
+ *
+ * The study's own visual spacing already lives INSIDE `width`/`height` (it is the
+ * padding on `.analyze-content-padded`, captured as part of the natural content),
+ * so this only adds the outer export frame.
+ * @param {number} width - natural content width (CSS px)
+ * @param {number} height - natural content height (CSS px)
+ * @returns {{ width: number, height: number, frame: number }}
+ */
+function paddedSize(width, height) {
+	const frame = EXPORT_PADDING;
+	return {
+		width: width + frame * 2,
+		height: height + frame * 2,
+		frame
+	};
+}
+
+
 
 /**
  * Turn a study title into a safe file name (no extension).
@@ -128,11 +175,14 @@ function prepareForCapture(innerEl) {
 		? { width: wrapperEl.style.width, height: wrapperEl.style.height }
 		: null;
 
-	// Remove the zoom transform so layout reflects natural dimensions.
+	// Remove the zoom transform so layout reflects natural dimensions. The inner
+	// carries NO padding (the visual spacing lives on its `.analyze-content-padded`
+	// child), so border box == padding box == the overlay's coordinate origin and
+	// nothing needs to be relocated to keep the export clone aligned.
 	innerEl.style.transform = 'none';
 	innerEl.style.transformOrigin = 'top left';
 
-	// Natural, unscaled content size.
+	// Natural, unscaled content size (includes the padded child's spacing).
 	const width = innerEl.scrollWidth;
 	const height = innerEl.scrollHeight;
 
@@ -163,32 +213,40 @@ function prepareForCapture(innerEl) {
 }
 
 
+
 /**
- * Common html-to-image options for a full, padded, white-background capture.
+ * Common html-to-image options for a full, framed, white-background capture.
+ *
+ * The export frame is applied as MARGIN (not padding): the connections overlay's
+ * SVG origin is welded to the inner's border box, and margin lives OUTSIDE the
+ * border box, so the whole subtree (content, HTML note cards AND the SVG) shifts
+ * together by the frame and stays perfectly aligned. (The study's own visual
+ * spacing is already baked into width/height via `.analyze-content-padded`.)
  * @param {number} width - natural content width (CSS px)
  * @param {number} height - natural content height (CSS px)
  * @param {number} [pixelRatio] - device pixel ratio for raster output
  * @returns {import('html-to-image/lib/types').Options}
  */
 function buildOptions(width, height, pixelRatio) {
-	const paddedWidth = width + EXPORT_PADDING * 2;
-	const paddedHeight = height + EXPORT_PADDING * 2;
+	const p = paddedSize(width, height);
 	return {
 		backgroundColor: '#ffffff',
-		width: paddedWidth,
-		height: paddedHeight,
+		width: p.width,
+		height: p.height,
 		pixelRatio: pixelRatio ?? 1,
-		// Offset the content inward so the padding sits evenly around it. The
-		// transform is applied to the cloned node by html-to-image.
+		// Frame the content with MARGIN (not padding — see docblock) so the
+		// overlay SVG's origin stays welded to the border box and nothing shifts.
 		style: {
-			padding: `${EXPORT_PADDING}px`,
-			boxSizing: 'content-box',
+			margin: `${p.frame}px`,
+			boxSizing: 'border-box',
 			// Neutralize the zoom transform inside the clone as well (belt &
 			// suspenders alongside prepareForCapture on the live node).
 			transform: 'none'
 		}
 	};
 }
+
+
 
 /**
  * Export the analyze content to PNG and download it.
@@ -207,6 +265,7 @@ async function exportPng(innerEl, fileBase) {
 		restore();
 	}
 }
+
 
 
 /**
@@ -230,9 +289,12 @@ async function exportPdf(innerEl, fileBase) {
 	}
 
 
-	const paddedWidth = width + EXPORT_PADDING * 2;
-	const paddedHeight = height + EXPORT_PADDING * 2;
+	const p = paddedSize(width, height);
+
+	const paddedWidth = p.width;
+	const paddedHeight = p.height;
 	const orientation = paddedWidth >= paddedHeight ? 'landscape' : 'portrait';
+
 
 	const pdf = new jsPDF({
 		orientation,

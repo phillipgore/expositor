@@ -3894,6 +3894,25 @@
 	>
 		<div class="analyze-content-wrapper" style="{wrapperDimensions}">
 			<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
+				<!-- Connections overlay: SVG arcs between connected segments, drawn in the
+				     same coordinate space as the content. It is a DIRECT child of
+				     .analyze-content-inner (which carries NO padding) so its absolute
+				     inset:0 origin coincides with the inner's border box — and, because the
+				     inner has no padding, with its padding box too. The visual spacing now
+				     lives on .analyze-content-padded below, NOT on the inner, so the overlay
+				     SVG and the html-to-image export clone (which resolves the cloned SVG at
+				     the border box) share a single origin and the exported anchors/lines
+				     stay aligned with their elements. See exportAnalyze.js.
+				     position:absolute also keeps it out of the flex flow, so it never
+				     contributes a gap slot between study-header and passage-wrapper. -->
+				<div class="connections-container">
+					<ConnectionsOverlay connections={data.connections || []} scale={currentScale} />
+				</div>
+
+				<!-- Padded content column: the padding + flex gap that used to live on
+				     .analyze-content-inner moved here so they no longer offset the overlay's
+				     coordinate origin (see the connections-container comment above). -->
+				<div class="analyze-content-padded">
 				{#if showHeader}
 					<div class="study-header">
 						<Heading heading="h1" classes="h3 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
@@ -3902,17 +3921,12 @@
 						{/if}
 					</div>
 				{/if}
-				<!-- Connections overlay: SVG arcs between connected segments, drawn in the same coordinate space as the content.
-				     Wrapped in a zero-height absolutely-positioned div to keep it fully out of the flex column flow,
-				     preventing it from contributing to gap calculations between study-header and passage-wrapper. -->
-				<div class="connections-container">
-					<ConnectionsOverlay connections={data.connections || []} scale={currentScale} />
-				</div>
 
 				<!-- While the streamed content resolves, the single global
 				     NavigationIndicator overlay covers the wait (see stores/loading.js),
 				     so there is no in-page spinner here. -->
 				<div class="passage-wrapper">
+
 					{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}
 							{@const firstColumn = ('structure' in passageText) ? passageText.structure?.columns?.[0] : null}
@@ -4157,8 +4171,10 @@
 						<p class="placeholder-text">No passages available for this study.</p>
 					{/if}
 				</div>
+				</div>
 			</div>
 		</div>
+
 
 		<!-- Copyright Notice — required Scripture attribution. Rendered in normal flow at
 		     the bottom of the scroll container (OUTSIDE the zoom-transformed
@@ -4429,13 +4445,29 @@
 	}
 
 
+	/* Zoom-transformed positioning context. Carries NO padding: its border box,
+	   padding box and content box all coincide, so the absolutely-positioned
+	   .connections-container (inset: 0) and the html-to-image export clone resolve
+	   the overlay SVG to the SAME top-left origin as the visible content. Padding
+	   that used to live here moved to .analyze-content-padded below — keeping it here
+	   shifted the overlay's coordinate origin away from the clone's border-box origin,
+	   which is what made exported anchors/lines drift left/up. width: fit-content lets
+	   the box (and thus the overlay) size exactly to the padded content. */
 	.analyze-content-inner {
 		position: relative;
+		transition: transform 0.2s ease-out;
+		width: fit-content;
+	}
+
+	/* Padded content column. Holds the flex layout + padding that formerly sat on
+	   .analyze-content-inner. Because the overlay is a sibling that fills the (now
+	   unpadded) inner, this padding offsets the passage content WITHIN the shared
+	   overlay coordinate space identically on screen and in the export clone. */
+	.analyze-content-padded {
 		display: flex;
 		flex-direction: column;
 		gap: 2.6rem;
 		padding: 2.6rem 4.4rem;
-		transition: transform 0.2s ease-out;
 		width: fit-content;
 	}
 
@@ -4457,6 +4489,7 @@
 		pointer-events: none;
 		z-index: 20;
 	}
+
 
 	/* ============================================================ */
 	/* Passage Layout */
