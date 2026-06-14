@@ -4334,6 +4334,10 @@
 		margin: 0.0rem;
 		padding: 0.0rem;
 		line-height: 1;
+		/* Keep the title on a single line so it isn't squished down to the width of a
+		   narrow (e.g. single-column) study or before passages stream in. The header is
+		   a fit-content child, so a long title simply widens the box to fit itself. */
+		white-space: nowrap;
 	}
 
 	.study-header :global(.subheading) {
@@ -4341,7 +4345,10 @@
 		padding: 0.0rem;
 		color: var(--gray-400);
 		line-height: 1;
+		/* See .heading above — keep the subtitle on a single line for the same reason. */
+		white-space: nowrap;
 	}
+
 
 	.placeholder-text {
 		font-size: 1.4rem;
