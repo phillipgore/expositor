@@ -1384,55 +1384,62 @@
 		/>
 	{/if}
 
-	<div class="editor-content" style="transform: scale({zoomScale}); transform-origin: top left;" onclick={handleEditorContentClick}>
-		<div bind:this={editorElement}></div>
-		
-		{#if hasSubject && inlineTermIds.length > 0}
-			<div class="tags-section">
-				<div class="tags-box">
-					<div class="tags-row">
-						<div class="tags-list">
-							{#each inlineTermIds as termId (termId)}
-								<GlossaryBadge {termId} removable={false} />
-							{/each}
+	<div class="editor-content" onclick={handleEditorContentClick}>
+		<!-- Zoom is applied here via the CSS `zoom` property (not `transform: scale`)
+		     so the content participates in layout and text reflows to the panel
+		     width instead of overflowing. The `.editor-content` scroll container
+		     keeps its natural (panel) width and handles vertical overflow. -->
+		<div class="editor-zoom" style="zoom: {zoomScale};">
+			<div bind:this={editorElement}></div>
+
+			{#if hasSubject && inlineTermIds.length > 0}
+				<div class="tags-section">
+					<div class="tags-box">
+						<div class="tags-row">
+							<div class="tags-list">
+								{#each inlineTermIds as termId (termId)}
+									<GlossaryBadge {termId} removable={false} />
+								{/each}
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-		{/if}
+			{/if}
 
-		{#if footnotes.length > 0}
-			<div class="footnotes-section">
-				<div class="footnotes-list">
-					{#each footnotes as note, index (note.id)}
-						<div class="footnote-item">
-							<span class="footnote-number">
-								<sup>{index + 1}</sup>
-							</span>
-							<textarea
-								class="footnote-field"
-								class:editing={editingFootnoteId === note.id}
-								data-footnote-id={note.id}
-								value={note.content}
-								placeholder="Enter footnote text..."
-								rows="1"
-								oninput={(e) => {
-									// @ts-ignore - e.target is HTMLTextAreaElement
-									const target = e.target;
-									// Auto-resize textarea
-									target.style.height = 'auto';
-									target.style.height = target.scrollHeight + 'px';
-									handleFootnoteChange(note.id, target.value);
-								}}
-								onfocus={() => startEditingFootnote(note.id)}
-								onblur={stopEditingFootnote}
-							></textarea>
-						</div>
-					{/each}
+			{#if footnotes.length > 0}
+				<div class="footnotes-section">
+					<div class="footnotes-list">
+						{#each footnotes as note, index (note.id)}
+							<div class="footnote-item">
+								<span class="footnote-number">
+									<sup>{index + 1}</sup>
+								</span>
+								<textarea
+									class="footnote-field"
+									class:editing={editingFootnoteId === note.id}
+									data-footnote-id={note.id}
+									value={note.content}
+									placeholder="Enter footnote text..."
+									rows="1"
+									oninput={(e) => {
+										// @ts-ignore - e.target is HTMLTextAreaElement
+										const target = e.target;
+										// Auto-resize textarea
+										target.style.height = 'auto';
+										target.style.height = target.scrollHeight + 'px';
+										handleFootnoteChange(note.id, target.value);
+									}}
+									onfocus={() => startEditingFootnote(note.id)}
+									onblur={stopEditingFootnote}
+								></textarea>
+							</div>
+						{/each}
+					</div>
 				</div>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	</div>
+
 
 </div>
 
@@ -1699,6 +1706,16 @@
 		flex: 1;
 		overflow-y: auto;
 	}
+
+	/* Zoom wrapper. Uses the CSS `zoom` property (which participates in layout)
+	   rather than `transform: scale()` (paint-only), so the editor's content
+	   reflows to the panel width when zoomed instead of overflowing horizontally.
+	   The wrapper fills the scroll container's height so clicking empty space
+	   below the prose still focuses the editor. */
+	.editor-zoom {
+		min-height: 100%;
+	}
+
 
 	/* Tiptap Editor Styles */
 	:global(.tiptap-editor) {
