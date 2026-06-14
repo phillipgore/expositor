@@ -1,8 +1,20 @@
-import { db } from '$lib/server/db/index.js';
+import { db, client } from '$lib/server/db/index.js';
 import { studyGroup, passage, passageColumn, passageSection, passageSegment } from '$lib/server/db/schema.js';
 import { eq, and, inArray, asc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
+import { runDatabaseDiagnostics } from '$lib/server/db/health.js';
+
+/**
+ * Get the current database status (health, readiness, and pool metrics).
+ * Thin wrapper around runDatabaseDiagnostics using the raw postgres client,
+ * consumed by the /api/health endpoint.
+ * @returns {Promise<{health: import('./health.js').DatabaseHealth, poolMetrics: import('./health.js').ConnectionPoolMetrics | null, isReady: boolean}>}
+ */
+export async function getDatabaseStatus() {
+  return runDatabaseDiagnostics(client);
+}
+
 
 /**
  * Expand a group and all its ancestor groups by setting isCollapsed to false
