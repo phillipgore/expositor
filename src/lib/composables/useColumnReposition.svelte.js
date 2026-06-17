@@ -202,8 +202,6 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		if (!info) return;
 		activeIsCross = info.isCross;
 
-		const scale = getScale() || 1;
-
 		startX = event.clientX;
 
 		const rect = colEl.getBoundingClientRect();
@@ -211,8 +209,13 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 
 		// Current applied per-side offset (CSS px). For both modes this is the column's
 		// own margin-left (for cross columns the divider mirrors the same value).
+		// getComputedStyle reports the LAYOUT value, which already ignores the page's
+		// zoom transform — so it is the true pre-zoom CSS px and must NOT be divided by
+		// scale. (Dividing here made the column/grab-handle jump the instant you grabbed
+		// it while zoomed.)
 		const computedMargin = parseFloat(getComputedStyle(colEl).marginLeft) || 0;
-		startMargin = computedMargin / scale;
+		startMargin = computedMargin;
+
 
 		// Default gap (floor baseline for the tooltip) and the derived max per-side
 		// offset. For cross columns the per-side ceiling is half the remaining range

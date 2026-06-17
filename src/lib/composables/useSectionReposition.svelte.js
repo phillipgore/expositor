@@ -81,19 +81,21 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		);
 		if (!sectionEl) return;
 
-		const scale = getScale() || 1;
-
 		startY = event.clientY;
+
 
 		const rect = sectionEl.getBoundingClientRect();
 		startTopY = rect.top;
 		draggedCenterX = rect.left + rect.width / 2;
 
 
-		// Current applied margin-top (CSS px). Read the inline value if present,
-		// otherwise the computed default.
+		// Current applied margin-top (CSS px). getComputedStyle reports the LAYOUT
+		// value, which already ignores the page's zoom transform — so it is the true
+		// pre-zoom CSS px and must NOT be divided by scale. (Dividing here is what made
+		// the section/grab-handle jump the instant you grabbed it while zoomed.)
 		const computedMargin = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
-		startMargin = computedMargin / scale;
+		startMargin = computedMargin;
+
 
 		// Measure the DEFAULT (floor) margin. The reposition offset is applied through the
 		// `--reposition-offset` CSS variable (margin-top: calc(default + var(...))), NOT via
@@ -105,7 +107,9 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		const measuredDefault = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
 		if (prevVar) sectionEl.style.setProperty('--reposition-offset', prevVar);
 		else sectionEl.style.removeProperty('--reposition-offset');
-		defaultMargin = measuredDefault / scale;
+		// Layout value from getComputedStyle is already pre-zoom CSS px — do NOT ÷ scale.
+		defaultMargin = measuredDefault;
+
 
 		// Collect snap candidates: top & bottom edges (viewport Y) of every section and
 		// segment NOT in the same column as the dragged section. Same-column elements
@@ -309,7 +313,6 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		);
 		if (!sectionEl) return 0;
 
-		const scale = getScale() || 1;
 		// Temporarily zero the reposition offset so margin-top collapses to its default.
 		const prevVar = sectionEl.style.getPropertyValue('--reposition-offset');
 		sectionEl.style.setProperty('--reposition-offset', '0px');
@@ -318,8 +321,10 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		if (prevVar) sectionEl.style.setProperty('--reposition-offset', prevVar);
 		else sectionEl.style.removeProperty('--reposition-offset');
 
-		return measured / scale;
+		// getComputedStyle margin is already pre-zoom CSS px — do NOT ÷ scale.
+		return measured;
 	}
+
 
 	/**
 	 * Measure a section's CURRENT total vertical gap (rendered margin-top), in CSS px at
@@ -332,10 +337,11 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 			document.querySelector(`[data-section-id="${sectionId}"]`)
 		);
 		if (!sectionEl) return 0;
-		const scale = getScale() || 1;
+		// getComputedStyle margin is already pre-zoom CSS px — do NOT ÷ scale.
 		const measured = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
-		return measured / scale;
+		return measured;
 	}
+
 
 	/**
 	 * Set a uniform TOTAL vertical gap across one or more sections. The total is converted
