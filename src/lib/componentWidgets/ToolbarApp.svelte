@@ -99,66 +99,51 @@
 	}
 
 	/**
-	 * Handle color selection from MenuColor
-	 * Supports both column mode (bulk update all sections) and section mode (single section)
+	 * Handle color selection from MenuColor.
+	 * Recolors the ENTIRE current multi-selection across Columns, Sections, and Segments:
+	 *  - Each selected column → PATCH the column endpoint (bulk-updates all its sections).
+	 *  - Each selected section + each section a selected segment belongs to → PATCH the
+	 *    section endpoint. These two are merged and deduped so a section is only hit once.
+	 * All requests fire in parallel; the batch is treated as failed if any request fails.
 	 * @param {string} colorId - The selected color ID (e.g., "red", "blue")
 	 */
 	async function handleColorChange(colorId) {
-		// Determine if we're in column or section mode
-		const isColumnMode = $toolbarState.activeColumnId !== null;
-		const isSectionMode = $toolbarState.activeSectionId !== null;
-		// Segment mode: no column/section is explicitly selected, but one or more
-		// segments are. Color recolors the Section(s) those segments belong to.
+		const columnIds = $toolbarState.activeColumnIds || [];
+		const sectionIds = $toolbarState.activeSectionIds || [];
 		const segmentSectionIds = $toolbarState.activeSegmentSectionIds || [];
-		const isSegmentMode = !isColumnMode && !isSectionMode && segmentSectionIds.length > 0;
 
-		if (!isColumnMode && !isSectionMode && !isSegmentMode) {
+		// Merge explicitly-selected sections with the sections of selected segments,
+		// deduped, so a single section is never PATCHed twice.
+		const allSectionIds = Array.from(new Set([...sectionIds, ...segmentSectionIds]));
+
+		if (columnIds.length === 0 && allSectionIds.length === 0) {
 			console.error('No active column, section, or segment to color');
 			return;
 		}
 
 		try {
-			let response;
+			const requests = [
+				...columnIds.map((columnId) =>
+					fetch(`/api/passages/columns/${columnId}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ color: colorId })
+					})
+				),
+				...allSectionIds.map((sectionId) =>
+					fetch(`/api/passages/sections/${sectionId}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ color: colorId })
+					})
+				)
+			];
 
-			if (isColumnMode) {
-				// Column mode: update all sections in the column
-				console.log('Updating all sections in column:', $toolbarState.activeColumnId);
-				response = await fetch(`/api/passages/columns/${$toolbarState.activeColumnId}`, {
-					method: 'PATCH',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ color: colorId })
-				});
-			} else if (isSectionMode) {
-				// Section mode: update single section
-				console.log('Updating single section:', $toolbarState.activeSectionId);
-				response = await fetch(`/api/passages/sections/${$toolbarState.activeSectionId}`, {
-					method: 'PATCH',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ color: colorId })
-				});
-			} else {
-				// Segment mode: update every section that contains a selected segment.
-				console.log('Updating sections for selected segments:', segmentSectionIds);
-				const responses = await Promise.all(
-					segmentSectionIds.map((sectionId) =>
-						fetch(`/api/passages/sections/${sectionId}`, {
-							method: 'PATCH',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ color: colorId })
-						})
-					)
-				);
-				// Treat the batch as failed if any request failed.
-				response = responses.find((r) => !r.ok) || responses[0];
-			}
+			const responses = await Promise.all(requests);
+			// Treat the batch as failed if any request failed.
+			const response = responses.find((r) => !r.ok) || responses[0];
 
 			if (response.ok) {
-				const mode = isColumnMode
-					? 'Column sections'
-					: isSegmentMode
-						? 'Segment sections'
-						: 'Section';
-				console.log(`${mode} color updated successfully`);
 				// Refresh data to show the new color
 				await invalidate('app:studies');
 			} else {

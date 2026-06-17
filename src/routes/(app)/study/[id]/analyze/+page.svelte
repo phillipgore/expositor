@@ -38,7 +38,7 @@
 		getParsedPassage,
 		extractSegmentText
 	} from '$lib/utils/passageText.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState } from '$lib/stores/toolbar.js';
 
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
 
@@ -723,25 +723,32 @@
 				}
 			}
 
-			// Collect the parent section IDs of ALL selected segments (deduped, in order)
-			// so Color can recolor every section that contains a selected segment.
-			const sectionIds = [];
-			for (const seg of activeSegments) {
-				const secId = getSectionIdFromSegmentId(seg.segmentId);
-				if (secId && !sectionIds.includes(secId)) sectionIds.push(secId);
-			}
-
 			setActiveSegment(true, firstSegment.segmentId, {
 				hasHeadingOne,
 				hasHeadingTwo,
 				hasHeadingThree,
 				hasNote,
-				isFirst: isFirstSegment,
-				sectionIds
+				isFirst: isFirstSegment
 			});
 		} else {
 			setActiveSegment(false, null);
 		}
+	});
+
+	// Sync the parent-section IDs of ALL selected segments (deduped) to the toolbar store
+	// for Color. This is SEPARATE from the gated segment effect above because that effect
+	// only runs in pure-segment mode and clears its state otherwise. In a MIXED multi-select
+	// (segments selected alongside columns and/or sections), that effect's else-branch would
+	// drop the segments' sections, so Color couldn't recolor them. This always-on effect
+	// keeps the mapping current for every selection shape; it's empty when no segments are
+	// selected. handleColorChange merges these with activeColumnIds/activeSectionIds (deduped).
+	$effect(() => {
+		const sectionIds = [];
+		for (const seg of activeSegments) {
+			const secId = getSectionIdFromSegmentId(seg.segmentId);
+			if (secId && !sectionIds.includes(secId)) sectionIds.push(secId);
+		}
+		setActiveSegmentSectionIds(sectionIds);
 	});
 
 	// Sync active column state to toolbar store
@@ -763,7 +770,7 @@
 				}
 			}
 
-			setActiveColumn(true, activeColumnId, isFirstColumn);
+			setActiveColumn(true, activeColumnId, isFirstColumn, [...activeColumns]);
 		} else {
 			setActiveColumn(false, null);
 		}
@@ -808,7 +815,10 @@
 				}
 			}
 
-			setActiveSection(true, sectionId, isFirstSection);
+			// Pass the explicitly-selected sections so Color can recolor every selected
+			// section. This is empty during pure column-selection (the column path
+			// handles recoloring all of a column's sections), so there's no overlap.
+			setActiveSection(true, sectionId, isFirstSection, [...activeSections]);
 		} else {
 			setActiveSection(false, null);
 		}

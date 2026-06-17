@@ -112,9 +112,12 @@ async function persistPreference(updates) {
  * @property {boolean} isActiveSegmentFirstInPassage - Whether the active segment is the first segment in its passage
  * @property {boolean} hasActiveSection - Whether a section is currently active (for color mode)
  * @property {string|null} activeSectionId - The ID of the currently active section
+ * @property {string[]} activeSectionIds - The IDs of ALL currently selected sections (for multi-select Color)
  * @property {boolean} isActiveSectionFirstInPassage - Whether the active section is the first section in its passage
  * @property {boolean} hasActiveColumn - Whether a column is currently active
  * @property {string|null} activeColumnId - The ID of the currently active column
+ * @property {string[]} activeColumnIds - The IDs of ALL currently selected columns (for multi-select Color)
+
  * @property {boolean} isActiveColumnFirstInPassage - Whether the active column is the first column in its passage
  * @property {boolean} canInsertColumn - Whether Insert Column button should be enabled
  * @property {boolean} canInsertConnection - Whether Insert Connection button should be enabled
@@ -204,9 +207,11 @@ const defaultState = {
 	isActiveSegmentFirstInPassage: false,
 	hasActiveSection: false,
 	activeSectionId: null,
+	activeSectionIds: [],
 	isActiveSectionFirstInPassage: false,
 	hasActiveColumn: false,
 	activeColumnId: null,
+	activeColumnIds: [],
 	isActiveColumnFirstInPassage: false,
 	canInsertColumn: false,
 	canInsertConnection: false,
@@ -1102,14 +1107,12 @@ export function setWordSelection(hasSelection) {
  * @param {boolean} [options.hasHeadingThree] - Whether segment has heading three
  * @param {boolean} [options.hasNote] - Whether segment has a note
  * @param {boolean} [options.isFirst] - Whether the segment is the first segment in its passage
- * @param {string[]} [options.sectionIds] - The IDs of the section(s) the selected segment(s) belong to (for Color)
  */
 export function setActiveSegment(hasSegment, segmentId = null, options) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveSegment: hasSegment,
 		activeSegmentId: segmentId,
-		activeSegmentSectionIds: hasSegment ? (options?.sectionIds || []) : [],
 		activeSegmentHasHeadingOne: options?.hasHeadingOne || false,
 		activeSegmentHasHeadingTwo: options?.hasHeadingTwo || false,
 		activeSegmentHasHeadingThree: options?.hasHeadingThree || false,
@@ -1118,6 +1121,25 @@ export function setActiveSegment(hasSegment, segmentId = null, options) {
 		// Deselect any connection when a segment becomes active
 		hasActiveConnection: hasSegment ? false : state.hasActiveConnection,
 		activeConnectionIds: hasSegment ? [] : state.activeConnectionIds
+	}));
+}
+
+/**
+ * Set the parent-section IDs of ALL currently selected segments (deduped), for Color.
+ *
+ * This is intentionally SEPARATE from setActiveSegment because that setter is only
+ * called in pure-segment mode (and is also called by the heading/note editors, which
+ * don't know the selection's section IDs). In a MIXED multi-select — segments selected
+ * alongside columns and/or other sections — the gated `hasActiveSegment` effect takes
+ * its else-branch and would otherwise clear this, so Color couldn't recolor the sections
+ * containing the selected segments. The analyze page keeps this current via a dedicated,
+ * always-on effect over `activeSegments`.
+ * @param {string[]} sectionIds - The deduped parent-section IDs of the selected segments
+ */
+export function setActiveSegmentSectionIds(sectionIds = []) {
+	toolbarStateStore.update(state => ({
+		...state,
+		activeSegmentSectionIds: sectionIds
 	}));
 }
 
@@ -1153,12 +1175,14 @@ export function setCanInsertColumn(canInsert) {
  * @param {boolean} hasColumn - Whether a column is currently active
  * @param {string|null} columnId - The ID of the active column (optional)
  * @param {boolean} isFirst - Whether the active column is the first column in its passage
+ * @param {string[]} [columnIds] - The IDs of ALL currently selected columns (for multi-select Color)
  */
-export function setActiveColumn(hasColumn, columnId = null, isFirst = false) {
+export function setActiveColumn(hasColumn, columnId = null, isFirst = false, columnIds = []) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveColumn: hasColumn,
 		activeColumnId: columnId,
+		activeColumnIds: hasColumn ? columnIds : [],
 		isActiveColumnFirstInPassage: hasColumn ? isFirst : false
 	}));
 }
@@ -1168,12 +1192,14 @@ export function setActiveColumn(hasColumn, columnId = null, isFirst = false) {
  * @param {boolean} hasSection - Whether a section is currently active
  * @param {string|null} sectionId - The ID of the active section (optional)
  * @param {boolean} isFirst - Whether the active section is the first section in its passage
+ * @param {string[]} [sectionIds] - The IDs of ALL explicitly-selected sections (for multi-select Color)
  */
-export function setActiveSection(hasSection, sectionId = null, isFirst = false) {
+export function setActiveSection(hasSection, sectionId = null, isFirst = false, sectionIds = []) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveSection: hasSection,
 		activeSectionId: sectionId,
+		activeSectionIds: hasSection ? sectionIds : [],
 		isActiveSectionFirstInPassage: hasSection ? isFirst : false
 	}));
 }
