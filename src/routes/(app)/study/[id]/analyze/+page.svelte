@@ -38,7 +38,8 @@
 		getParsedPassage,
 		extractSegmentText
 	} from '$lib/utils/passageText.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState } from '$lib/stores/toolbar.js';
+
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
 
 
@@ -98,6 +99,41 @@
 
 	// Attach window mousemove/mouseup listeners only while a resize drag is active.
 	$effect(() => segmentResize.setupResizeListeners());
+
+	// Observe linked segments for content-size changes so a group auto-grows to the
+	// tallest member when text/headings/notes are added. Re-runs when the rendered
+	// passage content changes (segments mount/unmount or links change).
+	$effect(() => {
+		const _dep = data.passagesWithText; // re-run when content changes
+		// Wait for the DOM to settle so [data-height-group-id] elements exist.
+		let cleanup;
+		tick().then(() => {
+			cleanup = segmentResize.observeGroups();
+		});
+		return () => cleanup?.();
+	});
+
+	// Gate the Layout → Link / Unlink Segment Height buttons on the current selection:
+	//  - Link  : 2+ segments selected that aren't already all in the SAME group.
+	//  - Unlink: the selection includes at least one linked segment.
+	$effect(() => {
+		const segs = activeSegments;
+		const count = segs.length;
+
+		// Read each selected segment's heightGroupId from the loaded structure.
+		const groupIds = segs.map((s) => {
+			const el = document.querySelector(`[data-segment-id="${s.segmentId}"]`);
+			return el?.getAttribute('data-height-group-id') || null;
+		});
+		const hasLinked = groupIds.some((g) => !!g);
+		const allSameGroup =
+			count >= 2 && groupIds.every((g) => g && g === groupIds[0]);
+
+		const canLink = count >= 2 && !allSameGroup;
+		const canUnlink = hasLinked;
+		setSegmentHeightLinkState(count, canLink, canUnlink);
+	});
+
 
 	// ─── Section reposition (vertical spacing) ────────────────────────────────
 	// Lives at page level so it can see all .section/.segment elements (for
@@ -231,6 +267,61 @@
 			console.error('Failed to restore segment heights:', error);
 		}
 	}
+
+	/**
+	 * Link the heights of the selected segments. Measures the tallest current rendered
+	 * height across the selection (÷ scale → CSS px) and seeds every member to it so
+	 * they immediately jump to match the tallest one. The server assigns a shared
+	 * height-group id; thereafter they resize together and grow to the tallest member.
+	 */
+	async function linkSegmentHeight() {
+		const ids = activeSegments.map((s) => s.segmentId);
+		if (ids.length < 2) return;
+
+		const scale = currentScale || 1;
+		let tallest = 0;
+		for (const id of ids) {
+			const el = /** @type {HTMLElement|null} */ (
+				document.querySelector(`[data-segment-id="${id}"]`)
+			);
+			if (!el) continue;
+			const current = el.getBoundingClientRect().height / scale;
+			if (current > tallest) tallest = current;
+		}
+
+		try {
+			await fetch('/api/segments/link-height', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ids, height: tallest > 0 ? Math.round(tallest) : null })
+			});
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Failed to link segment heights:', error);
+		}
+	}
+
+	/**
+	 * Unlink the heights of the selected segments. The server clears the shared
+	 * height-group id on every member of the affected groups; each segment keeps its
+	 * current height but is no longer kept in sync with the others.
+	 */
+	async function unlinkSegmentHeight() {
+		const ids = activeSegments.map((s) => s.segmentId);
+		if (ids.length === 0) return;
+
+		try {
+			await fetch('/api/segments/unlink-height', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ids })
+			});
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Failed to unlink segment heights:', error);
+		}
+	}
+
 
 	// ─── Set-spacing modal (bulk uniform TOTAL gap for selected sections) ──────
 	// Opened from Structure → Set Section Spacing. Measures the current selection to
@@ -1533,6 +1624,9 @@
 		const handleRemoveConnectionEvent = () => handleRemoveConnection();
 		const handleSetSegmentHeightEvent = () => openSetHeightModal();
 		const handleRestoreSegmentHeightEvent = () => restoreSegmentHeight();
+		const handleLinkSegmentHeightEvent = () => linkSegmentHeight();
+		const handleUnlinkSegmentHeightEvent = () => unlinkSegmentHeight();
+
 		// Reset a section's vertical reposition offset back to the default spacing.
 		const handleResetSectionPositionEvent = (event) => {
 			const sectionId = event.detail?.sectionId;
@@ -1572,7 +1666,10 @@
 		window.addEventListener('set-segment-height', handleSetSegmentHeightEvent);
 
 		window.addEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
+		window.addEventListener('link-segment-height', handleLinkSegmentHeightEvent);
+		window.addEventListener('unlink-segment-height', handleUnlinkSegmentHeightEvent);
 		window.addEventListener('reset-section-position', handleResetSectionPositionEvent);
+
 		window.addEventListener('set-section-spacing', handleSetSectionSpacingEvent);
 		window.addEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
 		window.addEventListener('set-column-spacing', handleSetColumnSpacingEvent);
@@ -1620,6 +1717,8 @@
 			window.removeEventListener('set-segment-height', handleSetSegmentHeightEvent);
 
 			window.removeEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
+			window.removeEventListener('link-segment-height', handleLinkSegmentHeightEvent);
+			window.removeEventListener('unlink-segment-height', handleUnlinkSegmentHeightEvent);
 			window.removeEventListener('reset-section-position', handleResetSectionPositionEvent);
 			window.removeEventListener('set-section-spacing', handleSetSectionSpacingEvent);
 			window.removeEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
@@ -3878,10 +3977,14 @@
 																			prevSegmentHasRef={!!(headingReferences[section.segments[segmentIndex - 1]?.id]?.segmentRef)}
 																			isFirstInSection={segmentIndex === 0}
 																			isFirstVisibleInSection={segmentIndex === 0}
-																			height={segmentResize.getLiveHeight(segment.id) ?? segment.height ?? null}
+																			height={segmentResize.getEffectiveHeight(segment.id, segment.height ?? null)}
 																			resizeEnabled={!$toolbarState.overviewMode && !isHideMode}
 																			isResizing={segmentResize.activeSegmentId === segment.id}
 																			onResizeStart={segmentResize.handleResizeStart}
+																			heightGroupId={segment.heightGroupId ?? null}
+																			linkHovered={segmentResize.isGroupHovered(segment.heightGroupId ?? null)}
+																			onHandleEnter={segmentResize.handleHandleEnter}
+																			onHandleLeave={segmentResize.handleHandleLeave}
 																		/>
 
 																	{/each}
@@ -4076,15 +4179,20 @@
 	{/if}
 
 
-	<!-- Live height tooltip following the resize drag, shown above the segment's
-	     bottom drag indicator. -->
-	{#if segmentResize.dragTooltip.visible}
-		<ResizeTooltip
-			x={segmentResize.dragTooltip.x}
-			y={segmentResize.dragTooltip.y}
-			height={segmentResize.dragTooltip.height}
-		/>
-	{/if}
+	<!-- Live height tooltip(s) following the resize drag, shown above each segment's
+	     bottom drag indicator. A single tooltip for an unlinked segment; one per member
+	     for a linked group, each labeled "Linked: [height]px". -->
+	{#each segmentResize.dragTooltips as tip (tip.segmentId)}
+		<ResizeTooltip x={tip.x} y={tip.y} height={tip.height} label={tip.label} />
+	{/each}
+
+	<!-- Hover tooltips for a linked group (no drag in progress): one "Linked" label per
+	     member, anchored to each member's bottom edge, shown when hovering any member's
+	     resize handle. -->
+	{#each segmentResize.hoverTooltips as tip (tip.segmentId)}
+		<ResizeTooltip x={tip.x} y={tip.y} label={tip.label} />
+	{/each}
+
 
 	<!-- Live spacing tooltip following a section reposition drag. Reuses the same
 	     ResizeTooltip component as segment resize; here `height` is the total vertical

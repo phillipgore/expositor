@@ -12,16 +12,17 @@
 		x = 0,
 		/** Vertical anchor (segment bottom edge) in viewport px. */
 		y = 0,
-		/** Height value to display, in CSS px. */
-		height = 0,
-		/** Optional leading label (e.g. a snapped multiple like "Double"). */
+		/** Height value to display, in CSS px. When null, only the label is shown. */
+		height = null,
+		/** Optional leading label (e.g. "Linked", or a snapped multiple like "Double"). */
 		label = null
 	} = $props();
 </script>
 
 <div class="resize-tooltip" style:left="{x}px" style:top="{y}px">
-	{#if label}{label} · {/if}{height}px
+	{#if label && height != null}{label}: {height}px{:else if label}{label}{:else}{height}px{/if}
 </div>
+
 
 
 <style>

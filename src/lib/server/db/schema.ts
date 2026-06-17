@@ -216,6 +216,13 @@ export const passageSegment = pgTable('passage_segment', {
 	commentary: text('commentary'),
 	/** User-set minimum height in pixels. NULL = flexible/natural height (content-sized). */
 	height: integer('height'),
+	/**
+	 * Shared identifier for LINKED segment heights. Segments sharing the same
+	 * heightGroupId are kept at the height of the tallest member and resize
+	 * together; if any member grows (resize, added text/heading/note) they all
+	 * grow. NULL = not linked (default).
+	 */
+	heightGroupId: text('height_group_id'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

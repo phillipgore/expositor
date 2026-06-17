@@ -34,8 +34,20 @@
 		/** Whether this segment is currently being resized (drives active handle styling). */
 		isResizing = false,
 		/** Called on mousedown on the resize handle: (event, segmentId) => void */
-		onResizeStart = null
+		onResizeStart = null,
+		/** Shared id of this segment's height-link group, or null when not linked. */
+		heightGroupId = null,
+		/** Whether this segment is a member of the currently HOVERED link group (reveal handle + "Linked" tooltip on all members). */
+		linkHovered = false,
+		/** Called on pointer enter of the resize handle: (segmentId) => void */
+		onHandleEnter = null,
+		/** Called on pointer leave of the resize handle: () => void */
+		onHandleLeave = null
 	} = $props();
+
+	/** Whether this segment is linked to others (has a height group). */
+	let isLinked = $derived(!!heightGroupId);
+
 
 
 	// Track input mode for each heading type and note
@@ -186,8 +198,11 @@
      class:compare-hidden={isCompareHidden}
      class:is-resizing={isResizing}
      class:show-layout-controls={resizeEnabled && $toolbarState.layoutControlsVisible}
+     class:link-hovered={resizeEnabled && linkHovered}
      style:min-height={height != null ? `${height}px` : null}
-     data-segment-id="{segmentId}">
+     data-segment-id="{segmentId}"
+     data-height-group-id={heightGroupId || null}>
+
 
 	
 	<!-- Heading One -->
@@ -287,9 +302,12 @@
 			aria-label="Resize segment height"
 			aria-orientation="horizontal"
 			onmousedown={(e) => onResizeStart?.(e, segmentId)}
+			onmouseenter={() => onHandleEnter?.(segmentId)}
+			onmouseleave={() => onHandleLeave?.()}
 		>
 			<span class="resize-indicator"></span>
 		</div>
+
 	{/if}
 </div>
 
@@ -361,6 +379,13 @@
 	.segment.show-layout-controls .resize-handle {
 		opacity: 1;
 	}
+
+	/* When any member of this segment's LINK GROUP is hovered, reveal every
+	   member's handle so the user sees all linked handles at once. */
+	.segment.link-hovered .resize-handle {
+		opacity: 1;
+	}
+
 
 	/* Centered indicator: a short horizontal bar centered on the border. Uses the
 	   section's light color for its fill with a darker 1px section-colored border to

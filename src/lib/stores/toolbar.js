@@ -99,6 +99,9 @@ async function persistPreference(updates) {
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {string|null} activeSegmentId - The ID of the currently active segment
+ * @property {number} activeSegmentCount - Number of segments currently selected
+ * @property {boolean} canLinkSegmentHeight - Whether the "Link Segment Height" action is available (2+ segments selected that aren't already all in one group)
+ * @property {boolean} canUnlinkSegmentHeight - Whether the "Unlink Segment Height" action is available (selection includes a linked segment)
  * @property {boolean} activeSegmentHasHeadingOne - Whether active segment has a heading one
  * @property {boolean} activeSegmentHasHeadingTwo - Whether active segment has a heading two
  * @property {boolean} activeSegmentHasHeadingThree - Whether active segment has a heading three
@@ -185,6 +188,9 @@ const defaultState = {
 	hasWordSelection: false,
 	hasActiveSegment: false,
 	activeSegmentId: null,
+	activeSegmentCount: 0,
+	canLinkSegmentHeight: false,
+	canUnlinkSegmentHeight: false,
 	activeSegmentHasHeadingOne: false,
 	activeSegmentHasHeadingTwo: false,
 	activeSegmentHasHeadingThree: false,
@@ -1092,6 +1098,22 @@ export function setActiveSegment(hasSegment, segmentId = null, options) {
 		// Deselect any connection when a segment becomes active
 		hasActiveConnection: hasSegment ? false : state.hasActiveConnection,
 		activeConnectionIds: hasSegment ? [] : state.activeConnectionIds
+	}));
+}
+
+/**
+ * Set segment-height link/unlink availability based on the current segment selection.
+ * Driven by the analyze page's selection effect.
+ * @param {number} count - Number of segments currently selected
+ * @param {boolean} canLink - Whether linking the selection's heights is available (2+ segments not already all linked together)
+ * @param {boolean} canUnlink - Whether unlinking is available (selection includes a linked segment)
+ */
+export function setSegmentHeightLinkState(count, canLink, canUnlink) {
+	toolbarStateStore.update(state => ({
+		...state,
+		activeSegmentCount: count,
+		canLinkSegmentHeight: canLink,
+		canUnlinkSegmentHeight: canUnlink
 	}));
 }
 

@@ -167,6 +167,35 @@
 
 	<DividerHorizontal />
 
+	<!-- Link / Unlink segment heights: linked segments are kept at the height of the
+	     tallest member and resize together. Link needs 2+ selected segments that aren't
+	     already all in one group; Unlink needs the selection to include a linked segment. -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="segment-height-link"
+		label="Link Segment Height"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('link-segment-height'));
+		}}
+		isDisabled={!$toolbarState.canLinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="segment-height-unlink"
+		label="Unlink Segment Height"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('unlink-segment-height'));
+		}}
+		isDisabled={!$toolbarState.canUnlinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
+	<DividerHorizontal />
+
 	<!-- Connection quick-note placement: pick which side of the anchor dot the
 	     note card attaches to. The card extends away from the chosen edge, so the
 	     label describes where the card lands relative to the dot. -->
