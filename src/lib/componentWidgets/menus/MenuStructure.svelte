@@ -62,6 +62,18 @@
 		}}
 		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="segments"
+		label="Select All Segments"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			// Select every segment across the study (puts the app in segment-selection mode).
+			window.dispatchEvent(new CustomEvent('select-all-segments'));
+		}}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
 
 	<DividerHorizontal />
 

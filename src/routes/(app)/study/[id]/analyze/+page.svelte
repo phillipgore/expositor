@@ -1504,6 +1504,9 @@
 		const handleSelectAllSectionsEvent = () => {
 			handleSelectAllSections();
 		};
+		const handleSelectAllSegmentsEvent = () => {
+			handleSelectAllSegments();
+		};
 
 		// Listen for move-text-up event from MenuStructure
 		const handleMoveTextUpEvent = () => {
@@ -1599,6 +1602,7 @@
 		window.addEventListener('deselect-section', handleDeselectSectionEvent);
 		window.addEventListener('select-all-columns', handleSelectAllColumnsEvent);
 		window.addEventListener('select-all-sections', handleSelectAllSectionsEvent);
+		window.addEventListener('select-all-segments', handleSelectAllSegmentsEvent);
 		
 		// Set up ResizeObserver to recompute fit scale when the viewport dimensions change
 		// (e.g. user resizes the window or toggles the studies/commentary panels)
@@ -1649,6 +1653,7 @@
 			window.removeEventListener('deselect-section', handleDeselectSectionEvent);
 			window.removeEventListener('select-all-columns', handleSelectAllColumnsEvent);
 			window.removeEventListener('select-all-sections', handleSelectAllSectionsEvent);
+			window.removeEventListener('select-all-segments', handleSelectAllSegmentsEvent);
 			resizeObserver?.disconnect();
 		};
 	});
@@ -2538,6 +2543,36 @@
 	}
 
 	/**
+	 * Get every segment across every passage/column/section in the study, in document
+	 * order, as the segment objects that activeSegments expects.
+	 * segmentIndex is a running index within each passage (matching the DOM order of
+	 * .segment elements, flattened across columns/sections) so rendered segments match.
+	 * @returns {Array<{passageIndex:number, segmentIndex:number, segmentId:string, activateSection:boolean, generation:number}>}
+	 */
+	function getAllSegmentsInStudy() {
+		if (!data.passagesWithText) return [];
+		const segments = [];
+		data.passagesWithText.forEach((passageText, passageIndex) => {
+			if (!passageText.structure?.columns) return;
+			let segmentIndex = 0;
+			for (const column of passageText.structure.columns) {
+				for (const section of column.sections) {
+					for (const segment of section.segments) {
+						segments.push({
+							passageIndex,
+							segmentIndex: segmentIndex++,
+							segmentId: segment.id,
+							activateSection: false,
+							generation: segmentClickGeneration
+						});
+					}
+				}
+			}
+		});
+		return segments;
+	}
+
+	/**
 	 * Count every segment across every passage/column/section in the study.
 	 * Used to decide whether a selection covers "All of them" (which disables Focus):
 	 * if the segments revealed by a selection equal this total, focusing would show the
@@ -2599,6 +2634,28 @@
 			activeColumns = [];
 			activeSections = ids;
 			activeSegments = [];
+		}
+		selectedWord = null;
+		suppressHoverCaret = null;
+	}
+
+	/**
+	 * Select every segment in the study at once. Clears any column/section selection
+	 * plus connection and word selections. Respects compare mode.
+	 */
+	function handleSelectAllSegments() {
+		setActiveConnection(false, []);
+		setHeadingOrNoteEditorActive(false, null);
+
+		const segments = getAllSegmentsInStudy();
+		if (isCompareMode) {
+			compareActiveColumns = [];
+			compareActiveSections = [];
+			compareActiveSegments = segments;
+		} else {
+			activeColumns = [];
+			activeSections = [];
+			activeSegments = segments;
 		}
 		selectedWord = null;
 		suppressHoverCaret = null;
