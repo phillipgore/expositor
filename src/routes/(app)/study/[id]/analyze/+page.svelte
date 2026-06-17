@@ -3697,18 +3697,8 @@
 
 
 	/**
-	 * Determine if header should be visible based on zoom level or fit scale
-	 * @returns {boolean} True if zoom >= 100% or fit scale >= 1
-	 */
-	let showHeader = $derived.by(() => {
-		if ($toolbarState.zoomMode !== 'percentage') {
-			return fitScale >= 1;
-		}
-		return $toolbarState.zoomLevel >= 100;
-	});
-
-	/**
 	 * Get current scale factor — uses fitScale when in a fit mode
+
 	 * @returns {number} Current scale
 	 */
 	let currentScale = $derived.by(() => {
@@ -3902,20 +3892,20 @@
 				     .analyze-content-inner moved here so they no longer offset the overlay's
 				     coordinate origin (see the connections-container comment above). -->
 				<div class="analyze-content-padded">
-				{#if showHeader}
 					<!-- Title + subtitle form a single titling block. The subtitle is a
 					     tagline for the title, NOT a new outline section, so it lives in an
 					     <hgroup> as a <p> rather than a heading. This keeps the study's
 					     accessible outline clean: the title is the page's single <h1>, and
 					     the next real heading is the passage reference (<h2>) below. The
-					     visual appearance is unchanged. -->
+					     header lives INSIDE the zoom-transformed content, so it scales down
+					     with the rest of the study at every zoom level (it is never hidden). -->
 					<hgroup class="study-header">
 						<Heading heading="h1" classes="h3 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
 						{#if data.study.subtitle}
 							<p class="subheading">{data.study.subtitle}</p>
 						{/if}
 					</hgroup>
-				{/if}
+
 
 				<!-- While the streamed content resolves, the single global
 				     NavigationIndicator overlay covers the wait (see stores/loading.js),
