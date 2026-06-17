@@ -79,8 +79,25 @@
 		return null;
 	});
 	
+	// Track current study view (document vs analyze) so that selecting a new study
+	// keeps the user in the same view they're currently in. When inside a study view
+	// we read it directly from the route. When NOT inside a study view (e.g. on the
+	// glossary, new-study, or dashboard pages), we fall back to the last study view
+	// the user was in — tracked in the toolbar store — so navigating back into a study
+	// returns them to the same view (Document or Analyze) they last used.
+	let currentStudyView = $derived.by(() => {
+		if ($page.url.pathname.startsWith('/study/')) {
+			const view = $page.url.pathname.split('/study/')[1].split('/')[1];
+			if (view === 'document') return 'document';
+			if (view === 'analyze') return 'analyze';
+		}
+		return $toolbarState.lastStudyView;
+	});
+
+
 	// Track active group from current route or URL parameter
 	let activeGroupId = $derived.by(() => {
+
 		// Check if we're on a study-group page
 		if ($page.url.pathname.startsWith('/study-group/')) {
 			const pathPart = $page.url.pathname.split('/study-group/')[1];
@@ -153,11 +170,13 @@
 		// Selecting a study deselects any active connection, segment, or note editor inside the study
 		clearStudyContentState();
 		
-		// Only navigate if no modifier keys are pressed
+		// Only navigate if no modifier keys are pressed.
+		// Preserve the current view (document vs analyze) when switching studies.
 		if (!hasModifier) {
-			goto(`/study/${study.id}/analyze`);
+			goto(`/study/${study.id}/${currentStudyView}`);
 		}
 	}
+
 
 	/**
 	 * Handle study mousedown for drag
@@ -444,10 +463,11 @@
 							<StudyItem
 								{study}
 								asLink={true}
-								href="/study/{study.id}/analyze"
+								href="/study/{study.id}/{currentStudyView}"
 								isActive={study.id === activeStudyId}
 								{formatPassageReference}
 							/>
+
 						</li>
 					{/each}
 				</ul>

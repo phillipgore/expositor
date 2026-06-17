@@ -64,6 +64,8 @@ async function persistPreference(updates) {
  * @property {boolean} isGlossaryRoute - Whether the current route is the glossary reference page
  * @property {boolean} isDashboardRoute - Whether the current route is the dashboard page
  * @property {boolean} isStudyGroupRoute - Whether the current route is a study-group page
+ * @property {boolean} isStudyEditRoute - Whether the current route is a study edit/review page (Analyze/Document switching is disabled here)
+ * @property {'document'|'analyze'} lastStudyView - The last study view (document or analyze) the user was in; used to restore the same view when navigating back into a study from another page (glossary, new study, etc.)
  * @property {boolean} canZoom - Whether Zoom menu should be enabled
 
  * @property {boolean} canStructure - Whether Structure menu should be enabled
@@ -147,6 +149,8 @@ const defaultState = {
 	isGlossaryRoute: false,
 	isDashboardRoute: false,
 	isStudyGroupRoute: false,
+	isStudyEditRoute: false,
+	lastStudyView: 'analyze',
 	canZoom: false,
 
 
@@ -231,6 +235,12 @@ export function updateToolbarForRoute(pathname) {
 	const isAnalyzeRoute = pathname.includes('/study/') && 
 	                       !pathname.includes('/study-group') && 
 	                       (pathname.endsWith('/analyze') || pathname.includes('/analyze/'));
+	// Study edit/review flow (e.g. /study/[id]/edit, /study/[id]/edit/review). While
+	// editing a study the Analyze/Document mode switcher must stay disabled so the user
+	// can't jump out of the edit flow via those buttons.
+	const isStudyEditRoute = pathname.includes('/study/') &&
+	                         !pathname.includes('/study-group') &&
+	                         (pathname.endsWith('/edit') || pathname.includes('/edit/'));
 	const isStudyGroupRoute = pathname.includes('/study-group/');
 	const isSettingsRoute = pathname === '/settings';
 	const isNewRoute = pathname === '/new-study' || pathname === '/new-study-group';
@@ -318,6 +328,48 @@ export function updateToolbarForRoute(pathname) {
 
 
 
+		// Study edit/review flow: the user is editing a study. The Analyze/Document
+		// mode switcher must stay disabled here (canSwitchMode + isStudyRoute false) so
+		// the user can't jump out of the edit flow via those buttons. This must be
+		// checked BEFORE isDocumentRoute, since edit routes also contain '/study/'.
+		if (isStudyEditRoute) {
+			return {
+				...state,
+				isStudyRoute: false,
+				isGlossaryRoute: false,
+				isDashboardRoute: false,
+				isStudyGroupRoute: false,
+				isStudyEditRoute: true,
+				// Disable Edit and Delete while editing: even though the study being
+				// edited is auto-selected in the Finder, the user shouldn't be able to
+				// re-edit or delete it mid-edit. (On the create page nothing is selected,
+				// so these are naturally off — match that here.)
+				canEdit: false,
+				canDelete: false,
+				canFormat: false,
+				canToggleConnections: false,
+				canToggleHeadings: false,
+				canToggleNotes: false,
+				canToggleComment: false,
+				canToggleReferences: false,
+				canToggleVerses: false,
+				canToggleParagraphBreaks: false,
+				canToggleWide: false,
+				canToggleOverview: false,
+				canSwitchMode: false,
+				canZoom: false,
+				// Menu buttons enabled, but their dropdown items remain disabled
+				canStructure: true,
+				canHeading: true,
+				canColor: true,
+				canUseStructureItems: false,
+				canUseHeadingItems: false,
+				canUseColorItems: false,
+				commentaryPanelOpen: false
+			};
+		}
+
+
 		// On document/study pages, most tools should be available
 		// Note: canEdit and canDelete are controlled by selection state, not route
 		if (isDocumentRoute) {
@@ -327,6 +379,11 @@ export function updateToolbarForRoute(pathname) {
 				isGlossaryRoute: false,
 				isDashboardRoute: false,
 				isStudyGroupRoute: false,
+				// Remember which study view the user is in (document vs analyze) so that
+				// navigating away to another page (glossary, new study, etc.) and back into
+				// a study returns them to the same view. isDocumentRoute is true for both
+				// /document and /analyze routes, so distinguish via isAnalyzeRoute.
+				lastStudyView: isAnalyzeRoute ? 'analyze' : 'document',
 				canFormat: true,
 				canToggleConnections: true,
 
@@ -345,9 +402,15 @@ export function updateToolbarForRoute(pathname) {
 				canUseStructureItems: true,
 				canUseHeadingItems: true,
 				canUseColorItems: true,
-				commentaryPanelOpen: state.commentaryPanelOpen // Preserve across all study routes; only close on non-study pages
+				// Commentary is an Analyze-only feature: keep the panel's open state while
+				// on the Analyze view, but force it closed on the Document view (where the
+				// Comment toggle is also disabled via canToggleComment above). Without this,
+				// a panel opened on Analyze would remain visible after switching to Document
+				// even though its toggle button is disabled there.
+				commentaryPanelOpen: isAnalyzeRoute ? state.commentaryPanelOpen : false
 			};
 		}
+
 
 	// On study-group pages, canSwitchMode is controlled by selection state only.
 	// The Structure, Markup, Layout, Color, and View menu BUTTONS stay enabled, but
@@ -970,10 +1033,13 @@ export function setSelectedItem(selection) {
 	toolbarStateStore.update(state => ({
 		...state,
 		selectedItem: selection,
-		canEdit: selection !== null && selection.count > 0,
-		canDelete: selection !== null && selection.count > 0,
-		// Enabled if a study is selected OR if a study route is currently active
-		canSwitchMode: state.isStudyRoute || (selection !== null && selection.hasStudies)
+		// On the study edit/review route, Edit, Delete, and the mode switcher must stay
+		// disabled even though the study being edited is auto-selected in the Finder —
+		// otherwise selecting it would let the user re-edit/delete or jump out mid-edit.
+		canEdit: !state.isStudyEditRoute && selection !== null && selection.count > 0,
+		canDelete: !state.isStudyEditRoute && selection !== null && selection.count > 0,
+		// Enabled if a study is selected OR if a study route is currently active.
+		canSwitchMode: !state.isStudyEditRoute && (state.isStudyRoute || (selection !== null && selection.hasStudies))
 	}));
 }
 

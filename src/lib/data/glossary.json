@@ -35,8 +35,7 @@
       {
         "_id": "ls-intensification",
         "term": "Intensification (Climactic Parallelism)",
-        "definition": "Building progression where each line increases in force or meaning, creating a sense of mounting importance or urgency.",
-        "enabled": false
+        "definition": "Building progression where each line increases in force or meaning, creating a sense of mounting importance or urgency."
       },
       {
         "_id": "ls-parallelism",
