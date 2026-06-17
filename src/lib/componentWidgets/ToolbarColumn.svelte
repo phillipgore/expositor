@@ -61,7 +61,7 @@
 	}
 </script>
 
-<div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
+<div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: calc({scaledTop}rem + var(--first-section-offset, 0px));" transition:fade={{ duration: 150, easing: quintOut }}>
 	<button
 		type="button"
 		class="column-checkbox"
