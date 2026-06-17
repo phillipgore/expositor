@@ -59,6 +59,7 @@ async function persistPreference(updates) {
  * @property {boolean} canToggleParagraphBreaks - Whether Paragraph Breaks toggle should be enabled
  * @property {boolean} canToggleWide - Whether Wide layout toggle should be enabled
  * @property {boolean} canToggleOverview - Whether Overview toggle should be enabled
+ * @property {boolean} canTogglePassageDividers - Whether the Passage Dividers toggle should be enabled (study has 2+ passages)
  * @property {boolean} canSwitchMode - Whether mode switcher (Analyze/Document) should be enabled
  * @property {boolean} isStudyRoute - Whether the current route is a study/document route
  * @property {boolean} isGlossaryRoute - Whether the current route is the glossary reference page
@@ -93,6 +94,7 @@ async function persistPreference(updates) {
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
  * @property {boolean} selectorsVisible - Whether the Column/Section selector buttons are shown without holding Command/Ctrl
  * @property {boolean} layoutControlsVisible - Whether the Column/Section/Segment layout handles (reposition/resize) are shown without hovering
+ * @property {boolean} passageDividersVisible - Whether the vertical divider line between adjacent passages is shown (also controls whether the cross-passage gap is double width)
  * @property {number} zoomLevel - Current zoom level as percentage (25-400)
  * @property {'percentage'|'fit-width'|'fit-study'} zoomMode - Zoom mode: percentage-based or a fit mode
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
@@ -147,6 +149,7 @@ const defaultState = {
 	canToggleParagraphBreaks: false,
 	canToggleWide: false,
 	canToggleOverview: false,
+	canTogglePassageDividers: false,
 	canSwitchMode: false,
 	isStudyRoute: false,
 	isGlossaryRoute: false,
@@ -183,6 +186,7 @@ const defaultState = {
 	overviewMode: false,
 	selectorsVisible: false,
 	layoutControlsVisible: false,
+	passageDividersVisible: true,
 	zoomLevel: 100,
 	selectedItem: null,
 	hasWordSelection: false,
@@ -962,6 +966,18 @@ export function toggleLayoutControls() {
 	const newValue = !get(toolbarStateStore).layoutControlsVisible;
 	toolbarStateStore.update(state => ({ ...state, layoutControlsVisible: newValue }));
 	persistPreference({ layoutControlsVisible: newValue });
+}
+
+/**
+ * Toggle the passage dividers.
+ * When on (the default), the vertical divider line between adjacent passages is
+ * drawn and the cross-passage gap is double width (a gap slot on each side of the
+ * divider). When off, the divider is hidden and the gap collapses to single width.
+ */
+export function togglePassageDividers() {
+	const newValue = !get(toolbarStateStore).passageDividersVisible;
+	toolbarStateStore.update(state => ({ ...state, passageDividersVisible: newValue }));
+	persistPreference({ passageDividersVisible: newValue });
 }
 
 /**

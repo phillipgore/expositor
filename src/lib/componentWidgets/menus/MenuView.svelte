@@ -45,6 +45,7 @@
 		toggleParagraphBreaks,
 		toggleWide,
 		toggleOverview,
+		togglePassageDividers,
 		toggleSelectors,
 		toggleLayoutControls
 	} from '$lib/stores/toolbar.js';
@@ -148,6 +149,12 @@
 		isActive={$toolbarState.overviewMode}
 		onToggle={toggleOverview}
 		isDisabled={!$toolbarState.canToggleOverview}
+	/>
+	<MenuToggleItem
+		label="Passage Dividers"
+		isActive={$toolbarState.passageDividersVisible}
+		onToggle={togglePassageDividers}
+		isDisabled={!$toolbarState.canTogglePassageDividers}
 	/>
 
 	<DividerHorizontal />

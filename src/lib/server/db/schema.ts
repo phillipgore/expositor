@@ -31,6 +31,7 @@ export const user = pgTable('user', {
 	overviewMode: boolean('overview_mode').default(false),
 	selectorsVisible: boolean('selectors_visible').default(false),
 	layoutControlsVisible: boolean('layout_controls_visible').default(false),
+	passageDividersVisible: boolean('passage_dividers_visible').default(true),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

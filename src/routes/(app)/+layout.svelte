@@ -85,6 +85,9 @@
 		if (data.layoutControlsVisible !== undefined) {
 			setToolbarState('layoutControlsVisible', data.layoutControlsVisible);
 		}
+		if (data.passageDividersVisible !== undefined) {
+			setToolbarState('passageDividersVisible', data.passageDividersVisible);
+		}
 	});
 
 	onMount(() => {

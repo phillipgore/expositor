@@ -35,7 +35,8 @@ export async function PATCH({ request }) {
 			wideLayout,
 			overviewMode,
 			selectorsVisible,
-			layoutControlsVisible
+			layoutControlsVisible,
+			passageDividersVisible
 		} = body;
 		
 		// Build update object with only provided fields
@@ -90,7 +91,8 @@ export async function PATCH({ request }) {
 			wideLayout,
 			overviewMode,
 			selectorsVisible,
-			layoutControlsVisible
+			layoutControlsVisible,
+			passageDividersVisible
 		};
 
 		for (const [key, value] of Object.entries(booleanViewPrefs)) {

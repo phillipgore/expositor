@@ -3826,6 +3826,16 @@
 			setToolbarState('canToggleParagraphBreaks', true);
 		}
 	});
+
+	/**
+	 * Keep the Passage Dividers toggle in sync with how many passages the study has.
+	 * The divider only ever appears BETWEEN two passages, so the toggle is meaningless
+	 * (and is therefore disabled) when the study has a single passage.
+	 */
+	$effect(() => {
+		const passageCount = data.passagesWithText?.length ?? 0;
+		setToolbarState('canTogglePassageDividers', passageCount > 1);
+	});
 </script>
 
 <svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} on:blur={resetCommandKeyHeld} />
@@ -3844,6 +3854,7 @@
 		class:wide-layout={$toolbarState.wideLayout} 
 		class:overview-mode={$toolbarState.overviewMode}
 		class:show-layout-controls={$toolbarState.layoutControlsVisible}
+		class:hide-passage-dividers={!$toolbarState.passageDividersVisible}
 		onmousedown={handleMouseDown}
 		onmousemove={handleMouseMove}
 		onmouseup={handleMouseUp}
@@ -4506,6 +4517,14 @@
 
 
 	.passage-divider:last-child {
+		display: none;
+	}
+
+	/* Passage Dividers toggle (View menu): when off, hide the divider line between
+	   passages. Removing the divider as a flex item also collapses itself plus one of
+	   the two flex-gap slots it sat between, so the cross-passage spacing returns to
+	   single (rather than double) width. */
+	.hide-passage-dividers .passage-divider {
 		display: none;
 	}
 
