@@ -723,12 +723,21 @@
 				}
 			}
 
+			// Collect the parent section IDs of ALL selected segments (deduped, in order)
+			// so Color can recolor every section that contains a selected segment.
+			const sectionIds = [];
+			for (const seg of activeSegments) {
+				const secId = getSectionIdFromSegmentId(seg.segmentId);
+				if (secId && !sectionIds.includes(secId)) sectionIds.push(secId);
+			}
+
 			setActiveSegment(true, firstSegment.segmentId, {
 				hasHeadingOne,
 				hasHeadingTwo,
 				hasHeadingThree,
 				hasNote,
-				isFirst: isFirstSegment
+				isFirst: isFirstSegment,
+				sectionIds
 			});
 		} else {
 			setActiveSegment(false, null);

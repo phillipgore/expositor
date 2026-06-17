@@ -107,15 +107,19 @@
 		// Determine if we're in column or section mode
 		const isColumnMode = $toolbarState.activeColumnId !== null;
 		const isSectionMode = $toolbarState.activeSectionId !== null;
+		// Segment mode: no column/section is explicitly selected, but one or more
+		// segments are. Color recolors the Section(s) those segments belong to.
+		const segmentSectionIds = $toolbarState.activeSegmentSectionIds || [];
+		const isSegmentMode = !isColumnMode && !isSectionMode && segmentSectionIds.length > 0;
 
-		if (!isColumnMode && !isSectionMode) {
-			console.error('No active column or section ID');
+		if (!isColumnMode && !isSectionMode && !isSegmentMode) {
+			console.error('No active column, section, or segment to color');
 			return;
 		}
 
 		try {
 			let response;
-			
+
 			if (isColumnMode) {
 				// Column mode: update all sections in the column
 				console.log('Updating all sections in column:', $toolbarState.activeColumnId);
@@ -124,7 +128,7 @@
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ color: colorId })
 				});
-			} else {
+			} else if (isSectionMode) {
 				// Section mode: update single section
 				console.log('Updating single section:', $toolbarState.activeSectionId);
 				response = await fetch(`/api/passages/sections/${$toolbarState.activeSectionId}`, {
@@ -132,10 +136,28 @@
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ color: colorId })
 				});
+			} else {
+				// Segment mode: update every section that contains a selected segment.
+				console.log('Updating sections for selected segments:', segmentSectionIds);
+				const responses = await Promise.all(
+					segmentSectionIds.map((sectionId) =>
+						fetch(`/api/passages/sections/${sectionId}`, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ color: colorId })
+						})
+					)
+				);
+				// Treat the batch as failed if any request failed.
+				response = responses.find((r) => !r.ok) || responses[0];
 			}
 
 			if (response.ok) {
-				const mode = isColumnMode ? 'Column sections' : 'Section';
+				const mode = isColumnMode
+					? 'Column sections'
+					: isSegmentMode
+						? 'Segment sections'
+						: 'Section';
 				console.log(`${mode} color updated successfully`);
 				// Refresh data to show the new color
 				await invalidate('app:studies');

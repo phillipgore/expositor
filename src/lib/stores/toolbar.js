@@ -101,6 +101,7 @@ async function persistPreference(updates) {
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {string|null} activeSegmentId - The ID of the currently active segment
+ * @property {string[]} activeSegmentSectionIds - The IDs of the section(s) the currently selected segment(s) belong to (for Color)
  * @property {number} activeSegmentCount - Number of segments currently selected
  * @property {boolean} canLinkSegmentHeight - Whether the "Link Segment Height" action is available (2+ segments selected that aren't already all in one group)
  * @property {boolean} canUnlinkSegmentHeight - Whether the "Unlink Segment Height" action is available (selection includes a linked segment)
@@ -192,6 +193,7 @@ const defaultState = {
 	hasWordSelection: false,
 	hasActiveSegment: false,
 	activeSegmentId: null,
+	activeSegmentSectionIds: [],
 	activeSegmentCount: 0,
 	canLinkSegmentHeight: false,
 	canUnlinkSegmentHeight: false,
@@ -1100,12 +1102,14 @@ export function setWordSelection(hasSelection) {
  * @param {boolean} [options.hasHeadingThree] - Whether segment has heading three
  * @param {boolean} [options.hasNote] - Whether segment has a note
  * @param {boolean} [options.isFirst] - Whether the segment is the first segment in its passage
+ * @param {string[]} [options.sectionIds] - The IDs of the section(s) the selected segment(s) belong to (for Color)
  */
 export function setActiveSegment(hasSegment, segmentId = null, options) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveSegment: hasSegment,
 		activeSegmentId: segmentId,
+		activeSegmentSectionIds: hasSegment ? (options?.sectionIds || []) : [],
 		activeSegmentHasHeadingOne: options?.hasHeadingOne || false,
 		activeSegmentHasHeadingTwo: options?.hasHeadingTwo || false,
 		activeSegmentHasHeadingThree: options?.hasHeadingThree || false,
