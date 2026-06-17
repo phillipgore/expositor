@@ -3933,6 +3933,12 @@
 										{@const headingReferences = calculateHeadingReferences(allSegments, verseSectionMap, segmentSectionEndIdxMap, passageEndWordId)}
 											{#each passageText.structure.columns as column, columnIndex}
 												{@const columnOffset = columnReposition.getLiveOffset(column.id) ?? column.leftOffset ?? 0}
+												<!-- The column's first section can be pushed DOWN via its reposition offset
+												     (live drag or persisted topOffset). Expose that offset as a CSS variable
+												     so the column's spacing/width handles (top: 2.3rem) slide down with the
+												     top of the column's content instead of staying pinned to the column top. -->
+												{@const firstSectionId = column.sections?.[0]?.id}
+												{@const firstSectionOffset = sectionReposition.getLiveOffset(firstSectionId) ?? column.sections?.[0]?.topOffset ?? 0}
 												{@const columnLiveWidth = columnResize.getLiveWidth(column.id)}
 												{@const columnResolvedWidth = columnLiveWidth ?? column.width ?? null}
 												<!-- Wide View acts as a MINIMUM width: columns narrower than the wide base
@@ -3956,6 +3962,7 @@
 
 													class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}
 													style:--column-offset="{columnOffset}px"
+													style:--first-section-offset="{firstSectionOffset}px"
 													style:width={columnWidth != null ? `${columnWidth}px` : null}
 												>
 
@@ -4600,7 +4607,9 @@
 	   without scrolling through long columns. */
 	.column-reposition-handle {
 		position: absolute;
-		top: 2.3rem;
+		/* Track the first section's reposition offset so the handle moves DOWN with the
+		   top of the column's content when the top segment is pushed down. 0 by default. */
+		top: calc(2.3rem + var(--first-section-offset, 0px));
 		left: -1.2rem;
 		width: 1.4rem;
 		height: 2.0rem;
@@ -4659,7 +4668,9 @@
 	   to grab anywhere along the right edge. */
 	.column-resize-handle {
 		position: absolute;
-		top: 2.3rem;
+		/* Track the first section's reposition offset so the handle moves DOWN with the
+		   top of the column's content when the top segment is pushed down. 0 by default. */
+		top: calc(2.3rem + var(--first-section-offset, 0px));
 		right: -1.2rem;
 		width: 1.4rem;
 		height: 2.0rem;
