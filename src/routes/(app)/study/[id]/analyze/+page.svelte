@@ -56,20 +56,48 @@
 	// `undefined`/`[]` until the stream lands, which all the existing guards handle.
 	let streamedContent = $state(/** @type {{ passagesWithText: any[], connections: any[] } | null} */ (null));
 
+	// Non-reactive guard tracking which study's content is currently mounted. Used to
+	// distinguish a REAL study switch (navigation to a different study) from a same-study
+	// re-invalidation (an edit/persist via invalidate('app:studies')). See the effect
+	// below for why this matters for scroll preservation.
+	let loadedStudyId = null;
+
 	$effect(() => {
-		// Re-runs whenever a navigation hands us a new streamed promise. Clear the
-		// previous study's resolved content immediately and flag the global loader so
-		// the single navigation Spinner stays up continuously until the new stream
-		// lands (rather than handing off to a separate in-page spinner).
+		// Re-runs whenever `load` hands us a new streamed promise. This happens in two
+		// very different situations, which we MUST treat differently:
+		//
+		//  1. Study switch (navigation to a different study): clear the previous study's
+		//     resolved content immediately and flag the global loader so the single
+		//     navigation Spinner stays up continuously until the new stream lands.
+		//
+		//  2. Same-study re-invalidation: EVERY feature that persists a change calls
+		//     invalidate('app:studies'), which re-runs `load` and produces a brand-new
+		//     streamed promise — even though the study is unchanged. If we nulled
+		//     `streamedContent` here, the ENTIRE passage content would unmount, the
+		//     browser would reset the scroll container to (0,0), and the user would be
+		//     jumped back to the top/left mid-edit (Quick Note, segment/column resize,
+		//     link/unlink, spacing, headings, color, connections, etc.). Instead we keep
+		//     the existing content mounted and simply swap in the refreshed content in
+		//     place when the new promise resolves, preserving scroll position.
 		const promise = rawData.streamed?.content;
-		streamedContent = null;
-		setStudyContentLoading(true);
+		const studyId = rawData.study?.id;
+		const isStudySwitch = studyId !== loadedStudyId;
+
+		if (isStudySwitch) {
+			streamedContent = null;
+			setStudyContentLoading(true);
+			loadedStudyId = studyId;
+		}
+		// Same-study invalidation: keep the old content mounted → scroll is preserved.
 
 		let cancelled = false;
 		promise?.then((c) => {
 			if (!cancelled) {
+				// Swap in the refreshed content. On a same-study refresh the {#each}
+				// blocks diff against the existing DOM (no remount), so scroll position
+				// is preserved.
 				streamedContent = c;
-				setStudyContentLoading(false);
+				if (isStudySwitch) setStudyContentLoading(false);
 			}
 		});
 		return () => {
