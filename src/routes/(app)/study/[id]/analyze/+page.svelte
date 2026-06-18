@@ -195,6 +195,50 @@
 		setSegmentHeightLinkState(count, canLink, canUnlink);
 	});
 
+	// Map each height-link group id → the tallest remembered floor (persisted `height`)
+	// across its members. Linked members must render at a SINGLE uniform floor, but the
+	// `link-height` endpoint preserves each member's own (possibly divergent or NULL)
+	// persisted height — so without this a group could render with unequal members
+	// (getEffectiveHeight maxes the shared natural height against each member's OWN
+	// persisted height). The group's floor is the largest of its members' persisted
+	// heights; content (the live driver) still grows the whole group above it. Render-time
+	// only — stored per-member heights are never mutated, so unlink restores originals.
+	let segmentGroupFloors = $derived.by(() => {
+		/** @type {Map<string, number>} */
+		const floors = new Map();
+		const passages = data.passagesWithText;
+		if (!passages) return floors;
+		for (const passageText of passages) {
+			if (!passageText?.structure?.columns) continue;
+			for (const column of passageText.structure.columns) {
+				for (const section of column.sections) {
+					for (const seg of section.segments) {
+						const groupId = seg.heightGroupId;
+						if (!groupId || seg.height == null) continue;
+						const prev = floors.get(groupId) ?? 0;
+						if (seg.height > prev) floors.set(groupId, seg.height);
+					}
+				}
+			}
+		}
+		return floors;
+	});
+
+	/**
+	 * Resolve the remembered floor to feed into getEffectiveHeight for a segment.
+	 * Linked segments use the group's uniform floor (tallest persisted height across the
+	 * group) so members render equal; unlinked segments use their own height. Returns
+	 * null when there is no floor (a flexible, content-driven segment).
+	 * @param {{ id: string, height: number|null, heightGroupId: string|null }} segment
+	 * @returns {number|null}
+	 */
+	function resolveSegmentFloor(segment) {
+		if (segment.heightGroupId) {
+			return segmentGroupFloors.get(segment.heightGroupId) ?? null;
+		}
+		return segment.height ?? null;
+	}
+
 
 	// ─── Section reposition (vertical spacing) ────────────────────────────────
 	// Lives at page level so it can see all .section/.segment elements (for
@@ -4365,7 +4409,7 @@
 																			prevSegmentHasRef={!!(headingReferences[section.segments[segmentIndex - 1]?.id]?.segmentRef)}
 																			isFirstInSection={segmentIndex === 0}
 																			isFirstVisibleInSection={segmentIndex === 0}
-																			height={segmentResize.getEffectiveHeight(segment.id, segment.height ?? null)}
+																			height={segmentResize.getEffectiveHeight(segment.id, resolveSegmentFloor(segment))}
 																			resizeEnabled={!$toolbarState.overviewMode && !isHideMode}
 																			isResizing={segmentResize.activeSegmentId === segment.id}
 																			onResizeStart={segmentResize.handleResizeStart}
