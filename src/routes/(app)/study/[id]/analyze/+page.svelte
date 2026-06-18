@@ -4020,27 +4020,62 @@
 	 */
 	let wrapperDimensions = $state('');
 
+	/*
+	 * Last-measured NATURAL (un-scaled) layout size of .analyze-content-inner.
+	 *
+	 * The inner is sized visually with a CSS `transform: scale(...)` (the zoom), and a
+	 * transform does NOT change an element's layout box — so the inner's layout size is
+	 * always its full, natural, un-scaled size regardless of zoom. A ResizeObserver on
+	 * the inner therefore reports that true natural size and, crucially, fires whenever
+	 * it changes for ANY reason: content-visibility toggles (References / Notations /
+	 * Verses / Paragraphs / Quick Notes), text streaming in, web-fonts finishing load,
+	 * linked-segment auto-grow, or window-resize line reflow.
+	 *
+	 * This replaces the previous one-shot measurement that only re-ran when a hand-picked
+	 * set of reactive deps changed — which left the wrapper height (and thus the
+	 * copyright-notice footer below it) stale whenever content height changed by some
+	 * other path. The staleness was easy to miss at 100% zoom but became obvious when
+	 * zooming out, where the footer landed in the middle of the still-overflowing study.
+	 */
+	let lastNaturalWidth  = $state(0);
+	let lastNaturalHeight = $state(0);
+
 	$effect(() => {
-		const scale = currentScale;          // reactive: re-run on zoom change
-		const ref   = contentInnerRef;       // reactive: re-run when element mounts
-		const _dep  = data.passagesWithText; // reactive: re-run when content changes
+		const ref = contentInnerRef; // reactive: re-attach when the element mounts
+		if (!ref) return;
 
-		if (!ref) { wrapperDimensions = ''; return; }
-
-		tick().then(() => {
-			if (!ref) return;
-			// Temporarily remove transform so scrollWidth/scrollHeight reflect
-			// the natural (un-scaled) layout dimensions.
-			const saved = ref.style.transform;
-			ref.style.transform = 'none';
-			const width  = ref.scrollWidth;
-			const height = ref.scrollHeight;
-			ref.style.transform = saved;
-
-			if (width > 0 && height > 0) {
-				wrapperDimensions = `width: ${width * scale}px; height: ${height * scale}px;`;
+		const ro = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				// borderBoxSize is the LAYOUT size (transform-independent); fall back to
+				// offsetWidth/Height for engines that don't populate it.
+				const box    = entry.borderBoxSize && entry.borderBoxSize[0];
+				const width  = box ? box.inlineSize : ref.offsetWidth;
+				const height = box ? box.blockSize  : ref.offsetHeight;
+				if (width > 0 && height > 0) {
+					lastNaturalWidth  = width;
+					lastNaturalHeight = height;
+				}
 			}
 		});
+		ro.observe(ref);
+		return () => ro.disconnect();
+	});
+
+	/*
+	 * Derive the explicit scroll-area size from the natural size × current zoom scale.
+	 * Re-runs whenever the measured natural size OR the zoom scale changes, so the
+	 * wrapper always matches the VISUAL (scaled) height of the content and the footer is
+	 * pushed to the true bottom at every zoom level and in every content state.
+	 */
+	$effect(() => {
+		const scale = currentScale;
+		const w = lastNaturalWidth;
+		const h = lastNaturalHeight;
+		if (w > 0 && h > 0) {
+			wrapperDimensions = `width: ${w * scale}px; height: ${h * scale}px;`;
+		} else {
+			wrapperDimensions = '';
+		}
 	});
 
 	/**
