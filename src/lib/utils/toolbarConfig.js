@@ -107,12 +107,30 @@ export function getAppToolbarConfig() {
 			variant: 'flex',
 		},
 		{
+			type: 'section',
+			id: 'modes',
+			items: [
+				{
+					type: 'grouped',
+					buttons: [
+						{ id: 'analyze', iconId: 'analyze', label: 'Analyze' },
+						{ id: 'document', iconId: 'document', label: 'Document' }
+					],
+					defaultActive: 'analyze',
+					buttonClasses: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledStateProp: 'canSwitchMode'
+				}
+			]
+		},
+		{
 			type: 'spacer',
 			variant: 'fixed',
 		},
 		{
 			type: 'section',
 			id: 'formatting',
+
 			items: [
 				{
 					type: 'menu',
@@ -256,24 +274,8 @@ export function getAppToolbarConfig() {
 		},
 		{
 			type: 'section',
-			id: 'modes',
-			items: [
-				{
-					type: 'grouped',
-					buttons: [
-						{ id: 'analyze', iconId: 'analyze', label: 'Analyze' },
-						{ id: 'document', iconId: 'document', label: 'Document' }
-					],
-					defaultActive: 'analyze',
-					buttonClasses: 'toolbar-dark',
-					underLabelClasses: 'light',
-					disabledStateProp: 'canSwitchMode'
-				}
-			]
-		},
-		{
-			type: 'section',
 			id: 'glossary',
+
 			items: [
 				{
 					// Navigation link to the standalone Glossary reference page.
