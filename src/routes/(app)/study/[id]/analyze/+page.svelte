@@ -91,8 +91,15 @@
 			streamedContent = null;
 			setStudyContentLoading(true);
 			loadedStudyId = studyId;
+		} else {
+			// Same-study (re)invalidation: keep the old content mounted → scroll is
+			// preserved. The content is already loaded, so make sure the global loading
+			// curtain is DOWN. This self-heals the case where a redundant same-URL
+			// navigation (e.g. re-selecting the already-active study in the Studies
+			// panel) armed the curtain via +layout.svelte but produced no study switch
+			// to clear it — without this the spinner would hang forever over loaded content.
+			setStudyContentLoading(false);
 		}
-		// Same-study invalidation: keep the old content mounted → scroll is preserved.
 
 		let cancelled = false;
 		promise?.then((c) => {

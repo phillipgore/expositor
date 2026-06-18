@@ -149,9 +149,14 @@
 		// Always select the group
 		multiSelect.handleItemClick(event, 'group', group.id, group, getFlattenedItemsList(sortedGroupsAndStudies));
 		
-		// Only navigate if no modifier keys are pressed
+		// Only navigate if no modifier keys are pressed, and only when the destination
+		// differs from the current route. Re-selecting an already-active group is fully
+		// handled by the multi-select re-selection above; a redundant goto() to the
+		// current URL needlessly toggles $navigating (which arms the global loading
+		// curtain) without producing a real load to clear it.
 		if (!hasModifier) {
-			goto(`/study-group/${group.id}`);
+			const dest = `/study-group/${group.id}`;
+			if ($page.url.pathname !== dest) goto(dest);
 		}
 	}
 
@@ -170,10 +175,20 @@
 		// Selecting a study deselects any active connection, segment, or note editor inside the study
 		clearStudyContentState();
 		
-		// Only navigate if no modifier keys are pressed.
-		// Preserve the current view (document vs analyze) when switching studies.
+		// Only navigate if no modifier keys are pressed, and only when the destination
+		// differs from the current route. Preserve the current view (document vs
+		// analyze) when switching studies.
+		//
+		// The guard matters when re-selecting an ALREADY-ACTIVE study (e.g. it was
+		// demoted from "selected" to "active-only" by interacting with study content,
+		// then clicked again): the multi-select re-selection above already restores the
+		// "selected" state, so navigating to the URL we are already on is pure overhead.
+		// Worse, a same-URL goto() still briefly toggles $navigating, which arms the
+		// global loading curtain (see +layout.svelte), but produces no real
+		// study-switch load to clear it -- leaving the curtain stuck forever.
 		if (!hasModifier) {
-			goto(`/study/${study.id}/${currentStudyView}`);
+			const dest = `/study/${study.id}/${currentStudyView}`;
+			if ($page.url.pathname !== dest) goto(dest);
 		}
 	}
 

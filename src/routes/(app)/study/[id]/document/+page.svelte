@@ -18,20 +18,37 @@
 	// keep working unchanged — they simply read `undefined` until the stream lands.
 	let streamedContent = $state(/** @type {{ passagesWithText: any[], connections: any[] } | null} */ (null));
 
+	// Non-reactive guard tracking which study's content is currently mounted, so we can
+	// tell a REAL study switch from a same-study re-invalidation (mirrors the analyze page).
+	let loadedStudyId = null;
+
 	$effect(() => {
-		// Re-runs whenever a navigation hands us a new streamed promise. Clear the
-		// previous study's resolved content immediately and flag the global loader so
-		// the single navigation Spinner stays up continuously until the new stream
-		// lands (rather than handing off to a separate in-page spinner).
+		// Re-runs whenever a navigation hands us a new streamed promise.
 		const promise = rawData.streamed?.content;
-		streamedContent = null;
-		setStudyContentLoading(true);
+		const studyId = rawData.study?.id;
+		const isStudySwitch = studyId !== loadedStudyId;
+
+		if (isStudySwitch) {
+			// Real study switch: clear the previous study's resolved content immediately
+			// and flag the global loader so the single navigation Spinner stays up
+			// continuously until the new stream lands.
+			streamedContent = null;
+			setStudyContentLoading(true);
+			loadedStudyId = studyId;
+		} else {
+			// Same-study (re)invalidation: content is already loaded, so make sure the
+			// global loading curtain is DOWN. This self-heals the case where a redundant
+			// same-URL navigation (e.g. re-selecting the already-active study in the
+			// Studies panel) armed the curtain via +layout.svelte but produced no study
+			// switch to clear it — without this the spinner would hang forever.
+			setStudyContentLoading(false);
+		}
 
 		let cancelled = false;
 		promise?.then((c) => {
 			if (!cancelled) {
 				streamedContent = c;
-				setStudyContentLoading(false);
+				if (isStudySwitch) setStudyContentLoading(false);
 			}
 		});
 		return () => {
