@@ -10,8 +10,10 @@
 	 * - Section — Split Section / Join Section
 	 * - Segment — Split Segment / Join Segment
 	 * - Text    — Move Text Up / Move Text Down (relocates content between segments)
-	 * - Connect — creates a connection between two selected structural elements
-	 * 
+	 *
+	 * (Connect, which creates a connection between two selected structural
+	 * elements, now lives in its own MenuConnect alongside quick-note placement.)
+	 *
 	 * Usage:
 	 * ```
 	 * <MenuButton menuId="MenuStructure" iconId="section" underLabel="Structure" />
@@ -184,21 +186,4 @@
 		}}
 		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInLastSegment || $toolbarState.isCaretAtSegmentEnd}
 	/>
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="connect"
-		label="Connect"
-
-
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('insert-connection'));
-		}}
-		isDisabled={!$toolbarState.canInsertConnection}
-	/>
-
 </Menu>

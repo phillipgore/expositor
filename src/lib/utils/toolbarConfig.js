@@ -143,6 +143,15 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'menu',
+					iconId: 'connect',
+					menuId: 'MenuConnect',
+					underLabel: 'Connect',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledCheck: (state) => !state.canStructure || state.overviewMode || state.focusMode
+				},
+				{
+					type: 'menu',
 					iconId: 'paintbrush',
 					menuId: 'MenuColor',
 					underLabel: 'Color',

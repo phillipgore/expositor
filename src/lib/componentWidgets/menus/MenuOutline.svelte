@@ -8,9 +8,9 @@
 	 * 
 	 * Items:
 	 * - Heading One / Two / Three — add a heading at the given level to the active segment
-	 * - Quick Note — add a note. Context-aware: adds a connection note when a connection
-	 *   is selected, otherwise a passage (segment) note. Auto-reveals the relevant notes
-	 *   if they are currently hidden.
+	 * - Text Quick Note — add a passage (segment) note to the active segment. Auto-reveals
+	 *   passage notes if they are currently hidden. (Connection notes are added from the
+	 *   Connect menu's "Connection Quick Note" item.)
 	 * 
 	 * Usage:
 	 * ```
@@ -25,7 +25,7 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
     import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
-	import { toolbarState, showPassageNotes, showConnectionNotes, showHeadings } from '$lib/stores/toolbar.js';
+	import { toolbarState, showPassageNotes, showHeadings } from '$lib/stores/toolbar.js';
 
 
 
@@ -87,35 +87,22 @@
 
 	<DividerHorizontal />
 
+	<!-- Text Quick Note: adds a passage (segment) note to the active segment.
+	     Connection notes live in the Connect menu's "Connection Quick Note" item. -->
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note"
-		label="Quick Note"
+		label="Text Quick Note"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			if ($toolbarState.hasActiveConnection) {
-				// Auto-show connection notes if hidden, so the new note is visible.
-				// Recomputes the master notesVisible toggle and persists the preference.
-				showConnectionNotes();
-				// Trigger insert connection note event
-				window.dispatchEvent(new CustomEvent('connection-insert-note'));
-			} else {
-				// Auto-show passage notes if hidden, so the new note is visible.
-				// Recomputes the master notesVisible toggle and persists the preference.
-				showPassageNotes();
-				// Trigger insert segment note event via custom event
-				window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
-			}
-
+			// Auto-show passage notes if hidden, so the new note is visible.
+			// Recomputes the master notesVisible toggle and persists the preference.
+			showPassageNotes();
+			// Trigger insert segment note event via custom event
+			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 		}}
-		isDisabled={
-			!(
-				($toolbarState.hasActiveSegment && !$toolbarState.hasActiveColumn && !$toolbarState.hasActiveSection && !$toolbarState.activeSegmentHasNote)
-				||
-				($toolbarState.hasActiveConnection && !$toolbarState.activeConnectionHasNote)
-			)
-		}
+		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasNote}
 	/>
 
 </Menu>

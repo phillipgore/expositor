@@ -3,17 +3,19 @@
 	 * MenuLayout Component
 	 *
 	 * Visual layout tuning for the active selection. Unlike MenuStructure (which
-	 * changes the document's structure via split/join/move/connect), these items
-	 * only adjust spacing and sizing and are gated behind view modes — they are
-	 * disabled in Overview, Compare, and Focus modes.
+	 * changes the document's structure via split/join/move) and MenuConnect (which
+	 * creates connections and places their quick notes), these items only adjust
+	 * spacing and sizing and are gated behind view modes — they are disabled in
+	 * Overview, Compare, and Focus modes.
 	 *
 	 * Items are ordered largest container first (Column ⊃ Section ⊃ Segment) to
 	 * match the app's nesting hierarchy and the Structure/View menus' ordering:
 	 * - Column Spacing  — Set Column Spacing / Reset Column Spacing
+	 * - Column Width    — Set Column Width / Reset Column Width
 	 * - Section Spacing — Set Section Spacing / Reset Section Spacing
 	 * - Segment Height  — Set Segment Height / Reset Segment Height
+	 * - Segment Height  — Link / Unlink (resize linked segments together)
 	 *
-
 	 * Usage:
 	 * ```
 	 * <MenuButton menuId="MenuLayout" iconId="drafting-compass" underLabel="Layout" />
@@ -37,28 +39,6 @@
 			menuElement.hidePopover();
 		}
 	}
-
-	/**
-	 * Re-attach the selected connection's quick note to a chosen side of its
-	 * anchor dot. The card always extends AWAY from the chosen edge, so picking
-	 * 'top' hangs the card below the dot, 'left' puts it to the right, etc.
-	 * ConnectionsOverlay listens for this event (handleSetNoteSide).
-	 * @param {'top'|'right'|'bottom'|'left'} side
-	 */
-	function setNoteSide(side) {
-		closeMenu();
-		window.dispatchEvent(new CustomEvent('connection-note-set-side', { detail: { side } }));
-	}
-
-	// The note side-pickers only apply to a single selected connection that
-	// actually has a note. Other layout items stay gated behind view modes.
-	let noteSideDisabled = $derived(
-		!(
-			$toolbarState.hasActiveConnection &&
-			$toolbarState.activeConnectionIds?.length === 1 &&
-			$toolbarState.activeConnectionHasNote
-		)
-	);
 </script>
 
 <Menu {menuId} ariaLabel="Layout menu">
@@ -118,7 +98,6 @@
 		classes="menu-light justify-content-left"
 		iconId="section-spacing"
 		label="Set Section Spacing"
-
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -193,135 +172,4 @@
 		}}
 		isDisabled={!$toolbarState.canUnlinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
-
-	<DividerHorizontal />
-
-	<!-- Connection quick-note placement: pick which side of the anchor dot the
-	     note card attaches to. The card extends away from the chosen edge, so the
-	     label describes where the card lands relative to the dot. -->
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-above"
-		label="Quick Note Above"
-		role="menuitem"
-		handleClick={() => setNoteSide('bottom')}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-below"
-		label="Quick Note Below"
-		role="menuitem"
-		handleClick={() => setNoteSide('top')}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-right"
-		label="Quick Note Right"
-		role="menuitem"
-		handleClick={() => setNoteSide('left')}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-left"
-		label="Quick Note Left"
-		role="menuitem"
-		handleClick={() => setNoteSide('right')}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<DividerHorizontal />
-
-	<!-- Quick note SLIDE: how far the anchor dot rides ALONG the connection line
-	     (noteAnchorT, surfaced as 0–100%). Set opens a numeric modal; Reset reverts
-	     to the default (centred on the line). -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-slide"
-		label="Set Quick Note Slide"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-connection-note-slide'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-slide-reset"
-		label="Reset Quick Note Slide"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('reset-connection-note-slide'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<DividerHorizontal />
-
-	<!-- Quick note POSITION: how far the card slides ALONG its anchored edge,
-	     relative to the anchor dot (noteOffset). Set opens a numeric modal; Reset
-	     reverts to the default (centred on the dot). -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-positon"
-		label="Set Quick Note Position"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-connection-note-position'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-positon-reset"
-		label="Reset Quick Note Position"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('reset-connection-note-position'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<DividerHorizontal />
-
-	<!-- Quick note OFFSET: the gap the card floats OFF the connection line,
-	     perpendicular to it (noteLead). Set opens a numeric modal; Reset reverts
-	     to the default (flush against the line). -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-offset"
-		label="Set Quick Note Offset"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-connection-note-offset'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-offset-reset"
-		label="Reset Quick Note Offset"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('reset-connection-note-offset'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
 </Menu>
-
-
