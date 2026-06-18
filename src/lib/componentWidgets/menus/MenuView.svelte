@@ -124,7 +124,7 @@
 		isDisabled={!$toolbarState.canToggleNotes}
 	/>
 	<MenuToggleItem
-		label="Passage Quick Notes"
+		label="Text Quick Notes"
 		isActive={$toolbarState.passageNotesVisible}
 		onToggle={togglePassageNotes}
 		isDisabled={!$toolbarState.canToggleNotes}
