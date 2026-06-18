@@ -1299,18 +1299,17 @@
 		const storedLead = override?.lead ?? connection.noteLead       ?? null;
 
 
-		// Resolve the anchor parameter t and the card side.
+		// Resolve the anchor parameter t and the card side INDEPENDENTLY. They are
+		// separate, orthogonal controls — the SIDE (above/below/left/right the card
+		// sits) and the SLIDE (how far the dot rides along the line, noteAnchorT) — so
+		// each falls back to its OWN default when unset. Resolving them together (only
+		// honoring the side when BOTH were set) meant resetting one reset the other:
+		// e.g. "Reset Quick Note Slide" (noteAnchorT → null) also snapped the user's
+		// chosen side back to the default. Decoupled here so a reset of one never
+		// disturbs the other.
 		/** @type {'top'|'right'|'bottom'|'left'} */
-		let anchorSide;
-		let anchorT;
-		if (storedSide !== null && storedT !== null) {
-			anchorSide = storedSide;
-			anchorT = storedT;
-		} else {
-			// Default placement.
-			anchorT = 0.5;
-			anchorSide = (sameCol && fromSide2 && toSide2) ? 'right' : 'top';
-		}
+		const anchorSide = storedSide ?? ((sameCol && fromSide2 && toSide2) ? 'right' : 'top');
+		const anchorT = storedT ?? 0.5;
 
 		/** @type {'center'|'right'|'left'|'above'|'below'} */
 		const notePlacement = sideToPlacement(anchorSide);

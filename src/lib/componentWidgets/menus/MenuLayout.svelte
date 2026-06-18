@@ -238,6 +238,35 @@
 
 	<DividerHorizontal />
 
+	<!-- Quick note SLIDE: how far the anchor dot rides ALONG the connection line
+	     (noteAnchorT, surfaced as 0–100%). Set opens a numeric modal; Reset reverts
+	     to the default (centred on the line). -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-slide"
+		label="Set Quick Note Slide"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('set-connection-note-slide'));
+		}}
+		isDisabled={noteSideDisabled}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-slide-reset"
+		label="Reset Quick Note Slide"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('reset-connection-note-slide'));
+		}}
+		isDisabled={noteSideDisabled}
+	/>
+
+	<DividerHorizontal />
+
 	<!-- Quick note POSITION: how far the card slides ALONG its anchored edge,
 	     relative to the anchor dot (noteOffset). Set opens a numeric modal; Reset
 	     reverts to the default (centred on the dot). -->
