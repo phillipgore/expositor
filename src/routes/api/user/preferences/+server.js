@@ -36,8 +36,10 @@ export async function PATCH({ request }) {
 			overviewMode,
 			selectorsVisible,
 			layoutControlsVisible,
-			passageDividersVisible
+			passageDividersVisible,
+			lastStudyView
 		} = body;
+
 		
 		// Build update object with only provided fields
 		const updates = {};
@@ -103,8 +105,17 @@ export async function PATCH({ request }) {
 				updates[key] = value;
 			}
 		}
+
+		// Validate and add lastStudyView if provided (a string enum, not a boolean)
+		if (lastStudyView !== undefined) {
+			if (lastStudyView !== 'analyze' && lastStudyView !== 'document') {
+				return json({ error: 'Invalid lastStudyView' }, { status: 400 });
+			}
+			updates.lastStudyView = lastStudyView;
+		}
 		
 		// Only update if there are changes
+
 		if (Object.keys(updates).length === 0) {
 			return json({ error: 'No valid preferences provided' }, { status: 400 });
 		}

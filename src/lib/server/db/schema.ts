@@ -32,7 +32,11 @@ export const user = pgTable('user', {
 	selectorsVisible: boolean('selectors_visible').default(false),
 	layoutControlsVisible: boolean('layout_controls_visible').default(false),
 	passageDividersVisible: boolean('passage_dividers_visible').default(true),
+	// Remembers the last study view ('analyze' | 'document') the user was in, so
+	// re-entering a study (or opening a different one) restores the same view.
+	lastStudyView: text('last_study_view').default('analyze'),
 	createdAt: timestamp('created_at')
+
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
 	updatedAt: timestamp('updated_at')

@@ -39,8 +39,10 @@ export async function load({ request, depends }) {
 				overviewMode: user.overviewMode,
 				selectorsVisible: user.selectorsVisible,
 				layoutControlsVisible: user.layoutControlsVisible,
-				passageDividersVisible: user.passageDividersVisible
+				passageDividersVisible: user.passageDividersVisible,
+				lastStudyView: user.lastStudyView
 			})
+
 			.from(user)
 			.where(eq(user.id, session.user.id))
 			.limit(1);
@@ -66,8 +68,10 @@ export async function load({ request, depends }) {
 		const selectorsVisible = userData[0]?.selectorsVisible ?? false;
 		const layoutControlsVisible = userData[0]?.layoutControlsVisible ?? false;
 		const passageDividersVisible = userData[0]?.passageDividersVisible ?? true;
+		const lastStudyView = userData[0]?.lastStudyView ?? 'analyze';
 		
 		// Query all groups for the logged-in user
+
 		const groupsData = await db
 			.select()
 			.from(studyGroup)
@@ -150,9 +154,11 @@ export async function load({ request, depends }) {
 			overviewMode,
 			selectorsVisible,
 			layoutControlsVisible,
-			passageDividersVisible
+			passageDividersVisible,
+			lastStudyView
 		};
 	} catch (error) {
+
 		console.error('Error loading studies:', error);
 		return {
 			groups: [],

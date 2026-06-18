@@ -88,7 +88,13 @@
 		if (data.passageDividersVisible !== undefined) {
 			setToolbarState('passageDividersVisible', data.passageDividersVisible);
 		}
+		// Last study view (document vs analyze) so the persisted view is restored
+		// across hard reloads / cold starts when re-entering a study.
+		if (data.lastStudyView !== undefined) {
+			setToolbarState('lastStudyView', data.lastStudyView);
+		}
 	});
+
 
 	onMount(() => {
 		const unsubscribe = isAuthenticated.subscribe((authenticated) => {

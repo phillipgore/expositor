@@ -198,8 +198,13 @@
 				return 'document';
 			}
 		}
-		return 'analyze'; // Default
+		// Off an explicit view route (e.g. the bare /study/[id] pass-through, the
+		// glossary, or briefly during the edit→view redirect): fall back to the
+		// remembered last view so the highlighted button matches the view the user
+		// is being returned to, instead of always snapping to 'analyze'.
+		return $toolbarState.lastStudyView || 'analyze';
 	});
+
 
 	/**
 	 * Handle mode button change (Analyze/Document)
@@ -444,8 +449,9 @@
 				{:else if button.type === 'grouped'}
 					<ButtonGrouped
 						buttons={button.buttons}
-						defaultActive={activeModeButton}
+						activeButton={activeModeButton}
 						buttonClasses={button.buttonClasses}
+
 						underLabelClasses={button.underLabelClasses}
 						onActiveChange={handleModeChange}
 						isDisabled={

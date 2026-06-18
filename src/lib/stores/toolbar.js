@@ -15,9 +15,10 @@ import { writable, get } from 'svelte/store';
  * Persist one or more preference key/value pairs to the database.
  * Fire-and-forget: errors are logged but the store is not reverted,
  * since view toggle preferences are low-stakes and easily re-toggled.
- * @param {Record<string, boolean|number>} updates - Key/value pairs to persist
+ * @param {Record<string, boolean|number|string>} updates - Key/value pairs to persist
  */
 async function persistPreference(updates) {
+
 	try {
 		await fetch('/api/user/preferences', {
 			method: 'PATCH',
@@ -254,6 +255,14 @@ export function updateToolbarForRoute(pathname) {
 	const isAnalyzeRoute = pathname.includes('/study/') && 
 	                       !pathname.includes('/study-group') && 
 	                       (pathname.endsWith('/analyze') || pathname.includes('/analyze/'));
+	// Explicit Document view route (distinct from the broad isDocumentRoute, which is
+	// also true for the bare /study/[id] pass-through). Used to record lastStudyView
+	// ONLY when the user is genuinely on a /document or /analyze view, so the bare
+	// route never clobbers the remembered view.
+	const isDocumentView = pathname.includes('/study/') &&
+	                       !pathname.includes('/study-group') &&
+	                       (pathname.endsWith('/document') || pathname.includes('/document/'));
+
 	// Study edit/review flow (e.g. /study/[id]/edit, /study/[id]/edit/review). While
 	// editing a study the Analyze/Document mode switcher must stay disabled so the user
 	// can't jump out of the edit flow via those buttons.
@@ -281,6 +290,7 @@ export function updateToolbarForRoute(pathname) {
 				isGlossaryRoute: false,
 				isDashboardRoute: true,
 				isStudyGroupRoute: false,
+				isStudyEditRoute: false,
 				canFormat: false,
 				canToggleConnections: false,
 				canToggleHeadings: false,
@@ -319,6 +329,7 @@ export function updateToolbarForRoute(pathname) {
 				isGlossaryRoute: true,
 				isDashboardRoute: false,
 				isStudyGroupRoute: false,
+				isStudyEditRoute: false,
 				canFormat: false,
 
 				canToggleConnections: false,
@@ -392,18 +403,42 @@ export function updateToolbarForRoute(pathname) {
 		// On document/study pages, most tools should be available
 		// Note: canEdit and canDelete are controlled by selection state, not route
 		if (isDocumentRoute) {
+			// Remember which study view the user is in (document vs analyze) so that
+			// navigating away (glossary, new study, edit-save redirect, etc.) and back
+			// into a study returns them to the same view. isDocumentRoute is ALSO true
+			// for the bare /study/[id] pass-through (which has neither suffix) — in that
+			// case we must PRESERVE the existing remembered view rather than clobber it,
+			// so only record when explicitly on an /analyze or /document view route.
+			const newStudyView = isAnalyzeRoute
+				? 'analyze'
+				: isDocumentView
+					? 'document'
+					: state.lastStudyView;
+			// Persist (fire-and-forget) only when the remembered view actually changes,
+			// so it survives hard reloads / cold starts too. No write on the bare-route
+			// pass-through or when re-entering the same view.
+			if (newStudyView !== state.lastStudyView) {
+				persistPreference({ lastStudyView: newStudyView });
+			}
 			return {
 				...state,
 				isStudyRoute: true,
 				isGlossaryRoute: false,
 				isDashboardRoute: false,
 				isStudyGroupRoute: false,
-				// Remember which study view the user is in (document vs analyze) so that
-				// navigating away to another page (glossary, new study, etc.) and back into
-				// a study returns them to the same view. isDocumentRoute is true for both
-				// /document and /analyze routes, so distinguish via isAnalyzeRoute.
-				lastStudyView: isAnalyzeRoute ? 'analyze' : 'document',
+				isStudyEditRoute: false,
+				// Recompute Edit/Delete from the preserved Finder selection. These can't
+				// simply be carried over via `...state`: arriving here after SAVING an edit
+				// (e.g. /study/[id]/edit → /study/[id]/analyze, same study id) leaves them
+				// stuck at the `false` the edit branch forced, because the study id hasn't
+				// changed so the Finder's auto-select effect never re-runs setSelectedItem.
+				// Deriving them from the selection here guarantees a still-selected study
+				// re-enables Edit/Delete the moment we return to the study view.
+				canEdit: state.selectedItem !== null && state.selectedItem.count > 0,
+				canDelete: state.selectedItem !== null && state.selectedItem.count > 0,
+				lastStudyView: newStudyView,
 				canFormat: true,
+
 				canToggleConnections: true,
 
 				canToggleHeadings: true,
@@ -442,6 +477,7 @@ export function updateToolbarForRoute(pathname) {
 			isGlossaryRoute: false,
 			isDashboardRoute: false,
 			isStudyGroupRoute: true,
+			isStudyEditRoute: false,
 			canFormat: false,
 			canToggleConnections: false,
 			canToggleHeadings: false,
@@ -476,6 +512,7 @@ export function updateToolbarForRoute(pathname) {
 			isGlossaryRoute: false,
 			isDashboardRoute: false,
 			isStudyGroupRoute: false,
+			isStudyEditRoute: false,
 			canFormat: false,
 			canToggleConnections: false,
 			canToggleHeadings: false,
@@ -572,9 +609,10 @@ export function onSelectionChange(hasSelection) {
 /**
  * Manually set a specific toolbar state property
  * @param {keyof ToolbarState} key - State property to update
- * @param {boolean} value - New value for the property
+ * @param {boolean|number|string|null} value - New value for the property
  */
 export function setToolbarState(key, value) {
+
 	toolbarStateStore.update(state => ({
 		...state,
 		[key]: value
