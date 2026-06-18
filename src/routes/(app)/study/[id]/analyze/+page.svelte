@@ -1610,8 +1610,21 @@
 				// type (segment/section/column or cross-item) so the newly created connection
 				// is immediately visible even if its View-menu toggle was previously off.
 				showConnectionsForTypes(itemA.type, itemB.type);
+
+				// Grab the new connection's id so the overlay can auto-select it.
+				const result = await response.json().catch(() => null);
+				const newId = result?.connection?.id ?? null;
+
 				await invalidate('app:studies');
+
+				// Immediately select the just-inserted connection. The overlay listens
+				// for this event and selects the matching path as soon as it's computed
+				// (it stashes the id until the post-invalidate recompute produces it).
+				if (newId) {
+					window.dispatchEvent(new CustomEvent('select-connection', { detail: { id: newId } }));
+				}
 			} else {
+
 				const err = await response.json();
 				console.error('Insert connection error:', err);
 			}

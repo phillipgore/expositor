@@ -84,7 +84,8 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, noteLead: number, noteCardX: number, noteCardY: number, handleCorner: 'tl'|'tr'|'bl'|'br' }} PathEntry
+	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, noteLead: number, noteCardX: number, noteCardY: number, handleCorner: 'tl'|'tr'|'bl'|'br', fromSlide: { axis: 'x'|'y', lo: number, hi: number }|null, toSlide: { axis: 'x'|'y', lo: number, hi: number }|null }} PathEntry
+
 
 
 
@@ -133,6 +134,15 @@
 
 	/** IDs of the currently selected connection paths (supports multi-select). */
 	let selectedPathIds = $state(/** @type {Set<string>} */ (new Set()));
+
+	/**
+	 * ID of a connection that should be selected as soon as it appears in the
+	 * computed paths.  Set when a "select-connection" event arrives (e.g. right
+	 * after inserting a connection) but the new connection's path hasn't been
+	 * measured yet — the $effect below claims it once calculatePaths() produces it.
+	 */
+	let pendingSelectId = $state(/** @type {string|null} */ (null));
+
 
 	// ─── Note editing state ───────────────────────────────────────────────────
 
@@ -805,11 +815,21 @@
 			nx = Math.abs(ux) < 1e-3 ? (edge === 'right' ? 1 : -1) : Math.sign(ux);
 		}
 
-		// Blend perpendicular-to-edge attachment with aim-at-partner. BIAS weights
-		// the perpendicular component; the remainder aims at the opposite anchor.
-		const BIAS = 0.55;
+		// Blend perpendicular-to-edge attachment with aim-at-partner. The
+		// perpendicular component gives the clean "exits square from the edge" look
+		// when the partner sits off to the side, but applying it at full strength
+		// even when the partner already lies straight out from the edge bows an
+		// otherwise-straight line into a gentle S-wave (both ends leave parallel to
+		// the edge, then must curve back to meet). Scale the bias by how far the
+		// partner deviates from the edge-normal: align = |u · n| is 1 when the
+		// opposite anchor is straight ahead (→ bias 0 → control points on the chord
+		// → STRAIGHT line) and 0 when it's fully to the side (→ full 0.55 bias →
+		// today's smooth square-exit curve).
+		const align = Math.abs(ux * nx + uy * ny);
+		const BIAS = 0.55 * (1 - align);
 		let hx = nx * BIAS + ux * (1 - BIAS);
 		let hy = ny * BIAS + uy * (1 - BIAS);
+
 		const hl = Math.hypot(hx, hy) || 1;
 		hx /= hl;
 		hy /= hl;
@@ -1202,6 +1222,13 @@
 		//   midpoint (a single segment endpoint stays exactly at the midpoint).
 		/** @type {Map<string, { x: number, y: number }>} key = `${connId}|${end}` */
 		const anchorMap = new Map();
+		// Per-endpoint slide range along its edge — consumed by Pass E so it can
+		// separate overlapping lines by sliding endpoints (staying straight, on-edge)
+		// before resorting to bending. axis 'x' for top/bottom edges, 'y' for
+		// left/right (segment) edges; [lo, hi] are the usable edge bounds in layout
+		// units (ANCHOR_EDGE_PAD inset from each corner).
+		/** @type {Map<string, { axis: 'x'|'y', lo: number, hi: number }>} key = `${connId}|${end}` */
+		const slideMap = new Map();
 		for (const members of groups.values()) {
 			const horizontal = members[0].edge === 'top' || members[0].edge === 'bottom';
 			members.sort((a, b) => {
@@ -1223,12 +1250,16 @@
 					const m = members[i];
 					const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
 					anchorMap.set(m.key, { x: xs[i], y: base.y });
+					slideMap.set(m.key, { axis: 'x', lo, hi });
 				}
 			} else {
 				// Segment: keep the side-edge vertical midpoint, fan out symmetrically.
+				const vlo = (rect.top    - svgRect.top) / scale + ANCHOR_EDGE_PAD;
+				const vhi = (rect.bottom - svgRect.top) / scale - ANCHOR_EDGE_PAD;
 				for (let i = 0; i < n; i++) {
 					const m = members[i];
 					const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
+					slideMap.set(m.key, { axis: 'y', lo: vlo, hi: vhi });
 					if (n === 1) { anchorMap.set(m.key, base); continue; }
 					const edgeLen = m.rect.height / scale;
 					const usable  = Math.max(0, edgeLen - 2 * ANCHOR_EDGE_PAD);
@@ -1238,6 +1269,7 @@
 				}
 			}
 		}
+
 
 
 		/** @type {PathEntry[]} */
@@ -1386,10 +1418,24 @@
 			notePlacement, noteAnchorSide: anchorSide, noteAnchorT: anchorT,
 			noteAnchorX: anchorPt.x, noteAnchorY: anchorPt.y, noteOffset, noteLead,
 			noteCardX: cardX, noteCardY: cardY,
-			handleCorner: defaultHandleCorner(anchorSide)
+			handleCorner: defaultHandleCorner(anchorSide),
+			fromSlide: slideMap.get(`${connection.id}|from`) ?? null,
+			toSlide:   slideMap.get(`${connection.id}|to`)   ?? null
 		});
+
 	}
 
+
+		// ── Pass E: separate independent lines that run on top of one another ──
+		// The per-edge fan-out (Pass A/B) only de-conflicts endpoints that SHARE an
+		// element edge. Two UNRELATED connections — e.g. a segment↔segment line
+		// across one set of columns and another segment↔segment line across a
+		// different set of columns — can still wind up nearly collinear and overlap
+		// (likewise for section↔section lines). This pass detects such overlapping
+		// runs and bows the involved beziers apart, perpendicular to the shared
+		// direction, so they separate into parallel-ish arcs while their endpoints
+		// stay welded to their anchors.
+		separateOverlappingLines(newPaths);
 
 		// ── Pass D: pick a collision-free grab-handle corner per note ─────────
 		// Each note's slide handle sits just outside one corner of its card, on the
@@ -1398,10 +1444,252 @@
 		// another connection's anchor point (endpoint node or another note's anchor
 		// dot) we flip the handle to the other end of the edge. Falls back to the
 		// default when both ends are obstructed ("if practicable").
+		// Runs AFTER Pass E so it measures the final (post-separation) anchor points.
 		resolveHandleCorners(newPaths, svgRect);
 
 		paths = newPaths;
 	}
+
+	// ─── Pass E helpers: overlapping-line separation ──────────────────────────
+
+	/** Max sine of the angle between two chords for them to count as "parallel". */
+	const LINE_PARALLEL_SIN = 0.22;   // ≈ 12.7°
+	/** Max average perpendicular gap (layout units) for two parallel runs to count as overlapping. */
+	const LINE_OVERLAP_PERP = 7;
+	/** Min length (layout units) the two runs must share along their direction. */
+	const LINE_OVERLAP_MIN = 14;
+	/** Perpendicular spacing (layout units) opened between adjacent overlapping lines. */
+	const LINE_SEPARATION = 9;
+	/** Endpoints closer than this are treated as SHARED — Pass A/B fan-out already handles those. */
+	const LINE_ENDPOINT_EPS = 3;
+
+	/**
+	 * Decide whether two connection paths run on top of one another: nearly
+	 * parallel (small chord-angle), close together (small perpendicular gap), and
+	 * sharing a meaningful length along their common direction. Pairs that share
+	 * an endpoint anchor are excluded — the per-edge fan-out already separates
+	 * those, and bowing them here would fight that.
+	 * @param {PathEntry} a @param {PathEntry} b
+	 * @returns {boolean}
+	 */
+	function pathsOverlap(a, b) {
+		// Shared endpoint anchor → leave it to the edge fan-out.
+		if (Math.hypot(a.x1 - b.x1, a.y1 - b.y1) < LINE_ENDPOINT_EPS) return false;
+		if (Math.hypot(a.x1 - b.x2, a.y1 - b.y2) < LINE_ENDPOINT_EPS) return false;
+		if (Math.hypot(a.x2 - b.x1, a.y2 - b.y1) < LINE_ENDPOINT_EPS) return false;
+		if (Math.hypot(a.x2 - b.x2, a.y2 - b.y2) < LINE_ENDPOINT_EPS) return false;
+
+		const adx = a.x2 - a.x1, ady = a.y2 - a.y1;
+		const bdx = b.x2 - b.x1, bdy = b.y2 - b.y1;
+		const alen = Math.hypot(adx, ady) || 1;
+		const blen = Math.hypot(bdx, bdy) || 1;
+		const aux = adx / alen, auy = ady / alen; // a's unit direction
+		const bux = bdx / blen, buy = bdy / blen; // b's unit direction
+
+		// Parallel test (covers both same- and opposite-direction chords): the
+		// magnitude of the 2-D cross product of the unit vectors is sin(angle).
+		const cross = aux * buy - auy * bux;
+		if (Math.abs(cross) > LINE_PARALLEL_SIN) return false;
+
+		// Perpendicular gap: distance of b's two endpoints from a's infinite line
+		// (normal to a's direction is (−auy, aux)). Average the two ends.
+		const perp1 = Math.abs(-(b.x1 - a.x1) * auy + (b.y1 - a.y1) * aux);
+		const perp2 = Math.abs(-(b.x2 - a.x1) * auy + (b.y2 - a.y1) * aux);
+		if ((perp1 + perp2) / 2 > LINE_OVERLAP_PERP) return false;
+
+		// Overlap along a's axis: project b's endpoints onto a's direction (a spans
+		// [0, alen]) and measure how much the two intervals share.
+		const sb1 = (b.x1 - a.x1) * aux + (b.y1 - a.y1) * auy;
+		const sb2 = (b.x2 - a.x1) * aux + (b.y2 - a.y1) * auy;
+		const lo = Math.min(sb1, sb2), hi = Math.max(sb1, sb2);
+		const overlapLen = Math.min(hi, alen) - Math.max(lo, 0);
+		return overlapLen >= LINE_OVERLAP_MIN;
+	}
+
+	/**
+	 * Recompute a path's bezier `d`, midpoint, and (if it has a note) the note
+	 * anchor dot + card positions after its control points have been moved, so the
+	 * rendered string, the dot welded to the curve, and the card all stay in sync.
+	 * @param {PathEntry} p
+	 */
+	function refreshPathCurve(p) {
+		p.d = `M ${p.x1},${p.y1} C ${p.cx1},${p.cy1} ${p.cx2},${p.cy2} ${p.x2},${p.y2}`;
+		const mid = cubicBezierMidpoint(p.x1, p.y1, p.cx1, p.cy1, p.cx2, p.cy2, p.x2, p.y2);
+		p.mx = mid.mx; p.my = mid.my;
+
+		// Keep the note dot on the (now-bowed) curve at its parameter t, then re-derive
+		// the card anchor by pushing the dot off the line by noteLead (mirrors Pass C).
+		const anchorPt = cubicBezierPoint(p.noteAnchorT, p.x1, p.y1, p.cx1, p.cy1, p.cx2, p.cy2, p.x2, p.y2);
+		p.noteAnchorX = anchorPt.x;
+		p.noteAnchorY = anchorPt.y;
+		let cardX = anchorPt.x, cardY = anchorPt.y;
+		switch (p.notePlacement) {
+			case 'below': cardY = anchorPt.y + p.noteLead; break;
+			case 'above': cardY = anchorPt.y - p.noteLead; break;
+			case 'right': cardX = anchorPt.x + p.noteLead; break;
+			case 'left':  cardX = anchorPt.x - p.noteLead; break;
+		}
+		p.noteCardX = cardX;
+		p.noteCardY = cardY;
+	}
+
+	/**
+	 * Slide ONE endpoint of a path along its element edge so the endpoint moves as
+	 * close as possible to `off` in the separation-normal direction (nx, ny) —
+	 * keeping the line straight and the endpoint ON its edge. The endpoint can only
+	 * travel along its edge axis (x for top/bottom edges, y for left/right) and is
+	 * clamped to the edge's usable [lo, hi] bounds, so it never slides off the edge.
+	 *
+	 * Returns the perpendicular distance actually achieved (`achievedPerp`, ≤ |off|
+	 * after clamping) plus the raw move vector (`ddx`, `ddy`) applied to the
+	 * endpoint — the caller shifts the adjacent bezier control point by that same
+	 * vector so the curve's exit tangent (and thus its straightness) is preserved.
+	 * When the edge runs parallel to the normal (sliding can't move the endpoint
+	 * perpendicular at all) nothing moves and achievedPerp is 0, signalling the
+	 * caller to bow this end instead.
+	 * @param {PathEntry} p
+	 * @param {'from'|'to'} end
+	 * @param {number} nx @param {number} ny — separation normal (unit)
+	 * @param {number} off — desired perpendicular offset along the normal
+	 * @returns {{ achievedPerp: number, ddx: number, ddy: number }}
+	 */
+	function slideEndpointAlongEdge(p, end, nx, ny, off) {
+		const slide = end === 'from' ? p.fromSlide : p.toSlide;
+		if (!slide) return { achievedPerp: 0, ddx: 0, ddy: 0 };
+
+		// Edge direction unit vector + the endpoint's current coordinate on that axis.
+		const sx = slide.axis === 'x' ? 1 : 0;
+		const sy = slide.axis === 'y' ? 1 : 0;
+		const cur = slide.axis === 'x' ? (end === 'from' ? p.x1 : p.x2)
+		                               : (end === 'from' ? p.y1 : p.y2);
+
+		// Perpendicular distance gained per unit of slide along the edge.
+		const denom = sx * nx + sy * ny;
+		if (Math.abs(denom) < 1e-3) return { achievedPerp: 0, ddx: 0, ddy: 0 };
+
+		// Slide distance needed for `off`, clamped so the endpoint stays on its edge.
+		const want = off / denom;
+		const a = Math.max(slide.lo - cur, Math.min(slide.hi - cur, want));
+		const ddx = sx * a;
+		const ddy = sy * a;
+		if (end === 'from') { p.x1 += ddx; p.y1 += ddy; }
+		else                { p.x2 += ddx; p.y2 += ddy; }
+		return { achievedPerp: a * denom, ddx, ddy };
+	}
+
+	/**
+	 * Pass E: pull apart connection lines that run on top of one another.
+
+	 *
+	 * Pass A/B only fans out endpoints that share an element edge. Two independent
+	 * connections (different endpoints) can still run nearly collinear — e.g. a
+	 * segment↔segment line in one set of columns lying right over a segment↔segment
+	 * line in another set, or two section↔section lines at the same height. This
+	 * pass groups every set of mutually-overlapping lines (transitively, via union-
+	 * find), then bows each group member's bezier control points along the group's
+	 * shared normal by an even, centred spacing so the lines separate into
+	 * parallel-ish arcs. Endpoints are never moved, so each line stays welded to its
+	 * anchors; only the curve between them swings clear.
+	 *
+	 * The ordering and offsets are derived deterministically (sorted by each line's
+	 * current perpendicular position, tie-broken by id) so the result is stable
+	 * frame-to-frame and never jitters.
+	 * @param {PathEntry[]} list
+	 */
+	function separateOverlappingLines(list) {
+		const n = list.length;
+		if (n < 2) return;
+
+		// Union-find over path indices: union any pair that overlaps.
+		const parent = Array.from({ length: n }, (_, i) => i);
+		/** @param {number} i @returns {number} */
+		const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+		/** @param {number} i @param {number} j */
+		const union = (i, j) => { const ri = find(i), rj = find(j); if (ri !== rj) parent[ri] = rj; };
+
+		let anyOverlap = false;
+		for (let i = 0; i < n; i++) {
+			for (let j = i + 1; j < n; j++) {
+				if (pathsOverlap(list[i], list[j])) { union(i, j); anyOverlap = true; }
+			}
+		}
+		if (!anyOverlap) return;
+
+		// Collect groups of size ≥ 2.
+		/** @type {Map<number, number[]>} */
+		const groupsById = new Map();
+		for (let i = 0; i < n; i++) {
+			const root = find(i);
+			if (!groupsById.has(root)) groupsById.set(root, []);
+			groupsById.get(root)?.push(i);
+		}
+
+		for (const members of groupsById.values()) {
+			const m = members.length;
+			if (m < 2) continue;
+
+			// Shared direction: average the members' unit chords, flipping any that
+			// point opposite the first so same- and opposite-drawn lines agree.
+			const ref = list[members[0]];
+			let refdx = ref.x2 - ref.x1, refdy = ref.y2 - ref.y1;
+			const refLen = Math.hypot(refdx, refdy) || 1;
+			const rux = refdx / refLen, ruy = refdy / refLen;
+			let avgX = 0, avgY = 0;
+			for (const idx of members) {
+				const p = list[idx];
+				const dx = p.x2 - p.x1, dy = p.y2 - p.y1;
+				const len = Math.hypot(dx, dy) || 1;
+				let ux = dx / len, uy = dy / len;
+				if (ux * rux + uy * ruy < 0) { ux = -ux; uy = -uy; }
+				avgX += ux; avgY += uy;
+			}
+			const aLen = Math.hypot(avgX, avgY) || 1;
+			const dirX = avgX / aLen, dirY = avgY / aLen;
+			// Normal to the shared direction — the axis we separate along.
+			const nx = -dirY, ny = dirX;
+
+			// Order members by their current signed perpendicular position (chord
+			// midpoint · normal); tie-break by id so the layout is deterministic.
+			const sorted = members.slice().sort((ia, ib) => {
+				const pa = list[ia], pb = list[ib];
+				const ma = ((pa.x1 + pa.x2) / 2) * nx + ((pa.y1 + pa.y2) / 2) * ny;
+				const mb = ((pb.x1 + pb.x2) / 2) * nx + ((pb.y1 + pb.y2) / 2) * ny;
+				if (ma !== mb) return ma - mb;
+				return pa.id < pb.id ? -1 : pa.id > pb.id ? 1 : 0;
+			});
+
+			// Separate each member by the even, centred perpendicular offset `off`.
+			// PREFERRED: slide BOTH endpoints along their edges so the whole line
+			// translates by `off` perpendicular — staying perfectly straight and
+			// on-edge (this is what the user wants: lines just move apart, no bowing).
+			// Each control point rides along with its endpoint so the exit tangent is
+			// preserved. ONLY when an endpoint runs out of edge to slide (clamped) or
+			// its edge is parallel to the normal does the leftover offset get applied
+			// as a bow of that end's control point — bending strictly as a last resort.
+			for (let k = 0; k < sorted.length; k++) {
+				const off = (k - (sorted.length - 1) / 2) * LINE_SEPARATION;
+				if (off === 0) continue;
+				const p = list[sorted[k]];
+
+				// 1) Slide each endpoint along its edge; the matching control point
+				//    follows by the same vector so the line stays straight there.
+				const f = slideEndpointAlongEdge(p, 'from', nx, ny, off);
+				p.cx1 += f.ddx; p.cy1 += f.ddy;
+				const t = slideEndpointAlongEdge(p, 'to', nx, ny, off);
+				p.cx2 += t.ddx; p.cy2 += t.ddy;
+
+				// 2) Bend only for the residual each end couldn't cover by sliding.
+				const fRes = off - f.achievedPerp;
+				const tRes = off - t.achievedPerp;
+				if (Math.abs(fRes) > 0.5) { p.cx1 += nx * fRes; p.cy1 += ny * fRes; }
+				if (Math.abs(tRes) > 0.5) { p.cx2 += nx * tRes; p.cy2 += ny * tRes; }
+
+				refreshPathCurve(p);
+			}
+
+		}
+	}
+
 
 	/**
 	 * Default grab-handle corner for a note anchored on a given side (the historic
@@ -1816,7 +2104,58 @@
 	}
 
 	/**
+	 * Select a single connection by id, replacing any current selection. Used to
+	 * auto-select a freshly inserted connection so the user can act on it right
+	 * away. Mirrors handlePathClick's bookkeeping for a single selection.
+	 * @param {string} id
+	 */
+	function selectConnectionById(id) {
+		// Commit/clear any open or selected note first, matching handlePathClick.
+		if (noteEditingId) {
+			commitNoteEdit();
+		} else if (noteSelectedId) {
+			noteSelectedId = null;
+			noteEditorActive = false;
+		}
+
+		selectedPathIds = new Set([id]);
+		const hasNote = !!(connections.find(c => c.id === id)?.note);
+		setActiveConnection(true, [id], hasNote, hasNote ? 1 : 0);
+	}
+
+	/**
+	 * Handle the "select-connection" window event (dispatched right after a
+	 * connection is inserted). If the connection's path has already been computed
+	 * we select it immediately; otherwise we stash the id in pendingSelectId so the
+	 * $effect below claims it once calculatePaths() produces the new path (the data
+	 * invalidation that adds the connection is asynchronous).
+	 * @param {CustomEvent<{ id: string }>} event
+	 */
+	function handleSelectConnection(event) {
+		const id = event.detail?.id;
+		if (!id) return;
+		if (paths.some(p => p.id === id)) {
+			selectConnectionById(id);
+			pendingSelectId = null;
+		} else {
+			pendingSelectId = id;
+		}
+	}
+
+	// Claim a pending auto-select once its path appears (after the post-insert data
+	// refresh recomputes paths). Clears the pending id only when it resolves so the
+	// request survives intermediate recomputes until the new path exists.
+	$effect(() => {
+		if (!pendingSelectId) return;
+		if (paths.some(p => p.id === pendingSelectId)) {
+			selectConnectionById(pendingSelectId);
+			pendingSelectId = null;
+		}
+	});
+
+	/**
 	 * Deselect all connections when clicking within the passage content area
+
 
 	 * but not on a connection path.  Clicks on the toolbar, commentary panel, or
 	 * other UI chrome are ignored so the selection is preserved.
@@ -2004,8 +2343,13 @@
 		setActiveSegment(false, null); // segment + inline note editor
 		setActiveSection(false, null); // section
 		setActiveColumn(false, null);  // column
-		setActiveConnection(false, []); // connection arc selection (selectedPathIds cleared via $effect)
+
+		// Keep THIS connection selected while its Quick Note is being edited, so the
+		// arc stays highlighted and the selection persists through the edit session.
+		selectedPathIds = new Set([connectionId]);
+		setActiveConnection(true, [connectionId], !!conn.note);
 	}
+
 
 	/**
 	 * Commit the current note value and exit edit mode.
@@ -2389,8 +2733,20 @@
 		const _wide       = $toolbarState.wideLayout;
 		const _overview   = $toolbarState.overviewMode;
 		const _paragraphs = $toolbarState.paragraphBreaksVisible;
-		requestAnimationFrame(calculatePaths);
+		// References (scripture refs) and Notations (verse numbers) add/remove inline
+		// content, which changes segment heights and positions. Their toggles must
+		// re-run calculatePaths() or the anchor fan-out is left measuring stale
+		// geometry — leaving lines/anchors stacked on top of one another.
+		const _references = $toolbarState.referencesVisible;
+		const _verses     = $toolbarState.versesVisible;
+		// Recompute AFTER the browser has reflowed the toggled content. A single rAF
+		// can fire before the ref/verse/paragraph reflow has settled, so the fan-out
+		// distribution measures the in-between frame and lines pile up. A double rAF
+		// guarantees we measure the final geometry. Same timing weakness is what let
+		// a resize occasionally leave lines overlapping.
+		requestAnimationFrame(() => requestAnimationFrame(calculatePaths));
 	});
+
 
 	// ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -2435,6 +2791,9 @@
 		window.addEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
 		// Structure → "Select All Connections": select every currently visible line.
 		window.addEventListener('select-all-connections', handleSelectAllConnections);
+		// Auto-select a freshly inserted connection (dispatched by the analyze page).
+		window.addEventListener('select-connection', /** @type {EventListener} */ (handleSelectConnection));
+
 
 
 		// Column/section spacing changes (live drag + modal apply/reset) reflow the
@@ -2468,7 +2827,10 @@
 		window.removeEventListener('connection-insert-note', handleInsertConnectionNote);
 		window.removeEventListener('connection-remove-note', handleRemoveConnectionNote);
 		window.removeEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
+		window.removeEventListener('select-all-connections', handleSelectAllConnections);
+		window.removeEventListener('select-connection', /** @type {EventListener} */ (handleSelectConnection));
 		window.removeEventListener('analyze-layout-changed', handleLayoutChanged);
+
 		window.removeEventListener('set-section-spacing', handleLayoutChanged);
 		window.removeEventListener('reset-section-spacing', handleLayoutChanged);
 		window.removeEventListener('set-column-spacing', handleLayoutChanged);
