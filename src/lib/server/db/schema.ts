@@ -277,7 +277,14 @@ export const segmentConnection = pgTable('segment_connection', {
 	 * NULL/0 = centered on the dot.
 	 */
 	noteOffset: integer('note_offset'),
+	/**
+	 * Unsigned pixel distance the card floats AWAY from the connection line,
+	 * measured PERPENDICULAR to its anchored edge (the axis the dot would travel
+	 * straight off the line). NULL/0 = flush against the line (today's default).
+	 */
+	noteLead: integer('note_lead'),
 	// Rich text commentary for this connection (mirrors passage_segment.commentary)
+
 	commentary: text('commentary'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => new Date())

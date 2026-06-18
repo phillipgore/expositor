@@ -84,7 +84,9 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, handleCorner: 'tl'|'tr'|'bl'|'br' }} PathEntry
+	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, noteLead: number, noteCardX: number, noteCardY: number, handleCorner: 'tl'|'tr'|'bl'|'br' }} PathEntry
+
+
 
 	 * @typedef {{ elementId: string, type: ConnType, side: 'left'|'right', x: number, y: number }} Handle
 	 */
@@ -172,17 +174,19 @@
 	 * calculatePaths() merges these over the persisted values so the dot/card track
 	 * the cursor smoothly; on release the final values are PATCHed and the override
 	 * is dropped once the persisted data refreshes.
-	 * @type {Record<string, { t: number|null, side: ('top'|'right'|'bottom'|'left')|null, offset: number|null }>}
+	 * @type {Record<string, { t: number|null, side: ('top'|'right'|'bottom'|'left')|null, offset: number|null, lead?: number|null }>}
 	 */
 	let notePlacementOverrides = $state({});
+
 
 	/**
 	 * Active note-placement drag, or null when idle.
 	 *   mode 'dot'  → dragging the anchor dot ALONG the connection curve (sets t)
 	 *   mode 'card' → sliding the card along its attached edge (sets offset)
-	 * @type {{ id: string, mode: 'dot'|'card', startX: number, startY: number, startOffset: number, side: ('top'|'right'|'bottom'|'left') } | null}
+	 * @type {{ id: string, mode: 'dot'|'card', startX: number, startY: number, startOffset: number, startLead: number, placement: ('center'|'right'|'left'|'above'|'below'), side: ('top'|'right'|'bottom'|'left') } | null}
 	 */
 	let notePlacementDrag = $state(null);
+
 
 	/**
 	 * True once the active placement drag has moved past DRAG_THRESHOLD px. A card
@@ -194,6 +198,14 @@
 
 	/** Pixels the pointer must travel before a card pointerdown becomes a slide. */
 	const NOTE_DRAG_THRESHOLD = 4;
+
+	/**
+	 * Minimum lead gap (layout units) before a leader line is drawn between the
+	 * anchor dot and the card. Below this the card is close enough that a connector
+	 * would just clutter the dot, so we skip it.
+	 */
+	const NOTE_LEADER_MIN = 6;
+
 
 	/**
 	 * Set on the pointerup that ends a note-placement interaction (dot or card) so
@@ -1284,6 +1296,8 @@
 		const storedSide = override?.side ?? connection.noteAnchorSide ?? null;
 		const storedT    = override?.t    ?? connection.noteAnchorT    ?? null;
 		const storedOff  = override?.offset ?? connection.noteOffset   ?? null;
+		const storedLead = override?.lead ?? connection.noteLead       ?? null;
+
 
 		// Resolve the anchor parameter t and the card side.
 		/** @type {'top'|'right'|'bottom'|'left'} */
@@ -1301,6 +1315,10 @@
 		/** @type {'center'|'right'|'left'|'above'|'below'} */
 		const notePlacement = sideToPlacement(anchorSide);
 		const noteOffset = storedOff ?? 0;
+		// Perpendicular "lead": distance the card floats OFF the line, away from the
+		// dot along the card's anchored axis. 0 = flush (today's behavior).
+		const noteLead = Math.max(0, storedLead ?? 0);
+
 
 			// ── Separate a noted note from a STRAIGHT VERTICAL line ───────────────
 			// Column/Section vertical cases place both control points straight up or
@@ -1336,11 +1354,27 @@
 			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
 			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
 
-		// The on-curve point the dot sits on (and the card hangs from), computed on
-		// the FINAL (possibly bowed) control points so the dot stays welded to the line.
+		// The on-curve point the dot sits on, computed on the FINAL (possibly bowed)
+		// control points so the dot stays welded to the line.
 		const anchorPt = cubicBezierPoint(
 			anchorT, from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y
 		);
+
+		// The card anchor point: the dot point pushed PERPENDICULAR off the line by
+		// `noteLead`, in the direction the card already extends (its placement). The
+		// dot stays welded to the curve at anchorPt; a leader line bridges the gap.
+		//   below (card under line) → push down   (+y)
+		//   above (card over line)  → push up      (−y)
+		//   right (card right)      → push right   (+x)
+		//   left  (card left)       → push left    (−x)
+		let cardX = anchorPt.x;
+		let cardY = anchorPt.y;
+		switch (notePlacement) {
+			case 'below': cardY = anchorPt.y + noteLead; break;
+			case 'above': cardY = anchorPt.y - noteLead; break;
+			case 'right': cardX = anchorPt.x + noteLead; break;
+			case 'left':  cardX = anchorPt.x - noteLead; break;
+		}
 
 
 		newPaths.push({
@@ -1351,10 +1385,12 @@
 			lineStyle: getLineStyle(fromType, toType),
 			note: connection.note ?? null,
 			notePlacement, noteAnchorSide: anchorSide, noteAnchorT: anchorT,
-			noteAnchorX: anchorPt.x, noteAnchorY: anchorPt.y, noteOffset,
+			noteAnchorX: anchorPt.x, noteAnchorY: anchorPt.y, noteOffset, noteLead,
+			noteCardX: cardX, noteCardY: cardY,
 			handleCorner: defaultHandleCorner(anchorSide)
 		});
 	}
+
 
 		// ── Pass D: pick a collision-free grab-handle corner per note ─────────
 		// Each note's slide handle sits just outside one corner of its card, on the
@@ -1420,16 +1456,18 @@
 	 */
 	function handleCornerPoint(path, corner, cardW, cardH, pad) {
 		// Top-left of the card in layout units, derived from the placement transform
-		// (mirrors noteTransform()). noteOffset slides the card along its edge.
-		let cardLeft = path.noteAnchorX;
-		let cardTop  = path.noteAnchorY;
+		// (mirrors noteTransform()). The card hangs from noteCardX/noteCardY (the dot
+		// pushed off the line by noteLead); noteOffset slides it along its edge.
+		let cardLeft = path.noteCardX;
+		let cardTop  = path.noteCardY;
 		switch (path.notePlacement) {
-			case 'right': cardLeft = path.noteAnchorX;             cardTop = path.noteAnchorY - cardH / 2 + path.noteOffset; break;
-			case 'left':  cardLeft = path.noteAnchorX - cardW;     cardTop = path.noteAnchorY - cardH / 2 + path.noteOffset; break;
-			case 'above': cardLeft = path.noteAnchorX - cardW / 2 + path.noteOffset; cardTop = path.noteAnchorY - cardH; break;
-			case 'below': cardLeft = path.noteAnchorX - cardW / 2 + path.noteOffset; cardTop = path.noteAnchorY;          break;
-			default:      cardLeft = path.noteAnchorX - cardW / 2; cardTop = path.noteAnchorY - cardH / 2;                 break;
+			case 'right': cardLeft = path.noteCardX;             cardTop = path.noteCardY - cardH / 2 + path.noteOffset; break;
+			case 'left':  cardLeft = path.noteCardX - cardW;     cardTop = path.noteCardY - cardH / 2 + path.noteOffset; break;
+			case 'above': cardLeft = path.noteCardX - cardW / 2 + path.noteOffset; cardTop = path.noteCardY - cardH; break;
+			case 'below': cardLeft = path.noteCardX - cardW / 2 + path.noteOffset; cardTop = path.noteCardY;          break;
+			default:      cardLeft = path.noteCardX - cardW / 2; cardTop = path.noteCardY - cardH / 2;                 break;
 		}
+
 		const left   = corner === 'tl' || corner === 'bl';
 		const top     = corner === 'tl' || corner === 'tr';
 		return {
@@ -2041,7 +2079,7 @@
 	 * Persist a note's placement (anchor parameter t, attached side, slide offset)
 	 * and refresh the loaded data so the values survive a reload.
 	 * @param {string} connectionId
-	 * @param {{ t?: number, side?: 'top'|'right'|'bottom'|'left', offset?: number }} placement
+	 * @param {{ t?: number, side?: 'top'|'right'|'bottom'|'left', offset?: number, lead?: number }} placement
 	 */
 	async function saveNotePlacement(connectionId, placement) {
 		try {
@@ -2050,6 +2088,8 @@
 			if (placement.t !== undefined)      body.noteAnchorT = placement.t;
 			if (placement.side !== undefined)   body.noteAnchorSide = placement.side;
 			if (placement.offset !== undefined) body.noteOffset = placement.offset;
+			if (placement.lead !== undefined)   body.noteLead = placement.lead;
+
 			const response = await fetch(`/api/segments/connections/${connectionId}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
@@ -2094,11 +2134,14 @@
 			startX: event.clientX,
 			startY: event.clientY,
 			startOffset: 0,
+			startLead: path.noteLead,
+			placement: path.notePlacement,
 			side: path.noteAnchorSide
 		};
 		document.body.style.cursor = 'grabbing';
 		document.body.style.userSelect = 'none';
 	}
+
 
 	/**
 	 * Begin sliding a note's CARD along its attached edge (perpendicular to the dot
@@ -2126,11 +2169,14 @@
 			startX: event.clientX,
 			startY: event.clientY,
 			startOffset: path.noteOffset,
+			startLead: path.noteLead,
+			placement: path.notePlacement,
 			side: path.noteAnchorSide
 		};
 		document.body.style.cursor = 'grabbing';
 		document.body.style.userSelect = 'none';
 	}
+
 
 	/** @param {PointerEvent} event */
 	function handleNotePlacementMove(event) {
@@ -2158,18 +2204,35 @@
 				[drag.id]: { ...(notePlacementOverrides[drag.id] ?? { side: null, offset: null }), t }
 			};
 		} else {
-			// Slide the card along its attached edge. For top/bottom sides the card
-			// slides horizontally; for left/right it slides vertically. Delta is in
-			// CSS px ÷ scale so it tracks the cursor 1:1 at any zoom.
+			// Free 2-D card drag, decomposed into two independent axes:
+			//   • ALONG the anchored edge  → `offset` (slides the card sideways; the
+			//     dot stays put). Horizontal for top/bottom sides, vertical for
+			//     left/right.
+			//   • PERPENDICULAR to the edge → `lead` (floats the card OFF the line; a
+			//     leader line bridges the gap). Always an unsigned distance growing in
+			//     the direction the card already extends (its placement).
+			// Both deltas are CSS px ÷ scale so they track the cursor 1:1 at any zoom.
 			const horizontal = drag.side === 'top' || drag.side === 'bottom';
-			const deltaPx = horizontal
-				? (event.clientX - drag.startX)
-				: (event.clientY - drag.startY);
-			let offset = drag.startOffset + deltaPx / (scale || 1);
+			const deltaX = (event.clientX - drag.startX) / (scale || 1);
+			const deltaY = (event.clientY - drag.startY) / (scale || 1);
 
-			// Clamp so the card never slides off its anchor: the dot sits centered on
-			// the attached edge at offset 0, so it can travel at most half the card's
-			// length along the slide axis before reaching a corner. Measured live (in
+			// Along-edge slide.
+			let offset = drag.startOffset + (horizontal ? deltaX : deltaY);
+
+			// Perpendicular lead — signed so dragging TOWARD the line shrinks the gap
+			// (and past 0 the card would cross the line; clamp at 0 so it can't).
+			let lead = drag.startLead;
+			switch (drag.placement) {
+				case 'below': lead += deltaY; break;  // card under line → down grows gap
+				case 'above': lead -= deltaY; break;  // card over line  → up grows gap
+				case 'right': lead += deltaX; break;  // card right      → right grows gap
+				case 'left':  lead -= deltaX; break;  // card left       → left grows gap
+			}
+			lead = Math.max(0, lead);
+
+			// Clamp the along-edge slide so the card never slides off its anchor: the
+			// dot sits centered on the attached edge at offset 0, so it can travel at
+			// most half the card's length along the slide axis. Measured live (in
 			// unscaled layout units, matching `offset`) from the card element.
 			const cardEl = /** @type {HTMLElement|null} */ (
 				document.querySelector(`.connection-note-wrapper[data-note-id="${drag.id}"] .connection-note-display`)
@@ -2181,11 +2244,12 @@
 
 			notePlacementOverrides = {
 				...notePlacementOverrides,
-				[drag.id]: { ...(notePlacementOverrides[drag.id] ?? { t: null, side: null }), offset }
+				[drag.id]: { ...(notePlacementOverrides[drag.id] ?? { t: null, side: null }), offset, lead }
 			};
 		}
 		scheduleCalculate();
 	}
+
 
 	/** @param {PointerEvent} _event */
 	async function handleNotePlacementUp(_event) {
@@ -2203,15 +2267,23 @@
 		if (!override) return;
 
 		// Persist whichever value this drag changed (round t/offset for clean data).
-		/** @type {{ t?: number, side?: 'top'|'right'|'bottom'|'left', offset?: number }} */
+		/** @type {{ t?: number, side?: 'top'|'right'|'bottom'|'left', offset?: number, lead?: number }} */
 		const placement = {};
 		if (drag.mode === 'dot' && override.t != null) {
 			placement.t = Math.round(override.t * 1000) / 1000;
 			// First placement must also pin the side so the stored row is complete.
 			placement.side = drag.side;
-		} else if (drag.mode === 'card' && override.offset != null) {
-			placement.offset = Math.round(override.offset);
+		} else if (drag.mode === 'card') {
+			// A card drag sets both axes at once: along-edge slide (offset) and the
+			// perpendicular gap off the line (lead). Persist whichever moved.
+			if (override.offset != null) placement.offset = Math.round(override.offset);
+			if (override.lead != null) {
+				placement.lead = Math.max(0, Math.round(override.lead));
+				// Pin the side so a card placed before any dot drag stores a complete row.
+				placement.side = drag.side;
+			}
 		}
+
 
 		try {
 			await saveNotePlacement(drag.id, placement);
@@ -2558,7 +2630,8 @@
 					data-note-id={path.id}
 					class:connection-note-wrapper--editing={noteEditingId === path.id}
 					class:connection-note-wrapper--selected={noteSelectedId === path.id || selectedPathIds.has(path.id)}
-					style="left: {path.noteAnchorX}px; top: {path.noteAnchorY}px; transform: {noteTransform(path.notePlacement, path.noteOffset)};"
+					style="left: {path.noteCardX}px; top: {path.noteCardY}px; transform: {noteTransform(path.notePlacement, path.noteOffset)};"
+
 					onclick={(e) => e.stopPropagation()}
 					onkeydown={(e) => e.stopPropagation()}
 					role="none"
@@ -2635,11 +2708,25 @@
 	{#if $toolbarState.connectionNotesVisible}
 		<svg class="connections-dots-overlay" aria-hidden="true" focusable="false">
 			{#each visiblePaths as path (path.id)}
+				{#if path.note && path.noteLead > NOTE_LEADER_MIN}
+					<!-- Leader line bridging the dot (on the line) and the card when the
+					     card has been floated OFF the line by noteLead. Drawn first so the
+					     dot/card paint over its endpoints. -->
+					<line
+						class="connection-note-leader"
+						class:connection-note-leader--active={hoveredPathId === path.id || selectedPathIds.has(path.id)}
+						x1={path.noteAnchorX} y1={path.noteAnchorY}
+						x2={path.noteCardX} y2={path.noteCardY}
+					/>
+				{/if}
+			{/each}
+			{#each visiblePaths as path (path.id)}
 				{#if path.note}
 					<!-- Larger transparent hit-target so the small dot is easy to grab -->
 					<circle
 						class="connection-note-dot-target"
 						cx={path.noteAnchorX} cy={path.noteAnchorY} r="9"
+
 						onpointerdown={(e) => startNoteDotDrag(e, path)}
 						onpointerenter={() => { hoveredPathId = path.id; }}
 						onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
@@ -2821,8 +2908,24 @@
 		z-index: 15;
 	}
 
+	/* Leader line — bridges the anchor dot (on the line) and the card when the
+	   card has been floated off the line via noteLead. Resting gray, matching the
+	   connection line; turns blue on hover/select like the dot + endpoint nodes. */
+	.connection-note-leader {
+		stroke: var(--gray-400);
+		stroke-width: 1.5;
+		stroke-linecap: round;
+		pointer-events: none;
+		transition: stroke 0.15s;
+	}
+
+	.connection-note-leader--active {
+		stroke: var(--blue);
+	}
+
 	/* Note anchor dot — ties the note box to the bezier arc */
 	.connection-note-dot {
+
 		fill: var(--gray-400);
 		pointer-events: none;
 		transition: fill 0.15s;

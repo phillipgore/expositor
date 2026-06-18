@@ -235,5 +235,64 @@
 		handleClick={() => setNoteSide('right')}
 		isDisabled={noteSideDisabled}
 	/>
+
+	<DividerHorizontal />
+
+	<!-- Quick note POSITION: how far the card slides ALONG its anchored edge,
+	     relative to the anchor dot (noteOffset). Set opens a numeric modal; Reset
+	     reverts to the default (centred on the dot). -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-positon"
+		label="Set Quick Note Position"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('set-connection-note-position'));
+		}}
+		isDisabled={noteSideDisabled}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-positon-reset"
+		label="Reset Quick Note Position"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('reset-connection-note-position'));
+		}}
+		isDisabled={noteSideDisabled}
+	/>
+
+	<DividerHorizontal />
+
+	<!-- Quick note OFFSET: the gap the card floats OFF the connection line,
+	     perpendicular to it (noteLead). Set opens a numeric modal; Reset reverts
+	     to the default (flush against the line). -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-offset"
+		label="Set Quick Note Offset"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('set-connection-note-offset'));
+		}}
+		isDisabled={noteSideDisabled}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="note-offset-reset"
+		label="Reset Quick Note Offset"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('reset-connection-note-offset'));
+		}}
+		isDisabled={noteSideDisabled}
+	/>
 </Menu>
+
 

@@ -15,7 +15,10 @@
 	import SetSectionSpacingModal from '$lib/componentWidgets/modals/SetSectionSpacingModal.svelte';
 	import SetColumnSpacingModal from '$lib/componentWidgets/modals/SetColumnSpacingModal.svelte';
 	import SetColumnWidthModal from '$lib/componentWidgets/modals/SetColumnWidthModal.svelte';
+	import SetQuickNotePositionModal from '$lib/componentWidgets/modals/SetQuickNotePositionModal.svelte';
+	import SetQuickNoteOffsetModal from '$lib/componentWidgets/modals/SetQuickNoteOffsetModal.svelte';
 	import JoinConfirmationModal from '$lib/componentWidgets/modals/JoinConfirmationModal.svelte';
+
 
 
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
@@ -536,6 +539,138 @@
 		if (ids.length === 0) return;
 		await columnResize.resetWidth(ids);
 	}
+
+	// ─── Connection quick-note Position / Offset modals ───────────────────────
+	// Opened from Layout → Set Quick Note Position / Set Quick Note Offset. Both act on
+	// the single selected connection that has a note (the Layout buttons are disabled
+	// otherwise). "Position" sets the card's slide ALONG its anchored edge relative to
+	// the dot (the connection's noteOffset, signed); "Offset" sets the gap the card
+	// floats OFF the line (noteLead, unsigned). Both persist via the connection PATCH
+	// route, which ConnectionsOverlay re-reads after invalidate('app:studies').
+	let setQuickNotePositionModalOpen = $state(false);
+	let setQuickNotePositionId = $state(/** @type {string|null} */ (null));
+	let setQuickNotePositionCurrent = $state(0);
+	let setQuickNotePositionMax = $state(0);
+
+	let setQuickNoteOffsetModalOpen = $state(false);
+	let setQuickNoteOffsetId = $state(/** @type {string|null} */ (null));
+	let setQuickNoteOffsetCurrent = $state(0);
+
+	/**
+	 * Resolve the single selected connection record (or null) for the quick-note
+	 * Position/Offset actions. Mirrors the Layout menu's noteSideDisabled gate: requires
+	 * exactly one selected connection that actually has a note.
+	 * @returns {any|null}
+	 */
+	function getSelectedNoteConnection() {
+		if (!$toolbarState.hasActiveConnection) return null;
+		const ids = $toolbarState.activeConnectionIds || [];
+		if (ids.length !== 1) return null;
+		const conn = (data.connections || []).find((c) => c.id === ids[0]);
+		return conn?.note ? conn : null;
+	}
+
+	/**
+	 * Persist a single quick-note placement field on the selected connection, then
+	 * refresh so the overlay re-reads it.
+	 * @param {string} id
+	 * @param {{ noteOffset?: number|null, noteLead?: number|null }} body
+	 */
+	async function saveQuickNotePlacement(id, body) {
+		try {
+			const response = await fetch(`/api/segments/connections/${id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			if (response.ok) {
+				await invalidate('app:studies');
+			} else {
+				console.error('Quick note placement save error:', await response.json());
+			}
+		} catch (error) {
+			console.error('Quick note placement network error:', error);
+		}
+	}
+
+	/**
+	 * Measure how far the selected connection's note card may slide ALONG its anchored
+	 * edge before the anchor dot would fall off the card's end — the SAME clamp the
+	 * drag-resize enforces (ConnectionsOverlay): the dot sits centered on the attached
+	 * edge at offset 0, so it can travel at most half the card's length along the slide
+	 * axis. The slide axis is HORIZONTAL when the card is anchored to the top/bottom edge
+	 * (measure card width), VERTICAL when anchored to the left/right edge (card height).
+	 * Measured live from the rendered card in unscaled layout units (offsetWidth/Height
+	 * are layout px, unaffected by the zoom transform), matching the stored offset.
+	 * Returns 0 when the card isn't rendered yet (the modal then disables the input).
+	 * @param {any} conn
+	 * @returns {number}
+	 */
+	function measureNoteSlideLimit(conn) {
+		const cardEl = /** @type {HTMLElement|null} */ (
+			document.querySelector(
+				`.connection-note-wrapper[data-note-id="${conn.id}"] .connection-note-display`
+			)
+		);
+		if (!cardEl) return 0;
+		// noteAnchorSide is the edge the card hangs from. top/bottom → slide horizontally;
+		// left/right → slide vertically. Default to horizontal (the common 'top' default).
+		const side = conn.noteAnchorSide ?? 'top';
+		const horizontal = side === 'top' || side === 'bottom';
+		const length = horizontal ? cardEl.offsetWidth : cardEl.offsetHeight;
+		return Math.floor(length / 2);
+	}
+
+	/** Open the Set Quick Note Position modal, seeded with the note's current offset. */
+	function openSetQuickNotePositionModal() {
+		const conn = getSelectedNoteConnection();
+		if (!conn) return;
+		setQuickNotePositionId = conn.id;
+		setQuickNotePositionCurrent = Math.round(conn.noteOffset ?? 0);
+		setQuickNotePositionMax = measureNoteSlideLimit(conn);
+		setQuickNotePositionModalOpen = true;
+	}
+
+
+	/** Persist the chosen position (noteOffset) for the selected connection's note. */
+	async function applySetQuickNotePosition(offset) {
+		const id = setQuickNotePositionId;
+		setQuickNotePositionModalOpen = false;
+		if (!id) return;
+		await saveQuickNotePlacement(id, { noteOffset: Math.round(offset) });
+	}
+
+	/** Reset the selected connection note's position (noteOffset → default/flush). */
+	async function resetQuickNotePosition() {
+		const conn = getSelectedNoteConnection();
+		if (!conn) return;
+		await saveQuickNotePlacement(conn.id, { noteOffset: null });
+	}
+
+	/** Open the Set Quick Note Offset modal, seeded with the note's current lead/gap. */
+	function openSetQuickNoteOffsetModal() {
+		const conn = getSelectedNoteConnection();
+		if (!conn) return;
+		setQuickNoteOffsetId = conn.id;
+		setQuickNoteOffsetCurrent = Math.max(0, Math.round(conn.noteLead ?? 0));
+		setQuickNoteOffsetModalOpen = true;
+	}
+
+	/** Persist the chosen offset/gap (noteLead) for the selected connection's note. */
+	async function applySetQuickNoteOffset(lead) {
+		const id = setQuickNoteOffsetId;
+		setQuickNoteOffsetModalOpen = false;
+		if (!id) return;
+		await saveQuickNotePlacement(id, { noteLead: Math.max(0, Math.round(lead)) });
+	}
+
+	/** Reset the selected connection note's offset (noteLead → default/flush). */
+	async function resetQuickNoteOffset() {
+		const conn = getSelectedNoteConnection();
+		if (!conn) return;
+		await saveQuickNotePlacement(conn.id, { noteLead: null });
+	}
+
 
 
 
@@ -1688,6 +1823,12 @@
 		// Column width (Layout menu): open the modal / reset the selection.
 		const handleSetColumnWidthEvent = () => openSetColumnWidthModal();
 		const handleResetColumnWidthEvent = () => resetColumnWidth();
+		// Connection quick-note position/offset (Layout menu): open modal / reset.
+		const handleSetQuickNotePositionEvent = () => openSetQuickNotePositionModal();
+		const handleResetQuickNotePositionEvent = () => resetQuickNotePosition();
+		const handleSetQuickNoteOffsetEvent = () => openSetQuickNoteOffsetModal();
+		const handleResetQuickNoteOffsetEvent = () => resetQuickNoteOffset();
+
 
 		// Export (Export menu): capture the visual analyze content (the zoom-transformed
 		// .analyze-content-inner) to the requested format and download it. The util
@@ -1723,8 +1864,13 @@
 		window.addEventListener('reset-column-spacing', handleResetColumnSpacingEvent);
 		window.addEventListener('set-column-width', handleSetColumnWidthEvent);
 		window.addEventListener('reset-column-width', handleResetColumnWidthEvent);
+		window.addEventListener('set-connection-note-position', handleSetQuickNotePositionEvent);
+		window.addEventListener('reset-connection-note-position', handleResetQuickNotePositionEvent);
+		window.addEventListener('set-connection-note-offset', handleSetQuickNoteOffsetEvent);
+		window.addEventListener('reset-connection-note-offset', handleResetQuickNoteOffsetEvent);
 
 		window.addEventListener('insert-connection', handleInsertConnectionEvent);
+
 
 		window.addEventListener('remove-connection', handleRemoveConnectionEvent);
 		window.addEventListener('insert-column', handleInsertColumnEvent);
@@ -1773,7 +1919,12 @@
 			window.removeEventListener('reset-column-spacing', handleResetColumnSpacingEvent);
 			window.removeEventListener('set-column-width', handleSetColumnWidthEvent);
 			window.removeEventListener('reset-column-width', handleResetColumnWidthEvent);
+			window.removeEventListener('set-connection-note-position', handleSetQuickNotePositionEvent);
+			window.removeEventListener('reset-connection-note-position', handleResetQuickNotePositionEvent);
+			window.removeEventListener('set-connection-note-offset', handleSetQuickNoteOffsetEvent);
+			window.removeEventListener('reset-connection-note-offset', handleResetQuickNoteOffsetEvent);
 			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
+
 
 
 
@@ -4345,10 +4496,31 @@
 		onClose={() => (setColumnWidthModalOpen = false)}
 	/>
 
+	<!-- "Set Quick Note Position" modal (Layout → Set Quick Note Position). Slides the
+	     selected connection note's card ALONG its anchored edge relative to the dot
+	     (signed px → the connection's noteOffset). -->
+	<SetQuickNotePositionModal
+		isOpen={setQuickNotePositionModalOpen}
+		currentValue={setQuickNotePositionCurrent}
+		maxOffset={setQuickNotePositionMax}
+		onApply={applySetQuickNotePosition}
+		onClose={() => (setQuickNotePositionModalOpen = false)}
+	/>
 
+
+	<!-- "Set Quick Note Offset" modal (Layout → Set Quick Note Offset). Floats the
+	     selected connection note's card OFF the connection line (unsigned px → the
+	     connection's noteLead); a leader line bridges the gap. -->
+	<SetQuickNoteOffsetModal
+		isOpen={setQuickNoteOffsetModalOpen}
+		currentValue={setQuickNoteOffsetCurrent}
+		onApply={applySetQuickNoteOffset}
+		onClose={() => (setQuickNoteOffsetModalOpen = false)}
+	/>
 
 
 	<!-- Join confirmation modal (Structure → Join Column/Section/Segment). Only shown
+
 	     when the joined item carries authored content or affected connections; offers
 	     Merge (fold content onto the previous item) or Delete (discard the joined item's
 	     own content). Empty items are joined silently without this modal. -->

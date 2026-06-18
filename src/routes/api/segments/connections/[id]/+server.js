@@ -90,11 +90,12 @@ export const PATCH = async ({ params, request }) => {
 		const updatingCommentary = 'commentary' in body;
 		const updatingNote       = 'note' in body;
 		const updatingNotePlacement =
-			'noteAnchorSide' in body || 'noteAnchorT' in body || 'noteOffset' in body;
+			'noteAnchorSide' in body || 'noteAnchorT' in body || 'noteOffset' in body || 'noteLead' in body;
 
 		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote && !updatingNotePlacement) {
-			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, or commentary)' }, { status: 400 });
+			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, noteLead, or commentary)' }, { status: 400 });
 		}
+
 
 		// Validate types if provided
 		if (body.fromType && !VALID_TYPES.includes(body.fromType)) {
@@ -165,7 +166,16 @@ export const PATCH = async ({ params, request }) => {
 				}
 				updates.noteOffset = off === null ? null : Math.round(off);
 			}
+			if ('noteLead' in body) {
+				const lead = body.noteLead;
+				if (lead !== null && (typeof lead !== 'number' || Number.isNaN(lead))) {
+					return json({ error: 'Invalid noteLead: must be a number or null' }, { status: 400 });
+				}
+				// Lead is an unsigned distance OFF the line; clamp negatives to 0.
+				updates.noteLead = lead === null ? null : Math.max(0, Math.round(lead));
+			}
 		}
+
 
 		// Commentary update (independent of rerouting)
 		if (updatingCommentary) {
