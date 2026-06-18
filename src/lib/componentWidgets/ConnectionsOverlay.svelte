@@ -1786,7 +1786,38 @@
 	}
 
 	/**
+	 * Select every CURRENTLY VISIBLE connection (Structure → "Select All
+	 * Connections"). Only visiblePaths are selected, so connections hidden by a
+	 * per-type visibility toggle are intentionally left out — selecting lines the
+	 * user can't see would be confusing. Mirrors handlePathClick's note bookkeeping.
+	 */
+	function handleSelectAllConnections() {
+		// Commit/clear any open or selected note first, matching handlePathClick.
+		if (noteEditingId) {
+			commitNoteEdit();
+		} else if (noteSelectedId) {
+			noteSelectedId = null;
+			noteEditorActive = false;
+		}
+
+		const ids = visiblePaths.map(p => p.id);
+		selectedPathIds = new Set(ids);
+
+		// hasNote only applies to a single selection; noteCount enables the
+		// multi-select note-placement actions when ANY selected connection has a note.
+		const hasNote = ids.length === 1
+			? !!(connections.find(c => c.id === ids[0])?.note)
+			: false;
+		const noteCount = ids.reduce(
+			(n, id) => n + (connections.find(c => c.id === id)?.note ? 1 : 0),
+			0
+		);
+		setActiveConnection(ids.length > 0, ids, hasNote, noteCount);
+	}
+
+	/**
 	 * Deselect all connections when clicking within the passage content area
+
 	 * but not on a connection path.  Clicks on the toolbar, commentary panel, or
 	 * other UI chrome are ignored so the selection is preserved.
 	 * @param {MouseEvent} event
@@ -2402,6 +2433,9 @@
 		window.addEventListener('connection-insert-note', handleInsertConnectionNote);
 		window.addEventListener('connection-remove-note', handleRemoveConnectionNote);
 		window.addEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
+		// Structure → "Select All Connections": select every currently visible line.
+		window.addEventListener('select-all-connections', handleSelectAllConnections);
+
 
 		// Column/section spacing changes (live drag + modal apply/reset) reflow the
 		// passage text, so the note layout must re-evaluate to keep notes over

@@ -76,8 +76,22 @@
 		}}
 		isDisabled={!$toolbarState.canUseStructureItems}
 	/>
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect"
+		label="Select All Connections"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			// Select every currently VISIBLE connection across the study (respects the
+			// per-type visibility toggles). ConnectionsOverlay handles the selection.
+			window.dispatchEvent(new CustomEvent('select-all-connections'));
+		}}
+		isDisabled={!$toolbarState.canUseStructureItems}
+	/>
 
 	<DividerHorizontal />
+
 
 	<IconButton
 		classes="menu-light justify-content-left"
