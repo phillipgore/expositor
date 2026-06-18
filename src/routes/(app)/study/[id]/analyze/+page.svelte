@@ -4108,7 +4108,15 @@
 						{#each data.passagesWithText as passageText, passageIndex}
 							{@const firstColumn = ('structure' in passageText) ? passageText.structure?.columns?.[0] : null}
 							{@const referenceOffset = firstColumn ? (columnReposition.getLiveOffset(firstColumn.id) ?? firstColumn.leftOffset ?? 0) : 0}
-							<div class="passage" style:--reference-offset="{referenceOffset}px" class:compare-hidden={isHideMode && !passageHasVisibleItems(passageText)}>
+							<!-- Vertical companion to --reference-offset: when the first column's TOP
+							     segment is pushed down (the first section's reposition offset, live or
+							     persisted), the whole first column slides down by that amount, so the
+							     passage Reference heading must follow it down to stay glued above the
+							     column. Uses the live drag value so it tracks 1:1 during a drag. -->
+							{@const firstSectionId = firstColumn?.sections?.[0]?.id}
+							{@const referenceTopOffset = firstSectionId ? (sectionReposition.getLiveOffset(firstSectionId) ?? firstColumn.sections[0].topOffset ?? 0) : 0}
+							<div class="passage" style:--reference-offset="{referenceOffset}px" style:--reference-top-offset="{referenceTopOffset}px" class:compare-hidden={isHideMode && !passageHasVisibleItems(passageText)}>
+
 
 								{#if passageText.error}
 									<div class="error-message">
@@ -4779,7 +4787,14 @@
 		margin-left: calc(0.2rem + var(--reference-offset, 0px));
 		margin-top: 0.0rem;
 		margin-bottom: 1.1rem;
+		/* Vertical companion to --reference-offset: when the first column's top segment
+		   is pushed down, the whole first column slides down by --reference-top-offset
+		   (see .column margin-top), so translate the reference down by the same amount to
+		   keep it glued above the column. Using transform (not margin) avoids pushing the
+		   passage-container/columns down a second time. Defaults to 0. */
+		transform: translateY(var(--reference-top-offset, 0px));
 	}
+
 
 
 	.passage-container {
@@ -4797,7 +4812,15 @@
 		margin-bottom: 4.4rem;
 		border-radius: 0.3rem;
 		padding: 0.2rem;
+		/* When the column's TOP segment is pushed down (the first section's reposition
+		   offset, live or persisted), slide the WHOLE column box down by that amount
+		   rather than opening empty space inside the column. The first section's own
+		   margin-top is zeroed (see .section:first-of-type) so the offset is applied
+		   here exactly once. Columns are independent flex items (align-items:flex-start),
+		   so moving one column down never shifts its siblings. Defaults to 0. */
+		margin-top: var(--first-section-offset, 0px);
 	}
+
 
 	.column.active {
 		background-color: var(--gray-lighter);
@@ -4840,10 +4863,12 @@
 	   without scrolling through long columns. */
 	.column-reposition-handle {
 		position: absolute;
-		/* Track the first section's reposition offset so the handle moves DOWN with the
-		   top of the column's content when the top segment is pushed down. 0 by default. */
-		top: calc(2.3rem + var(--first-section-offset, 0px));
+		/* The whole column box already slides down by the first-section offset (see the
+		   .column margin-top rule), and this handle is absolutely positioned WITHIN the
+		   column, so it moves down with it automatically — no extra offset needed here. */
+		top: 2.3rem;
 		left: -1.2rem;
+
 		width: 1.4rem;
 		height: 2.0rem;
 		display: flex;
@@ -4901,10 +4926,12 @@
 	   to grab anywhere along the right edge. */
 	.column-resize-handle {
 		position: absolute;
-		/* Track the first section's reposition offset so the handle moves DOWN with the
-		   top of the column's content when the top segment is pushed down. 0 by default. */
-		top: calc(2.3rem + var(--first-section-offset, 0px));
+		/* The whole column box already slides down by the first-section offset (see the
+		   .column margin-top rule), and this handle is absolutely positioned WITHIN the
+		   column, so it moves down with it automatically — no extra offset needed here. */
+		top: 2.3rem;
 		right: -1.2rem;
+
 		width: 1.4rem;
 		height: 2.0rem;
 
@@ -4976,11 +5003,15 @@
 		--reposition-offset: 0px;
 	}
 
-	/* First section: default gap is 0 (sits at column top). The reposition offset is
-	   the distance from the top of the column. */
+	/* First section: default gap is 0 (sits at column top). Its reposition offset is NOT
+	   applied here — instead the WHOLE column box slides down by that offset (see the
+	   .column margin-top rule, fed by the same value via --first-section-offset). Applying
+	   it here too would double the shift, so the first section stays flush with the column
+	   top. */
 	.section:first-of-type {
-		margin-top: var(--reposition-offset, 0px);
+		margin-top: 0px;
 	}
+
 
 	/* Other sections: default gap is 4.3rem (distance from the previous section). The
 	   reposition offset is added on top of that default. */

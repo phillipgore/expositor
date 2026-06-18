@@ -88,25 +88,41 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		startTopY = rect.top;
 		draggedCenterX = rect.left + rect.width / 2;
 
+		const ownColumn = sectionEl.closest('.column');
+
+		// Where does THIS section's reposition offset physically live?
+		//  - A NON-first section pushes itself down via its own margin-top
+		//    (margin-top: calc(default + var(--reposition-offset))).
+		//  - The FIRST section instead slides the WHOLE column box down via the column's
+		//    margin-top: var(--first-section-offset) (its own margin-top is forced to 0),
+		//    so the column top — Reference heading, selection handles — moves with it.
+		// We must therefore measure/seed the drag from the element that actually carries
+		// the offset; measuring the first section's (always-0) margin made any upward drag
+		// clamp straight to the floor and snap to the top.
+		const isFirstSection = !!ownColumn && ownColumn.querySelector('.section') === sectionEl;
+		/** @type {HTMLElement} */
+		const offsetEl = isFirstSection && ownColumn ? /** @type {HTMLElement} */ (ownColumn) : sectionEl;
+		const offsetVar = isFirstSection ? '--first-section-offset' : '--reposition-offset';
+
 
 		// Current applied margin-top (CSS px). getComputedStyle reports the LAYOUT
 		// value, which already ignores the page's zoom transform — so it is the true
 		// pre-zoom CSS px and must NOT be divided by scale. (Dividing here is what made
 		// the section/grab-handle jump the instant you grabbed it while zoomed.)
-		const computedMargin = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
+		const computedMargin = parseFloat(getComputedStyle(offsetEl).marginTop) || 0;
 		startMargin = computedMargin;
 
 
-		// Measure the DEFAULT (floor) margin. The reposition offset is applied through the
-		// `--reposition-offset` CSS variable (margin-top: calc(default + var(...))), NOT via
-		// an inline margin-top, so we must momentarily zero that variable to collapse the
-		// margin to its default. (Clearing style.marginTop would be a no-op and leave the
-		// offset baked in, making defaultMargin == startMargin — which breaks dragging up.)
-		const prevVar = sectionEl.style.getPropertyValue('--reposition-offset');
-		sectionEl.style.setProperty('--reposition-offset', '0px');
-		const measuredDefault = parseFloat(getComputedStyle(sectionEl).marginTop) || 0;
-		if (prevVar) sectionEl.style.setProperty('--reposition-offset', prevVar);
-		else sectionEl.style.removeProperty('--reposition-offset');
+		// Measure the DEFAULT (floor) margin. The reposition offset is applied through a
+		// CSS variable (margin-top: calc(default + var(...))), NOT via an inline margin-top,
+		// so we must momentarily zero that variable to collapse the margin to its default.
+		// (Clearing style.marginTop would be a no-op and leave the offset baked in, making
+		// defaultMargin == startMargin — which breaks dragging up.)
+		const prevVar = offsetEl.style.getPropertyValue(offsetVar);
+		offsetEl.style.setProperty(offsetVar, '0px');
+		const measuredDefault = parseFloat(getComputedStyle(offsetEl).marginTop) || 0;
+		if (prevVar) offsetEl.style.setProperty(offsetVar, prevVar);
+		else offsetEl.style.removeProperty(offsetVar);
 		// Layout value from getComputedStyle is already pre-zoom CSS px — do NOT ÷ scale.
 		defaultMargin = measuredDefault;
 
@@ -114,7 +130,7 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		// Collect snap candidates: top & bottom edges (viewport Y) of every section and
 		// segment NOT in the same column as the dragged section. Same-column elements
 		// shift together as this section moves and never align meaningfully.
-		const ownColumn = sectionEl.closest('.column');
+
 		snapCandidates = [];
 		document.querySelectorAll('.section, .segment').forEach((el) => {
 			if (el === sectionEl) return;

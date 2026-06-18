@@ -26,6 +26,11 @@
 	// edge with the section control (9px left of the section content).
 	// Vertical: -2.5rem (25px) puts the 20px button's bottom edge at -5px; the section radio's
 	// top sits ~2px below the column's padding-box top, leaving a 7px gap above the section button.
+	// NOTE: when the column's top segment is pushed down, the whole .column box slides down by
+	// margin-top: var(--first-section-offset) (see the analyze page's .column rule). This
+	// .controls div is position:absolute INSIDE that .column, so it rides down with it
+	// automatically — no extra --first-section-offset compensation is needed on `top` here.
+
 	let scaledLeft = $derived.by(() => {
 		return -2.7 * inverseScale;
 	});
@@ -61,7 +66,8 @@
 	}
 </script>
 
-<div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: calc({scaledTop}rem + var(--first-section-offset, 0px));" transition:fade={{ duration: 150, easing: quintOut }}>
+<div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
+
 	<button
 		type="button"
 		class="column-checkbox"
