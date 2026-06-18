@@ -1,7 +1,6 @@
 <script>
 	import { fade } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
-	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { 
 		columnId = '',
@@ -9,37 +8,33 @@
 		sectionColor = 'green'
 	} = $props();
 
+
 	// Resolve the control color from the (first) section's color name. The column
 	// control sits outside any .section element, so the --section-* variables don't
 	// cascade here — we map the color name to the global --{color}-dark variable.
 	let controlColor = $derived(`var(--${sectionColor || 'green'}-dark)`);
 	let controlLight = $derived(`var(--${sectionColor || 'green'}-light)`);
 
-	// Calculate inverse scale to keep toolbar at fixed size when page zooms
-	let inverseScale = $derived.by(() => {
-		const zoomLevel = $toolbarState.zoomLevel || 100;
-		return 100 / zoomLevel;
-	});
-
-	// Calculate scaled position offsets to maintain correct positioning at different zoom levels.
-	// Horizontal: the .column has 0.2rem (2px) padding, so -2.7rem aligns this control's right
-	// edge with the section control (9px left of the section content).
-	// Vertical: -2.5rem (25px) puts the 20px button's bottom edge at -5px; the section radio's
-	// top sits ~2px below the column's padding-box top, leaving a 7px gap above the section button.
-	// NOTE: when the column's top segment is pushed down, the whole .column box slides down by
-	// margin-top: var(--first-section-offset) (see the analyze page's .column rule). This
-	// .controls div is position:absolute INSIDE that .column, so it rides down with it
-	// automatically — no extra --first-section-offset compensation is needed on `top` here.
-
-	let scaledLeft = $derived.by(() => {
-		return -2.7 * inverseScale;
-	});
-
-	let scaledTop = $derived.by(() => {
-		return -2.5 * inverseScale;
-	});
+	// NOTE: This control renders INSIDE the zoom-transformed content
+	// (.analyze-content-inner has transform: scale(currentScale)), so it scales WITH
+	// the study at every zoom level/mode automatically. We intentionally do NOT apply
+	// an inverse-scale counter-transform here — the button is meant to grow when zooming
+	// in and shrink when zooming out, staying proportional to its column. Position is
+	// handled purely by the static CSS .controls offsets below.
+	//
+	// Position offsets (static, in .controls below):
+	// Horizontal: the .column has 0.2rem (2px) padding, so -2.7rem aligns this control's
+	// right edge with the section control (9px left of the section content).
+	// Vertical: -2.5rem (25px) puts the 20px button's bottom edge at -5px; the section
+	// radio's top sits ~2px below the column's padding-box top, leaving a 7px gap above
+	// the section button.
+	// NOTE: when the column's top segment is pushed down, the whole .column box slides
+	// down by margin-top: var(--first-section-offset) (see the analyze page's .column
+	// rule). This .controls div is position:absolute INSIDE that .column, so it rides
+	// down with it automatically — no extra --first-section-offset compensation needed.
 
 	// Button click handler
+
 	function handleColumnSelect(event) {
 		// CRITICAL: Stop event propagation to prevent segment click handler from firing
 		event?.stopPropagation();
@@ -66,7 +61,7 @@
 	}
 </script>
 
-<div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
+<div class="controls" transition:fade={{ duration: 150, easing: quintOut }}>
 
 	<button
 		type="button"

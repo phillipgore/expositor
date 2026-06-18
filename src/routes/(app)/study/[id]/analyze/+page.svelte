@@ -541,39 +541,47 @@
 		await columnResize.resetWidth(ids);
 	}
 
-	// ─── Connection quick-note Position / Offset modals ───────────────────────
-	// Opened from Layout → Set Quick Note Position / Set Quick Note Offset. Both act on
-	// the single selected connection that has a note (the Layout buttons are disabled
-	// otherwise). "Position" sets the card's slide ALONG its anchored edge relative to
-	// the dot (the connection's noteOffset, signed); "Offset" sets the gap the card
-	// floats OFF the line (noteLead, unsigned). Both persist via the connection PATCH
-	// route, which ConnectionsOverlay re-reads after invalidate('app:studies').
+	// ─── Connection quick-note Slide / Position / Offset modals ───────────────
+	// Opened from the Connect menu. Each acts on EVERY selected connection that has a
+	// note (the menu items are disabled when none do). "Slide" sets how far the dot
+	// rides ALONG the line (noteAnchorT); "Position" sets the card's slide ALONG its
+	// anchored edge relative to the dot (noteOffset, signed); "Offset" sets the gap the
+	// card floats OFF the line (noteLead, unsigned). All persist via the connection
+	// PATCH route, which ConnectionsOverlay re-reads after invalidate('app:studies').
+	// Each modal applies its single chosen value to EVERY selected connection that
+
+	// has a note (multi-select). The `*Ids` arrays hold those targets; the modal is
+	// seeded from the first target's current value as a representative starting point.
 	let setQuickNotePositionModalOpen = $state(false);
-	let setQuickNotePositionId = $state(/** @type {string|null} */ (null));
+	let setQuickNotePositionIds = $state(/** @type {string[]} */ ([]));
 	let setQuickNotePositionCurrent = $state(0);
 	let setQuickNotePositionMax = $state(0);
 
 	let setQuickNoteOffsetModalOpen = $state(false);
-	let setQuickNoteOffsetId = $state(/** @type {string|null} */ (null));
+	let setQuickNoteOffsetIds = $state(/** @type {string[]} */ ([]));
 	let setQuickNoteOffsetCurrent = $state(0);
 
 	let setQuickNoteSlideModalOpen = $state(false);
-	let setQuickNoteSlideId = $state(/** @type {string|null} */ (null));
+	let setQuickNoteSlideIds = $state(/** @type {string[]} */ ([]));
 	let setQuickNoteSlideCurrent = $state(50);
 
+
 	/**
-	 * Resolve the single selected connection record (or null) for the quick-note
-	 * Position/Offset actions. Mirrors the Layout menu's noteSideDisabled gate: requires
-	 * exactly one selected connection that actually has a note.
-	 * @returns {any|null}
+	 * Resolve EVERY selected connection record that actually has a note — the targets
+	 * for the multi-select quick-note placement actions (Slide / Position / Offset).
+	 * Mirrors the Connect menu's noteSideDisabled gate (enabled when one or more
+	 * selected connections carry a note); connections without a note are skipped.
+	 * @returns {any[]}
 	 */
-	function getSelectedNoteConnection() {
-		if (!$toolbarState.hasActiveConnection) return null;
+	function getSelectedNoteConnections() {
+		if (!$toolbarState.hasActiveConnection) return [];
 		const ids = $toolbarState.activeConnectionIds || [];
-		if (ids.length !== 1) return null;
-		const conn = (data.connections || []).find((c) => c.id === ids[0]);
-		return conn?.note ? conn : null;
+		const conns = data.connections || [];
+		return ids
+			.map((id) => conns.find((c) => c.id === id))
+			.filter((c) => c?.note);
 	}
+
 
 	/**
 	 * Persist a single quick-note placement field on the selected connection, then
@@ -626,85 +634,132 @@
 		return Math.floor(length / 2);
 	}
 
-	/** Open the Set Quick Note Position modal, seeded with the note's current offset. */
+	/**
+	 * Open the Set Quick Note Position modal for ALL selected noted connections. The
+	 * modal's max is seeded from the LARGEST per-note slide limit across the selection
+	 * so the user can dial in any value valid for the most generous card; on apply each
+	 * note is independently clamped to its OWN limit (see applySetQuickNotePosition).
+	 * The current value is seeded from the first target as a representative.
+	 */
 	function openSetQuickNotePositionModal() {
-		const conn = getSelectedNoteConnection();
-		if (!conn) return;
-		setQuickNotePositionId = conn.id;
-		setQuickNotePositionCurrent = Math.round(conn.noteOffset ?? 0);
-		setQuickNotePositionMax = measureNoteSlideLimit(conn);
+		const conns = getSelectedNoteConnections();
+		if (conns.length === 0) return;
+		setQuickNotePositionIds = conns.map((c) => c.id);
+		setQuickNotePositionCurrent = Math.round(conns[0].noteOffset ?? 0);
+		// Largest limit across the selection → the modal allows up to the most generous
+		// card's range; smaller cards are clamped per-note on apply.
+		setQuickNotePositionMax = conns.reduce(
+			(max, c) => Math.max(max, measureNoteSlideLimit(c)),
+			0
+		);
 		setQuickNotePositionModalOpen = true;
 	}
 
 
-	/** Persist the chosen position (noteOffset) for the selected connection's note. */
+	/**
+	 * Persist the chosen position (noteOffset) to EVERY selected noted connection. Each
+	 * note's offset is independently clamped to its OWN ±(card length / 2) limit, so a
+	 * single chosen value slides every card as far as it asked without pushing any card
+	 * past its own range (orientation/size differences are respected per-note).
+	 */
 	async function applySetQuickNotePosition(offset) {
-		const id = setQuickNotePositionId;
+		const ids = setQuickNotePositionIds;
 		setQuickNotePositionModalOpen = false;
-		if (!id) return;
-		await saveQuickNotePlacement(id, { noteOffset: Math.round(offset) });
+		if (ids.length === 0) return;
+		const conns = data.connections || [];
+		const requested = Math.round(offset);
+		await Promise.all(
+			ids.map((id) => {
+				const conn = conns.find((c) => c.id === id);
+				const limit = conn ? measureNoteSlideLimit(conn) : 0;
+				const clamped = Math.max(-limit, Math.min(limit, requested));
+				return saveQuickNotePlacement(id, { noteOffset: clamped });
+			})
+		);
 	}
 
-	/** Reset the selected connection note's position (noteOffset → default/flush). */
+	/** Reset position (noteOffset → default/flush) on all selected noted connections. */
 	async function resetQuickNotePosition() {
-		const conn = getSelectedNoteConnection();
-		if (!conn) return;
-		await saveQuickNotePlacement(conn.id, { noteOffset: null });
-	}
-
-	/** Open the Set Quick Note Offset modal, seeded with the note's current lead/gap. */
-	function openSetQuickNoteOffsetModal() {
-		const conn = getSelectedNoteConnection();
-		if (!conn) return;
-		setQuickNoteOffsetId = conn.id;
-		setQuickNoteOffsetCurrent = Math.max(0, Math.round(conn.noteLead ?? 0));
-		setQuickNoteOffsetModalOpen = true;
-	}
-
-	/** Persist the chosen offset/gap (noteLead) for the selected connection's note. */
-	async function applySetQuickNoteOffset(lead) {
-		const id = setQuickNoteOffsetId;
-		setQuickNoteOffsetModalOpen = false;
-		if (!id) return;
-		await saveQuickNotePlacement(id, { noteLead: Math.max(0, Math.round(lead)) });
-	}
-
-	/** Reset the selected connection note's offset (noteLead → default/flush). */
-	async function resetQuickNoteOffset() {
-		const conn = getSelectedNoteConnection();
-		if (!conn) return;
-		await saveQuickNotePlacement(conn.id, { noteLead: null });
+		const conns = getSelectedNoteConnections();
+		if (conns.length === 0) return;
+		await Promise.all(
+			conns.map((c) => saveQuickNotePlacement(c.id, { noteOffset: null }))
+		);
 	}
 
 	/**
-	 * Open the Set Quick Note Slide modal, seeded with the note's current anchor
-	 * position along the connection line. noteAnchorT is stored as a 0–1 fraction (the
-	 * dot's position along the line, 0.5 = centred); the modal surfaces it as a 0–100%
-	 * integer.
+	 * Open the Set Quick Note Offset modal for all selected noted connections, seeded
+	 * with the first target's current lead/gap as a representative.
+	 */
+	function openSetQuickNoteOffsetModal() {
+		const conns = getSelectedNoteConnections();
+		if (conns.length === 0) return;
+		setQuickNoteOffsetIds = conns.map((c) => c.id);
+		setQuickNoteOffsetCurrent = Math.max(0, Math.round(conns[0].noteLead ?? 0));
+		setQuickNoteOffsetModalOpen = true;
+	}
+
+	/**
+	 * Persist the chosen offset/gap (noteLead) to EVERY selected noted connection.
+	 * noteLead has no per-connection upper bound (only a floor of 0), so the same value
+	 * applies uniformly.
+	 */
+	async function applySetQuickNoteOffset(lead) {
+		const ids = setQuickNoteOffsetIds;
+		setQuickNoteOffsetModalOpen = false;
+		if (ids.length === 0) return;
+		const value = Math.max(0, Math.round(lead));
+		await Promise.all(
+			ids.map((id) => saveQuickNotePlacement(id, { noteLead: value }))
+		);
+	}
+
+	/** Reset offset (noteLead → default/flush) on all selected noted connections. */
+	async function resetQuickNoteOffset() {
+		const conns = getSelectedNoteConnections();
+		if (conns.length === 0) return;
+		await Promise.all(
+			conns.map((c) => saveQuickNotePlacement(c.id, { noteLead: null }))
+		);
+	}
+
+	/**
+	 * Open the Set Quick Note Slide modal for all selected noted connections, seeded
+	 * with the first target's current anchor position along its line. noteAnchorT is
+	 * stored as a 0–1 fraction (0.5 = centred); the modal surfaces it as a 0–100%
+	 * integer. The 0–100% range is valid for every connection regardless of orientation.
 	 */
 	function openSetQuickNoteSlideModal() {
-		const conn = getSelectedNoteConnection();
-		if (!conn) return;
-		setQuickNoteSlideId = conn.id;
-		setQuickNoteSlideCurrent = Math.round((conn.noteAnchorT ?? 0.5) * 100);
+		const conns = getSelectedNoteConnections();
+		if (conns.length === 0) return;
+		setQuickNoteSlideIds = conns.map((c) => c.id);
+		setQuickNoteSlideCurrent = Math.round((conns[0].noteAnchorT ?? 0.5) * 100);
 		setQuickNoteSlideModalOpen = true;
 	}
 
-	/** Persist the chosen slide (noteAnchorT, 0–1) for the selected connection's note. */
+	/**
+	 * Persist the chosen slide (noteAnchorT, 0–1) to EVERY selected noted connection.
+	 * The 0–100% range maps 1:1 for every connection, so the same value applies uniformly.
+	 */
 	async function applySetQuickNoteSlide(percent) {
-		const id = setQuickNoteSlideId;
+		const ids = setQuickNoteSlideIds;
 		setQuickNoteSlideModalOpen = false;
-		if (!id) return;
+		if (ids.length === 0) return;
 		const clamped = Math.max(0, Math.min(100, Math.round(percent)));
-		await saveQuickNotePlacement(id, { noteAnchorT: clamped / 100 });
+		await Promise.all(
+			ids.map((id) => saveQuickNotePlacement(id, { noteAnchorT: clamped / 100 }))
+		);
 	}
 
-	/** Reset the selected connection note's slide (noteAnchorT → default/centred). */
+	/** Reset slide (noteAnchorT → default/centred) on all selected noted connections. */
 	async function resetQuickNoteSlide() {
-		const conn = getSelectedNoteConnection();
-		if (!conn) return;
-		await saveQuickNotePlacement(conn.id, { noteAnchorT: null });
+		const conns = getSelectedNoteConnections();
+		if (conns.length === 0) return;
+		await Promise.all(
+			conns.map((c) => saveQuickNotePlacement(c.id, { noteAnchorT: null }))
+		);
 	}
+
 
 
 
@@ -4257,6 +4312,7 @@
 																	sectionId={section.id}
 																	isActive={activeSections.includes(section.id)}
 																/>
+
 															{/if}
 
 															<!-- Reposition handle: a narrow strip over the TOP border. Hovering
@@ -4299,6 +4355,7 @@
 															isActive={activeColumns.includes(column.id)}
 															sectionColor={column.sections[0]?.color}
 														/>
+
 													{/if}
 
 												<!-- Column reposition handle: a narrow strip over the LEFT border of

@@ -1776,7 +1776,13 @@
 		const hasNote = ids.length === 1
 			? !!(connections.find(c => c.id === ids[0])?.note)
 			: false;
-		setActiveConnection(ids.length > 0, ids, hasNote);
+		// Count how many of the selected connections have a note so the multi-select
+		// note-placement actions (Side/Slide/Position/Offset) can enable when ANY do.
+		const noteCount = ids.reduce(
+			(n, id) => n + (connections.find(c => c.id === id)?.note ? 1 : 0),
+			0
+		);
+		setActiveConnection(ids.length > 0, ids, hasNote, noteCount);
 	}
 
 	/**
@@ -2294,27 +2300,43 @@
 	}
 
 	/**
-	 * Handle "connection-note-set-side" from the Layout menu: re-attach the
-	 * selected connection's note to a chosen side of its anchor dot. The card
-	 * extends away from that side; the offset resets so it re-centres on the dot.
+	 * Handle "connection-note-set-side" from the Connect menu: re-attach the
+	 * note(s) of EVERY selected connection that has a note to a chosen side of
+	 * their anchor dots. The card extends away from that side; each note's offset
+	 * resets so it re-centres on its dot. Each note keeps its own anchor-T (slide
+	 * along its own line), so a multi-select re-sides them all uniformly without
+	 * disturbing where each rides its line.
 	 * @param {CustomEvent<{ side: 'top'|'right'|'bottom'|'left' }>} event
 	 */
 	function handleSetNoteSide(event) {
-		const ids = [...selectedPathIds];
-		if (ids.length !== 1) return;
-		const id = ids[0];
 		const side = event.detail?.side;
 		if (!side) return;
-		const path = paths.find(p => p.id === id);
-		const t = path?.noteAnchorT ?? 0.5;
-		// Live override for an instant visual response, then persist.
-		notePlacementOverrides = {
-			...notePlacementOverrides,
-			[id]: { t, side, offset: 0 }
-		};
+		// Apply to every selected connection that actually has a note.
+		const ids = [...selectedPathIds].filter(
+			id => !!(connections.find(c => c.id === id)?.note)
+		);
+		if (ids.length === 0) return;
+
+		// Live overrides for an instant visual response across all targets.
+		const overrides = { ...notePlacementOverrides };
+		for (const id of ids) {
+			const path = paths.find(p => p.id === id);
+			const t = path?.noteAnchorT ?? 0.5;
+			overrides[id] = { t, side, offset: 0 };
+		}
+		notePlacementOverrides = overrides;
 		scheduleCalculate();
-		saveNotePlacement(id, { t: Math.round(t * 1000) / 1000, side, offset: 0 }).finally(() => {
-			const { [id]: _drop, ...rest } = notePlacementOverrides;
+
+		// Persist each, then drop its live override once the stored value lands.
+		Promise.all(
+			ids.map(id => {
+				const path = paths.find(p => p.id === id);
+				const t = path?.noteAnchorT ?? 0.5;
+				return saveNotePlacement(id, { t: Math.round(t * 1000) / 1000, side, offset: 0 });
+			})
+		).finally(() => {
+			const rest = { ...notePlacementOverrides };
+			for (const id of ids) delete rest[id];
 			notePlacementOverrides = rest;
 		});
 	}

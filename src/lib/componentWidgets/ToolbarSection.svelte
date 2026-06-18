@@ -1,28 +1,18 @@
 <script>
 	import { fade } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
-	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { 
 		sectionId = '',
 		isActive = false
 	} = $props();
 
-	// Calculate inverse scale to keep toolbar at fixed size when page zooms
-	let inverseScale = $derived.by(() => {
-		const zoomLevel = $toolbarState.zoomLevel || 100;
-		return 100 / zoomLevel;
-	});
-
-	// Calculate scaled position offsets to maintain correct positioning at different zoom levels
-	// Button is 2.0rem wide; -2.9rem places its right edge 0.9rem (9px) left of the section edge.
-	let scaledLeft = $derived.by(() => {
-		return -2.9 * inverseScale;
-	});
-
-	let scaledTop = $derived.by(() => {
-		return 0;
-	});
+	// NOTE: This control renders INSIDE the zoom-transformed content
+	// (.analyze-content-inner has transform: scale(currentScale)), so it scales WITH
+	// the study at every zoom level/mode automatically. We intentionally do NOT apply
+	// an inverse-scale counter-transform here — the button is meant to grow when zooming
+	// in and shrink when zooming out, staying proportional to its section. Position is
+	// handled purely by the static CSS .controls offsets below.
 
 	// Button click handler
 	function handleSectionSelect(event) {
@@ -51,7 +41,7 @@
 	}
 </script>
 
-<div class="controls" style="transform: scale({inverseScale}); transform-origin: top left; left: {scaledLeft}rem; top: {scaledTop}rem;" transition:fade={{ duration: 150, easing: quintOut }}>
+<div class="controls" transition:fade={{ duration: 150, easing: quintOut }}>
 	<button
 		type="button"
 		class="section-radio"

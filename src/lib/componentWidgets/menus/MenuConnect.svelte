@@ -53,16 +53,27 @@
 		window.dispatchEvent(new CustomEvent('connection-note-set-side', { detail: { side } }));
 	}
 
-	// The note placement items only apply to a single selected connection that
-	// actually has a note.
+	// The note placement items (Side / Slide / Position / Offset) apply to EVERY
+	// selected connection that has a note — so they enable whenever one or more of
+	// the selected connections carries a note. A single chosen value is applied to
+	// all of them (each clamped to its own limits where relevant).
 	let noteSideDisabled = $derived(
+		!($toolbarState.hasActiveConnection && $toolbarState.activeConnectionNoteCount > 0)
+	);
+
+	// "Connection Quick Note" stays SINGLE-selection: a note can only be added to one
+	// connection at a time. It is enabled only when EXACTLY ONE connection is selected
+	// AND that connection does not already have a note — so it is disabled under
+	// multi-select, or when the single selected line already carries a note.
+	let quickNoteDisabled = $derived(
 		!(
 			$toolbarState.hasActiveConnection &&
-			$toolbarState.activeConnectionIds?.length === 1 &&
-			$toolbarState.activeConnectionHasNote
+			$toolbarState.activeConnectionIds.length === 1 &&
+			!$toolbarState.activeConnectionHasNote
 		)
 	);
 </script>
+
 
 <Menu {menuId} ariaLabel="Connect menu">
 	<IconButton
@@ -92,8 +103,9 @@
 			showConnectionNotes();
 			window.dispatchEvent(new CustomEvent('connection-insert-note'));
 		}}
-		isDisabled={!($toolbarState.hasActiveConnection && !$toolbarState.activeConnectionHasNote)}
+		isDisabled={quickNoteDisabled}
 	/>
+
 
 	<DividerHorizontal />
 

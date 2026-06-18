@@ -125,6 +125,7 @@ async function persistPreference(updates) {
  * @property {boolean} hasActiveConnection - Whether one or more connection lines are currently selected
  * @property {string[]} activeConnectionIds - The IDs of the currently selected connections
  * @property {boolean} activeConnectionHasNote - Whether the currently selected connection has a quick note
+ * @property {number} activeConnectionNoteCount - How many of the currently selected connections have a quick note (drives multi-select note-placement actions)
  * @property {boolean} hasActiveHeadingOrNoteEditor - Whether a heading or note editor is in input mode
  * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
  * @property {string|null} activeHeadingOrNoteEditorKey - Unique key of the active editor (e.g. `${segmentId}-${type}`); identifies the specific owning editor so a stale editor's cleanup can't clear another editor's state
@@ -219,6 +220,7 @@ const defaultState = {
 	hasActiveConnection: false,
 	activeConnectionIds: [],
 	activeConnectionHasNote: false,
+	activeConnectionNoteCount: 0,
 	hasActiveHeadingOrNoteEditor: false,
 	activeHeadingOrNoteType: null,
 	activeHeadingOrNoteEditorKey: null,
@@ -1324,14 +1326,16 @@ export function setCaretSegmentBoundary(atStart, atEnd) {
  * selections where `isFocusableSelection` stays `true` and the effect doesn't re-run.
  * @param {boolean} hasConnection - Whether one or more connections are currently selected
  * @param {string[]} connectionIds - The IDs of the selected connections
- * @param {boolean} [hasNote] - Whether the selected connection(s) have a quick note
+ * @param {boolean} [hasNote] - Whether the selected connection(s) have a quick note (single-select gate for "Connection Quick Note")
+ * @param {number} [noteCount] - How many of the selected connections have a quick note (drives multi-select note-placement actions)
  */
-export function setActiveConnection(hasConnection, connectionIds = [], hasNote = false) {
+export function setActiveConnection(hasConnection, connectionIds = [], hasNote = false, noteCount = 0) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveConnection: hasConnection,
 		activeConnectionIds: connectionIds,
 		activeConnectionHasNote: hasConnection ? hasNote : false,
+		activeConnectionNoteCount: hasConnection ? noteCount : 0,
 		// Deselect segment when a connection is selected, and vice versa
 		hasActiveSegment: hasConnection ? false : state.hasActiveSegment,
 		activeSegmentId: hasConnection ? null : state.activeSegmentId
