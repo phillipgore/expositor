@@ -152,6 +152,28 @@
 		return () => cleanup?.();
 	});
 
+	// Re-equalize linked groups whenever a content-visibility TOGGLE changes. Toggling
+	// References, Notations (headings), verse numbers, Paragraphs, or Quick Notes off
+	// shrinks each segment's natural content height, but a linked group's applied
+	// min-height pins the rendered box at its previous (taller) size, so the
+	// ResizeObserver never fires and the group cannot shrink back on its own. Reading
+	// each toggle here subscribes this effect to them; scheduleRecompute() then
+	// re-measures every member's natural height (it clears min-height to measure) and
+	// lowers the shared group height to the new tallest natural value. This keeps linked
+	// members equal in ALL toggle combinations while returning them to their CANONICAL
+	// height - the larger of any persisted user-set height and the current natural
+	// content height - no matter what combination of toggles has been turned on or off.
+	$effect(() => {
+		// Subscribe to every toggle that changes a segment's rendered content height.
+		const _refs = $toolbarState.referencesVisible;
+		const _headings = $toolbarState.headingsVisible;
+		const _verses = $toolbarState.versesVisible;
+		const _paras = $toolbarState.paragraphBreaksVisible;
+		const _notes = $toolbarState.passageNotesVisible;
+		// Wait for the toggle's DOM/layout change to flush, then recompute group heights.
+		tick().then(() => segmentResize.scheduleRecompute());
+	});
+
 	// Gate the Layout → Link / Unlink Segment Height buttons on the current selection:
 	//  - Link  : 2+ segments selected that aren't already all in the SAME group.
 	//  - Unlink: the selection includes at least one linked segment.
@@ -308,31 +330,32 @@
 	}
 
 	/**
-	 * Link the heights of the selected segments. Measures the tallest current rendered
-	 * height across the selection (÷ scale → CSS px) and seeds every member to it so
-	 * they immediately jump to match the tallest one. The server assigns a shared
-	 * height-group id; thereafter they resize together and grow to the tallest member.
+	 * Link the heights of the selected segments. Sends ONLY the ids - it does NOT seed a
+	 * measured height, because the current rendered height depends on which content
+	 * toggles (References, Notations, Paragraphs, Quick Notes) happen to be on at link
+	 * time, and persisting that would bake a non-canonical, toggle-dependent value into
+	 * the DB. The server assigns a shared height-group id; each member keeps its existing
+	 * height (NULL = canonical natural height; a real value = a user-set height), and the
+	 * client's auto-grow recompute then equalizes the whole group to the tallest member's
+	 * canonical height. They resize together thereafter.
 	 */
 	async function linkSegmentHeight() {
 		const ids = activeSegments.map((s) => s.segmentId);
 		if (ids.length < 2) return;
 
-		const scale = currentScale || 1;
-		let tallest = 0;
-		for (const id of ids) {
-			const el = /** @type {HTMLElement|null} */ (
-				document.querySelector(`[data-segment-id="${id}"]`)
-			);
-			if (!el) continue;
-			const current = el.getBoundingClientRect().height / scale;
-			if (current > tallest) tallest = current;
-		}
-
 		try {
+			// Send ONLY the ids - no seed height. The current rendered height depends on
+			// which content toggles (References, Notations, Paragraphs, Quick Notes) are on
+			// right now; persisting it would bake a non-canonical, toggle-dependent height
+			// into the DB and prevent the group from collapsing back to its natural height
+			// when content is later toggled off. Each member keeps its existing `height`
+			// (NULL = canonical natural height; a real value = the user-set height), and the
+			// client's auto-grow recompute equalizes the group to the tallest member's
+			// canonical height (the larger of its persisted height and its natural content).
 			await fetch('/api/segments/link-height', {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ids, height: tallest > 0 ? Math.round(tallest) : null })
+				body: JSON.stringify({ ids })
 			});
 			await invalidate('app:studies');
 		} catch (error) {

@@ -519,6 +519,15 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		handleHandleLeave,
 		isGroupHovered,
 		observeGroups,
+		// Exposed so the page can force a re-equalize when content-visibility TOGGLES
+		// (References, Notations, Paragraphs, Quick Notes) change. Toggling content OFF
+		// shrinks each member's natural height, but the group's applied min-height holds
+		// the rendered box at its old (taller) size, so the ResizeObserver never fires and
+		// the group cannot collapse back to its new, smaller CANONICAL natural height. An
+		// explicit recompute re-measures every member's natural height and lowers the group
+		// sync height accordingly, keeping linked members equal AND returning them to
+		// canonical for the current toggle set.
+		scheduleRecompute,
 		get activeSegmentId() {
 			return activeSegmentId;
 		},
