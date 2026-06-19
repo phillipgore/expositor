@@ -1,0 +1,12 @@
+ALTER TABLE "user" ADD COLUMN "document_headings_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_notes_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_passage_notes_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_connection_notes_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_column_connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_section_connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_segment_connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_cross_item_connections_visible" boolean DEFAULT true;
+ALTER TABLE "user" ADD COLUMN "document_verses_visible" boolean DEFAULT false;
+ALTER TABLE "user" ADD COLUMN "document_paragraph_breaks_visible" boolean DEFAULT false;
+ALTER TABLE "user" ADD COLUMN "document_commentaries_visible" boolean DEFAULT true;

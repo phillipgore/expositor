@@ -37,12 +37,25 @@ export async function PATCH({ request }) {
 			selectorsVisible,
 			layoutControlsVisible,
 			passageDividersVisible,
+			documentHeadingsVisible,
+			documentNotesVisible,
+			documentPassageNotesVisible,
+			documentConnectionNotesVisible,
+			documentConnectionsVisible,
+			documentColumnConnectionsVisible,
+			documentSectionConnectionsVisible,
+			documentSegmentConnectionsVisible,
+			documentCrossItemConnectionsVisible,
+			documentVersesVisible,
+			documentParagraphBreaksVisible,
+			documentCommentariesVisible,
 			lastStudyView,
 			analyzeZoomLevel,
 			analyzeZoomMode,
 			documentZoomLevel,
 			documentZoomMode
 		} = body;
+
 
 
 		
@@ -99,10 +112,23 @@ export async function PATCH({ request }) {
 			overviewMode,
 			selectorsVisible,
 			layoutControlsVisible,
-			passageDividersVisible
+			passageDividersVisible,
+			documentHeadingsVisible,
+			documentNotesVisible,
+			documentPassageNotesVisible,
+			documentConnectionNotesVisible,
+			documentConnectionsVisible,
+			documentColumnConnectionsVisible,
+			documentSectionConnectionsVisible,
+			documentSegmentConnectionsVisible,
+			documentCrossItemConnectionsVisible,
+			documentVersesVisible,
+			documentParagraphBreaksVisible,
+			documentCommentariesVisible
 		};
 
 		for (const [key, value] of Object.entries(booleanViewPrefs)) {
+
 			if (value !== undefined) {
 				if (typeof value !== 'boolean') {
 					return json({ error: `Invalid value for ${key}` }, { status: 400 });

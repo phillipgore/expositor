@@ -514,12 +514,14 @@
 
 <MenuZoom menuId="MenuZoom" onselect={handleZoomChange} currentLabel={zoomLabel} />
 
-<MenuStructure menuId="MenuStructure" />
+<MenuStructure menuId="MenuStructure" view={activeModeButton} />
+
 <MenuLayout menuId="MenuLayout" />
 <MenuConnect menuId="MenuConnect" />
 <MenuOutline menuId="MenuOutline" />
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
-<MenuView menuId="MenuView" />
+<MenuView menuId="MenuView" view={activeModeButton} />
+
 <MenuExport menuId="MenuExport" />
 <MenuSettings menuId="MenuSettings" alignment="end" />
 

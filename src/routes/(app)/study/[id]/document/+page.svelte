@@ -273,9 +273,21 @@
 	 * @param {Object} passageText
 	 * @returns {Array<Object> | null}
 	 */
-	function buildDocumentBlocks(passageText, passageData, connectionsByFromId = {}) {
+	function buildDocumentBlocks(passageText, passageData, connectionsByFromId = {}, view = {}) {
 		const cols = passageText?.structure?.columns;
 		if (!cols?.length || !passageText.text) return null;
+
+		// Document-view visibility flags. Default to visible (true) when unspecified so
+		// callers that don't pass `view` get the full document. Hidden content is
+		// OMITTED here (not just CSS-hidden) so it never enters pagination — keeping the
+		// page-break math honest. `headings` also governs the per-heading commentary
+		// (no heading shown → its commentary has nothing to attach to); `commentaries`
+		// governs the standalone segment commentary aside; `passageNotes` governs the
+		// segment quick note.
+		const showHeadings = view.headings !== false;
+		const showCommentaries = view.commentaries !== false;
+		const showPassageNotes = view.passageNotes !== false;
+
 
 		// Flatten segments first (reading order) so each segment's text slice can be
 		// computed against the NEXT segment's first word across the whole passage,
@@ -413,18 +425,23 @@
 						// horizontal rule, so it must NOT add a leading 36px segment gap;
 						// every subsequent segment in the section does.
 						firstInSection: segIdx === 0,
-						headingOne: segment.headingOne,
+						// Headings (and their per-heading commentary) are suppressed entirely
+						// when the Document view's Headings toggle is off — nulled here so they
+						// never enter pagination. The per-heading commentary additionally
+						// depends on the Commentaries toggle.
+						headingOne: showHeadings ? segment.headingOne : null,
 
-						headingTwo: segment.headingTwo,
-						headingThree: segment.headingThree,
-						headingOneCommentary: headingsByType.one?.commentary ?? null,
-						headingTwoCommentary: headingsByType.two?.commentary ?? null,
-						headingThreeCommentary: headingsByType.three?.commentary ?? null,
+						headingTwo: showHeadings ? segment.headingTwo : null,
+						headingThree: showHeadings ? segment.headingThree : null,
+						headingOneCommentary: showHeadings && showCommentaries ? headingsByType.one?.commentary ?? null : null,
+						headingTwoCommentary: showHeadings && showCommentaries ? headingsByType.two?.commentary ?? null : null,
+						headingThreeCommentary: showHeadings && showCommentaries ? headingsByType.three?.commentary ?? null : null,
 						ref: segmentRef,
 
 						// Quick note (plain text) authored on the segment — carried through so the
-						// document can render it directly beneath the segment's text.
-						note: segment.note ?? null,
+						// document can render it directly beneath the segment's text. Suppressed
+						// when the Document view's Text Quick Notes toggle is off.
+						note: showPassageNotes ? segment.note ?? null : null,
 						html: htmlBySegmentId[segment.id] ?? ''
 					});
 
@@ -432,8 +449,9 @@
 					// segment's text — so it TRAILS the segment as a note (unlike the broad
 					// column/section commentary, which is anchored ahead of the content it
 					// introduces). Same editorial-aside treatment so it's never mistaken for
-					// body text or a heading.
-					if (segment.commentary) {
+					// body text or a heading. Suppressed when the Commentaries toggle is off.
+					if (showCommentaries && segment.commentary) {
+
 						blocks.push({
 							type: 'aside',
 							scope: 'segment',
@@ -602,17 +620,34 @@
 	 * @param {Object<string, Array<Object>>} connectionsByFromIdMap
 	 * @returns {Array<Object>}
 	 */
-	function collectAllConnections(passagesWithText, connectionsByFromIdMap) {
+	function collectAllConnections(passagesWithText, connectionsByFromIdMap, view = {}) {
+		// Per-type visibility flags (default visible). A connection is included only
+		// when the toggle governing its KIND is on, mirroring the Analyze view's
+		// connection-type filtering: a connection whose two endpoints are of DIFFERENT
+		// kinds is "cross-item"; otherwise it's gated by its shared kind's toggle.
+		const showColumn = view.columnConnections !== false;
+		const showSection = view.sectionConnections !== false;
+		const showSegment = view.segmentConnections !== false;
+		const showCross = view.crossItemConnections !== false;
+		const isVisible = (conn) => {
+			if (conn.fromType !== conn.toType) return showCross;
+			if (conn.fromType === 'column') return showColumn;
+			if (conn.fromType === 'section') return showSection;
+			return showSegment; // segment ↔ segment (or unknown) → segment toggle
+		};
+
 		/** @type {Array<Object>} */
 		const all = [];
 		const seen = new Set();
 		const take = (id) => {
 			for (const conn of connectionsByFromIdMap[id] ?? []) {
 				if (seen.has(conn.key)) continue;
+				if (!isVisible(conn)) continue;
 				seen.add(conn.key);
 				all.push(conn);
 			}
 		};
+
 		for (const passageText of passagesWithText ?? []) {
 			const cols = passageText?.structure?.columns;
 			if (!cols?.length) continue;
@@ -676,7 +711,8 @@
 	 * `{ id, kind, ... }`; `kind` selects which snippet renders it.
 	 * @returns {Array<Object>}
 	 */
-	function buildFlowItems(passagesWithText, passages, connectionsByFromIdMap) {
+	function buildFlowItems(passagesWithText, passages, connectionsByFromIdMap, view = {}) {
+
 
 
 		/** @type {Array<Object>} */
@@ -713,8 +749,9 @@
 			passageCount++;
 
 
-			const blocks = buildDocumentBlocks(passageText, passageData, connectionsByFromIdMap);
+			const blocks = buildDocumentBlocks(passageText, passageData, connectionsByFromIdMap, view);
 			if (blocks) {
+
 				for (const block of blocks) {
 					items.push({ id: `blk-${passageId}-${block.key}`, kind: 'block', block });
 				}
@@ -728,13 +765,18 @@
 		// passages, before the copyright). Each connection is its own flow item so the
 		// paginator can split a long appendix across pages; the title is a separate
 		// item that leads them off.
-		const allConnections = collectAllConnections(passagesWithText, connectionsByFromIdMap);
+		const allConnections = collectAllConnections(passagesWithText, connectionsByFromIdMap, view);
 		if (allConnections.length) {
 			items.push({ id: 'connections-appendix-title', kind: 'connections-title' });
 			for (const conn of allConnections) {
-				items.push({ id: `appendix-conn-${conn.key}`, kind: 'connection', connection: conn });
+				// Suppress the connection's quick note when the Document view's Connection
+				// Quick Notes toggle is off — pass a note-stripped copy so the card renders
+				// the connection (and its commentary) without the note.
+				const c = view.connectionNotes === false ? { ...conn, note: null } : conn;
+				items.push({ id: `appendix-conn-${conn.key}`, kind: 'connection', connection: c });
 			}
 		}
+
 
 		// Tags section — every glossary term used inline anywhere in the study's
 		// commentary, consolidated into a single titled "Tags" section at the END of
@@ -752,11 +794,30 @@
 	}
 
 
+	// Document-view visibility flags (the document* toolbar fields — INDEPENDENT of
+	// the Analyze view's toggles). Threaded into the flow-item builders below so that
+	// hidden content is OMITTED FROM PAGINATION (not just visually hidden), keeping the
+	// page breaks correct. The inline verse-notation / paragraph-break markers live
+	// inside the passage HTML and are hidden via CSS classes on the gutter instead
+	// (both the measure layer and the visible pages inherit those classes, so
+	// measurement still matches what's rendered).
+	let docView = $derived({
+		headings: $toolbarState.documentHeadingsVisible,
+		commentaries: $toolbarState.documentCommentariesVisible,
+		passageNotes: $toolbarState.documentPassageNotesVisible,
+		connectionNotes: $toolbarState.documentConnectionNotesVisible,
+		columnConnections: $toolbarState.documentColumnConnectionsVisible,
+		sectionConnections: $toolbarState.documentSectionConnectionsVisible,
+		segmentConnections: $toolbarState.documentSegmentConnectionsVisible,
+		crossItemConnections: $toolbarState.documentCrossItemConnectionsVisible
+	});
+
 	let flowItems = $derived(
 		streamedContent && data.passagesWithText && data.passagesWithText.length > 0
-			? buildFlowItems(data.passagesWithText, data.passages, connectionsByFromId)
+			? buildFlowItems(data.passagesWithText, data.passages, connectionsByFromId, docView)
 			: []
 	);
+
 
 	// Pages are arrays of flow-item indices. Computed by measuring the off-screen
 	// layer; until that runs (or on the server) we fall back to a single page
@@ -1056,6 +1117,12 @@
 		// Touch dependencies so the effect re-runs when content changes.
 		flowItems;
 		measureEl;
+		// The verse-notation / paragraph-break toggles hide their inline markers via
+		// CSS (not by changing flowItems), but hiding them changes the measured height
+		// of the passage text — so re-paginate when either flips, or the page breaks
+		// would be computed against stale heights.
+		$toolbarState.documentVersesVisible;
+		$toolbarState.documentParagraphBreaksVisible;
 		if (typeof window === 'undefined') return;
 
 		let cancelled = false;
@@ -1066,6 +1133,7 @@
 			cancelled = true;
 		};
 	});
+
 
 	onMount(() => {
 		if (typeof window === 'undefined') return;
@@ -1351,7 +1419,18 @@
 {/snippet}
 
 
-<div class="document-gutter" bind:this={gutterEl}>
+<!-- The verse-notation / paragraph-break markers are inline in the passage HTML, so
+     they're hidden with CSS rather than omitted from the flow items. The classes are
+     placed on the gutter (which wraps BOTH the off-screen measure layer and the visible
+     pages) so measurement and render stay in lock-step — pagination sees the same
+     hidden markers the pages do. -->
+<div
+	class="document-gutter"
+	class:hide-verses={!$toolbarState.documentVersesVisible}
+	class:hide-paragraph-breaks={!$toolbarState.documentParagraphBreaksVisible}
+	bind:this={gutterEl}
+>
+
 	{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 		<!-- Off-screen MEASURE LAYER — renders every flow item once at the page's
 		     content width so the paginator can read each item's laid-out height. It
@@ -1677,6 +1756,24 @@
 	.passage-text :global(.paragraph-break-marker:first-child) {
 		margin-top: 0;
 	}
+
+	/* ============================================
+	   DOCUMENT-VIEW TOGGLE HIDING — the View menu's "Notations" (verse markers) and
+	   "Paragraphs" (translator paragraph breaks) toggles. Both targets are INLINE in
+	   the passage HTML (so they can't be omitted from the flow items the way headings
+	   /commentary are); instead they're hidden with CSS when the toggle is off. The
+	   `hide-*` classes live on the gutter, which wraps BOTH the off-screen measure
+	   layer and the visible pages, so hiding a marker shrinks it identically in the
+	   measurement and the render — keeping pagination in agreement. Mirrors the
+	   Analyze view's `.hide-verses` / `.hide-paragraph-breaks` rules. */
+	.hide-verses :global(.chapter-verse) {
+		display: none;
+	}
+
+	.hide-paragraph-breaks :global(.paragraph-break-marker) {
+		display: none;
+	}
+
 
 
 

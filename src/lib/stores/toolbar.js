@@ -100,8 +100,21 @@ async function persistPreference(updates) {
  * @property {'percentage'|'fit-width'|'fit-study'} analyzeZoomMode - Analyze view's zoom mode
  * @property {number} documentZoomLevel - Document view's zoom level as percentage (25-400)
  * @property {'percentage'|'fit-width'|'fit-study'} documentZoomMode - Document view's zoom mode
+ * @property {boolean} documentHeadingsVisible - (Document view) Whether headings are visible
+ * @property {boolean} documentNotesVisible - (Document view) Whether all quick notes are visible (master toggle)
+ * @property {boolean} documentPassageNotesVisible - (Document view) Whether passage quick notes are visible
+ * @property {boolean} documentConnectionNotesVisible - (Document view) Whether connection quick notes are visible
+ * @property {boolean} documentConnectionsVisible - (Document view) Whether connections are visible (master toggle)
+ * @property {boolean} documentColumnConnectionsVisible - (Document view) Whether column connections are visible
+ * @property {boolean} documentSectionConnectionsVisible - (Document view) Whether section connections are visible
+ * @property {boolean} documentSegmentConnectionsVisible - (Document view) Whether segment connections are visible
+ * @property {boolean} documentCrossItemConnectionsVisible - (Document view) Whether cross-item connections are visible
+ * @property {boolean} documentVersesVisible - (Document view) Whether verse notations are visible
+ * @property {boolean} documentParagraphBreaksVisible - (Document view) Whether paragraph break markers are visible
+ * @property {boolean} documentCommentariesVisible - (Document view) Whether commentaries are shown in the document (NOT the commentary editor slide-out)
 
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
+
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {string|null} activeSegmentId - The ID of the currently active segment
@@ -199,8 +212,25 @@ const defaultState = {
 	selectorsVisible: false,
 	layoutControlsVisible: false,
 	passageDividersVisible: true,
+	// Document view's OWN copy of the visibility toggles (independent of the
+	// Analyze toggles above), so changing a toggle on one view never affects the
+	// other. Defaults mirror Analyze except documentCommentariesVisible, which is
+	// on by default so commentaries print in the document by default.
+	documentHeadingsVisible: true,
+	documentNotesVisible: true,
+	documentPassageNotesVisible: true,
+	documentConnectionNotesVisible: true,
+	documentConnectionsVisible: true,
+	documentColumnConnectionsVisible: true,
+	documentSectionConnectionsVisible: true,
+	documentSegmentConnectionsVisible: true,
+	documentCrossItemConnectionsVisible: true,
+	documentVersesVisible: false,
+	documentParagraphBreaksVisible: false,
+	documentCommentariesVisible: true,
 	analyzeZoomLevel: 100,
 	documentZoomLevel: 100,
+
 	selectedItem: null,
 
 	hasWordSelection: false,
@@ -456,8 +486,17 @@ export function updateToolbarForRoute(pathname) {
 
 				canToggleHeadings: true,
 				canToggleNotes: true,
-				canToggleComment: isAnalyzeRoute, // Only enable on analyze pages
+				// Comment button = the commentary editor slide-out, which is an ANALYZE-ONLY
+				// authoring affordance. Enabled only on the Analyze view; on the Document
+				// view the slide-out is always hidden and its button is DISABLED (the
+				// read-only document has nothing to author). NOTE: this gates the slide-out
+				// button specifically — the Document view's separate "Commentary" toggle
+				// (which shows/hides commentary PROSE in the read-only document) lives in
+				// the View menu and is gated there on the view, not on this flag.
+				canToggleComment: isAnalyzeRoute,
+
 				canToggleReferences: true,
+
 				canToggleVerses: true,
 				canToggleWide: true,
 				canToggleOverview: true,
@@ -1039,6 +1078,144 @@ export function togglePassageDividers() {
 	toolbarStateStore.update(state => ({ ...state, passageDividersVisible: newValue }));
 	persistPreference({ passageDividersVisible: newValue });
 }
+
+/* ============================================================
+   DOCUMENT-VIEW TOGGLES
+   ------------------------------------------------------------
+   The Document view has its OWN copy of the visibility toggles (the document*
+   fields), independent of the Analyze toggles, so changing a toggle on one view
+   never affects the other. Each function mirrors its Analyze counterpart above but
+   reads/writes the document* field and persists the matching document_* column.
+   The MenuView component is view-aware and calls these (instead of the Analyze
+   functions) when it is rendered for the Document view.
+   ============================================================ */
+
+/** Toggle headings visibility (Document view). */
+export function toggleDocumentHeadings() {
+	const newValue = !get(toolbarStateStore).documentHeadingsVisible;
+	toolbarStateStore.update(state => ({ ...state, documentHeadingsVisible: newValue }));
+	persistPreference({ documentHeadingsVisible: newValue });
+}
+
+/** Toggle verse notations visibility (Document view). */
+export function toggleDocumentVerses() {
+	const newValue = !get(toolbarStateStore).documentVersesVisible;
+	toolbarStateStore.update(state => ({ ...state, documentVersesVisible: newValue }));
+	persistPreference({ documentVersesVisible: newValue });
+}
+
+/** Toggle paragraph break markers visibility (Document view). */
+export function toggleDocumentParagraphBreaks() {
+	const newValue = !get(toolbarStateStore).documentParagraphBreaksVisible;
+	toolbarStateStore.update(state => ({ ...state, documentParagraphBreaksVisible: newValue }));
+	persistPreference({ documentParagraphBreaksVisible: newValue });
+}
+
+/**
+ * Toggle whether the commentaries are shown IN the document (Document view).
+ * This controls the commentary PROSE rendered inline within the document page —
+ * NOT the Analyze view's commentary editor slide-out panel (that is the separate
+ * commentaryPanelOpen state, which has no meaning on the read-only Document page).
+ */
+export function toggleDocumentCommentaries() {
+	const newValue = !get(toolbarStateStore).documentCommentariesVisible;
+	toolbarStateStore.update(state => ({ ...state, documentCommentariesVisible: newValue }));
+	persistPreference({ documentCommentariesVisible: newValue });
+}
+
+/**
+ * Toggle all connections visibility (Document view master toggle).
+ * Mirrors toggleConnections but on the document* fields.
+ */
+export function toggleDocumentConnections() {
+	const newValue = !get(toolbarStateStore).documentConnectionsVisible;
+	toolbarStateStore.update(state => ({
+		...state,
+		documentConnectionsVisible: newValue,
+		documentColumnConnectionsVisible: newValue,
+		documentSectionConnectionsVisible: newValue,
+		documentSegmentConnectionsVisible: newValue,
+		documentCrossItemConnectionsVisible: newValue
+	}));
+	persistPreference({
+		documentConnectionsVisible: newValue,
+		documentColumnConnectionsVisible: newValue,
+		documentSectionConnectionsVisible: newValue,
+		documentSegmentConnectionsVisible: newValue,
+		documentCrossItemConnectionsVisible: newValue
+	});
+}
+
+/** Toggle column connections visibility (Document view). */
+export function toggleDocumentColumnConnections() {
+	const state = get(toolbarStateStore);
+	const newCol = !state.documentColumnConnectionsVisible;
+	const newAll = newCol && state.documentSectionConnectionsVisible && state.documentSegmentConnectionsVisible && state.documentCrossItemConnectionsVisible;
+	toolbarStateStore.update(s => ({ ...s, documentColumnConnectionsVisible: newCol, documentConnectionsVisible: newAll }));
+	persistPreference({ documentColumnConnectionsVisible: newCol, documentConnectionsVisible: newAll });
+}
+
+/** Toggle section connections visibility (Document view). */
+export function toggleDocumentSectionConnections() {
+	const state = get(toolbarStateStore);
+	const newSec = !state.documentSectionConnectionsVisible;
+	const newAll = state.documentColumnConnectionsVisible && newSec && state.documentSegmentConnectionsVisible && state.documentCrossItemConnectionsVisible;
+	toolbarStateStore.update(s => ({ ...s, documentSectionConnectionsVisible: newSec, documentConnectionsVisible: newAll }));
+	persistPreference({ documentSectionConnectionsVisible: newSec, documentConnectionsVisible: newAll });
+}
+
+/** Toggle segment connections visibility (Document view). */
+export function toggleDocumentSegmentConnections() {
+	const state = get(toolbarStateStore);
+	const newSeg = !state.documentSegmentConnectionsVisible;
+	const newAll = state.documentColumnConnectionsVisible && state.documentSectionConnectionsVisible && newSeg && state.documentCrossItemConnectionsVisible;
+	toolbarStateStore.update(s => ({ ...s, documentSegmentConnectionsVisible: newSeg, documentConnectionsVisible: newAll }));
+	persistPreference({ documentSegmentConnectionsVisible: newSeg, documentConnectionsVisible: newAll });
+}
+
+/** Toggle cross-item connections visibility (Document view). */
+export function toggleDocumentCrossItemConnections() {
+	const state = get(toolbarStateStore);
+	const newCross = !state.documentCrossItemConnectionsVisible;
+	const newAll = state.documentColumnConnectionsVisible && state.documentSectionConnectionsVisible && state.documentSegmentConnectionsVisible && newCross;
+	toolbarStateStore.update(s => ({ ...s, documentCrossItemConnectionsVisible: newCross, documentConnectionsVisible: newAll }));
+	persistPreference({ documentCrossItemConnectionsVisible: newCross, documentConnectionsVisible: newAll });
+}
+
+/** Toggle all quick notes visibility (Document view master toggle). */
+export function toggleDocumentNotes() {
+	const newValue = !get(toolbarStateStore).documentNotesVisible;
+	toolbarStateStore.update(state => ({
+		...state,
+		documentNotesVisible: newValue,
+		documentPassageNotesVisible: newValue,
+		documentConnectionNotesVisible: newValue
+	}));
+	persistPreference({
+		documentNotesVisible: newValue,
+		documentPassageNotesVisible: newValue,
+		documentConnectionNotesVisible: newValue
+	});
+}
+
+/** Toggle passage (text) quick notes visibility (Document view). */
+export function toggleDocumentPassageNotes() {
+	const state = get(toolbarStateStore);
+	const newPassage = !state.documentPassageNotesVisible;
+	const newAll = newPassage && state.documentConnectionNotesVisible;
+	toolbarStateStore.update(s => ({ ...s, documentPassageNotesVisible: newPassage, documentNotesVisible: newAll }));
+	persistPreference({ documentPassageNotesVisible: newPassage, documentNotesVisible: newAll });
+}
+
+/** Toggle connection quick notes visibility (Document view). */
+export function toggleDocumentConnectionNotes() {
+	const state = get(toolbarStateStore);
+	const newConnection = !state.documentConnectionNotesVisible;
+	const newAll = state.documentPassageNotesVisible && newConnection;
+	toolbarStateStore.update(s => ({ ...s, documentConnectionNotesVisible: newConnection, documentNotesVisible: newAll }));
+	persistPreference({ documentConnectionNotesVisible: newConnection, documentNotesVisible: newAll });
+}
+
 
 /**
  * Set the commentary panel to a specific open/closed state

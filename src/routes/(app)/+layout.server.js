@@ -40,7 +40,20 @@ export async function load({ request, depends }) {
 				selectorsVisible: user.selectorsVisible,
 				layoutControlsVisible: user.layoutControlsVisible,
 				passageDividersVisible: user.passageDividersVisible,
+				documentHeadingsVisible: user.documentHeadingsVisible,
+				documentNotesVisible: user.documentNotesVisible,
+				documentPassageNotesVisible: user.documentPassageNotesVisible,
+				documentConnectionNotesVisible: user.documentConnectionNotesVisible,
+				documentConnectionsVisible: user.documentConnectionsVisible,
+				documentColumnConnectionsVisible: user.documentColumnConnectionsVisible,
+				documentSectionConnectionsVisible: user.documentSectionConnectionsVisible,
+				documentSegmentConnectionsVisible: user.documentSegmentConnectionsVisible,
+				documentCrossItemConnectionsVisible: user.documentCrossItemConnectionsVisible,
+				documentVersesVisible: user.documentVersesVisible,
+				documentParagraphBreaksVisible: user.documentParagraphBreaksVisible,
+				documentCommentariesVisible: user.documentCommentariesVisible,
 				lastStudyView: user.lastStudyView,
+
 				analyzeZoomLevel: user.analyzeZoomLevel,
 				analyzeZoomMode: user.analyzeZoomMode,
 				documentZoomLevel: user.documentZoomLevel,
@@ -73,7 +86,21 @@ export async function load({ request, depends }) {
 		const selectorsVisible = userData[0]?.selectorsVisible ?? false;
 		const layoutControlsVisible = userData[0]?.layoutControlsVisible ?? false;
 		const passageDividersVisible = userData[0]?.passageDividersVisible ?? true;
+		// Document-view toggles (independent of the Analyze toggles above)
+		const documentHeadingsVisible = userData[0]?.documentHeadingsVisible ?? true;
+		const documentNotesVisible = userData[0]?.documentNotesVisible ?? true;
+		const documentPassageNotesVisible = userData[0]?.documentPassageNotesVisible ?? true;
+		const documentConnectionNotesVisible = userData[0]?.documentConnectionNotesVisible ?? true;
+		const documentConnectionsVisible = userData[0]?.documentConnectionsVisible ?? true;
+		const documentColumnConnectionsVisible = userData[0]?.documentColumnConnectionsVisible ?? true;
+		const documentSectionConnectionsVisible = userData[0]?.documentSectionConnectionsVisible ?? true;
+		const documentSegmentConnectionsVisible = userData[0]?.documentSegmentConnectionsVisible ?? true;
+		const documentCrossItemConnectionsVisible = userData[0]?.documentCrossItemConnectionsVisible ?? true;
+		const documentVersesVisible = userData[0]?.documentVersesVisible ?? false;
+		const documentParagraphBreaksVisible = userData[0]?.documentParagraphBreaksVisible ?? false;
+		const documentCommentariesVisible = userData[0]?.documentCommentariesVisible ?? true;
 		const lastStudyView = userData[0]?.lastStudyView ?? 'analyze';
+
 		const analyzeZoomLevel = userData[0]?.analyzeZoomLevel ?? 100;
 		const analyzeZoomMode = userData[0]?.analyzeZoomMode ?? 'percentage';
 		const documentZoomLevel = userData[0]?.documentZoomLevel ?? 100;
@@ -165,8 +192,21 @@ export async function load({ request, depends }) {
 			selectorsVisible,
 			layoutControlsVisible,
 			passageDividersVisible,
+			documentHeadingsVisible,
+			documentNotesVisible,
+			documentPassageNotesVisible,
+			documentConnectionNotesVisible,
+			documentConnectionsVisible,
+			documentColumnConnectionsVisible,
+			documentSectionConnectionsVisible,
+			documentSegmentConnectionsVisible,
+			documentCrossItemConnectionsVisible,
+			documentVersesVisible,
+			documentParagraphBreaksVisible,
+			documentCommentariesVisible,
 			lastStudyView,
 			analyzeZoomLevel,
+
 			analyzeZoomMode,
 			documentZoomLevel,
 			documentZoomMode

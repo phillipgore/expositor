@@ -32,9 +32,28 @@ export const user = pgTable('user', {
 	selectorsVisible: boolean('selectors_visible').default(false),
 	layoutControlsVisible: boolean('layout_controls_visible').default(false),
 	passageDividersVisible: boolean('passage_dividers_visible').default(true),
+	// Per-view View-menu toggles: the Document view keeps its OWN visibility
+	// settings, independent of the Analyze view above (mirrors the per-view zoom
+	// pattern). Only the toggles that are meaningful on the read-only Document page
+	// are duplicated here; layout/editing-only toggles (passage dividers, wide,
+	// overview, selectors, layout controls) have no Document counterpart.
+	// Commentaries are shown by default; everything else mirrors the Analyze default.
+	documentHeadingsVisible: boolean('document_headings_visible').default(true),
+	documentNotesVisible: boolean('document_notes_visible').default(true),
+	documentPassageNotesVisible: boolean('document_passage_notes_visible').default(true),
+	documentConnectionNotesVisible: boolean('document_connection_notes_visible').default(true),
+	documentConnectionsVisible: boolean('document_connections_visible').default(true),
+	documentColumnConnectionsVisible: boolean('document_column_connections_visible').default(true),
+	documentSectionConnectionsVisible: boolean('document_section_connections_visible').default(true),
+	documentSegmentConnectionsVisible: boolean('document_segment_connections_visible').default(true),
+	documentCrossItemConnectionsVisible: boolean('document_cross_item_connections_visible').default(true),
+	documentVersesVisible: boolean('document_verses_visible').default(false),
+	documentParagraphBreaksVisible: boolean('document_paragraph_breaks_visible').default(false),
+	documentCommentariesVisible: boolean('document_commentaries_visible').default(true),
 	// Remembers the last study view ('analyze' | 'document') the user was in, so
 	// re-entering a study (or opening a different one) restores the same view.
 	lastStudyView: text('last_study_view').default('analyze'),
+
 	// Per-view zoom: the Analyze and Document views keep INDEPENDENT zoom settings
 	// (level + mode) so changing zoom in one never affects the other. Each pair is
 	// persisted so it survives reloads. Level is a percentage; mode is

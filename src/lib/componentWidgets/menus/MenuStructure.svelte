@@ -22,6 +22,10 @@
 	 * 
 	 * Props:
 	 * - menuId (string, default: 'MenuStructure') - Unique identifier for the menu
+	 * - view ('analyze'|'document', default: 'analyze') - Which view this menu serves.
+	 *   The "Select All" items put the canvas into a selection mode, which only makes
+	 *   sense in the interactive Analyze view; on the read-only Document view they are
+	 *   DISABLED (not hidden), keeping the menu's shape stable across mode switches.
 	 */
 
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
@@ -29,7 +33,15 @@
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
-	let { menuId = 'MenuStructure' } = $props();
+	let { menuId = 'MenuStructure', view = 'analyze' } = $props();
+
+	let isDocument = $derived(view === 'document');
+
+	// "Select All" enters a selection mode that only applies to the interactive Analyze
+	// canvas, so it's disabled on the Document view (in addition to the usual capability
+	// gate). The split/join/move items below are already gated by selection state, which
+	// the read-only Document view never produces, so they stay disabled there naturally.
+	let selectAllDisabled = $derived(isDocument || !$toolbarState.canUseStructureItems);
 
 	function closeMenu() {
 		const menuElement = document.getElementById(menuId);
@@ -38,6 +50,7 @@
 		}
 	}
 </script>
+
 
 <Menu {menuId} ariaLabel="Document structure menu">
 	<IconButton
@@ -50,8 +63,9 @@
 			// Select every column across the study (puts the app in column-selection mode).
 			window.dispatchEvent(new CustomEvent('select-all-columns'));
 		}}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={selectAllDisabled}
 	/>
+
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="sections"
@@ -62,8 +76,9 @@
 			// Select every section across the study (puts the app in section-selection mode).
 			window.dispatchEvent(new CustomEvent('select-all-sections'));
 		}}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={selectAllDisabled}
 	/>
+
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="segments"
@@ -74,8 +89,9 @@
 			// Select every segment across the study (puts the app in segment-selection mode).
 			window.dispatchEvent(new CustomEvent('select-all-segments'));
 		}}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={selectAllDisabled}
 	/>
+
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="connect"
@@ -87,8 +103,9 @@
 			// per-type visibility toggles). ConnectionsOverlay handles the selection.
 			window.dispatchEvent(new CustomEvent('select-all-connections'));
 		}}
-		isDisabled={!$toolbarState.canUseStructureItems}
+		isDisabled={selectAllDisabled}
 	/>
+
 
 	<DividerHorizontal />
 

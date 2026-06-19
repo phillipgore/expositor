@@ -88,7 +88,45 @@
 		if (data.passageDividersVisible !== undefined) {
 			setToolbarState('passageDividersVisible', data.passageDividersVisible);
 		}
+		// Document-view toggles (independent of the Analyze toggles above)
+		if (data.documentHeadingsVisible !== undefined) {
+			setToolbarState('documentHeadingsVisible', data.documentHeadingsVisible);
+		}
+		if (data.documentNotesVisible !== undefined) {
+			setToolbarState('documentNotesVisible', data.documentNotesVisible);
+		}
+		if (data.documentPassageNotesVisible !== undefined) {
+			setToolbarState('documentPassageNotesVisible', data.documentPassageNotesVisible);
+		}
+		if (data.documentConnectionNotesVisible !== undefined) {
+			setToolbarState('documentConnectionNotesVisible', data.documentConnectionNotesVisible);
+		}
+		if (data.documentConnectionsVisible !== undefined) {
+			setToolbarState('documentConnectionsVisible', data.documentConnectionsVisible);
+		}
+		if (data.documentColumnConnectionsVisible !== undefined) {
+			setToolbarState('documentColumnConnectionsVisible', data.documentColumnConnectionsVisible);
+		}
+		if (data.documentSectionConnectionsVisible !== undefined) {
+			setToolbarState('documentSectionConnectionsVisible', data.documentSectionConnectionsVisible);
+		}
+		if (data.documentSegmentConnectionsVisible !== undefined) {
+			setToolbarState('documentSegmentConnectionsVisible', data.documentSegmentConnectionsVisible);
+		}
+		if (data.documentCrossItemConnectionsVisible !== undefined) {
+			setToolbarState('documentCrossItemConnectionsVisible', data.documentCrossItemConnectionsVisible);
+		}
+		if (data.documentVersesVisible !== undefined) {
+			setToolbarState('documentVersesVisible', data.documentVersesVisible);
+		}
+		if (data.documentParagraphBreaksVisible !== undefined) {
+			setToolbarState('documentParagraphBreaksVisible', data.documentParagraphBreaksVisible);
+		}
+		if (data.documentCommentariesVisible !== undefined) {
+			setToolbarState('documentCommentariesVisible', data.documentCommentariesVisible);
+		}
 		// Last study view (document vs analyze) so the persisted view is restored
+
 		// across hard reloads / cold starts when re-entering a study.
 		if (data.lastStudyView !== undefined) {
 			setToolbarState('lastStudyView', data.lastStudyView);
