@@ -11,7 +11,7 @@
 	 * - Notation   — shows verse/notation numbers
 	 * - Paragraphs — shows translator paragraph break markers
 	 * - Wide       — enables wide layout (wider passage columns)
-	 * - Overview   — enables overview mode (hides passage text, shows only structure)
+	 * - Outline View — outline-only overview (hides passage text, structure only)
 	 * 
 	 * Usage:
 	 * ```svelte
@@ -59,7 +59,7 @@
 		isDisabled={!$toolbarState.canToggleWide}
 	/>
 	<MenuToggleItem
-		label="Overview"
+		label="Outline View"
 		isActive={$toolbarState.overviewMode}
 		onToggle={toggleOverview}
 		isDisabled={!$toolbarState.canToggleOverview}

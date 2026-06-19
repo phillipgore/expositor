@@ -93,7 +93,22 @@
 		if (data.lastStudyView !== undefined) {
 			setToolbarState('lastStudyView', data.lastStudyView);
 		}
+		// Per-view zoom: Analyze and Document keep independent, persisted zoom
+		// (level + mode), restored here on load so each view reopens at its own zoom.
+		if (data.analyzeZoomLevel !== undefined) {
+			setToolbarState('analyzeZoomLevel', data.analyzeZoomLevel);
+		}
+		if (data.analyzeZoomMode !== undefined) {
+			setToolbarState('analyzeZoomMode', data.analyzeZoomMode);
+		}
+		if (data.documentZoomLevel !== undefined) {
+			setToolbarState('documentZoomLevel', data.documentZoomLevel);
+		}
+		if (data.documentZoomMode !== undefined) {
+			setToolbarState('documentZoomMode', data.documentZoomMode);
+		}
 	});
+
 
 
 	onMount(() => {

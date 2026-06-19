@@ -4030,15 +4030,17 @@
 	let fitScale = $state(1);
 
 	// Track previous zoom level to detect actual changes
-	let previousZoomLevel = $state($toolbarState.zoomLevel);
+	let previousZoomLevel = $state($toolbarState.analyzeZoomLevel);
+
 
 	/**
 	 * Maintain center point when zoom level changes.
 	 * Only runs for percentage-to-percentage transitions; fit modes manage their own scroll.
 	 */
 	$effect(() => {
-		const currentZoomLevel = $toolbarState.zoomLevel;
-		const zoomMode = $toolbarState.zoomMode;
+		const currentZoomLevel = $toolbarState.analyzeZoomLevel;
+		const zoomMode = $toolbarState.analyzeZoomMode;
+
 
 		// Skip scroll centering when in or transitioning from a fit mode
 		if (zoomMode !== 'percentage') {
@@ -4115,12 +4117,13 @@
 	 * @returns {number} Current scale
 	 */
 	let currentScale = $derived.by(() => {
-		if ($toolbarState.zoomMode === 'fit-width' || $toolbarState.zoomMode === 'fit-study') {
+		if ($toolbarState.analyzeZoomMode === 'fit-width' || $toolbarState.analyzeZoomMode === 'fit-study') {
 			return fitScale;
 		}
 		// Convert percentage to decimal (e.g., 150% = 1.5)
-		return $toolbarState.zoomLevel / 100;
+		return $toolbarState.analyzeZoomLevel / 100;
 	});
+
 
 	/**
 	 * Calculate zoom transform based on zoom level
@@ -4227,10 +4230,11 @@
 
 		if (naturalWidth === 0 || naturalHeight === 0) return;
 
-		const mode = $toolbarState.zoomMode;
+		const mode = $toolbarState.analyzeZoomMode;
 		if (mode === 'fit-width') {
 			fitScale = viewportWidth / naturalWidth;
 		} else if (mode === 'fit-study') {
+
 			// Scale so that BOTH dimensions fit within the available viewport.
 			fitScale = Math.min(
 				viewportWidth / naturalWidth,
@@ -4244,11 +4248,12 @@
 	 * For fit-study, also scrolls to the top-left corner so the full study is visible.
 	 */
 	$effect(() => {
-		const mode = $toolbarState.zoomMode;
+		const mode = $toolbarState.analyzeZoomMode;
 		if (mode !== 'fit-width' && mode !== 'fit-study') return;
 
 		// Access passagesWithText to re-run this effect when content changes
 		const _dep = data.passagesWithText;
+
 
 		tick().then(() => {
 			computeFitScale();
@@ -4488,11 +4493,11 @@
 																			{isVerseSubdivided}
 																			prevSegmentHasHeading={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree)}
 																			nextSegmentHasHeading={!!(section.segments[segmentIndex + 1]?.headingOne || section.segments[segmentIndex + 1]?.headingTwo || section.segments[segmentIndex + 1]?.headingThree)}
-																			prevVisibleSegmentHasBorderBottom={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree || section.segments[segmentIndex - 1]?.note)}
+																			prevVisibleSegmentHasBorderBottom={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree || (section.segments[segmentIndex - 1]?.note && $toolbarState.passageNotesVisible))}
 																			prevSegmentHasRef={!!(headingReferences[section.segments[segmentIndex - 1]?.id]?.segmentRef)}
 																			isFirstInSection={segmentIndex === 0}
 																			isFirstVisibleInSection={segmentIndex === 0}
-																			height={segmentResize.getEffectiveHeight(segment.id, resolveSegmentFloor(segment))}
+																			height={$toolbarState.overviewMode ? null : segmentResize.getEffectiveHeight(segment.id, resolveSegmentFloor(segment))}
 																			resizeEnabled={!$toolbarState.overviewMode && !isHideMode}
 																			isResizing={segmentResize.activeSegmentId === segment.id}
 																			onResizeStart={segmentResize.handleResizeStart}

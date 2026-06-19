@@ -40,8 +40,13 @@ export async function load({ request, depends }) {
 				selectorsVisible: user.selectorsVisible,
 				layoutControlsVisible: user.layoutControlsVisible,
 				passageDividersVisible: user.passageDividersVisible,
-				lastStudyView: user.lastStudyView
+				lastStudyView: user.lastStudyView,
+				analyzeZoomLevel: user.analyzeZoomLevel,
+				analyzeZoomMode: user.analyzeZoomMode,
+				documentZoomLevel: user.documentZoomLevel,
+				documentZoomMode: user.documentZoomMode
 			})
+
 
 			.from(user)
 			.where(eq(user.id, session.user.id))
@@ -69,8 +74,13 @@ export async function load({ request, depends }) {
 		const layoutControlsVisible = userData[0]?.layoutControlsVisible ?? false;
 		const passageDividersVisible = userData[0]?.passageDividersVisible ?? true;
 		const lastStudyView = userData[0]?.lastStudyView ?? 'analyze';
+		const analyzeZoomLevel = userData[0]?.analyzeZoomLevel ?? 100;
+		const analyzeZoomMode = userData[0]?.analyzeZoomMode ?? 'percentage';
+		const documentZoomLevel = userData[0]?.documentZoomLevel ?? 100;
+		const documentZoomMode = userData[0]?.documentZoomMode ?? 'percentage';
 		
 		// Query all groups for the logged-in user
+
 
 		const groupsData = await db
 			.select()
@@ -155,9 +165,14 @@ export async function load({ request, depends }) {
 			selectorsVisible,
 			layoutControlsVisible,
 			passageDividersVisible,
-			lastStudyView
+			lastStudyView,
+			analyzeZoomLevel,
+			analyzeZoomMode,
+			documentZoomLevel,
+			documentZoomMode
 		};
 	} catch (error) {
+
 
 		console.error('Error loading studies:', error);
 		return {

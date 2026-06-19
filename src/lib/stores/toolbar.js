@@ -96,8 +96,11 @@ async function persistPreference(updates) {
  * @property {boolean} selectorsVisible - Whether the Column/Section selector buttons are shown without holding Command/Ctrl
  * @property {boolean} layoutControlsVisible - Whether the Column/Section/Segment layout handles (reposition/resize) are shown without hovering
  * @property {boolean} passageDividersVisible - Whether the vertical divider line between adjacent passages is shown (also controls whether the cross-passage gap is double width)
- * @property {number} zoomLevel - Current zoom level as percentage (25-400)
- * @property {'percentage'|'fit-width'|'fit-study'} zoomMode - Zoom mode: percentage-based or a fit mode
+ * @property {number} analyzeZoomLevel - Analyze view's zoom level as percentage (25-400)
+ * @property {'percentage'|'fit-width'|'fit-study'} analyzeZoomMode - Analyze view's zoom mode
+ * @property {number} documentZoomLevel - Document view's zoom level as percentage (25-400)
+ * @property {'percentage'|'fit-width'|'fit-study'} documentZoomMode - Document view's zoom mode
+
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
@@ -167,10 +170,10 @@ const defaultState = {
 	isStudyEditRoute: false,
 	lastStudyView: 'analyze',
 	canZoom: false,
-
-
-	zoomMode: 'percentage',
+	analyzeZoomMode: 'percentage',
+	documentZoomMode: 'percentage',
 	canStructure: false,
+
 	canHeading: false,
 	canColor: false,
 	canUseStructureItems: false,
@@ -196,8 +199,10 @@ const defaultState = {
 	selectorsVisible: false,
 	layoutControlsVisible: false,
 	passageDividersVisible: true,
-	zoomLevel: 100,
+	analyzeZoomLevel: 100,
+	documentZoomLevel: 100,
 	selectedItem: null,
+
 	hasWordSelection: false,
 	hasActiveSegment: false,
 	activeSegmentId: null,
@@ -1076,27 +1081,40 @@ export async function toggleCommentary() {
 }
 
 /**
- * Set zoom level (also resets zoomMode to 'percentage')
+ * Set the zoom level for a specific view (also resets that view's zoomMode to
+ * 'percentage'). The Analyze and Document views keep INDEPENDENT zoom, so the caller
+ * must say which view is being zoomed; only that view's level/mode pair is written and
+ * persisted (fire-and-forget) so it survives reloads.
  * @param {number} level - Zoom level as percentage (25-400)
+ * @param {'analyze'|'document'} view - Which view's zoom to set
  */
-export function setZoomLevel(level) {
+export function setZoomLevel(level, view) {
+	const levelKey = view === 'document' ? 'documentZoomLevel' : 'analyzeZoomLevel';
+	const modeKey = view === 'document' ? 'documentZoomMode' : 'analyzeZoomMode';
 	toolbarStateStore.update(state => ({
 		...state,
-		zoomLevel: level,
-		zoomMode: 'percentage'
+		[levelKey]: level,
+		[modeKey]: 'percentage'
 	}));
+	persistPreference({ [levelKey]: level, [modeKey]: 'percentage' });
 }
 
 /**
- * Set the zoom mode without changing the numeric zoom level
+ * Set the zoom mode for a specific view without changing its numeric zoom level.
+ * Only the given view's mode is written and persisted, keeping Analyze and Document
+ * zoom independent.
  * @param {'percentage'|'fit-width'|'fit-study'} mode - The zoom mode to activate
+ * @param {'analyze'|'document'} view - Which view's zoom mode to set
  */
-export function setZoomMode(mode) {
+export function setZoomMode(mode, view) {
+	const modeKey = view === 'document' ? 'documentZoomMode' : 'analyzeZoomMode';
 	toolbarStateStore.update(state => ({
 		...state,
-		zoomMode: mode
+		[modeKey]: mode
 	}));
+	persistPreference({ [modeKey]: mode });
 }
+
 
 /**
  * Set the selected item(s) in the studies panel

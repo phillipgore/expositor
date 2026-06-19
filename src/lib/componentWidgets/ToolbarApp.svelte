@@ -78,26 +78,57 @@
 	// Props to receive data from layout
 	let { groups = [] } = $props();
 
-	/** @type {string} Current zoom level label */
-	let zoomLabel = $state('100%');
+	/**
+	 * Which view's zoom the toolbar currently controls. Analyze and Document keep
+	 * INDEPENDENT zoom, so the Zoom menu reads/writes the active view's pair. We
+	 * resolve it from the URL (mirroring activeModeButton), falling back to the
+	 * remembered last view when off an explicit view route.
+	 * @type {'analyze'|'document'}
+	 */
+	let activeZoomView = $derived.by(() => {
+		const pathname = $page.url.pathname;
+		if (pathname.includes('/study/') && !pathname.includes('/study-group')) {
+			if (pathname.endsWith('/document') || pathname.includes('/document/')) {
+				return 'document';
+			}
+			if (pathname.endsWith('/analyze') || pathname.includes('/analyze/')) {
+				return 'analyze';
+			}
+		}
+		return $toolbarState.lastStudyView === 'document' ? 'document' : 'analyze';
+	});
 
 	/**
-	 * Handle zoom level change from MenuZoom
+	 * Current zoom label for the toolbar's Zoom button, derived from the ACTIVE view's
+	 * stored zoom so switching between Analyze and Document shows that view's remembered
+	 * zoom. A fit mode shows its label; otherwise the percentage.
+	 * @type {string}
+	 */
+	let zoomLabel = $derived.by(() => {
+		const mode = activeZoomView === 'document' ? $toolbarState.documentZoomMode : $toolbarState.analyzeZoomMode;
+		if (mode === 'fit-width') return 'Fit Width';
+		if (mode === 'fit-study') return 'Fit Study';
+		const level = activeZoomView === 'document' ? $toolbarState.documentZoomLevel : $toolbarState.analyzeZoomLevel;
+		return `${level || 100}%`;
+	});
+
+	/**
+	 * Handle zoom level change from MenuZoom. Routes the change to the ACTIVE view's
+	 * zoom pair so Analyze and Document stay independent (and each is persisted).
 	 * @param {string} label - Zoom label (e.g., "100%", "Fit Width", "Fit Study")
 	 */
 	function handleZoomChange(label) {
-		zoomLabel = label;
-		
 		if (label === 'Fit Width') {
-			setZoomMode('fit-width');
+			setZoomMode('fit-width', activeZoomView);
 		} else if (label === 'Fit Study') {
-			setZoomMode('fit-study');
+			setZoomMode('fit-study', activeZoomView);
 		} else {
-			// Percentage zoom — setZoomLevel also resets zoomMode to 'percentage'
+			// Percentage zoom — setZoomLevel also resets that view's zoomMode to 'percentage'
 			const percentage = parseInt(label.replace('%', ''));
-			setZoomLevel(percentage);
+			setZoomLevel(percentage, activeZoomView);
 		}
 	}
+
 
 	/**
 	 * Handle color selection from MenuColor.
@@ -481,7 +512,8 @@
 	{/each}
 </Toolbar>
 
-<MenuZoom menuId="MenuZoom" onselect={handleZoomChange} />
+<MenuZoom menuId="MenuZoom" onselect={handleZoomChange} currentLabel={zoomLabel} />
+
 <MenuStructure menuId="MenuStructure" />
 <MenuLayout menuId="MenuLayout" />
 <MenuConnect menuId="MenuConnect" />

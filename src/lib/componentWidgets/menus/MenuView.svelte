@@ -13,7 +13,7 @@
 	 * - Text markers     — References, Notations, Paragraphs
 	 * - Connections      — All / Column / Section / Segment (largest container first)
 	 * - Quick Notes      — All / Passage / Connection
-	 * - View modes       — Wide View, Overview
+	 * - View modes       — Wide View, Outline View (on = outline-only, text hidden)
 	 * - Controls         — Selection Controls, Layout Controls
 	 * 
 	 * Usage:
@@ -145,7 +145,7 @@
 		isDisabled={!$toolbarState.canToggleWide}
 	/>
 	<MenuToggleItem
-		label="Overview"
+		label="Outline View"
 		isActive={$toolbarState.overviewMode}
 		onToggle={toggleOverview}
 		isDisabled={!$toolbarState.canToggleOverview}

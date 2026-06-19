@@ -35,6 +35,15 @@ export const user = pgTable('user', {
 	// Remembers the last study view ('analyze' | 'document') the user was in, so
 	// re-entering a study (or opening a different one) restores the same view.
 	lastStudyView: text('last_study_view').default('analyze'),
+	// Per-view zoom: the Analyze and Document views keep INDEPENDENT zoom settings
+	// (level + mode) so changing zoom in one never affects the other. Each pair is
+	// persisted so it survives reloads. Level is a percentage; mode is
+	// 'percentage' | 'fit-width' | 'fit-study'.
+	analyzeZoomLevel: integer('analyze_zoom_level').default(100),
+	analyzeZoomMode: text('analyze_zoom_mode').default('percentage'),
+	documentZoomLevel: integer('document_zoom_level').default(100),
+	documentZoomMode: text('document_zoom_mode').default('percentage'),
+
 	createdAt: timestamp('created_at')
 
 		.$defaultFn(() => /* @__PURE__ */ new Date())

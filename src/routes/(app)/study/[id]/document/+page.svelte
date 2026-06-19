@@ -8,6 +8,8 @@
 
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
+	import { toolbarState } from '$lib/stores/toolbar.js';
+
 	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 
@@ -770,6 +772,138 @@
 				: []
 	);
 
+	/* ============================================================
+	   ZOOM — apply the toolbar's Zoom selection to the on-screen pages
+	   ------------------------------------------------------------
+	   The shared toolbar store carries the user's Zoom choice as `zoomLevel`
+	   (percentage) + `zoomMode` ('percentage' | 'fit-width' | 'fit-study'),
+	   updated by the toolbar's MenuZoom. The Analyze view reads these and applies
+	   a CSS `transform: scale(...)`; we mirror that here so the same Zoom control
+	   drives the Document view too.
+
+	   Only the VISIBLE pages are scaled. The off-screen measure layer is left at
+	   its natural (rem) size so the paginator's height math is unaffected by zoom —
+	   the document still splits into the same Letter-sized sheets at every zoom
+	   level; the sheets are merely drawn larger/smaller. Print is likewise
+	   unaffected (the @media print rules hide .page and promote the measure layer).
+	   ============================================================ */
+
+	// The element actually carrying the scale transform (wraps the .page column).
+	// Its NATURAL (unscaled) layout size is measured below to size the wrapper and
+	// to compute the fit-mode scales.
+	let pagesInnerEl = $state(/** @type {HTMLElement | null} */ (null));
+	// The scroll surface (gutter). Used to read the available viewport for fit modes.
+	let gutterEl = $state(/** @type {HTMLElement | null} */ (null));
+
+	// Dynamically computed scale for the two fit modes (recomputed on resize /
+	// content change in the effect below). Ignored while in percentage mode.
+	let fitScale = $state(1);
+
+	// Effective scale: the fit scale in a fit mode, else the percentage / 100.
+	// Document view reads its OWN zoom pair (documentZoom*) so it stays independent
+	// from the Analyze view's zoom.
+	let currentScale = $derived.by(() => {
+		if ($toolbarState.documentZoomMode === 'fit-width' || $toolbarState.documentZoomMode === 'fit-study') {
+			return fitScale;
+		}
+		return ($toolbarState.documentZoomLevel || 100) / 100;
+	});
+
+
+	// Last-measured NATURAL (un-scaled) size of the pages column. offsetWidth/Height
+	// are layout px — unaffected by the scale transform — so a ResizeObserver on the
+	// inner reports its true natural size and fires whenever content reflows.
+	let lastNaturalWidth = $state(0);
+	let lastNaturalHeight = $state(0);
+
+	// Explicit scaled dimensions for the wrapper so the gutter reserves the right
+	// amount of (visual) space and the scroll area matches the scaled content. The
+	// inner is taken out of flow (position: absolute) and centered, so without this
+	// the wrapper would collapse and scrolling/centering would break.
+	let wrapperDimensions = $derived.by(() => {
+		const w = lastNaturalWidth;
+		const h = lastNaturalHeight;
+		if (w > 0 && h > 0) {
+			return `width: ${w * currentScale}px; height: ${h * currentScale}px;`;
+		}
+		return '';
+	});
+
+	/**
+	 * Recompute the fit-mode scale from the available viewport and the pages
+	 * column's natural size. fit-width fills the viewport width; fit-study fits the
+	 * whole sheet (both dimensions) within the viewport. No-op outside a fit mode.
+	 */
+	function recomputeFitScale() {
+		const mode = $toolbarState.documentZoomMode;
+		if (mode !== 'fit-width' && mode !== 'fit-study') return;
+
+		if (!gutterEl || !pagesInnerEl) return;
+
+		// Available viewport = the scroll container (the gutter's parent) minus the
+		// gutter's own padding, so the fitted page clears the gray margin all around.
+		const scroller = gutterEl.parentElement ?? gutterEl;
+		const gStyle = getComputedStyle(gutterEl);
+		const padX = parseFloat(gStyle.paddingLeft) + parseFloat(gStyle.paddingRight);
+		const padY = parseFloat(gStyle.paddingTop) + parseFloat(gStyle.paddingBottom);
+		const availW = scroller.clientWidth - padX;
+		const availH = scroller.clientHeight - padY;
+
+		const naturalW = pagesInnerEl.offsetWidth;
+		const naturalH = pagesInnerEl.offsetHeight;
+		if (naturalW <= 0 || naturalH <= 0 || availW <= 0 || availH <= 0) return;
+
+		if (mode === 'fit-width') {
+			fitScale = availW / naturalW;
+		} else {
+			fitScale = Math.min(availW / naturalW, availH / naturalH);
+		}
+	}
+
+	// Track the pages column's natural size via a ResizeObserver so the wrapper
+	// dimensions and fit scales stay correct as content reflows (stream resolves,
+	// study switches, pagination changes the number of pages, etc.).
+	$effect(() => {
+		if (typeof window === 'undefined' || !pagesInnerEl) return;
+		const ro = new ResizeObserver(() => {
+			lastNaturalWidth = pagesInnerEl.offsetWidth;
+			lastNaturalHeight = pagesInnerEl.offsetHeight;
+			recomputeFitScale();
+		});
+		ro.observe(pagesInnerEl);
+		// Seed an initial measurement immediately.
+		lastNaturalWidth = pagesInnerEl.offsetWidth;
+		lastNaturalHeight = pagesInnerEl.offsetHeight;
+		recomputeFitScale();
+		return () => ro.disconnect();
+	});
+
+	// Recompute the fit scale whenever the zoom mode changes (e.g. the user picks
+	// Fit Width / Fit Study) so it snaps to the right size right away.
+	$effect(() => {
+		$toolbarState.documentZoomMode;
+		$toolbarState.documentZoomLevel;
+		if (typeof window === 'undefined') return;
+		tick().then(() => recomputeFitScale());
+	});
+
+
+	// Keep fit modes responsive to viewport size changes.
+	onMount(() => {
+		if (typeof window === 'undefined') return;
+		let raf = 0;
+		const onResize = () => {
+			cancelAnimationFrame(raf);
+			raf = requestAnimationFrame(() => recomputeFitScale());
+		};
+		window.addEventListener('resize', onResize);
+		return () => {
+			cancelAnimationFrame(raf);
+			window.removeEventListener('resize', onResize);
+		};
+	});
+
+
 	/**
 	 * Measure the off-screen layer and pack whole flow items into pages. Walks the
 	 * items in order, accumulating into the current page until the next item's
@@ -1217,7 +1351,7 @@
 {/snippet}
 
 
-<div class="document-gutter">
+<div class="document-gutter" bind:this={gutterEl}>
 	{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 		<!-- Off-screen MEASURE LAYER — renders every flow item once at the page's
 		     content width so the paginator can read each item's laid-out height. It
@@ -1231,20 +1365,36 @@
 			{/each}
 		</div>
 
-		<!-- VISIBLE PAGES — one .page per packed group of flow items. Until the
-		     measure layer has been measured (or during SSR), displayPages is a
-		     single page holding everything, so content is never hidden. -->
-		{#each displayPages as pageIndices, p (p)}
-			<div class="page">
-				{#each pageIndices as idx (flowItems[idx].id)}
-					<div class="doc-flow-item">
-						{@render flowItemContent(flowItems[idx])}
+		<!-- ZOOM WRAPPER — the toolbar's Zoom selection scales the visible pages via a
+		     CSS transform on .pages-inner. The outer .pages-wrapper is given the scaled
+		     width/height (natural size × scale) so the gutter reserves the right amount
+		     of space and scrolling/centering stay correct; the inner is taken out of
+		     flow and centered within it. The off-screen measure layer above is NOT
+		     scaled, so pagination math (and print) is unaffected by zoom. -->
+		<div class="pages-wrapper" style={wrapperDimensions}>
+			<div
+				class="pages-inner"
+				bind:this={pagesInnerEl}
+				style="transform: translateX(-50%) scale({currentScale}); transform-origin: top center;"
+			>
+
+				<!-- VISIBLE PAGES — one .page per packed group of flow items. Until the
+				     measure layer has been measured (or during SSR), displayPages is a
+				     single page holding everything, so content is never hidden. -->
+				{#each displayPages as pageIndices, p (p)}
+					<div class="page">
+						{#each pageIndices as idx (flowItems[idx].id)}
+							<div class="doc-flow-item">
+								{@render flowItemContent(flowItems[idx])}
+							</div>
+						{/each}
 					</div>
 				{/each}
 			</div>
-		{/each}
+		</div>
 
 	{:else if !streamedContent}
+
 		<!-- Still streaming: show an in-page spinner on an empty page. Server-rendered
 		     so it appears in the first paint on a fresh load (covering the pre-hydration
 		     gap that the client-only global overlay can't). Suppressed while `$navigating`
@@ -1371,6 +1521,44 @@
 		visibility: hidden;
 		pointer-events: none;
 	}
+
+
+	/* ============================================
+	   ZOOM — scale the visible pages to the toolbar's Zoom selection.
+	   --------------------------------------------
+	   .pages-wrapper carries the SCALED dimensions (natural size × scale, set
+	   inline from JS) so the gutter reserves the right amount of visual space and
+	   the scroll area matches the zoomed content. .pages-inner is taken out of flow
+	   and pinned to the wrapper's top-center, then scaled there via a CSS transform
+	   (transform-origin: top center) so the page column grows/shrinks about its top
+	   edge while staying horizontally centered in the gutter. The off-screen
+	   measure layer is NOT inside this wrapper, so pagination math is unaffected.
+	   ============================================ */
+	.pages-wrapper {
+		position: relative;
+		/* The wrapper's explicit width/height come from the inline style; it must not
+		   stretch in the column flex layout, so it sizes to those values exactly. */
+		flex: 0 0 auto;
+	}
+
+	.pages-inner {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--page-gap);
+		/* The scale + horizontal centering are applied inline (transform), so the
+		   inner lays its .page children out at natural size and the transform draws
+		   them larger/smaller. The transition animates zoom changes smoothly, matching
+		   the Analyze view (which transitions its own scaled .analyze-content-inner).
+		   Only the changing scale animates; the constant translateX(-50%) centering
+		   rides along unchanged. */
+		transition: transform 0.2s ease-out;
+	}
+
+
 
 
 
@@ -1956,7 +2144,15 @@
 			display: none;
 		}
 
+		/* The on-screen zoom wrapper is irrelevant in print (its .page children are
+		   hidden above). Neutralize its reserved scaled dimensions and absolute
+		   positioning so it never leaves an empty scaled gap on the printed sheet. */
+		.pages-wrapper {
+			display: none;
+		}
+
 		.measure-layer {
+
 			position: static;
 			left: auto;
 			width: auto;

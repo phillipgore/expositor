@@ -37,8 +37,13 @@ export async function PATCH({ request }) {
 			selectorsVisible,
 			layoutControlsVisible,
 			passageDividersVisible,
-			lastStudyView
+			lastStudyView,
+			analyzeZoomLevel,
+			analyzeZoomMode,
+			documentZoomLevel,
+			documentZoomMode
 		} = body;
+
 
 		
 		// Build update object with only provided fields
@@ -113,8 +118,32 @@ export async function PATCH({ request }) {
 			}
 			updates.lastStudyView = lastStudyView;
 		}
+
+		// Validate and add the per-view zoom preferences if provided. Levels are
+		// percentages (a sane 25–400 range); modes are a small string enum. Analyze
+		// and Document each persist their own pair so their zoom stays independent.
+		const zoomLevels = { analyzeZoomLevel, documentZoomLevel };
+		for (const [key, value] of Object.entries(zoomLevels)) {
+			if (value !== undefined) {
+				if (typeof value !== 'number' || !Number.isFinite(value) || value < 25 || value > 400) {
+					return json({ error: `Invalid value for ${key}` }, { status: 400 });
+				}
+				updates[key] = value;
+			}
+		}
+
+		const zoomModes = { analyzeZoomMode, documentZoomMode };
+		for (const [key, value] of Object.entries(zoomModes)) {
+			if (value !== undefined) {
+				if (value !== 'percentage' && value !== 'fit-width' && value !== 'fit-study') {
+					return json({ error: `Invalid value for ${key}` }, { status: 400 });
+				}
+				updates[key] = value;
+			}
+		}
 		
 		// Only update if there are changes
+
 
 		if (Object.keys(updates).length === 0) {
 			return json({ error: 'No valid preferences provided' }, { status: 400 });
