@@ -1,7 +1,8 @@
 <script>
 	import { invalidate } from '$app/navigation';
 	import { navigating } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+
 	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import GlossaryBadge from '$lib/componentElements/GlossaryBadge.svelte';
 
@@ -560,10 +561,191 @@
 			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toChapter}:${passage.toVerse}`;
 		}
 	}
+
+	/* ============================================================
+	   SCREEN PAGINATION — distribute content across 8.5"×11" sheets
+	   ------------------------------------------------------------
+	   The document is conceptually a flat, ordered stream of "flow items" (the
+	   study header, each passage's reference + structural blocks, and the
+	   copyright notice). On screen we want these laid out on a series of discrete
+	   Letter-sized pages (Google Docs style), not one tall sheet.
+
+	   CSS alone can't fragment content into on-screen pages — only the print
+	   paginator does that. So we render every flow item once into an off-screen
+	   "measure layer" that is exactly as wide as a page's content area (page width
+	   − 2× margin), read each item's laid-out top/bottom, then pack whole items
+	   into pages: an item starts a new page when adding it would overflow the
+	   available content height (page height − 2× margin). Items are never split
+	   mid-block (v1) — a block taller than a full page simply occupies its own
+	   page. The same off-screen measure layer doubles as the PRINT source: in
+	   print we reveal it as one continuous flow and let the browser's native
+	   paginator produce the real sheets (see the @media print rules).
+	   ============================================================ */
+
+	/**
+	 * Flatten the streamed study content into a single ordered list of renderable
+	 * "flow items" — the atomic units the paginator packs onto pages. Each item is
+	 * `{ id, kind, ... }`; `kind` selects which snippet renders it.
+	 * @returns {Array<Object>}
+	 */
+	function buildFlowItems(passagesWithText, passages, connectionsByFromIdMap) {
+		/** @type {Array<Object>} */
+		const items = [{ id: 'header', kind: 'header' }];
+
+		for (const passageText of passagesWithText ?? []) {
+			if (passageText.error) {
+				items.push({
+					id: `err-${passageText.reference}`,
+					kind: 'error',
+					reference: passageText.reference,
+					error: passageText.error
+				});
+				continue;
+			}
+			if (!passageText.text) continue;
+
+			const passageId = passageText.structure?.passageId ?? passageText.reference;
+			const passageData = (passages ?? []).find((p) => p.id === passageText.structure?.passageId);
+
+			items.push({
+				id: `pref-${passageId}`,
+				kind: 'passage-ref',
+				reference: passageText.reference
+			});
+
+			const blocks = buildDocumentBlocks(passageText, passageData, connectionsByFromIdMap);
+			if (blocks) {
+				for (const block of blocks) {
+					items.push({ id: `blk-${passageId}-${block.key}`, kind: 'block', block });
+				}
+			} else {
+				items.push({ id: `fb-${passageId}`, kind: 'fallback-text', html: passageText.text });
+			}
+		}
+
+		items.push({ id: 'copyright', kind: 'copyright' });
+		return items;
+	}
+
+	let flowItems = $derived(
+		streamedContent && data.passagesWithText && data.passagesWithText.length > 0
+			? buildFlowItems(data.passagesWithText, data.passages, connectionsByFromId)
+			: []
+	);
+
+	// Pages are arrays of flow-item indices. Computed by measuring the off-screen
+	// layer; until that runs (or on the server) we fall back to a single page
+	// containing every item, so content is never hidden waiting on measurement.
+	let pages = $state(/** @type {number[][]} */ ([]));
+	let measureEl = $state(/** @type {HTMLElement | null} */ (null));
+
+	let displayPages = $derived(
+		pages.length
+			? pages
+			: flowItems.length
+				? [flowItems.map((_, i) => i)]
+				: []
+	);
+
+	/**
+	 * Measure the off-screen layer and pack whole flow items into pages. Walks the
+	 * items in order, accumulating into the current page until the next item's
+	 * bottom would exceed the page's content height, then starts a new page. Uses
+	 * laid-out geometry (getBoundingClientRect) so it reflects real wrapping and
+	 * collapsed margins. The first item of every page has its leading margin zeroed
+	 * by CSS, matching the measure layer where the very first top margin collapses
+	 * away — keeping the estimate and the rendered pages in agreement.
+	 */
+	function paginate() {
+		if (!measureEl || !flowItems.length) {
+			pages = [];
+			return;
+		}
+
+		const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize) || 10;
+		// Page content height = page height (105.6rem) − top+bottom margins (2 × 9.6rem).
+		const pageContentHeight = 86.4 * rootFont;
+
+		const nodes = /** @type {HTMLElement[]} */ (
+			Array.from(measureEl.querySelectorAll('[data-flow-index]'))
+		);
+		if (!nodes.length) {
+			pages = [];
+			return;
+		}
+
+		const containerTop = measureEl.getBoundingClientRect().top;
+		/** @type {number[][]} */
+		const newPages = [];
+		/** @type {number[]} */
+		let current = [];
+		let pageStartTop = null;
+
+		for (let i = 0; i < nodes.length; i++) {
+			const rect = nodes[i].getBoundingClientRect();
+			const top = rect.top - containerTop;
+			const bottom = rect.bottom - containerTop;
+
+			if (pageStartTop === null) pageStartTop = top;
+
+			if (current.length && bottom - pageStartTop > pageContentHeight) {
+				newPages.push(current);
+				current = [i];
+				pageStartTop = top;
+			} else {
+				current.push(i);
+			}
+		}
+		if (current.length) newPages.push(current);
+
+		// Only assign if the layout actually changed, to avoid effect feedback loops.
+		const changed =
+			newPages.length !== pages.length ||
+			newPages.some((p, i) => p.length !== pages[i]?.length || p.some((v, j) => v !== pages[i][j]));
+		if (changed) pages = newPages;
+	}
+
+	// Re-paginate whenever the flow items change (content resolves / study switch)
+	// or the window resizes. Runs after the measure layer has rendered (tick), and
+	// only in the browser.
+	$effect(() => {
+		// Touch dependencies so the effect re-runs when content changes.
+		flowItems;
+		measureEl;
+		if (typeof window === 'undefined') return;
+
+		let cancelled = false;
+		tick().then(() => {
+			if (!cancelled) paginate();
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	onMount(() => {
+		if (typeof window === 'undefined') return;
+		let raf = 0;
+		const onResize = () => {
+			cancelAnimationFrame(raf);
+			raf = requestAnimationFrame(() => paginate());
+		};
+		window.addEventListener('resize', onResize);
+		return () => {
+			cancelAnimationFrame(raf);
+			window.removeEventListener('resize', onResize);
+		};
+	});
 </script>
 
-<div class="document-gutter">
-	<div class="page">
+
+<!-- ============================================================
+     SNIPPETS — one per renderable flow-item kind. Each is rendered both into
+     the off-screen measure layer (for pagination) and into the visible pages,
+     so the two stay byte-for-byte identical and measurement matches layout.
+     ============================================================ -->
+
+{#snippet headerContent()}
 	<div class="study-header">
 		<h1 class="study-title">{data.study.title}</h1>
 		{#if data.study.subtitle}
@@ -571,7 +753,6 @@
 		{/if}
 		{#if data.passages && data.passages.length > 0}
 			<p class="study-references">
-
 				{#each data.passages as passage, i}
 					{formatPassageReference(passage)}{#if i < data.passages.length - 1},&nbsp;{/if}
 				{/each}
@@ -579,205 +760,217 @@
 			</p>
 		{/if}
 	</div>
-	
-	<!-- Document View Content -->
-	<!-- While the streamed content resolves, an in-page Spinner covers the wait.
-	     This branch is SERVER-RENDERED, so on a fresh load / refresh the spinner is
-	     present in the very first paint — before client JS hydrates and before
-	     `$navigating`/`studyContentLoading` (which the global NavigationIndicator
-	     depends on) exist. That closes the Safari first-load "blank, no spinner"
-	     gap. During in-app navigations the global overlay already shows, so we hide
-	     this one when `$navigating` is active to avoid two spinners at once. -->
-	<div class="document-content">
+{/snippet}
 
-		{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
-			{#each data.passagesWithText as passageText}
-				{#if passageText.error}
-					<div class="error-message">
-						<p>Error loading {passageText.reference}: {passageText.error}</p>
+{#snippet copyrightContent()}
+	<!-- Copyright Notice — required Scripture attribution. Flows after the last
+	     content block (on the final page). -->
+	<div class="copyright-notice">
+		{#if data.study.translation === 'esv'}
+			<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved. <a href="https://www.esv.org" target="_blank" rel="noopener noreferrer">www.esv.org</a></p>
+		{:else if data.study.translation === 'net'}
+			<p>Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved. <a href="https://netbible.org" target="_blank" rel="noopener noreferrer">netbible.org</a></p>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet blockContent(block)}
+	{#if block.type === 'column-start'}
+		<!-- Column divider: a centered "Column: <ref>" label sitting on a SOLID
+		     rule that runs to both margins, marking where a new column begins. -->
+		{#if block.ref}
+			<p class="doc-divider doc-divider-column">
+				<span class="doc-divider-text">Column: {block.ref}</span>
+			</p>
+		{/if}
+	{:else if block.type === 'section-start'}
+		<!-- Section divider: centered "Section: <ref>" on a DASHED rule. -->
+		{#if block.ref}
+			<p class="doc-divider doc-divider-section">
+				<span class="doc-divider-text">Section: {block.ref}</span>
+			</p>
+		{/if}
+	{:else if block.type === 'aside'}
+		<!-- Editorial commentary: column-, section-, or segment-level. Rendered as
+		     flowing body text directly beneath the structural label it follows
+		     (matching the mockup), NOT as a boxed callout. Footnotes authored in the
+		     commentary are surfaced beneath: the inline superscript markers are
+		     renumbered 1, 2, 3… per commentary (matching the editor), and each
+		     note's text — stored in its marker's data-footnote-content attribute —
+		     is rendered as an ordered list directly below the commentary body. -->
+		{@const asideRendered = renderCommentaryWithFootnotes(block.html)}
+		{@const asideTermIds = extractGlossaryTermIds(block.html)}
+		<div class="doc-commentary doc-commentary-{block.scope}">
+			<div class="doc-commentary-body">{@html asideRendered.html}</div>
+			{#if asideRendered.footnotes.length > 0}
+				<ol class="doc-footnotes">
+					{#each asideRendered.footnotes as footnote (footnote.number)}
+						<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
+					{/each}
+				</ol>
+			{/if}
+			<!-- Glossary tags strip: a read-only reflection of the glossary terms
+			     used inline in this commentary, mirroring the Analyze view's
+			     CommentaryEditor bottom strip. -->
+			{#if asideTermIds.length > 0}
+				<div class="doc-tags">
+					<div class="doc-tags-list">
+						{#each asideTermIds as termId (termId)}
+							<GlossaryBadge {termId} removable={false} />
+						{/each}
 					</div>
-				{:else if passageText.text}
-					{@const passageData = (data.passages ?? []).find((p) => p.id === passageText.structure?.passageId)}
-					{@const blocks = buildDocumentBlocks(passageText, passageData, connectionsByFromId)}
-					<div class="passage-section">
-						<!-- Passage reference — the top of the structural label family. Every
-						     structural ref in the document is rendered as "Label: Reference"
-						     (Passage / Column / Section / Segment / Connection) so the reading
-						     document is navigable by location, matching the mockup. -->
-						<p class="doc-ref-line doc-passage-ref">
-							<span class="doc-ref-label">Passage:</span> {passageText.reference}
-						</p>
-
-						{#if blocks}
-							<!-- Interleave the author's headings with each segment's sliced text so
-							     the reading document reflects the structure built in Analyze. Heading
-							     One/Two/Three render as h3/h4/h5 (semantic levels below the passage
-							     h2); scripture-refs are intentionally omitted for a clean read.
-
-							     Column/section commentary is interleaved as `aside` blocks anchored at
-							     the start of the column/section it governs. Columns and sections own no
-							     heading in the outline, so their broad-scope commentary is rendered as a
-							     visually distinct editorial callout — NOT as plain body text that would
-							     otherwise appear to belong to the narrower segment heading that follows. -->
-							{#each blocks as block (block.key)}
-								{#if block.type === 'column-start'}
-									<!-- Column divider: a centered "Column: <ref>" label sitting on a SOLID
-									     rule that runs to both margins, marking where a new column begins. -->
-									{#if block.ref}
-										<p class="doc-divider doc-divider-column">
-											<span class="doc-divider-text">Column: {block.ref}</span>
-										</p>
-									{/if}
-								{:else if block.type === 'section-start'}
-									<!-- Section divider: centered "Section: <ref>" on a DASHED rule. -->
-									{#if block.ref}
-										<p class="doc-divider doc-divider-section">
-											<span class="doc-divider-text">Section: {block.ref}</span>
-										</p>
-									{/if}
-
-								{:else if block.type === 'aside'}
-									<!-- Editorial commentary: column-, section-, or segment-level. Rendered as
-									     flowing body text directly beneath the structural label it follows
-									     (matching the mockup), NOT as a boxed callout. Footnotes authored in the
-									     commentary are surfaced beneath: the inline superscript markers are
-									     renumbered 1, 2, 3… per commentary (matching the editor), and each
-									     note's text — stored in its marker's data-footnote-content attribute —
-									     is rendered as an ordered list directly below the commentary body. -->
-									{@const asideRendered = renderCommentaryWithFootnotes(block.html)}
-									{@const asideTermIds = extractGlossaryTermIds(block.html)}
-									<div class="doc-commentary doc-commentary-{block.scope}">
-										<div class="doc-commentary-body">{@html asideRendered.html}</div>
-										{#if asideRendered.footnotes.length > 0}
-											<ol class="doc-footnotes">
-												{#each asideRendered.footnotes as footnote (footnote.number)}
-													<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
-												{/each}
-											</ol>
-										{/if}
-										<!-- Glossary tags strip: a read-only reflection of the glossary terms
-										     used inline in this commentary, mirroring the Analyze view's
-										     CommentaryEditor bottom strip. -->
-										{#if asideTermIds.length > 0}
-											<div class="doc-tags">
-												<div class="doc-tags-list">
-													{#each asideTermIds as termId (termId)}
-														<GlossaryBadge {termId} removable={false} />
-													{/each}
-												</div>
-											</div>
-										{/if}
-									</div>
-								{:else if block.type === 'connections'}
-									<!-- Connections group: links this item makes to others, shown once at the
-									     FROM end. Each entry is wrapped in a subtle rounded-rectangle card with
-									     a "Connection: <fromRef> → <toRef>" label, followed by its quick note
-									     (plain text) and commentary (rich text). -->
-									<div class="doc-connections doc-connections-{block.scope}">
-										{#each block.connections as conn (conn.key)}
-											<div class="doc-connection">
-												<p class="doc-ref-line doc-connection-ref">
-													<span class="doc-ref-label">Connection:</span>
-													<span class="doc-connection-from">{conn.fromRef ?? '—'}</span>
-													<span class="doc-connection-arrow"> → </span>
-													<span class="doc-connection-to">{conn.toRef ?? '—'}</span>
-												</p>
-												{#if conn.note}
-													<p class="doc-connection-note">{conn.note}</p>
-												{/if}
-												{#if conn.commentary}
-													<!-- Connection commentary carries footnotes too; surface them the
-													     same way as the commentary above. -->
-													{@const connRendered = renderCommentaryWithFootnotes(conn.commentary)}
-													{@const connTermIds = extractGlossaryTermIds(conn.commentary)}
-													<div class="doc-connection-commentary">{@html connRendered.html}</div>
-													{#if connRendered.footnotes.length > 0}
-														<ol class="doc-footnotes doc-footnotes-connection">
-															{#each connRendered.footnotes as footnote (footnote.number)}
-																<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
-															{/each}
-														</ol>
-													{/if}
-													<!-- Glossary tags strip for the connection commentary. -->
-													{#if connTermIds.length > 0}
-														<div class="doc-tags">
-															<div class="doc-tags-list">
-																{#each connTermIds as termId (termId)}
-																	<GlossaryBadge {termId} removable={false} />
-																{/each}
-															</div>
-														</div>
-													{/if}
-												{/if}
-											</div>
-										{/each}
-									</div>
-								{:else}
-									<!-- Segment divider: centered "Segment: <ref>" on a DOTTED rule. -->
-									{#if block.ref}
-										<p class="doc-divider doc-divider-segment">
-											<span class="doc-divider-text">Segment: {block.ref}</span>
-										</p>
-									{/if}
-
-									{#if block.headingOne}
-										<h3 class="doc-heading doc-heading-one">{block.headingOne}</h3>
-									{/if}
-									{#if block.headingTwo}
-										<h4 class="doc-heading doc-heading-two">{block.headingTwo}</h4>
-									{/if}
-									{#if block.headingThree}
-										<h5 class="doc-heading doc-heading-three">{block.headingThree}</h5>
-									{/if}
-									<div class="passage-text">{@html block.html}</div>
-									<!-- Quick note: a brief plain-text margin note authored on the segment.
-									     Rendered right after the segment's text (and before any segment
-									     commentary that follows). Plain text — NOT {@html} — to mirror
-									     the editor and avoid interpreting note content as markup. -->
-									{#if block.note}
-										<p class="doc-note">{block.note}</p>
-									{/if}
-								{/if}
-
-							{/each}
-						{:else}
-							<!-- Fallback: a passage with no usable structure renders whole, so text
-							     is never lost (legacy/edge studies). -->
-							<div class="passage-text">{@html passageText.text}</div>
+				</div>
+			{/if}
+		</div>
+	{:else if block.type === 'connections'}
+		<!-- Connections group: links this item makes to others, shown once at the
+		     FROM end. Each entry is wrapped in a subtle rounded-rectangle card with
+		     a "Connection: <fromRef> → <toRef>" label, followed by its quick note
+		     (plain text) and commentary (rich text). -->
+		<div class="doc-connections doc-connections-{block.scope}">
+			{#each block.connections as conn (conn.key)}
+				<div class="doc-connection">
+					<p class="doc-ref-line doc-connection-ref">
+						<span class="doc-ref-label">Connection:</span>
+						<span class="doc-connection-from">{conn.fromRef ?? '—'}</span>
+						<span class="doc-connection-arrow"> → </span>
+						<span class="doc-connection-to">{conn.toRef ?? '—'}</span>
+					</p>
+					{#if conn.note}
+						<p class="doc-connection-note">{conn.note}</p>
+					{/if}
+					{#if conn.commentary}
+						<!-- Connection commentary carries footnotes too; surface them the
+						     same way as the commentary above. -->
+						{@const connRendered = renderCommentaryWithFootnotes(conn.commentary)}
+						{@const connTermIds = extractGlossaryTermIds(conn.commentary)}
+						<div class="doc-connection-commentary">{@html connRendered.html}</div>
+						{#if connRendered.footnotes.length > 0}
+							<ol class="doc-footnotes doc-footnotes-connection">
+								{#each connRendered.footnotes as footnote (footnote.number)}
+									<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
+								{/each}
+							</ol>
 						{/if}
-					</div>
-				{/if}
+						<!-- Glossary tags strip for the connection commentary. -->
+						{#if connTermIds.length > 0}
+							<div class="doc-tags">
+								<div class="doc-tags-list">
+									{#each connTermIds as termId (termId)}
+										<GlossaryBadge {termId} removable={false} />
+									{/each}
+								</div>
+							</div>
+						{/if}
+					{/if}
+				</div>
 			{/each}
-			
-			<!-- Copyright Notice — required Scripture attribution. Sits at the bottom of the
-			     document via margin-top:auto: pinned to the bottom of the viewport for short
-			     studies, and flowing below the content for tall ones. -->
-			<div class="copyright-notice">
-				{#if data.study.translation === 'esv'}
-					<p>Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved. <a href="https://www.esv.org" target="_blank" rel="noopener noreferrer">www.esv.org</a></p>
-				{:else if data.study.translation === 'net'}
-					<p>Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved. <a href="https://netbible.org" target="_blank" rel="noopener noreferrer">netbible.org</a></p>
-				{/if}
-			</div>
+		</div>
+	{:else}
+		<!-- Segment divider: centered "Segment: <ref>" on a DOTTED rule. -->
+		{#if block.ref}
+			<p class="doc-divider doc-divider-segment">
+				<span class="doc-divider-text">Segment: {block.ref}</span>
+			</p>
+		{/if}
 
-		{:else if !streamedContent}
-			<!-- Still streaming: show an in-page spinner. Server-rendered so it appears
-			     in the first paint on a fresh load (covering the pre-hydration gap that
-			     the client-only global overlay can't). Suppressed while `$navigating`
-			     OR the global content loader is active, so in-app navigations show only
-			     the single global overlay rather than two spinners. -->
+		{#if block.headingOne}
+			<h3 class="doc-heading doc-heading-one">{block.headingOne}</h3>
+		{/if}
+		{#if block.headingTwo}
+			<h4 class="doc-heading doc-heading-two">{block.headingTwo}</h4>
+		{/if}
+		{#if block.headingThree}
+			<h5 class="doc-heading doc-heading-three">{block.headingThree}</h5>
+		{/if}
+		<div class="passage-text">{@html block.html}</div>
+		<!-- Quick note: a brief plain-text margin note authored on the segment.
+		     Rendered right after the segment's text (and before any segment
+		     commentary that follows). Plain text — NOT {@html} — to mirror
+		     the editor and avoid interpreting note content as markup. -->
+		{#if block.note}
+			<p class="doc-note">{block.note}</p>
+		{/if}
+	{/if}
+{/snippet}
+
+<!-- Render a single flow item by kind. Used by both the measure layer and the
+     visible pages so they render identically. -->
+{#snippet flowItemContent(item)}
+	{#if item.kind === 'header'}
+		{@render headerContent()}
+	{:else if item.kind === 'passage-ref'}
+		<!-- Passage reference — the top of the structural label family. Every
+		     structural ref in the document is rendered as "Label: Reference"
+		     (Passage / Column / Section / Segment / Connection) so the reading
+		     document is navigable by location, matching the mockup. -->
+		<p class="doc-ref-line doc-passage-ref">
+			<span class="doc-ref-label">Passage:</span> {item.reference}
+		</p>
+	{:else if item.kind === 'block'}
+		{@render blockContent(item.block)}
+	{:else if item.kind === 'fallback-text'}
+		<!-- Fallback: a passage with no usable structure renders whole, so text
+		     is never lost (legacy/edge studies). -->
+		<div class="passage-text">{@html item.html}</div>
+	{:else if item.kind === 'error'}
+		<div class="error-message">
+			<p>Error loading {item.reference}: {item.error}</p>
+		</div>
+	{:else if item.kind === 'copyright'}
+		{@render copyrightContent()}
+	{/if}
+{/snippet}
+
+<div class="document-gutter">
+	{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
+		<!-- Off-screen MEASURE LAYER — renders every flow item once at the page's
+		     content width so the paginator can read each item's laid-out height. It
+		     is visually hidden on screen, but in PRINT it becomes the single
+		     continuous flow the browser's native paginator splits into sheets. -->
+		<div class="measure-layer" bind:this={measureEl} aria-hidden="true">
+			{#each flowItems as item, i (item.id)}
+				<div class="doc-flow-item" data-flow-index={i}>
+					{@render flowItemContent(item)}
+				</div>
+			{/each}
+		</div>
+
+		<!-- VISIBLE PAGES — one .page per packed group of flow items. Until the
+		     measure layer has been measured (or during SSR), displayPages is a
+		     single page holding everything, so content is never hidden. -->
+		{#each displayPages as pageIndices, p (p)}
+			<div class="page">
+				{#each pageIndices as idx (flowItems[idx].id)}
+					<div class="doc-flow-item">
+						{@render flowItemContent(flowItems[idx])}
+					</div>
+				{/each}
+			</div>
+		{/each}
+
+	{:else if !streamedContent}
+		<!-- Still streaming: show an in-page spinner on an empty page. Server-rendered
+		     so it appears in the first paint on a fresh load (covering the pre-hydration
+		     gap that the client-only global overlay can't). Suppressed while `$navigating`
+		     OR the global content loader is active, so in-app navigations show only the
+		     single global overlay rather than two spinners. -->
+		<div class="page">
+			{@render headerContent()}
 			{#if !$navigating && !$studyContentLoading}
 				<div class="content-loading">
 					<Spinner size="lg" label="Loading study…" />
 				</div>
 			{/if}
-		{:else}
+		</div>
+	{:else}
+		<div class="page">
+			{@render headerContent()}
 			<p class="placeholder-text">No passages available for this study.</p>
-		{/if}
-
-	</div>
-	</div>
+		</div>
+	{/if}
 </div>
+
 
 <style>
 	/* ============================================
@@ -795,13 +988,18 @@
 	   ============================================ */
 
 	/* Page geometry — single source of truth for the dimensions/margins so the
-	   future paginator and the @media print rules can reference the same values. */
+	   paginator and the @media print rules can reference the same values. */
 	:root {
 		--page-width: 81.6rem;   /* 8.5in × 9.6rem/in */
 		--page-height: 105.6rem; /* 11in  × 9.6rem/in */
 		--page-margin: 9.6rem;   /* 1in on all sides  */
 		--page-gap: 2.4rem;      /* vertical space between stacked pages */
+		/* Content area = page minus the left+right (and top+bottom) margins. The
+		   off-screen measure layer is set to this width so item heights it reports
+		   match how they'll lay out inside a real page's content box. */
+		--page-content-width: 62.4rem;  /* 81.6 − 2 × 9.6 */
 	}
+
 
 	/* The gutter is the gray surface the pages float on (Google Docs style). It
 	   fills the scroll container and centers the page column horizontally. */
@@ -815,9 +1013,10 @@
 		background-color: var(--gray-900);
 	}
 
-	/* A single physical page: fixed Letter width, at least Letter height (grows for
-	   long studies until the paginator splits it), white surface, 1" padding for
-	   the margins, and a subtle shadow to lift it off the gutter. */
+	/* A single physical page: fixed Letter width and height (the paginator packs a
+	   bounded set of flow items onto each), white surface, 1" padding for the
+	   margins, and a subtle shadow to lift it off the gutter. Overflow is hidden so
+	   a slight measurement overshoot can never bleed past the sheet edge. */
 	.page {
 		box-sizing: border-box;
 		width: var(--page-width);
@@ -825,19 +1024,72 @@
 		padding: var(--page-margin);
 		background-color: var(--white);
 		box-shadow: 0 0.1rem 0.6rem var(--black-alpha);
-		/* Flex column so the copyright notice (margin-top:auto) is pushed to the
-		   bottom margin of the page on short studies. */
-		display: flex;
-		flex-direction: column;
+		overflow: hidden;
 	}
+
+	/* ============================================
+	   PAGINATION — measure layer + flow-item wrappers
+	   --------------------------------------------
+	   Each renderable unit (header, passage reference, structural block, copyright)
+	   is wrapped in a .doc-flow-item. The two contexts treat that wrapper
+	   differently, by design (see the rules below): the measure layer makes each
+	   wrapper a flow-root so heights are self-contained and easy to pack; the
+	   visible pages make the wrapper `display: contents` so the blocks lay out as
+	   direct children of the page and keep their original margin-collapsing rhythm.
+	   ============================================ */
+	/* In the MEASURE layer each item is its own flow-root so its measured height
+
+	   includes (uncollapsed) margins — a safe over-measure that only ever under-fills
+	   a page. On the VISIBLE pages the wrapper uses `display: contents`, so it
+	   contributes NO box of its own: the blocks lay out as direct children of the
+	   page exactly as they did before pagination existed, restoring the original
+	   margin-collapsing and vertical rhythm between blocks. */
+	.measure-layer .doc-flow-item {
+		display: flow-root;
+	}
+
+	.page .doc-flow-item {
+		display: contents;
+	}
+
+	/* The first block on each page discards its leading top margin so the top of
+	   every page's content sits flush against the page's top margin rather than
+	   being pushed down by a block's own margin. With `display: contents` wrappers
+	   the block is the page's effective first child, so this targets it directly. */
+	.page > .doc-flow-item:first-child > :global(:first-child) {
+		margin-top: 0;
+	}
+
+
+
+	/* Off-screen layer that renders every flow item once at the page's CONTENT
+	   width (page width − 2× margin), so the paginator can read each item's real
+	   laid-out height. Positioned out of flow and hidden from view; in print it is
+	   promoted to the visible, continuous flow the browser paginates (see @media
+	   print), while the on-screen .page elements are hidden. */
+	.measure-layer {
+		position: absolute;
+		top: 0;
+		left: -200vw;
+		width: var(--page-content-width);
+		box-sizing: border-box;
+		visibility: hidden;
+		pointer-events: none;
+	}
+
 
 
 	/* Header block — left-aligned: study title, subtitle, and the passage
-	   references + translation badge all hug the left margin of the page. */
+	   references + translation badge all hug the left margin of the page. The
+	   bottom margin reproduces the gap the old `.document-content { margin-top }`
+	   wrapper created between the header and the first passage content (the wrapper
+	   itself is gone now that content is paginated into flow items). */
 	.study-header {
 		width: 100%;
 		text-align: left;
+		margin-bottom: 2.7rem;
 	}
+
 
 
 	/* Title — 1.6rem bold, near-black (docx sz32, #545352 → --gray-200). */
@@ -883,20 +1135,8 @@
 	}
 
 
-	.document-content {
-		width: 100%;
-		margin-top: 2.7rem;
-		/* Flex column so the copyright notice (margin-top:auto) is pushed to the bottom
-		   margin of the page on short studies while still flowing below the content for
-		   tall ones. flex-grow fills the remaining page height. */
-		display: flex;
-		flex-direction: column;
-		flex: 1 0 auto;
-	}
-
-
-
 	.placeholder-text {
+
 		font-size: 1.4rem;
 		color: var(--gray-400);
 		text-align: center;
@@ -972,9 +1212,6 @@
 		margin: 2.7rem 0 0.9rem;
 	}
 
-	.doc-heading:first-child {
-		margin-top: 0;
-	}
 
 	/* Heading One — 1.6rem bold (docx sz32). */
 	.doc-heading-one {
@@ -1166,12 +1403,8 @@
 		line-height: 1;
 	}
 
-	/* The first divider in a passage hugs the passage reference above it. */
-	.doc-divider:first-child {
-		margin-top: 0;
-	}
-
 	/* The rule on either side of the centered label. */
+
 	.doc-divider::before,
 	.doc-divider::after {
 		content: '';
@@ -1345,15 +1578,16 @@
 		margin: 0;
 	}
 
-	/* margin-top:auto consumes the .document-content flex column's spare vertical space,
-	   pushing this notice to the very bottom of the viewport on short studies. On tall
-	   studies there is no spare space, so it simply follows the content (and scrolls).
-	   The top padding/border keep a visible separator above the notice in both cases. */
+	/* The copyright notice flows at the end of the last page's content. The top
+	   padding/border keep a visible separator above it. (It no longer pins to the
+	   page bottom: with content paginated into discrete pages there is no single
+	   flex column to absorb spare space, and a real page simply ends with this
+	   notice after the final block.) */
 	.copyright-notice {
-		margin-top: auto;
 		padding-top: 2.7rem;
 		border-top: 1px solid var(--gray-700);
 	}
+
 
 
 	.copyright-notice p {
@@ -1386,13 +1620,23 @@
 			background: none;
 		}
 
+		/* In print the screen pagination is irrelevant — the browser's native
+		   paginator fragments content into real sheets. So hide the on-screen .page
+		   elements (which would otherwise print as fixed-height boxes with awkward
+		   internal breaks and trailing whitespace) and instead promote the
+		   measure-layer to the visible, continuous flow the browser paginates. */
 		.page {
-			width: auto;
-			min-height: 0;
-			padding: 0;        /* margins now come from @page below */
-			box-shadow: none;
-			background: none;
+			display: none;
 		}
+
+		.measure-layer {
+			position: static;
+			left: auto;
+			width: auto;
+			visibility: visible;
+			pointer-events: auto;
+		}
+
 
 		/* Connection cards keep their border in print so the cross-reference still
 		   reads as a fenced-off block on paper / in the PDF export. */
