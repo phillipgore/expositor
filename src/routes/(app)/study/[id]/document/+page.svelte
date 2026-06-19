@@ -379,6 +379,14 @@
 				for (const segment of section.segments ?? []) {
 					const segmentRef = refOf(segment.startingWordId, nextStartById[segment.id]);
 
+					// Each heading carries its OWN commentary (stored per-heading in the
+					// passage_heading table and projected onto segment.headings[] by the
+					// loader). Pull the commentary out by heading type so the template can
+					// render Heading One/Two/Three commentary directly beneath the matching
+					// heading. Falls back to null when a heading (or its commentary) is absent.
+					const headingsByType = { one: null, two: null, three: null };
+					for (const h of segment.headings ?? []) headingsByType[h.headingType] = h;
+
 					blocks.push({
 						type: 'segment',
 						key: segment.id,
@@ -386,7 +394,11 @@
 						headingOne: segment.headingOne,
 						headingTwo: segment.headingTwo,
 						headingThree: segment.headingThree,
+						headingOneCommentary: headingsByType.one?.commentary ?? null,
+						headingTwoCommentary: headingsByType.two?.commentary ?? null,
+						headingThreeCommentary: headingsByType.three?.commentary ?? null,
 						ref: segmentRef,
+
 						// Quick note (plain text) authored on the segment — carried through so the
 						// document can render it directly beneath the segment's text.
 						note: segment.note ?? null,
@@ -754,7 +766,41 @@
 	</div>
 {/snippet}
 
+<!-- Reusable commentary renderer: shared by segment-level commentary (the `aside`
+     block) and per-heading commentary (Heading One/Two/Three). Renders the
+     commentary body via {@html}, surfaces its footnotes as a renumbered ordered
+     list, and reflects any inline glossary terms as a read-only tags strip —
+     identical treatment everywhere commentary appears. `scope` is appended as a
+     modifier class so callers can tune spacing per context. -->
+{#snippet commentaryContent(html, scope)}
+	{@const rendered = renderCommentaryWithFootnotes(html)}
+	{@const termIds = extractGlossaryTermIds(html)}
+	<div class="doc-commentary doc-commentary-{scope}">
+		<div class="doc-commentary-body">{@html rendered.html}</div>
+		{#if rendered.footnotes.length > 0}
+			<ol class="doc-footnotes">
+				{#each rendered.footnotes as footnote (footnote.number)}
+					<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
+				{/each}
+			</ol>
+		{/if}
+		<!-- Glossary tags strip: a read-only reflection of the glossary terms
+		     used inline in this commentary, mirroring the Analyze view's
+		     CommentaryEditor bottom strip. -->
+		{#if termIds.length > 0}
+			<div class="doc-tags">
+				<div class="doc-tags-list">
+					{#each termIds as termId (termId)}
+						<GlossaryBadge {termId} removable={false} />
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
+{/snippet}
+
 {#snippet blockContent(block)}
+
 	{#if block.type === 'column-start'}
 		<!-- Column divider: a centered "Column: <ref>" label sitting on a SOLID
 		     rule that runs to both margins, marking where a new column begins. -->
@@ -773,36 +819,11 @@
 	{:else if block.type === 'aside'}
 		<!-- Editorial commentary: segment-level (columns/sections no longer carry
 		     their own commentary). Rendered as flowing body text directly beneath
-		     the segment text it comments on, NOT as a boxed callout. Footnotes authored in the
-		     commentary are surfaced beneath: the inline superscript markers are
-		     renumbered 1, 2, 3… per commentary (matching the editor), and each
-		     note's text — stored in its marker's data-footnote-content attribute —
-		     is rendered as an ordered list directly below the commentary body. -->
-		{@const asideRendered = renderCommentaryWithFootnotes(block.html)}
-		{@const asideTermIds = extractGlossaryTermIds(block.html)}
-		<div class="doc-commentary doc-commentary-{block.scope}">
-			<div class="doc-commentary-body">{@html asideRendered.html}</div>
-			{#if asideRendered.footnotes.length > 0}
-				<ol class="doc-footnotes">
-					{#each asideRendered.footnotes as footnote (footnote.number)}
-						<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
-					{/each}
-				</ol>
-			{/if}
-			<!-- Glossary tags strip: a read-only reflection of the glossary terms
-			     used inline in this commentary, mirroring the Analyze view's
-			     CommentaryEditor bottom strip. -->
-			{#if asideTermIds.length > 0}
-				<div class="doc-tags">
-					<div class="doc-tags-list">
-						{#each asideTermIds as termId (termId)}
-							<GlossaryBadge {termId} removable={false} />
-						{/each}
-					</div>
-				</div>
-			{/if}
-		</div>
+		     the segment text it comments on, NOT as a boxed callout. Footnotes and
+		     glossary tags are surfaced by the shared commentaryContent snippet. -->
+		{@render commentaryContent(block.html, block.scope)}
 	{:else if block.type === 'connections'}
+
 		<!-- Connections group: links this item makes to others, shown once at the
 		     FROM end. Each entry is wrapped in a subtle rounded-rectangle card with
 		     a "Connection: <fromRef> → <toRef>" label, followed by its quick note
@@ -854,16 +875,31 @@
 			</p>
 		{/if}
 
+		<!-- Each heading is followed by its OWN commentary (if any), so Heading One
+		     commentary sits under Heading One, Heading Two commentary under Heading
+		     Two, and Heading Three commentary under Heading Three. The shared
+		     commentaryContent snippet renders the body, footnotes, and glossary tags
+		     identically to segment/connection commentary. -->
 		{#if block.headingOne}
 			<h3 class="doc-heading doc-heading-one">{block.headingOne}</h3>
+			{#if block.headingOneCommentary}
+				{@render commentaryContent(block.headingOneCommentary, 'heading-one')}
+			{/if}
 		{/if}
 		{#if block.headingTwo}
 			<h4 class="doc-heading doc-heading-two">{block.headingTwo}</h4>
+			{#if block.headingTwoCommentary}
+				{@render commentaryContent(block.headingTwoCommentary, 'heading-two')}
+			{/if}
 		{/if}
 		{#if block.headingThree}
 			<h5 class="doc-heading doc-heading-three">{block.headingThree}</h5>
+			{#if block.headingThreeCommentary}
+				{@render commentaryContent(block.headingThreeCommentary, 'heading-three')}
+			{/if}
 		{/if}
 		<div class="passage-text">{@html block.html}</div>
+
 		<!-- Quick note: a brief plain-text margin note authored on the segment.
 		     Rendered right after the segment's text (and before any segment
 		     commentary that follows). Plain text — NOT {@html} — to mirror
