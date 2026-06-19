@@ -1508,26 +1508,32 @@
 	}
 
 
-	/* Heading One — 1.8rem bold. */
+	/* Heading One — 1.8rem bold. Flush left as the top of the hierarchy. */
 	.doc-heading-one {
 		font-size: 1.8rem;
 		font-weight: 700;
 		line-height: 1.5;
+		margin-left: 0;
 	}
 
-	/* Heading Two — 1.6rem bold. */
+	/* Heading Two — 1.6rem bold. Indented one level to sit beneath Heading One. */
 	.doc-heading-two {
 		font-size: 1.6rem;
 		font-weight: 700;
 		line-height: 1.5;
+		margin-left: 1.6rem;
 	}
 
-	/* Heading Three — 1.4rem bold. */
+	/* Heading Three — 1.4rem bold. Indented a further level beneath Heading Two. */
 	.doc-heading-three {
 		font-size: 1.4rem;
 		font-weight: 700;
 		line-height: 1.5;
+		margin-left: 3.2rem;
 	}
+
+
+
 
 
 	/* Stacked headings hug each other: a Heading Two directly under a Heading One,
@@ -1765,9 +1771,19 @@
 	   Inside: a "Connection: fromRef → toRef" label line, then the quick note (plain
 	   text) and commentary (rich text).
 	   ============================================ */
+	/* Generous separation above the end-of-document appendix headings so the
+	   "Connections" and "Tags" sections read as distinct sections rather than
+	   butting against the preceding content. 3.6rem keeps in step with the
+	   larger spacing already used elsewhere in this document view. */
+	.doc-connections-title,
+	.doc-tags-title {
+		margin-top: 3.6rem;
+	}
+
 	.doc-connections {
 		margin: 1.5rem 0 0;
 	}
+
 
 	/* The subtle rounded rectangle around each connection. */
 	.doc-connection {
