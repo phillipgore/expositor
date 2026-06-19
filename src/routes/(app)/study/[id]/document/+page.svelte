@@ -156,8 +156,23 @@
 	}
 
 	/**
+	 * Capitalize a connection endpoint type ('segment' | 'section' | 'column') for
+	 * display, e.g. 'segment' → 'Segment'. Used to render the connection KIND line
+	 * ("Segment → Segment", "Column → Segment", …) so the reader knows what level
+	 * of structure is being linked. Falls back to an em dash for missing/unknown
+	 * types so the arrow line always reads cleanly.
+	 * @param {string|null|undefined} type
+	 * @returns {string}
+	 */
+	function formatConnectionType(type) {
+		if (!type) return '—';
+		return type.charAt(0).toUpperCase() + type.slice(1);
+	}
+
+	/**
 	 * Build a study-wide map of column/section/segment id → reference string, spanning
 	 * every passage. Reuses the same first-word→next-sibling-first-word (exclusive)
+
 	 * boundary logic as buildDocumentBlocks, so a connection endpoint resolves to the
 	 * same reference shown on that item elsewhere in the document.
 	 * @param {Array<Object>|undefined} passagesWithText
@@ -225,11 +240,14 @@
 			if (!fromId) continue;
 			const entry = {
 				key: conn.id,
+				fromType: conn.fromType ?? null,
+				toType: conn.toType ?? null,
 				fromRef: refMap[fromId] ?? null,
 				toRef: toId ? refMap[toId] ?? null : null,
 				note: conn.note ?? null,
 				commentary: conn.commentary ?? null
 			};
+
 			(byId[fromId] ||= []).push(entry);
 		}
 		return byId;
@@ -339,20 +357,12 @@
 
 			// Columns no longer carry their own commentary (it was removed in favor
 			// of heading commentary), so no column-level aside is emitted here.
-
-			// Column connections (those pointing FROM this column) — grouped at the
-			// column's start with its reference.
-			const columnConns = connectionsByFromId[column.id] ?? [];
-			if (columnConns.length) {
-				blocks.push({
-					type: 'connections',
-					scope: 'column',
-					key: `col-conn-${column.id}`,
-					connections: columnConns
-				});
-			}
+			// Connections are no longer emitted inline either — they are collected
+			// into a single "Connections" appendix at the end of the document (see
+			// buildFlowItems), so the reading flow isn't interrupted by cross-refs.
 
 			for (const section of column.sections ?? []) {
+
 				const sIdx = sectionCursor++;
 				const sectionRef = refOf(sectionFirstWord[sIdx], sectionFirstWord[sIdx + 1] ?? null);
 
@@ -364,19 +374,11 @@
 
 				// Sections no longer carry their own commentary (it was removed in
 				// favor of heading commentary), so no section-level aside is emitted.
-
-				// Section connections (those pointing FROM this section).
-				const sectionConns = connectionsByFromId[section.id] ?? [];
-				if (sectionConns.length) {
-					blocks.push({
-						type: 'connections',
-						scope: 'section',
-						key: `sec-conn-${section.id}`,
-						connections: sectionConns
-					});
-				}
+				// Section connections are collected into the end-of-document
+				// "Connections" appendix rather than emitted inline here.
 
 				for (const segment of section.segments ?? []) {
+
 					const segmentRef = refOf(segment.startingWordId, nextStartById[segment.id]);
 
 					// Each heading carries its OWN commentary (stored per-heading in the
@@ -420,18 +422,11 @@
 						});
 					}
 
-					// Segment connections (those pointing FROM this segment) — last in the
-					// segment block, after its text, quick note, and commentary.
-					const segmentConns = connectionsByFromId[segment.id] ?? [];
-					if (segmentConns.length) {
-						blocks.push({
-							type: 'connections',
-							scope: 'segment',
-							key: `seg-conn-${segment.id}`,
-							connections: segmentConns
-						});
-					}
+					// Connections are no longer emitted inline alongside the segment —
+					// they are collected into the end-of-document "Connections" appendix
+					// (see buildFlowItems) so the reading flow stays uninterrupted.
 				}
+
 			}
 		}
 		return blocks;
@@ -575,12 +570,52 @@
 	   ============================================================ */
 
 	/**
+	 * Collect every connection across the whole study into a single ordered list for
+	 * the end-of-document "Connections" appendix. Connections used to render inline
+	 * beneath the column/section/segment they point FROM; they're now gathered here
+	 * instead so the reading flow stays uninterrupted. Walks the structure in reading
+	 * order (passage → column → section → segment) and, at each item, appends the
+	 * connections grouped under that item's id (deduped by connection key), so the
+	 * appendix lists each connection exactly once in document order.
+	 * @param {Array<Object>|undefined} passagesWithText
+	 * @param {Object<string, Array<Object>>} connectionsByFromIdMap
+	 * @returns {Array<Object>}
+	 */
+	function collectAllConnections(passagesWithText, connectionsByFromIdMap) {
+		/** @type {Array<Object>} */
+		const all = [];
+		const seen = new Set();
+		const take = (id) => {
+			for (const conn of connectionsByFromIdMap[id] ?? []) {
+				if (seen.has(conn.key)) continue;
+				seen.add(conn.key);
+				all.push(conn);
+			}
+		};
+		for (const passageText of passagesWithText ?? []) {
+			const cols = passageText?.structure?.columns;
+			if (!cols?.length) continue;
+			for (const column of cols) {
+				take(column.id);
+				for (const section of column.sections ?? []) {
+					take(section.id);
+					for (const segment of section.segments ?? []) {
+						take(segment.id);
+					}
+				}
+			}
+		}
+		return all;
+	}
+
+	/**
 	 * Flatten the streamed study content into a single ordered list of renderable
 	 * "flow items" — the atomic units the paginator packs onto pages. Each item is
 	 * `{ id, kind, ... }`; `kind` selects which snippet renders it.
 	 * @returns {Array<Object>}
 	 */
 	function buildFlowItems(passagesWithText, passages, connectionsByFromIdMap) {
+
 		/** @type {Array<Object>} */
 		const items = [{ id: 'header', kind: 'header' }];
 
@@ -615,9 +650,23 @@
 			}
 		}
 
+		// Connections appendix — every connection in the study, collected in reading
+		// order and rendered as a titled section at the END of the document (after all
+		// passages, before the copyright). Each connection is its own flow item so the
+		// paginator can split a long appendix across pages; the title is a separate
+		// item that leads them off.
+		const allConnections = collectAllConnections(passagesWithText, connectionsByFromIdMap);
+		if (allConnections.length) {
+			items.push({ id: 'connections-appendix-title', kind: 'connections-title' });
+			for (const conn of allConnections) {
+				items.push({ id: `appendix-conn-${conn.key}`, kind: 'connection', connection: conn });
+			}
+		}
+
 		items.push({ id: 'copyright', kind: 'copyright' });
 		return items;
 	}
+
 
 	let flowItems = $derived(
 		streamedContent && data.passagesWithText && data.passagesWithText.length > 0
@@ -799,9 +848,65 @@
 	</div>
 {/snippet}
 
+<!-- Reusable single-connection card: renders one connection's "Connection:
+     fromRef → toRef" label, its quick note, and its commentary (with footnotes
+     and glossary tags). Shared by the end-of-document Connections appendix. -->
+{#snippet connectionCard(conn)}
+	<div class="doc-connection doc-connection-appendix">
+
+		<p class="doc-ref-line doc-connection-ref">
+			<span class="doc-ref-label">Connection:</span>
+			<span class="doc-connection-from">{conn.fromRef ?? '—'}</span>
+			<span class="doc-connection-arrow"> → </span>
+			<span class="doc-connection-to">{conn.toRef ?? '—'}</span>
+		</p>
+		<!-- Connection KIND — names the structural level of each endpoint
+		     (e.g. "Segment → Segment", "Column → Segment") so the reader knows
+		     what's being linked, not just which references. Capitalized via the
+		     formatConnectionType helper; falls back to an em dash if a type is
+		     missing. -->
+		{#if conn.fromType || conn.toType}
+			<p class="doc-connection-type">
+				{formatConnectionType(conn.fromType)}
+				<span class="doc-connection-arrow"> → </span>
+				{formatConnectionType(conn.toType)}
+			</p>
+		{/if}
+
+		{#if conn.note}
+			<p class="doc-connection-note">{conn.note}</p>
+		{/if}
+		{#if conn.commentary}
+			<!-- Connection commentary carries footnotes too; surface them the
+			     same way as the commentary above. -->
+			{@const connRendered = renderCommentaryWithFootnotes(conn.commentary)}
+			{@const connTermIds = extractGlossaryTermIds(conn.commentary)}
+			<div class="doc-connection-commentary">{@html connRendered.html}</div>
+			{#if connRendered.footnotes.length > 0}
+				<ol class="doc-footnotes doc-footnotes-connection">
+					{#each connRendered.footnotes as footnote (footnote.number)}
+						<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
+					{/each}
+				</ol>
+			{/if}
+			<!-- Glossary tags strip for the connection commentary. -->
+			{#if connTermIds.length > 0}
+				<div class="doc-tags">
+					<div class="doc-tags-list">
+						{#each connTermIds as termId (termId)}
+							<GlossaryBadge {termId} removable={false} />
+						{/each}
+					</div>
+				</div>
+			{/if}
+		{/if}
+	</div>
+{/snippet}
+
 {#snippet blockContent(block)}
 
 	{#if block.type === 'column-start'}
+
 		<!-- Column divider: a centered "Column: <ref>" label sitting on a SOLID
 		     rule that runs to both margins, marking where a new column begins. -->
 		{#if block.ref}
@@ -933,10 +1038,19 @@
 		<div class="error-message">
 			<p>Error loading {item.reference}: {item.error}</p>
 		</div>
+	{:else if item.kind === 'connections-title'}
+		<!-- Leads off the end-of-document Connections appendix. Its own flow item so
+		     the paginator can break before the appendix if it doesn't fit. -->
+		<p class="doc-ref-line doc-passage-ref doc-connections-title">Connections</p>
+	{:else if item.kind === 'connection'}
+		<!-- One connection card in the appendix, rendered via the shared snippet so
+		     it matches the inline treatment connections used to have. -->
+		{@render connectionCard(item.connection)}
 	{:else if item.kind === 'copyright'}
 		{@render copyrightContent()}
 	{/if}
 {/snippet}
+
 
 <div class="document-gutter">
 	{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
@@ -1510,6 +1624,16 @@
 		margin-bottom: 0;
 	}
 
+	/* Appendix connection cards each live in their own flow-item wrapper (so the
+	   paginator can break between them), which means the `:last-child` rule above
+	   sees every card as the only/last child and zeroes its bottom margin — leaving
+	   them flush against one another. Give each appendix card a top margin instead
+	   so there's clear breathing room between consecutive cards. */
+	.doc-connection-appendix {
+		margin-top: 1.2rem;
+	}
+
+
 	.doc-connection-ref {
 		font-size: 1.2rem;
 		font-weight: 600;
@@ -1521,6 +1645,21 @@
 	.doc-connection-arrow {
 		color: var(--gray-500);
 	}
+
+	/* Connection KIND line — names the structural level of each endpoint
+	   ("Segment → Segment", "Column → Segment", …). A quiet, centered sub-label
+	   directly beneath the reference line; uppercase + letter-spaced so it reads
+	   as a category tag rather than body text. */
+	.doc-connection-type {
+		font-size: 1rem;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--gray-400);
+		margin: 0.2rem 0 0;
+		text-align: center;
+	}
+
 
 	/* Connection quick note — brief plain text, mirrors the segment quick note look:
 	   medium-bold on a light --gray-800 highlight band. */
