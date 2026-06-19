@@ -21,7 +21,7 @@
 
 	/**
 	 * The currently active "subject" being commented on.
-	 * @type {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string } | null}
+	 * @type {{ type: 'segment'|'connection'|'heading', id: string } | null}
 	 */
 	let currentSubject = $state(null);
 
@@ -52,19 +52,17 @@
 
 	/**
 	 * Resolve the URL for loading/saving commentary based on subject type.
-	 * @param {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string }} subject
+	 * @param {{ type: 'segment'|'connection'|'heading', id: string }} subject
 	 */
 	function getApiUrl(subject) {
 		if (subject.type === 'connection') return `/api/segments/connections/${subject.id}`;
-		if (subject.type === 'column')     return `/api/passages/columns/${subject.id}`;
-		if (subject.type === 'section')    return `/api/passages/sections/${subject.id}`;
 		if (subject.type === 'heading')    return `/api/passages/headings/${subject.id}`;
 		return `/api/segments/${subject.id}`;
 	}
 
 	/**
 	 * Load commentary from the database for the given subject.
-	 * @param {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string }} subject
+	 * @param {{ type: 'segment'|'connection'|'heading', id: string }} subject
 	 */
 	async function loadCommentary(subject) {
 
@@ -85,7 +83,7 @@
 
 	/**
 	 * Save commentary to the database for the given subject.
-	 * @param {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string }} subject
+	 * @param {{ type: 'segment'|'connection'|'heading', id: string }} subject
 	 * @param {string} html
 	 */
 	async function saveCommentary(subject, html) {
@@ -121,9 +119,11 @@
 	}
 
 	/**
-	 * Watch for heading, segment, section, column, or connection changes and load commentary.
-	 * Priority: heading → connection → column → section → segment.
+	 * Watch for heading, segment, or connection changes and load commentary.
+	 * Priority: heading → connection → segment.
 	 * A heading is selected via its hover select button and is an independent subject.
+	 * Columns and sections are no longer commentable subjects (their commentary was
+	 * removed in favor of heading commentary).
 	 * Uses untrack() to prevent infinite loops.
 	 */
 	$effect(() => {
@@ -134,26 +134,16 @@
 		const connectionId = $toolbarState.activeConnectionIds.length === 1
 			? $toolbarState.activeConnectionIds[0]
 			: null;
-		const columnId     = $toolbarState.activeColumnId;
-		// Section is the subject only when a section (not a column) is explicitly selected.
-		// When a column is active, hasActiveSection is also true; we use the column in that case.
-		const sectionId    = $toolbarState.hasActiveSection && !$toolbarState.hasActiveColumn
-			? $toolbarState.activeSectionId
-			: null;
 
 		// Determine the new subject
-		/** @type {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string } | null} */
+		/** @type {{ type: 'segment'|'connection'|'heading', id: string } | null} */
 		const newSubject = headingId
 			? { type: 'heading', id: headingId }
 			: connectionId
-			? { type: 'connection', id: connectionId }
-			: columnId
-				? { type: 'column', id: columnId }
-				: sectionId
-					? { type: 'section', id: sectionId }
-					: segmentId
-						? { type: 'segment', id: segmentId }
-						: null;
+				? { type: 'connection', id: connectionId }
+				: segmentId
+					? { type: 'segment', id: segmentId }
+					: null;
 
 
 		const prevSubject = untrack(() => currentSubject);
@@ -220,7 +210,7 @@
 		></div>
 	{/if}
 	<div class="panel-content" style:width="{panelWidth}px">
-		{#if $toolbarState.hasActiveHeading || $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1) || $toolbarState.hasActiveSection}
+		{#if $toolbarState.hasActiveHeading || $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1)}
 
 			{#key currentSubject?.id}
 				<CommentaryEditor
@@ -233,7 +223,7 @@
 			{/key}
 		{:else}
 			<div class="empty-state">
-				<p>Select a segment, section, column, or connection to add commentary</p>
+				<p>Select a heading, segment, or connection to add commentary</p>
 			</div>
 		{/if}
 	</div>

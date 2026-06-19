@@ -150,7 +150,6 @@ export const passageColumn = pgTable('passage_column', {
 		.notNull()
 		.references(() => passage.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
-	commentary: text('commentary'),
 	/**
 	 * Extra horizontal spacing (in CSS px) ADDED to the gap on this column's LEADING
 	 * (left) side, beyond its default gap. NULL/0 = default spacing. Used to push a
@@ -187,7 +186,6 @@ export const passageSection = pgTable('passage_section', {
 		.references(() => passageColumn.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
 	color: text('color').notNull().default('blue'),
-	commentary: text('commentary'),
 	/**
 	 * Extra vertical spacing (in CSS px) ADDED above this section beyond its default
 	 * gap. NULL/0 = default spacing. Used to push a section down so it visually aligns

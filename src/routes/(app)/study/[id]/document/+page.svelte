@@ -243,16 +243,10 @@
 	 *    One/Two/Three) plus that segment's sliced HTML text, mirroring the Analyze
 	 *    view but without the column/section grid, color bands, scripture-refs, or
 	 *    editing affordances.
-	 *  - `aside` blocks carry column- or section-level commentary as editorial
-	 *    callouts. Columns and sections own NO heading in the document outline
-	 *    (segments do — see HeadingEditor's headingConfig), so their commentary is
-	 *    headingless text that, if rendered as plain body copy, would land ABOVE the
-	 *    first segment heading and appear to belong to that narrow heading — a scope
-	 *    inversion (column/section commentary speaks to many segments). Rendering it
-	 *    as a visually distinct aside, anchored at the START of the column/section it
-	 *    governs, keeps the broad-scope note from being mistaken for body text under
-	 *    the segment heading that follows, while preserving the deliberate
-	 *    "segments own the heading outline" design and the 6-level heading ceiling.
+	 *  - `aside` blocks carry SEGMENT-level commentary as editorial callouts,
+	 *    trailing the segment text they comment on. (Columns and sections no longer
+	 *    carry their own commentary — it was removed in favor of heading commentary
+	 *    — so asides are now only ever emitted at segment scope.)
 	 *
 	 * Returns null when the passage has no usable structure, signalling the template to
 	 * fall back to rendering the whole passage HTML so text is never lost.
@@ -343,18 +337,11 @@
 				ref: columnRef
 			});
 
-			if (column.commentary) {
-				blocks.push({
-					type: 'aside',
-					scope: 'column',
-					key: `col-${column.id}`,
-					ref: columnRef,
-					html: column.commentary
-				});
-			}
+			// Columns no longer carry their own commentary (it was removed in favor
+			// of heading commentary), so no column-level aside is emitted here.
 
 			// Column connections (those pointing FROM this column) — grouped at the
-			// column's start with its reference/commentary.
+			// column's start with its reference.
 			const columnConns = connectionsByFromId[column.id] ?? [];
 			if (columnConns.length) {
 				blocks.push({
@@ -375,15 +362,8 @@
 					ref: sectionRef
 				});
 
-				if (section.commentary) {
-					blocks.push({
-						type: 'aside',
-						scope: 'section',
-						key: `sec-${section.id}`,
-						ref: sectionRef,
-						html: section.commentary
-					});
-				}
+				// Sections no longer carry their own commentary (it was removed in
+				// favor of heading commentary), so no section-level aside is emitted.
 
 				// Section connections (those pointing FROM this section).
 				const sectionConns = connectionsByFromId[section.id] ?? [];
@@ -791,9 +771,9 @@
 			</p>
 		{/if}
 	{:else if block.type === 'aside'}
-		<!-- Editorial commentary: column-, section-, or segment-level. Rendered as
-		     flowing body text directly beneath the structural label it follows
-		     (matching the mockup), NOT as a boxed callout. Footnotes authored in the
+		<!-- Editorial commentary: segment-level (columns/sections no longer carry
+		     their own commentary). Rendered as flowing body text directly beneath
+		     the segment text it comments on, NOT as a boxed callout. Footnotes authored in the
 		     commentary are surfaced beneath: the inline superscript markers are
 		     renumbered 1, 2, 3… per commentary (matching the editor), and each
 		     note's text — stored in its marker's data-footnote-content attribute —

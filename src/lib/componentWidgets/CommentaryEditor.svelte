@@ -27,7 +27,7 @@
 	let {
 		content = '',
 		onUpdate = () => {},
-		/** @type {'segment'|'section'|'column'|'connection'|null} */
+		/** @type {'segment'|'connection'|'heading'|null} */
 		subjectType = null,
 		/** @type {string|null} */
 		subjectId = null

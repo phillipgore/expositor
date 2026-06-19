@@ -9,10 +9,11 @@
 	 * Per passage it surfaces:
 	 * - **Added verses** (start and/or end): where should they go?
 	 *   → extend the neighboring segment, or start a new Segment / Section / Column.
-	 * - **Removed verses** whose structure carries content (headings, notes,
-	 *   commentary, tags) or connections: Merge into the surviving neighbor, or
+	 * - **Removed verses** whose structure carries content (segment headings,
+	 *   notes, commentary) or connections: Merge into the surviving neighbor, or
 	 *   Delete. Radio labels are intentionally terse — the full explanation lives
-	 *   in a hover tooltip.
+	 *   in a hover tooltip. (Sections and columns no longer carry their own
+	 *   content, so only segments and connections ever need a decision.)
 	 * - **Book/testament change** (full replace): a warning that the old structure
 	 *   will be rebuilt fresh.
 	 *
@@ -65,8 +66,6 @@
 		};
 		return {
 			segments: seedGroup(impact.segments, prior.segments, 'canMerge', 'merge'),
-			sections: seedGroup(impact.sections, prior.sections, 'canMerge', 'merge'),
-			columns: seedGroup(impact.columns, prior.columns, 'canMerge', 'merge'),
 			connections: seedGroup(impact.connections, prior.connections, 'canReanchor', 'reanchor')
 		};
 	}
@@ -99,7 +98,7 @@
 	 * orphaned item of that kind).
 	 * @param {string} passageId
 	 * @param {'removeStart'|'removeEnd'} edge
-	 * @param {'segments'|'sections'|'columns'|'connections'} group
+	 * @param {'segments'|'connections'} group
 	 * @param {string} value
 	 */
 	function setGroupDecision(passageId, edge, group, value) {
@@ -140,38 +139,6 @@
 						can: impact.segments.some((i) => i.canMerge)
 					},
 					{ value: 'delete', label: 'Delete', tip: 'Delete this content permanently.', can: true }
-				]
-			});
-		}
-		if (impact.sections?.length) {
-			groups.push({
-				group: 'sections',
-				heading: 'Sections',
-				items: impact.sections,
-				choices: [
-					{
-						value: 'merge',
-						label: 'Merge',
-						tip: `Merge commentary into the ${neighborWord} section.`,
-						can: impact.sections.some((i) => i.canMerge)
-					},
-					{ value: 'delete', label: 'Delete', tip: 'Delete this commentary permanently.', can: true }
-				]
-			});
-		}
-		if (impact.columns?.length) {
-			groups.push({
-				group: 'columns',
-				heading: 'Columns',
-				items: impact.columns,
-				choices: [
-					{
-						value: 'merge',
-						label: 'Merge',
-						tip: `Merge commentary into the ${neighborWord} column.`,
-						can: impact.columns.some((i) => i.canMerge)
-					},
-					{ value: 'delete', label: 'Delete', tip: 'Delete this commentary permanently.', can: true }
 				]
 			});
 		}

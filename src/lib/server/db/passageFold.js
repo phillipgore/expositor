@@ -133,23 +133,6 @@ export async function foldSegmentContent(tx, fromSeg, targetSeg) {
 	}
 }
 
-/**
- * Fold an orphan section/column's commentary into a surviving target of the
- * same kind. Commentary is appended (inline glossary terms ride along with it).
- */
-export async function foldCommentarySubject(tx, table, subjectType, fromRow, targetRow) {
-	if (fromRow.commentary) {
-		const merged = targetRow.commentary
-			? `${targetRow.commentary}\n${fromRow.commentary}`
-			: fromRow.commentary;
-		targetRow.commentary = merged;
-		await tx
-			.update(table)
-			.set({ commentary: merged, updatedAt: new Date() })
-			.where(eq(table.id, targetRow.id));
-	}
-}
-
 /* ------------------------------------------------------------------ */
 /* Connection re-anchor                                                */
 /* ------------------------------------------------------------------ */
@@ -296,13 +279,6 @@ export function summarizeSegmentContent(seg) {
 	return parts.join(', ');
 }
 
-/** Short summary of a section/column commentary subject. */
-export function summarizeCommentarySubject(row) {
-	const parts = [];
-	if (row.commentary) parts.push('commentary');
-	return parts.join(', ');
-}
-
 /** Short summary of a connection (endpoint kinds + any content). */
 export function summarizeConnection(conn) {
 	const parts = [];
@@ -312,5 +288,5 @@ export function summarizeConnection(conn) {
 	return `${conn.fromType} ↔ ${conn.toType}${content}`;
 }
 
-// Re-export table refs so consumers can pass them to foldCommentarySubject.
+// Re-export table refs for consumers that operate directly on these tables.
 export { passageColumn, passageSection, passageSegment, segmentConnection };

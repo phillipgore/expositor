@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
 
 /**
- * Get a section record (including commentary)
+ * Get a section record
  * @type {import('./$types').RequestHandler}
  */
 export const GET = async ({ request, params }) => {
@@ -35,7 +35,7 @@ export const GET = async ({ request, params }) => {
 };
 
 /**
- * Update section color and/or commentary
+ * Update section color or top-offset
  * @type {import('./$types').RequestHandler}
  */
 export const PATCH = async ({ request, params }) => {
@@ -65,25 +65,6 @@ export const PATCH = async ({ request, params }) => {
 			await db.update(passageSection)
 				.set({
 					topOffset: topOffset === null ? null : Math.round(topOffset),
-					updatedAt: new Date()
-				})
-				.where(eq(passageSection.id, sectionId));
-
-			return json({ success: true }, { status: 200 });
-		}
-
-		// Handle commentary update
-		if ('commentary' in body) {
-
-			const { commentary } = body;
-
-			if (commentary !== undefined && typeof commentary !== 'string' && commentary !== null) {
-				return json({ error: 'Invalid commentary' }, { status: 400 });
-			}
-
-			await db.update(passageSection)
-				.set({
-					commentary: commentary ?? null,
 					updatedAt: new Date()
 				})
 				.where(eq(passageSection.id, sectionId));

@@ -520,13 +520,6 @@ function summarizeSegmentContent(seg) {
 	return parts.join(', ');
 }
 
-/** Short summary of a section/column commentary subject. */
-function summarizeCommentarySubject(row) {
-	const parts = [];
-	if (row.commentary) parts.push('commentary');
-	return parts.join(', ');
-}
-
 /** Short summary of a connection (endpoint kinds + any content). */
 function summarizeConnection(conn) {
 	const parts = [];
@@ -603,21 +596,10 @@ async function analyzeRemoval(dbx, studyId, passageId, side, boundaryWord) {
 			canMerge: hasTarget
 		}));
 
-	const sections = orphanSections
-		.filter((s) => s.commentary)
-		.map((s) => ({
-			id: s.id,
-			summary: summarizeCommentarySubject(s),
-			canMerge: hasTarget
-		}));
-
-	const columns = orphanColumns
-		.filter((c) => c.commentary)
-		.map((c) => ({
-			id: c.id,
-			summary: summarizeCommentarySubject(c),
-			canMerge: hasTarget
-		}));
+	// Sections and columns no longer carry their own commentary (it was removed
+	// in favor of heading commentary), so they have no per-item content that
+	// requires a merge/delete decision. They're still tracked as orphans below
+	// purely so connections anchored to them can be re-anchored/deleted.
 
 	// Connections touching any orphaned item.
 	const orphanSectionIds = new Set(orphanSections.map((s) => s.id));
@@ -657,18 +639,13 @@ async function analyzeRemoval(dbx, studyId, passageId, side, boundaryWord) {
 		};
 	});
 
-	const needsDecision =
-		segments.length > 0 || sections.length > 0 || columns.length > 0 || connections.length > 0;
+	const needsDecision = segments.length > 0 || connections.length > 0;
 
 	return {
 		segments,
-		sections,
-		columns,
 		connections,
 		// Aggregate counts retained for any consumer that wants quick totals.
 		segmentsWithContent: segments.length,
-		sectionsWithContent: sections.length,
-		columnsWithContent: columns.length,
 		needsDecision,
 		canMerge: hasTarget
 	};
@@ -853,23 +830,6 @@ async function foldSegmentContent(tx, fromSeg, targetSeg) {
 		set.updatedAt = new Date();
 
 		await tx.update(passageSegment).set(set).where(eq(passageSegment.id, targetSeg.id));
-	}
-}
-
-/**
- * Fold an orphan section's commentary into a surviving target section.
- * Commentary is appended (inline glossary terms ride along with it).
- */
-async function foldCommentarySubject(tx, table, subjectType, fromRow, targetRow) {
-	if (fromRow.commentary) {
-		const merged = targetRow.commentary
-			? `${targetRow.commentary}\n${fromRow.commentary}`
-			: fromRow.commentary;
-		targetRow.commentary = merged;
-		await tx
-			.update(table)
-			.set({ commentary: merged, updatedAt: new Date() })
-			.where(eq(table.id, targetRow.id));
 	}
 }
 
@@ -1265,16 +1225,16 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
  * applies to every orphaned item of that kind:
  *   {
  *     segments:    'merge'|'delete',
- *     sections:    'merge'|'delete',
- *     columns:     'merge'|'delete',
  *     connections: 'reanchor'|'delete'
  *   }
  * Any kind not present defaults to the non-destructive choice (merge/reanchor).
  * Items that physically can't honor a merge/reanchor (no surviving target, or a
  * connection that would become a self-loop) fall back to delete automatically.
+ * Sections/columns no longer carry their own content (commentary was removed in
+ * favor of heading commentary), so only their connections need reconciling.
  *
  * Order matters:
- *   1. Fold orphan segment/section/column content into the surviving target.
+ *   1. Fold orphan segment content into the surviving target.
  *   2. Reconcile connections (re-anchor or delete) BEFORE deleting segments, so
  *      FK cascade doesn't remove a connection we mean to re-home.
  *   3. Delete the orphan segments, prune emptied containers, re-anchor the start.
@@ -1302,28 +1262,13 @@ async function applyRemovalEdge(tx, studyId, passageId, side, boundaryWord, deci
 
 	// Group-level decisions (one choice applies to every item of that kind).
 	const segChoice = decision.segments || 'merge';
-	const secChoice = decision.sections || 'merge';
-	const colChoice = decision.columns || 'merge';
 	const connChoice = decision.connections || 'reanchor';
 
-	// 1a. Fold orphan SEGMENT content (only when merging and a target exists).
+	// 1. Fold orphan SEGMENT content (only when merging and a target exists).
+	// Sections/columns have no foldable content of their own anymore.
 	if (target && segChoice === 'merge') {
 		for (const entry of orphanEntries) {
 			await foldSegmentContent(tx, entry.segment, target.segment);
-		}
-	}
-	// 1b. Fold orphan SECTION commentary.
-	if (target && secChoice === 'merge') {
-		for (const sec of orphanSections) {
-			if (sec.id === target.section.id) continue;
-			await foldCommentarySubject(tx, passageSection, 'section', sec, target.section);
-		}
-	}
-	// 1c. Fold orphan COLUMN commentary.
-	if (target && colChoice === 'merge') {
-		for (const col of orphanColumns) {
-			if (col.id === target.column.id) continue;
-			await foldCommentarySubject(tx, passageColumn, 'column', col, target.column);
 		}
 	}
 
@@ -1372,8 +1317,6 @@ async function applyReplace(tx, passageId, newFirstWord) {
  * non-destructive choice ('merge' / 'reanchor').
  * @typedef {Object} RemovalDecision
  * @property {string} [segments]    - 'merge'|'delete'
- * @property {string} [sections]    - 'merge'|'delete'
- * @property {string} [columns]     - 'merge'|'delete'
  * @property {string} [connections] - 'reanchor'|'delete'
  */
 

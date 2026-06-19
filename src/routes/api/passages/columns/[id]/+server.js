@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
 
 /**
- * Get a column record (including commentary)
+ * Get a column record
  * @type {import('./$types').RequestHandler}
  */
 export const GET = async ({ request, params }) => {
@@ -35,7 +35,7 @@ export const GET = async ({ request, params }) => {
 };
 
 /**
- * Update column color (all sections) and/or commentary
+ * Update column color (all sections), left-offset, or width
  * @type {import('./$types').RequestHandler}
  */
 export const PATCH = async ({ request, params }) => {
@@ -90,26 +90,6 @@ export const PATCH = async ({ request, params }) => {
 			await db.update(passageColumn)
 				.set({
 					width: width === null ? null : Math.round(width),
-					updatedAt: new Date()
-				})
-				.where(eq(passageColumn.id, columnId));
-
-			return json({ success: true }, { status: 200 });
-		}
-
-		// Handle commentary update
-
-		if ('commentary' in body) {
-
-			const { commentary } = body;
-
-			if (commentary !== undefined && typeof commentary !== 'string' && commentary !== null) {
-				return json({ error: 'Invalid commentary' }, { status: 400 });
-			}
-
-			await db.update(passageColumn)
-				.set({
-					commentary: commentary ?? null,
 					updatedAt: new Date()
 				})
 				.where(eq(passageColumn.id, columnId));

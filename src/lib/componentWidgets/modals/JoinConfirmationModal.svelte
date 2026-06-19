@@ -7,11 +7,14 @@
 	 * Empty joins skip this modal entirely (handled by the caller's dry-run).
 	 *
 	 * Offers a single global choice for the whole operation:
-	 *   - **Merge** (default, non-destructive): headings fill empty slots,
-	 *     note/commentary append, tags dedupe, connections re-anchor.
-	 *   - **Delete**: discard the joined item's OWN content/connections. Note that
-	 *     structural children (a section's segments, a column's sections) always
-	 *     move to the previous item and are never lost.
+	 *   - **Merge** (default, non-destructive): segment headings fill empty slots,
+	 *     note/commentary append, connections re-anchor. (Sections and columns no
+	 *     longer carry their own commentary, so for those joins only connections
+	 *     are affected.)
+	 *   - **Delete**: discard the joined item's OWN connections (and, for a
+	 *     segment, its content). Note that structural children (a section's
+	 *     segments, a column's sections) always move to the previous item and are
+	 *     never lost.
 	 *
 	 * ## Props
 	 * @property {boolean} isOpen - Whether the modal is open

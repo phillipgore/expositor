@@ -40,7 +40,6 @@ import { compareWordIds } from '$lib/server/db/utils.js';
 import { mergedNoteWillTruncate } from '$lib/constants/notes.js';
 import {
 	foldSegmentContent,
-	foldCommentarySubject,
 	reanchorConnectionsOnto
 } from '$lib/server/db/passageFold.js';
 
@@ -264,15 +263,15 @@ export async function analyzeJoin(dbx, userId, type, itemId) {
 		if (idx < 0) throw new Error('Section not found');
 		if (idx === 0) throw new Error('Cannot join the first section in a passage');
 		hasTarget = true;
-		const sec = flat[idx].section;
-		if (sec.commentary) parts.push('commentary');
+		// Sections no longer carry their own commentary, so they have no foldable
+		// content of their own — only touching connections (counted below) matter.
 	} else if (type === 'column') {
 		const idx = tree.findIndex((c) => c.id === itemId);
 		if (idx < 0) throw new Error('Column not found');
 		if (idx === 0) throw new Error('Cannot join the first column in a passage');
 		hasTarget = true;
-		const col = tree[idx];
-		if (col.commentary) parts.push('commentary');
+		// Columns no longer carry their own commentary, so they have no foldable
+		// content of their own — only touching connections (counted below) matter.
 	} else {
 		throw new Error('Invalid join type');
 	}
@@ -442,10 +441,8 @@ export async function joinSection(dbInstance, userId, sectionId, decision = 'mer
 		};
 		const now = new Date();
 
-		// 1. Fold the active section's own commentary (merge only).
-		if (decision === 'merge') {
-			await foldCommentarySubject(tx, passageSection, 'section', active.section, target.section);
-		}
+		// Sections no longer carry their own commentary, so there is nothing to
+		// fold here (the 'merge' vs 'delete' choice now only affects connections).
 
 		// 2. Reconcile connections that point at the section itself.
 		await reanchorConnectionsOnto(
@@ -508,10 +505,8 @@ export async function joinColumn(dbInstance, userId, columnId, decision = 'merge
 		};
 		const now = new Date();
 
-		// 1. Fold the active column's own commentary (merge only).
-		if (decision === 'merge') {
-			await foldCommentarySubject(tx, passageColumn, 'column', active, targetColumn);
-		}
+		// Columns no longer carry their own commentary, so there is nothing to
+		// fold here (the 'merge' vs 'delete' choice now only affects connections).
 
 		// 2. Reconcile connections that point at the column itself.
 		await reanchorConnectionsOnto(
