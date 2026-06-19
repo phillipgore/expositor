@@ -127,7 +127,10 @@ async function persistPreference(updates) {
  * @property {string[]} activeConnectionIds - The IDs of the currently selected connections
  * @property {boolean} activeConnectionHasNote - Whether the currently selected connection has a quick note
  * @property {number} activeConnectionNoteCount - How many of the currently selected connections have a quick note (drives multi-select note-placement actions)
+ * @property {boolean} hasActiveHeading - Whether a heading (passage_heading row) is currently selected for commentary
+ * @property {string|null} activeHeadingId - The ID of the currently selected heading row
  * @property {boolean} hasActiveHeadingOrNoteEditor - Whether a heading or note editor is in input mode
+
  * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
  * @property {string|null} activeHeadingOrNoteEditorKey - Unique key of the active editor (e.g. `${segmentId}-${type}`); identifies the specific owning editor so a stale editor's cleanup can't clear another editor's state
 
@@ -222,7 +225,12 @@ const defaultState = {
 	activeConnectionIds: [],
 	activeConnectionHasNote: false,
 	activeConnectionNoteCount: 0,
+	// A heading (passage_heading row) selected via its hover select button, for
+	// attaching commentary. Independent of the heading EDITOR (edit-the-text) state.
+	hasActiveHeading: false,
+	activeHeadingId: null,
 	hasActiveHeadingOrNoteEditor: false,
+
 	activeHeadingOrNoteType: null,
 	activeHeadingOrNoteEditorKey: null,
 	isWordInFirstSegment: false,
@@ -1160,9 +1168,13 @@ export function setActiveSegment(hasSegment, segmentId = null, options) {
 		isActiveSegmentFirstInPassage: hasSegment ? (options?.isFirst || false) : false,
 		// Deselect any connection when a segment becomes active
 		hasActiveConnection: hasSegment ? false : state.hasActiveConnection,
-		activeConnectionIds: hasSegment ? [] : state.activeConnectionIds
+		activeConnectionIds: hasSegment ? [] : state.activeConnectionIds,
+		// Deselect any heading when a segment becomes active
+		hasActiveHeading: hasSegment ? false : state.hasActiveHeading,
+		activeHeadingId: hasSegment ? null : state.activeHeadingId
 	}));
 }
+
 
 /**
  * Set the parent-section IDs of ALL currently selected segments (deduped), for Color.
@@ -1223,9 +1235,13 @@ export function setActiveColumn(hasColumn, columnId = null, isFirst = false, col
 		hasActiveColumn: hasColumn,
 		activeColumnId: columnId,
 		activeColumnIds: hasColumn ? columnIds : [],
-		isActiveColumnFirstInPassage: hasColumn ? isFirst : false
+		isActiveColumnFirstInPassage: hasColumn ? isFirst : false,
+		// Deselect any heading when a column becomes active
+		hasActiveHeading: hasColumn ? false : state.hasActiveHeading,
+		activeHeadingId: hasColumn ? null : state.activeHeadingId
 	}));
 }
+
 
 /**
  * Set active section state
@@ -1322,6 +1338,32 @@ export function clearHeadingOrNoteEditorActiveKey(key) {
 
 
 /**
+ * Set the active heading (a passage_heading row selected via its hover select
+ * button, for attaching commentary). Selecting a heading clears the active
+ * segment/section/column/connection so the commentary panel switches context to
+ * the heading. Passing `false` clears the heading selection.
+ * @param {boolean} hasHeading - Whether a heading is currently selected
+ * @param {string|null} headingId - The ID of the selected passage_heading row
+ */
+export function setActiveHeading(hasHeading, headingId = null) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasActiveHeading: hasHeading,
+		activeHeadingId: hasHeading ? headingId : null,
+		// A heading is its own commentary subject — clear the other subjects so the
+		// panel's priority resolution lands on the heading.
+		hasActiveSegment: hasHeading ? false : state.hasActiveSegment,
+		activeSegmentId: hasHeading ? null : state.activeSegmentId,
+		hasActiveSection: hasHeading ? false : state.hasActiveSection,
+		activeSectionId: hasHeading ? null : state.activeSectionId,
+		hasActiveColumn: hasHeading ? false : state.hasActiveColumn,
+		activeColumnId: hasHeading ? null : state.activeColumnId,
+		hasActiveConnection: hasHeading ? false : state.hasActiveConnection,
+		activeConnectionIds: hasHeading ? [] : state.activeConnectionIds
+	}));
+}
+
+/**
  * Set whether the selected word is in the first or last segment of its passage.
  * Used to disable "Move Text Up" when in the first segment and
  * "Move Text Down" when in the last segment.
@@ -1329,6 +1371,7 @@ export function clearHeadingOrNoteEditorActiveKey(key) {
  * @param {boolean} isLast - Whether the word is in the last segment
  */
 export function setWordSegmentPosition(isFirst, isLast) {
+
 	toolbarStateStore.update(state => ({
 		...state,
 		isWordInFirstSegment: isFirst,
@@ -1376,6 +1419,10 @@ export function setActiveConnection(hasConnection, connectionIds = [], hasNote =
 		activeConnectionNoteCount: hasConnection ? noteCount : 0,
 		// Deselect segment when a connection is selected, and vice versa
 		hasActiveSegment: hasConnection ? false : state.hasActiveSegment,
-		activeSegmentId: hasConnection ? null : state.activeSegmentId
+		activeSegmentId: hasConnection ? null : state.activeSegmentId,
+		// Deselect any heading when a connection is selected
+		hasActiveHeading: hasConnection ? false : state.hasActiveHeading,
+		activeHeadingId: hasConnection ? null : state.activeHeadingId
 	}));
 }
+

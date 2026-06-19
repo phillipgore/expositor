@@ -6,8 +6,10 @@ import {
 	passageColumn,
 	passageSection,
 	passageSegment,
+	passageHeading,
 	segmentConnection
 } from '$lib/server/db/schema.js';
+
 import { auth } from '$lib/server/auth.js';
 import { eq, asc, inArray } from 'drizzle-orm';
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
@@ -134,14 +136,54 @@ export async function load({ params, request, depends }) {
 						.orderBy(asc(passageSegment.startingWordId))
 				: [];
 
+			// 4. All headings belonging to those segments. Headings live in their
+			// own table (passage_heading) but are projected back onto each segment
+			// object below as headingOne/Two/Three (text) plus matching
+			// headingOneId/Two/Three (row id) and a headings[] array carrying each
+			// heading's commentary. This keeps the large display/merge code paths
+			// working with the familiar segment.headingX shape while the storage is
+			// normalized.
+			const segmentIds = allSegments.map((s) => s.id);
+			const allHeadings = segmentIds.length
+				? await db
+						.select()
+						.from(passageHeading)
+						.where(inArray(passageHeading.passageSegmentId, segmentIds))
+				: [];
+
+			const headingsBySegment = new Map();
+			for (const heading of allHeadings) {
+				const list = headingsBySegment.get(heading.passageSegmentId);
+				if (list) list.push(heading);
+				else headingsBySegment.set(heading.passageSegmentId, [heading]);
+			}
+
+			// Project heading rows onto each segment under the legacy field names.
+			const projectedSegments = allSegments.map((segment) => {
+				const headings = headingsBySegment.get(segment.id) ?? [];
+				const byType = { one: null, two: null, three: null };
+				for (const h of headings) byType[h.headingType] = h;
+				return {
+					...segment,
+					headingOne: byType.one?.text ?? null,
+					headingTwo: byType.two?.text ?? null,
+					headingThree: byType.three?.text ?? null,
+					headingOneId: byType.one?.id ?? null,
+					headingTwoId: byType.two?.id ?? null,
+					headingThreeId: byType.three?.id ?? null,
+					headings
+				};
+			});
+
 			// Group children by parent id for O(1) lookups while assembling.
 			// (`orderBy` above means each group preserves startingWordId order.)
 			const segmentsBySection = new Map();
-			for (const segment of allSegments) {
+			for (const segment of projectedSegments) {
 				const list = segmentsBySection.get(segment.passageSectionId);
 				if (list) list.push(segment);
 				else segmentsBySection.set(segment.passageSectionId, [segment]);
 			}
+
 
 			const sectionsByColumn = new Map();
 			for (const section of allSections) {

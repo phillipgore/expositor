@@ -4,15 +4,18 @@
 	import { slide } from 'svelte/transition';
 	import Input from '$lib/componentElements/Input.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
-	import { toolbarState, setActiveSegment, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveSegment, setActiveHeading, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey } from '$lib/stores/toolbar.js';
 
 
 
 	let { 
 		headingType = 'one', // 'one', 'two', or 'three'
 		headingValue = null,
+		/** ID of the persisted passage_heading row (null until the heading is saved). Used as the commentary subject when selected via the hover select button. */
+		headingId = null,
 		scriptureRef = null,
 		segmentId = '',
+
 		isInputMode = $bindable(false),
 		isActive = false,
 		hasHeadingOne = false,
@@ -406,10 +409,35 @@
 		}
 	}
 
+	// Whether THIS heading is the one currently selected for commentary (via its
+	// hover select button). Driven by the shared toolbar store so only one heading
+	// across the whole study is selected at a time.
+	let isHeadingSelected = $derived(
+		$toolbarState.hasActiveHeading && headingId != null && $toolbarState.activeHeadingId === headingId
+	);
+
+	/**
+	 * Toggle this heading as the active commentary subject. Clicking the circular
+	 * select button (far right of the heading) selects the heading so commentary can
+	 * be attached; clicking again deselects it. Stops propagation so the segment/word
+	 * click handler doesn't also fire (which would activate the segment instead).
+	 */
+	function handleHeadingSelect(event) {
+		event?.stopPropagation();
+		event?.preventDefault();
+		if (!headingId) return;
+		if (isHeadingSelected) {
+			setActiveHeading(false);
+		} else {
+			setActiveHeading(true, headingId);
+		}
+	}
+
 	/**
 	 * Handle remove heading event from menu
 	 */
 	function handleRemoveHeading(event) {
+
 		if (event.detail?.segmentId === segmentId) {
 			handleDelete();
 		}
@@ -455,8 +483,33 @@
 			<span class="scripture-ref">{scriptureRef}</span>
 		{/if}
 		</svelte:element>
+
+		<!-- Heading select button: a circular radio-style control (mirrors the
+		     Column/Section selectors) anchored to the FAR RIGHT of the heading. It is
+		     revealed on hover of the heading, AND shown persistently when the View →
+		     Selection Controls toggle is on (selectorsVisible) — matching the
+		     Section/Column selectors — or while this heading is the active commentary
+		     subject (so the selection stays visible). Visibility is handled in CSS via
+		     opacity. Never shown in overview mode where headings aren't selectable.
+		     Clicking it selects the heading as the commentary subject; clicking the
+		     heading text itself still enters edit mode (this button stops propagation). -->
+		{#if headingId && !$toolbarState.overviewMode}
+			<button
+				type="button"
+				class="heading-radio"
+				class:active={isHeadingSelected}
+				class:always-visible={$toolbarState.selectorsVisible}
+				title="Select Heading"
+				aria-label="Select Heading"
+				aria-pressed={isHeadingSelected}
+				onclick={handleHeadingSelect}
+			></button>
+		{/if}
+
+
 	{/if}
 </div>
+
 
 <style>
 	/* Container for heading and toolbar positioning */
@@ -581,4 +634,73 @@
 	.heading-three .scripture-ref {
 		color: var(--gray-300);
 	}
+
+	/* ============================================================ */
+	/* Heading Select Button (circular radio, far right of heading) */
+	/* ============================================================ */
+
+	/* Circular radio-style control mirroring the Column/Section selectors, anchored
+	   to the FAR RIGHT of the heading and vertically centered. Hidden (opacity 0) by
+	   default and revealed when the heading container is hovered, the button itself is
+	   focused, the heading is the active commentary subject (.active), or the View →
+	   Selection Controls toggle is on (.always-visible). Inherits the section's color
+	   via the --section-dark CSS variable cascaded from the parent .section element. */
+	.heading-radio {
+		box-sizing: border-box;
+		position: absolute;
+		top: 50%;
+		right: 0.6rem;
+		transform: translateY(-50%);
+		width: 1.8rem;
+		height: 1.8rem;
+		padding: 0.3rem;
+		border-radius: 50%;
+		border: 0.1rem solid var(--section-dark);
+		/* Transparent inner fill in the resting state so the heading's background
+		   shows through (matching the Section/Column selectors); the center only
+		   fills on hover/active. */
+		background-color: transparent;
+		/* Clip the fill to the content box so padding creates a gap between the
+		   filled center and the outline when active (radio-button style). */
+		background-clip: content-box;
+
+		cursor: pointer;
+		outline: 0;
+		opacity: 0;
+		z-index: 12;
+		transition: opacity 80ms ease-in-out, background-color 80ms ease-in-out;
+	}
+
+	/* Reveal: on hover of the heading container, on focus, when selected (.active),
+	   or when the Selection Controls toggle is on (.always-visible). */
+	.heading-one-container:hover .heading-radio,
+	.heading-two-container:hover .heading-radio,
+	.heading-three-container:hover .heading-radio,
+	.heading-radio:focus-visible,
+	.heading-radio.active,
+	.heading-radio.always-visible {
+		opacity: 1;
+	}
+
+	.heading-radio:hover {
+		background-color: var(--section-light);
+	}
+
+
+
+	.heading-radio.active,
+	.heading-radio.active:hover {
+		background-color: var(--section-dark);
+	}
+
+	.heading-radio:focus-visible {
+		outline: 0.2rem solid var(--section-dark);
+		outline-offset: 0.2rem;
+	}
+
+	/* Headings aren't selectable in overview mode — never show the button there. */
+	:global(.overview-mode) .heading-radio {
+		display: none;
+	}
 </style>
+

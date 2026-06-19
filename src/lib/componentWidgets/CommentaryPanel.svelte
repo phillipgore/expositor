@@ -21,9 +21,10 @@
 
 	/**
 	 * The currently active "subject" being commented on.
-	 * @type {{ type: 'segment'|'section'|'column'|'connection', id: string } | null}
+	 * @type {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string } | null}
 	 */
 	let currentSubject = $state(null);
+
 	let commentaryContent = $state('');
 	let saveTimeout = $state(null);
 
@@ -51,20 +52,22 @@
 
 	/**
 	 * Resolve the URL for loading/saving commentary based on subject type.
-	 * @param {{ type: 'segment'|'section'|'column'|'connection', id: string }} subject
+	 * @param {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string }} subject
 	 */
 	function getApiUrl(subject) {
 		if (subject.type === 'connection') return `/api/segments/connections/${subject.id}`;
 		if (subject.type === 'column')     return `/api/passages/columns/${subject.id}`;
 		if (subject.type === 'section')    return `/api/passages/sections/${subject.id}`;
+		if (subject.type === 'heading')    return `/api/passages/headings/${subject.id}`;
 		return `/api/segments/${subject.id}`;
 	}
 
 	/**
 	 * Load commentary from the database for the given subject.
-	 * @param {{ type: 'segment'|'section'|'column'|'connection', id: string }} subject
+	 * @param {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string }} subject
 	 */
 	async function loadCommentary(subject) {
+
 		try {
 			const response = await fetch(getApiUrl(subject));
 			if (response.ok) {
@@ -82,10 +85,11 @@
 
 	/**
 	 * Save commentary to the database for the given subject.
-	 * @param {{ type: 'segment'|'section'|'column'|'connection', id: string }} subject
+	 * @param {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string }} subject
 	 * @param {string} html
 	 */
 	async function saveCommentary(subject, html) {
+
 		try {
 			const response = await fetch(getApiUrl(subject), {
 				method: 'PATCH',
@@ -117,11 +121,13 @@
 	}
 
 	/**
-	 * Watch for segment, section, column, or connection changes and load commentary.
-	 * Priority: connection → column → section → segment.
+	 * Watch for heading, segment, section, column, or connection changes and load commentary.
+	 * Priority: heading → connection → column → section → segment.
+	 * A heading is selected via its hover select button and is an independent subject.
 	 * Uses untrack() to prevent infinite loops.
 	 */
 	$effect(() => {
+		const headingId    = $toolbarState.activeHeadingId;
 		const segmentId    = $toolbarState.activeSegmentId;
 		// Only show commentary when exactly one connection is selected.
 		// Multi-selection (Cmd+Click) clears the panel so the user sees the empty state.
@@ -136,8 +142,10 @@
 			: null;
 
 		// Determine the new subject
-		/** @type {{ type: 'segment'|'section'|'column'|'connection', id: string } | null} */
-		const newSubject = connectionId
+		/** @type {{ type: 'segment'|'section'|'column'|'connection'|'heading', id: string } | null} */
+		const newSubject = headingId
+			? { type: 'heading', id: headingId }
+			: connectionId
 			? { type: 'connection', id: connectionId }
 			: columnId
 				? { type: 'column', id: columnId }
@@ -146,6 +154,7 @@
 					: segmentId
 						? { type: 'segment', id: segmentId }
 						: null;
+
 
 		const prevSubject = untrack(() => currentSubject);
 
@@ -211,7 +220,8 @@
 		></div>
 	{/if}
 	<div class="panel-content" style:width="{panelWidth}px">
-		{#if $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1) || $toolbarState.hasActiveSection}
+		{#if $toolbarState.hasActiveHeading || $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1) || $toolbarState.hasActiveSection}
+
 			{#key currentSubject?.id}
 				<CommentaryEditor
 					content={commentaryContent}

@@ -30,8 +30,10 @@ import {
 	passageColumn,
 	passageSection,
 	passageSegment,
+	passageHeading,
 	segmentConnection
 } from '$lib/server/db/schema.js';
+
 
 import { eq, inArray, asc } from 'drizzle-orm';
 import { compareWordIds } from '$lib/server/db/utils.js';
@@ -66,7 +68,7 @@ async function loadTree(dbx, passageId) {
 		.orderBy(asc(passageSection.startingWordId));
 
 	const sectionIds = sections.map((s) => s.id);
-	const segments =
+	const rawSegments =
 		sectionIds.length > 0
 			? await dbx
 					.select()
@@ -75,7 +77,36 @@ async function loadTree(dbx, passageId) {
 					.orderBy(asc(passageSegment.startingWordId))
 			: [];
 
+	// Headings live in passage_heading. Project them onto each segment as
+	// headingOne/Two/Three so the join summary can report whether content exists.
+	const segmentIds = rawSegments.map((s) => s.id);
+	const headings =
+		segmentIds.length > 0
+			? await dbx
+					.select()
+					.from(passageHeading)
+					.where(inArray(passageHeading.passageSegmentId, segmentIds))
+			: [];
+	const headingsBySegment = new Map();
+	for (const h of headings) {
+		const list = headingsBySegment.get(h.passageSegmentId);
+		if (list) list.push(h);
+		else headingsBySegment.set(h.passageSegmentId, [h]);
+	}
+	const segments = rawSegments.map((seg) => {
+		const segHeadings = headingsBySegment.get(seg.id) ?? [];
+		const byType = { one: null, two: null, three: null };
+		for (const h of segHeadings) byType[h.headingType] = h;
+		return {
+			...seg,
+			headingOne: byType.one?.text ?? null,
+			headingTwo: byType.two?.text ?? null,
+			headingThree: byType.three?.text ?? null
+		};
+	});
+
 	return columns
+
 		.map((col) => ({
 			...col,
 			sections: sections

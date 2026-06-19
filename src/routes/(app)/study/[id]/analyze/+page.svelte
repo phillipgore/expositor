@@ -45,7 +45,8 @@
 		getParsedPassage,
 		extractSegmentText
 	} from '$lib/utils/passageText.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState } from '$lib/stores/toolbar.js';
+
 
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
 	import { showPopover } from '$lib/stores/popover.js';
@@ -1167,6 +1168,21 @@
 			if (selectedWord !== null) { selectedWord = null; suppressHoverCaret = null; }
 		}
 	});
+
+	// When a heading is selected for commentary (via its hover select button), clear all
+	// structural visual selections so a column/section/segment doesn't stay selected
+	// alongside the heading. The heading select lives in HeadingEditor and only writes
+	// the shared toolbar store (hasActiveHeading); this bridges that back to the local
+	// selection arrays, mirroring the connection-active effect above.
+	$effect(() => {
+		if ($toolbarState.hasActiveHeading) {
+			if (activeSegments.length > 0) activeSegments = [];
+			if (activeColumns.length > 0) activeColumns = [];
+			if (activeSections.length > 0) activeSections = [];
+			if (selectedWord !== null) { selectedWord = null; suppressHoverCaret = null; }
+		}
+	});
+
 
 	/**
 	 * Scroll the scroll container so the given structural selection is centered as much
@@ -3758,8 +3774,12 @@
 				activeSegments = [];
 				activeColumns = [];
 				activeSections = [];
+				// Also deselect any heading selected for commentary, so clicking the empty
+				// canvas clears the heading selection just like column/section selections.
+				setActiveHeading(false);
 			}
 		}
+
 		
 		// Clear any existing timeout to prevent duplicate processing
 		if (clickTimeout) {
@@ -4450,6 +4470,10 @@
 																			heading1={segment.headingOne}
 																			heading2={segment.headingTwo}
 																			heading3={segment.headingThree}
+																			heading1Id={segment.headingOneId}
+																			heading2Id={segment.headingTwoId}
+																			heading3Id={segment.headingThreeId}
+
 																			heading1Ref={headingReferences[segment.id]?.heading1Ref}
 																			heading2Ref={headingReferences[segment.id]?.heading2Ref}
 																			heading3Ref={headingReferences[segment.id]?.heading3Ref}

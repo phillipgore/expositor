@@ -20,8 +20,10 @@ import {
 	passageColumn,
 	passageSection,
 	passageSegment,
+	passageHeading,
 	segmentConnection
 } from '$lib/server/db/schema.js';
+
 
 import { eq, inArray, asc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
@@ -193,7 +195,7 @@ async function loadTree(dbx, passageId) {
 		.orderBy(asc(passageSection.startingWordId));
 
 	const sectionIds = sections.map((s) => s.id);
-	const segments =
+	const rawSegments =
 		sectionIds.length > 0
 			? await dbx
 					.select()
@@ -202,7 +204,41 @@ async function loadTree(dbx, passageId) {
 					.orderBy(asc(passageSegment.startingWordId))
 			: [];
 
+	// Headings live in passage_heading. Project them back onto each segment as
+	// headingOne/Two/Three (+ matching ids) so content checks, summaries, and
+	// fold logic can keep reasoning about a segment's headings via the segment
+	// object. The original heading rows remain the source of truth in the DB.
+	const segmentIds = rawSegments.map((s) => s.id);
+	const headings =
+		segmentIds.length > 0
+			? await dbx
+					.select()
+					.from(passageHeading)
+					.where(inArray(passageHeading.passageSegmentId, segmentIds))
+			: [];
+	const headingsBySegment = new Map();
+	for (const h of headings) {
+		const list = headingsBySegment.get(h.passageSegmentId);
+		if (list) list.push(h);
+		else headingsBySegment.set(h.passageSegmentId, [h]);
+	}
+	const segments = rawSegments.map((seg) => {
+		const segHeadings = headingsBySegment.get(seg.id) ?? [];
+		const byType = { one: null, two: null, three: null };
+		for (const h of segHeadings) byType[h.headingType] = h;
+		return {
+			...seg,
+			headingOne: byType.one?.text ?? null,
+			headingTwo: byType.two?.text ?? null,
+			headingThree: byType.three?.text ?? null,
+			headingOneId: byType.one?.id ?? null,
+			headingTwoId: byType.two?.id ?? null,
+			headingThreeId: byType.three?.id ?? null
+		};
+	});
+
 	return columns.map((col) => ({
+
 		...col,
 		sections: sections
 			.filter((s) => s.passageColumnId === col.id)
@@ -776,19 +812,29 @@ async function pruneEmptyContainers(tx, passageId) {
  */
 async function foldSegmentContent(tx, fromSeg, targetSeg) {
 	const set = {};
-	if (!targetSeg.headingOne && fromSeg.headingOne) {
-		set.headingOne = fromSeg.headingOne;
-		targetSeg.headingOne = fromSeg.headingOne;
-	}
-	if (!targetSeg.headingTwo && fromSeg.headingTwo) {
-		set.headingTwo = fromSeg.headingTwo;
-		targetSeg.headingTwo = fromSeg.headingTwo;
-	}
-	if (!targetSeg.headingThree && fromSeg.headingThree) {
-		set.headingThree = fromSeg.headingThree;
-		targetSeg.headingThree = fromSeg.headingThree;
-	}
+
+	// Headings live in passage_heading. Move the orphan's heading rows onto the
+	// target ONLY for types the target lacks (never overwrite). Each moved row
+	// keeps its own commentary; same-type duplicates are discarded with the
+	// orphan when it is deleted by the caller. The projected headingX/headingXId
+	// fields on the seg objects come from loadTree().
+	const moveHeading = async (type, fromText, fromId, targetText) => {
+		if (targetText || !fromText || !fromId) return;
+		await tx
+			.update(passageHeading)
+			.set({ passageSegmentId: targetSeg.id, updatedAt: new Date() })
+			.where(eq(passageHeading.id, fromId));
+	};
+	await moveHeading('one', fromSeg.headingOne, fromSeg.headingOneId, targetSeg.headingOne);
+	await moveHeading('two', fromSeg.headingTwo, fromSeg.headingTwoId, targetSeg.headingTwo);
+	await moveHeading('three', fromSeg.headingThree, fromSeg.headingThreeId, targetSeg.headingThree);
+	// Keep the in-memory target projection consistent for any later folds.
+	if (!targetSeg.headingOne && fromSeg.headingOne) targetSeg.headingOne = fromSeg.headingOne;
+	if (!targetSeg.headingTwo && fromSeg.headingTwo) targetSeg.headingTwo = fromSeg.headingTwo;
+	if (!targetSeg.headingThree && fromSeg.headingThree) targetSeg.headingThree = fromSeg.headingThree;
+
 	if (fromSeg.note) {
+
 		// Quick Notes are capped; a merge that would overflow is truncated (with an
 		// ellipsis) rather than silently storing an over-limit note. Commentary is
 		// intentionally NOT capped, so it is appended in full below.

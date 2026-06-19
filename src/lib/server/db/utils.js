@@ -1,6 +1,7 @@
 import { db, client } from '$lib/server/db/index.js';
-import { studyGroup, passage, passageColumn, passageSection, passageSegment } from '$lib/server/db/schema.js';
+import { studyGroup, passage, passageColumn, passageSection, passageSegment, passageHeading } from '$lib/server/db/schema.js';
 import { eq, and, inArray, asc } from 'drizzle-orm';
+
 import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
 import { runDatabaseDiagnostics } from '$lib/server/db/health.js';
@@ -124,13 +125,11 @@ export async function createDefaultPassageStructure(passageId, testamentId, book
 		id: uuidv4(),
 		passageSectionId: sectionId,
 		startingWordId: firstWordId,
-		headingOne: null,
-		headingTwo: null,
-		headingThree: null,
 		createdAt: now,
 		updatedAt: now
 	});
 }
+
 
 /**
  * Compare two word IDs to determine their order
@@ -398,13 +397,11 @@ export async function insertColumn(dbInstance, userId, passageId, columnId, sect
 					id: uuidv4(),
 					passageSectionId: newSection.id,
 					startingWordId: insertionWordId,
-					headingOne: null,
-					headingTwo: null,
-					headingThree: null,
 					createdAt: now,
 					updatedAt: now
 				});
 			}
+
 			
 			// Transfer segments that start at or after insertion point from the source section
 			const segmentsToTransfer = await tx
@@ -536,13 +533,11 @@ export async function insertSection(dbInstance, userId, passageId, columnId, sec
 				id: uuidv4(),
 				passageSectionId: newSection.id,
 				startingWordId: insertionWordId,
-				headingOne: null,
-				headingTwo: null,
-				headingThree: null,
 				createdAt: now,
 				updatedAt: now
 			});
 		}
+
 		
 		// Transfer segments that start at or after insertion point from the source section
 		const segmentsToTransfer = await tx
@@ -638,13 +633,11 @@ export async function insertSegment(dbInstance, userId, passageId, sectionId, in
 		id: uuidv4(),
 		passageSectionId: sectionId,
 		startingWordId: insertionWordId,
-		headingOne: null,
-		headingTwo: null,
-		headingThree: null,
 		createdAt: now,
 		updatedAt: now
 	});
 }
+
 
 /**
  * Move text from the current segment up into the preceding segment.
@@ -779,18 +772,29 @@ export async function moveSegmentTextDown(dbInstance, userId, passageId, segment
 }
 
 /**
- * Update a segment's heading
+ * Create, update, or remove a segment's heading.
+ *
+ * Headings live in the passage_heading table (one row per heading type per
+ * segment). Passing non-empty text upserts the row (creating it if missing,
+ * updating its text otherwise — commentary is preserved on update). Passing
+ * null/empty text deletes the row, which also discards any commentary attached
+ * to that heading.
+ *
  * @param {Object} dbInstance - Database instance
  * @param {string} userId - User ID for authorization
- * @param {string} segmentId - Segment ID to update
+ * @param {string} segmentId - Segment ID the heading belongs to
  * @param {string} headingType - Type of heading: 'one', 'two', or 'three'
- * @param {string|null} headingText - Heading text or null to remove
- * @returns {Promise<void>}
+ * @param {string|null} headingText - Heading text or null/empty to remove
+ * @returns {Promise<{id: string}|null>} the heading row id when set, null when removed
  */
 export async function updateSegmentHeading(dbInstance, userId, segmentId, headingType, headingText) {
 	// Import study table for the join
 	const { study: studyTable } = await import('$lib/server/db/schema.js');
-	
+
+	if (!['one', 'two', 'three'].includes(headingType)) {
+		throw new Error('Invalid heading type');
+	}
+
 	// 1. Verify segment exists and get passage for ownership check
 	const segmentData = await dbInstance
 		.select({
@@ -804,32 +808,100 @@ export async function updateSegmentHeading(dbInstance, userId, segmentId, headin
 		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
 		.where(eq(passageSegment.id, segmentId))
 		.limit(1);
-	
+
 	if (segmentData.length === 0) {
 		throw new Error('Segment not found');
 	}
-	
+
 	if (segmentData[0].userId !== userId) {
 		throw new Error('User not authorized to update this segment');
 	}
-	
-	// 2. Determine which heading field to update
-	const headingField = headingType === 'one' ? 'headingOne' :
-	                     headingType === 'two' ? 'headingTwo' :
-	                     'headingThree';
-	
-	// 3. Update the heading
+
 	const now = new Date();
-	const updateData = {
-		[headingField]: headingText || null,
+	const trimmed = headingText && headingText.trim() !== '' ? headingText : null;
+
+	// 2. Look up any existing heading row of this type for the segment.
+	const existing = await dbInstance
+		.select()
+		.from(passageHeading)
+		.where(and(
+			eq(passageHeading.passageSegmentId, segmentId),
+			eq(passageHeading.headingType, headingType)
+		))
+		.limit(1);
+
+	// 3a. Removal: delete the row (and its commentary) if it exists.
+	if (!trimmed) {
+		if (existing.length > 0) {
+			await dbInstance
+				.delete(passageHeading)
+				.where(eq(passageHeading.id, existing[0].id));
+		}
+		return null;
+	}
+
+	// 3b. Update existing row's text (commentary preserved).
+	if (existing.length > 0) {
+		await dbInstance
+			.update(passageHeading)
+			.set({ text: trimmed, updatedAt: now })
+			.where(eq(passageHeading.id, existing[0].id));
+		return { id: existing[0].id };
+	}
+
+	// 3c. Create a new heading row.
+	const id = uuidv4();
+	await dbInstance.insert(passageHeading).values({
+		id,
+		passageSegmentId: segmentId,
+		headingType,
+		text: trimmed,
+		createdAt: now,
 		updatedAt: now
-	};
-	
-	await dbInstance
-		.update(passageSegment)
-		.set(updateData)
-		.where(eq(passageSegment.id, segmentId));
+	});
+	return { id };
 }
+
+/**
+ * Update a heading's commentary.
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string} headingId - passage_heading row id
+ * @param {string|null} commentary - Rich-text commentary or null to clear
+ * @returns {Promise<void>}
+ */
+export async function updateHeadingCommentary(dbInstance, userId, headingId, commentary) {
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+
+	// Verify ownership by walking heading → segment → section → column → passage → study.
+	const headingData = await dbInstance
+		.select({
+			headingId: passageHeading.id,
+			userId: studyTable.userId
+		})
+		.from(passageHeading)
+		.innerJoin(passageSegment, eq(passageHeading.passageSegmentId, passageSegment.id))
+		.innerJoin(passageSection, eq(passageSegment.passageSectionId, passageSection.id))
+		.innerJoin(passageColumn, eq(passageSection.passageColumnId, passageColumn.id))
+		.innerJoin(passage, eq(passageColumn.passageId, passage.id))
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(eq(passageHeading.id, headingId))
+		.limit(1);
+
+	if (headingData.length === 0) {
+		throw new Error('Heading not found');
+	}
+
+	if (headingData[0].userId !== userId) {
+		throw new Error('User not authorized to update this heading');
+	}
+
+	await dbInstance
+		.update(passageHeading)
+		.set({ commentary: commentary || null, updatedAt: new Date() })
+		.where(eq(passageHeading.id, headingId));
+}
+
 
 /**
  * Update a segment's note

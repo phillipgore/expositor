@@ -8,9 +8,13 @@
 		heading1 = null,
 		heading2 = null,
 		heading3 = null,
+		heading1Id = null,
+		heading2Id = null,
+		heading3Id = null,
 		heading1Ref = null,
 		heading2Ref = null,
 		heading3Ref = null,
+
 		segmentRef = null,
 		note = null,
 		text = '',
@@ -209,9 +213,11 @@
 	<HeadingEditor
 		headingType="one"
 		headingValue={heading1}
+		headingId={heading1Id}
 		scriptureRef={heading1Ref}
 		{segmentId}
 		bind:isInputMode={headingOneInputMode}
+
 		{isActive}
 		hasHeadingOne={!!heading1}
 		hasHeadingTwo={!!heading2}
@@ -223,7 +229,9 @@
 	<HeadingEditor
 		headingType="two"
 		headingValue={heading2}
+		headingId={heading2Id}
 		scriptureRef={heading2Ref}
+
 		{segmentId}
 		bind:isInputMode={headingTwoInputMode}
 		{isActive}
@@ -239,7 +247,9 @@
 	<HeadingEditor
 		headingType="three"
 		headingValue={heading3}
+		headingId={heading3Id}
 		scriptureRef={heading3Ref}
+
 		{segmentId}
 		bind:isInputMode={headingThreeInputMode}
 		{isActive}

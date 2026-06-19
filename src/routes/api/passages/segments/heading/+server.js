@@ -28,10 +28,12 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Invalid headingType. Must be one, two, or three' }, { status: 400 });
 		}
 
-		// Perform the heading update
-		await updateSegmentHeading(db, session.user.id, segmentId, headingType, headingText);
+		// Perform the heading update. Returns the heading row id when text is set,
+		// or null when the heading was removed.
+		const result = await updateSegmentHeading(db, session.user.id, segmentId, headingType, headingText);
 
-		return json({ success: true }, { status: 200 });
+		return json({ success: true, headingId: result?.id ?? null }, { status: 200 });
+
 	} catch (error) {
 		console.error('Update segment heading error:', error);
 		

@@ -214,11 +214,9 @@ export const passageSegment = pgTable('passage_segment', {
 		.notNull()
 		.references(() => passageSection.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
-	headingOne: text('heading_one'),
-	headingTwo: text('heading_two'),
-	headingThree: text('heading_three'),
 	note: text('note'),
 	commentary: text('commentary'),
+
 	/** User-set minimum height in pixels. NULL = flexible/natural height (content-sized). */
 	height: integer('height'),
 	/**
@@ -240,7 +238,42 @@ export const passageSegment = pgTable('passage_segment', {
 	startingWordIdx: index('passage_segment_starting_word_idx').on(table.startingWordId)
 }));
 
+/**
+ * A heading attached to a segment. Headings were previously three nullable text
+ * columns on passage_segment (heading_one/two/three); they now live as their own
+ * rows so each heading is an addressable, commentable entity (with its own id and
+ * commentary), consistent with how sections/columns/segments/connections carry
+ * commentary. A segment has at most one heading of each type (enforced by the
+ * unique index on passage_segment_id + heading_type).
+ */
+export const passageHeading = pgTable('passage_heading', {
+	id: text('id').primaryKey(),
+	passageSegmentId: text('passage_segment_id')
+		.notNull()
+		.references(() => passageSegment.id, { onDelete: 'cascade' }),
+	/** Which heading level this is: 'one' | 'two' | 'three'. */
+	headingType: text('heading_type').notNull(),
+	/** The heading's display text/label. */
+	text: text('text').notNull(),
+	/** Rich-text commentary for this heading (mirrors passage_segment.commentary). */
+	commentary: text('commentary'),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+}, (table) => ({
+	segmentIdIdx: index('passage_heading_segment_id_idx').on(table.passageSegmentId),
+	segmentTypeUnique: index('passage_heading_segment_type_unique').on(
+		table.passageSegmentId,
+		table.headingType
+	),
+	headingTypeCheck: sql`CHECK (heading_type IN ('one', 'two', 'three'))`
+}));
+
 export const segmentConnection = pgTable('segment_connection', {
+
 	id: text('id').primaryKey(),
 	studyId: text('study_id')
 		.notNull()

@@ -20,11 +20,13 @@ import {
 	passageColumn,
 	passageSection,
 	passageSegment,
+	passageHeading,
 	segmentConnection
 } from '$lib/server/db/schema.js';
 
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { truncateNote } from '$lib/constants/notes.js';
+
 
 /* ------------------------------------------------------------------ */
 /* Connection endpoint helpers                                         */
@@ -86,19 +88,30 @@ export function endpointColumns(end, ep) {
  */
 export async function foldSegmentContent(tx, fromSeg, targetSeg) {
 	const set = {};
-	if (!targetSeg.headingOne && fromSeg.headingOne) {
-		set.headingOne = fromSeg.headingOne;
-		targetSeg.headingOne = fromSeg.headingOne;
+
+	// Headings now live in passage_heading (one row per type per segment). Move
+	// the orphan's heading rows onto the target ONLY for types the target is
+	// missing (never overwrite). Each moved row keeps its own commentary.
+	const [fromHeadings, targetHeadings] = await Promise.all([
+		tx.select().from(passageHeading).where(eq(passageHeading.passageSegmentId, fromSeg.id)),
+		tx.select().from(passageHeading).where(eq(passageHeading.passageSegmentId, targetSeg.id))
+	]);
+	const targetTypes = new Set(targetHeadings.map((h) => h.headingType));
+	for (const h of fromHeadings) {
+		if (!targetTypes.has(h.headingType)) {
+			// Re-point this heading row onto the target segment.
+			await tx
+				.update(passageHeading)
+				.set({ passageSegmentId: targetSeg.id, updatedAt: new Date() })
+				.where(eq(passageHeading.id, h.id));
+			targetTypes.add(h.headingType);
+		}
+		// Headings of a type the target already has are discarded with the orphan
+		// (the orphan segment is deleted by the caller, cascading its leftovers).
 	}
-	if (!targetSeg.headingTwo && fromSeg.headingTwo) {
-		set.headingTwo = fromSeg.headingTwo;
-		targetSeg.headingTwo = fromSeg.headingTwo;
-	}
-	if (!targetSeg.headingThree && fromSeg.headingThree) {
-		set.headingThree = fromSeg.headingThree;
-		targetSeg.headingThree = fromSeg.headingThree;
-	}
+
 	if (fromSeg.note) {
+
 		// Quick Notes are capped; a merge that would overflow is truncated (with an
 		// ellipsis) rather than silently storing an over-limit note. Commentary is
 		// intentionally NOT capped, so it is appended in full below.
