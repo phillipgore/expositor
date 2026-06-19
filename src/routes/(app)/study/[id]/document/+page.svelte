@@ -1332,17 +1332,17 @@
 	.study-header {
 		width: 100%;
 		text-align: left;
-		margin-bottom: 2.7rem;
+		margin-bottom: 3.6rem;
 	}
 
 
 
 	/* Title — 1.6rem bold, near-black (docx sz32, #545352 → --gray-200). */
 	.study-title {
-		font-size: 1.6rem;
+		font-size: 1.8rem;
 		font-weight: 700;
 		color: var(--gray-200);
-		line-height: 1.2;
+		line-height: 1.5;
 		margin: 0;
 	}
 
@@ -1350,12 +1350,12 @@
 	/* Subtitle — 1.4rem bold, a lighter gray than the title (docx sz28, #71706f
 	   → --gray-400). */
 	.study-subtitle {
-		font-size: 1.4rem;
+		font-size: 1.6rem;
 		font-weight: 700;
 		color: var(--gray-400);
-		margin-top: 0.6rem;
+		margin-top: 0.0rem;
 		margin-bottom: 0.6rem;
-		line-height: 1.2;
+		line-height: 1.5;
 	}
 
 
@@ -1454,27 +1454,27 @@
 	.doc-heading {
 		text-align: left;
 		color: var(--gray-200);
-		margin: 2.7rem 0 0.9rem;
+		margin: 3.6rem 0 0.6rem;
 	}
 
 
-	/* Heading One — 1.6rem bold (docx sz32). */
+	/* Heading One — 1.8rem bold. */
 	.doc-heading-one {
+		font-size: 1.8rem;
+		font-weight: 700;
+		line-height: 1.5;
+	}
+
+	/* Heading Two — 1.6rem bold. */
+	.doc-heading-two {
 		font-size: 1.6rem;
 		font-weight: 700;
 		line-height: 1.5;
 	}
 
-	/* Heading Two — 1.4rem bold (docx sz28). */
-	.doc-heading-two {
-		font-size: 1.4rem;
-		font-weight: 700;
-		line-height: 1.5;
-	}
-
-	/* Heading Three — 1.2rem bold (docx sz24). */
+	/* Heading Three — 1.4rem bold. */
 	.doc-heading-three {
-		font-size: 1.2rem;
+		font-size: 1.4rem;
 		font-weight: 700;
 		line-height: 1.5;
 	}
@@ -1492,6 +1492,12 @@
 	/* A heading directly followed by its segment text should hug that text. */
 	.doc-heading + .passage-text {
 		margin-top: 0;
+	}
+
+	/* A heading commentary directly followed by its segment's text needs a clear
+	   gap so the segment text isn't flush against the commentary/tags box. */
+	.doc-commentary + .passage-text {
+		margin-top: 1.2rem;
 	}
 
 
@@ -1623,11 +1629,11 @@
 
 	/* Passage reference — bold 1.6rem, opens each passage block (docx sz32). */
 	.doc-passage-ref {
-		font-size: 1.6rem;
+		font-size: 2.0rem;
 		font-weight: 700;
 		line-height: 1.5;
 		margin-top: 0;
-		margin-bottom: 1.2rem;
+		margin-bottom: 0.0rem;
 	}
 
 	/* ============================================
