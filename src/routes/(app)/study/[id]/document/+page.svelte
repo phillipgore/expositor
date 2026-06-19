@@ -2,8 +2,9 @@
 	import { invalidate } from '$app/navigation';
 	import { navigating } from '$app/stores';
 	import { onMount } from 'svelte';
-	import Heading from '$lib/componentElements/Heading.svelte';
 	import Spinner from '$lib/componentElements/Spinner.svelte';
+	import GlossaryBadge from '$lib/componentElements/GlossaryBadge.svelte';
+
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
 	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
@@ -513,6 +514,33 @@
 	}
 
 	/**
+	 * Extract the unique glossary term ids referenced inline in a commentary HTML
+	 * string, in first-appearance order. Mirrors the Analyze view's CommentaryEditor,
+	 * whose bottom "tags" strip is a read-only reflection of the glossary terms used
+	 * inline in the prose. Each inline term is stored as a
+	 * `<span class="glossary-term" data-term-id="…">` (see tiptapGlossaryTerm.js), so
+	 * we pull the `data-term-id` values out of the stored HTML. Regex-based (not DOM-
+	 * based) so it works during server-side rendering too.
+	 * @param {string|null|undefined} html
+	 * @returns {string[]}
+	 */
+	function extractGlossaryTermIds(html) {
+		if (!html || typeof html !== 'string') return [];
+		const ids = [];
+		const seen = new Set();
+		const re = /data-term-id=("|')([\s\S]*?)\1/gi;
+		let match;
+		while ((match = re.exec(html)) !== null) {
+			const id = decodeHtmlEntities(match[2]);
+			if (id && !seen.has(id)) {
+				seen.add(id);
+				ids.push(id);
+			}
+		}
+		return ids;
+	}
+
+	/**
 	 * Format a passage reference for display
 	 * @param {Object} passage
 	 * @returns {string}
@@ -537,12 +565,13 @@
 <div class="document-gutter">
 	<div class="page">
 	<div class="study-header">
-		<Heading heading="h1" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
+		<h1 class="study-title">{data.study.title}</h1>
 		{#if data.study.subtitle}
-            <Heading heading="h3" isMuted>{data.study.subtitle}</Heading>
+			<p class="study-subtitle">{data.study.subtitle}</p>
 		{/if}
 		{#if data.passages && data.passages.length > 0}
 			<p class="study-references">
+
 				{#each data.passages as passage, i}
 					{formatPassageReference(passage)}{#if i < data.passages.length - 1},&nbsp;{/if}
 				{/each}
@@ -571,7 +600,14 @@
 					{@const passageData = (data.passages ?? []).find((p) => p.id === passageText.structure?.passageId)}
 					{@const blocks = buildDocumentBlocks(passageText, passageData, connectionsByFromId)}
 					<div class="passage-section">
-						<h2 class="passage-reference">{passageText.reference}</h2>
+						<!-- Passage reference — the top of the structural label family. Every
+						     structural ref in the document is rendered as "Label: Reference"
+						     (Passage / Column / Section / Segment / Connection) so the reading
+						     document is navigable by location, matching the mockup. -->
+						<p class="doc-ref-line doc-passage-ref">
+							<span class="doc-ref-label">Passage:</span> {passageText.reference}
+						</p>
+
 						{#if blocks}
 							<!-- Interleave the author's headings with each segment's sliced text so
 							     the reading document reflects the structure built in Analyze. Heading
@@ -585,33 +621,33 @@
 							     otherwise appear to belong to the narrower segment heading that follows. -->
 							{#each blocks as block (block.key)}
 								{#if block.type === 'column-start'}
-									<!-- Column reference: marks where a new column begins, labeling its
-									     verse span so the document is navigable by location. -->
+									<!-- Column divider: a centered "Column: <ref>" label sitting on a SOLID
+									     rule that runs to both margins, marking where a new column begins. -->
 									{#if block.ref}
-										<p class="doc-ref doc-column-ref">{block.ref}</p>
+										<p class="doc-divider doc-divider-column">
+											<span class="doc-divider-text">Column: {block.ref}</span>
+										</p>
 									{/if}
 								{:else if block.type === 'section-start'}
-									<!-- Section reference: marks where a new section begins. -->
+									<!-- Section divider: centered "Section: <ref>" on a DASHED rule. -->
 									{#if block.ref}
-										<p class="doc-ref doc-section-ref">{block.ref}</p>
-									{/if}
-								{:else if block.type === 'aside'}
-									<!-- Editorial aside: column-, section-, or segment-level commentary.
-									     Sits outside the heading outline (framed as a note, not a heading or
-									     body copy) so its scope is never mistaken for the segment text near
-									     it. The reference is appended to the label to scope the note.
-
-									     Footnotes authored in the commentary are surfaced here: the inline
-									     superscript markers are renumbered 1, 2, 3… per commentary (matching
-									     the editor), and the note text — stored in each marker's
-									     data-footnote-content attribute — is rendered as an ordered list
-									     directly beneath the commentary body. -->
-									{@const asideRendered = renderCommentaryWithFootnotes(block.html)}
-									<aside class="doc-aside doc-aside-{block.scope}">
-										<p class="doc-aside-label">
-											<span class="doc-aside-scope">{block.scope === 'column' ? 'Column Commentary' : block.scope === 'section' ? 'Section Commentary' : 'Segment Commentary'}</span>{#if block.ref}<span class="doc-aside-ref"> · {block.ref}</span>{/if}
+										<p class="doc-divider doc-divider-section">
+											<span class="doc-divider-text">Section: {block.ref}</span>
 										</p>
-										<div class="doc-aside-body">{@html asideRendered.html}</div>
+									{/if}
+
+								{:else if block.type === 'aside'}
+									<!-- Editorial commentary: column-, section-, or segment-level. Rendered as
+									     flowing body text directly beneath the structural label it follows
+									     (matching the mockup), NOT as a boxed callout. Footnotes authored in the
+									     commentary are surfaced beneath: the inline superscript markers are
+									     renumbered 1, 2, 3… per commentary (matching the editor), and each
+									     note's text — stored in its marker's data-footnote-content attribute —
+									     is rendered as an ordered list directly below the commentary body. -->
+									{@const asideRendered = renderCommentaryWithFootnotes(block.html)}
+									{@const asideTermIds = extractGlossaryTermIds(block.html)}
+									<div class="doc-commentary doc-commentary-{block.scope}">
+										<div class="doc-commentary-body">{@html asideRendered.html}</div>
 										{#if asideRendered.footnotes.length > 0}
 											<ol class="doc-footnotes">
 												{#each asideRendered.footnotes as footnote (footnote.number)}
@@ -619,16 +655,29 @@
 												{/each}
 											</ol>
 										{/if}
-									</aside>
+										<!-- Glossary tags strip: a read-only reflection of the glossary terms
+										     used inline in this commentary, mirroring the Analyze view's
+										     CommentaryEditor bottom strip. -->
+										{#if asideTermIds.length > 0}
+											<div class="doc-tags">
+												<div class="doc-tags-list">
+													{#each asideTermIds as termId (termId)}
+														<GlossaryBadge {termId} removable={false} />
+													{/each}
+												</div>
+											</div>
+										{/if}
+									</div>
 								{:else if block.type === 'connections'}
-									<!-- Connections group: links this item makes to others, shown once
-									     at the FROM end. Each entry is "fromRef → toRef" followed by its
-									     quick note (plain text) and commentary (rich text). -->
+									<!-- Connections group: links this item makes to others, shown once at the
+									     FROM end. Each entry is wrapped in a subtle rounded-rectangle card with
+									     a "Connection: <fromRef> → <toRef>" label, followed by its quick note
+									     (plain text) and commentary (rich text). -->
 									<div class="doc-connections doc-connections-{block.scope}">
-										<p class="doc-connections-label">{block.connections.length === 1 ? 'Connection' : 'Connections'}</p>
 										{#each block.connections as conn (conn.key)}
 											<div class="doc-connection">
-												<p class="doc-connection-ref">
+												<p class="doc-ref-line doc-connection-ref">
+													<span class="doc-ref-label">Connection:</span>
 													<span class="doc-connection-from">{conn.fromRef ?? '—'}</span>
 													<span class="doc-connection-arrow"> → </span>
 													<span class="doc-connection-to">{conn.toRef ?? '—'}</span>
@@ -638,8 +687,9 @@
 												{/if}
 												{#if conn.commentary}
 													<!-- Connection commentary carries footnotes too; surface them the
-													     same way as the editorial asides above. -->
+													     same way as the commentary above. -->
 													{@const connRendered = renderCommentaryWithFootnotes(conn.commentary)}
+													{@const connTermIds = extractGlossaryTermIds(conn.commentary)}
 													<div class="doc-connection-commentary">{@html connRendered.html}</div>
 													{#if connRendered.footnotes.length > 0}
 														<ol class="doc-footnotes doc-footnotes-connection">
@@ -648,11 +698,28 @@
 															{/each}
 														</ol>
 													{/if}
+													<!-- Glossary tags strip for the connection commentary. -->
+													{#if connTermIds.length > 0}
+														<div class="doc-tags">
+															<div class="doc-tags-list">
+																{#each connTermIds as termId (termId)}
+																	<GlossaryBadge {termId} removable={false} />
+																{/each}
+															</div>
+														</div>
+													{/if}
 												{/if}
 											</div>
 										{/each}
 									</div>
 								{:else}
+									<!-- Segment divider: centered "Segment: <ref>" on a DOTTED rule. -->
+									{#if block.ref}
+										<p class="doc-divider doc-divider-segment">
+											<span class="doc-divider-text">Segment: {block.ref}</span>
+										</p>
+									{/if}
+
 									{#if block.headingOne}
 										<h3 class="doc-heading doc-heading-one">{block.headingOne}</h3>
 									{/if}
@@ -662,19 +729,16 @@
 									{#if block.headingThree}
 										<h5 class="doc-heading doc-heading-three">{block.headingThree}</h5>
 									{/if}
-									<!-- Segment reference: a quiet per-segment location label. -->
-									{#if block.ref}
-										<p class="doc-ref doc-segment-ref">{block.ref}</p>
-									{/if}
 									<div class="passage-text">{@html block.html}</div>
 									<!-- Quick note: a brief plain-text margin note authored on the segment.
 									     Rendered right after the segment's text (and before any segment
-									     commentary aside that follows). Plain text — NOT {@html} — to mirror
+									     commentary that follows). Plain text — NOT {@html} — to mirror
 									     the editor and avoid interpreting note content as markup. -->
 									{#if block.note}
 										<p class="doc-note">{block.note}</p>
 									{/if}
 								{/if}
+
 							{/each}
 						{:else}
 							<!-- Fallback: a passage with no usable structure renders whole, so text
@@ -768,32 +832,56 @@
 	}
 
 
+	/* Header block — left-aligned: study title, subtitle, and the passage
+	   references + translation badge all hug the left margin of the page. */
 	.study-header {
 		width: 100%;
-		text-align: center;
+		text-align: left;
 	}
 
 
-	.study-subtitle {
+	/* Title — 1.6rem bold, near-black (docx sz32, #545352 → --gray-200). */
+	.study-title {
 		font-size: 1.6rem;
-		color: var(--gray-300);
+		font-weight: 700;
+		color: var(--gray-200);
+		line-height: 1.2;
+		margin: 0;
+	}
+
+
+	/* Subtitle — 1.4rem bold, a lighter gray than the title (docx sz28, #71706f
+	   → --gray-400). */
+	.study-subtitle {
+		font-size: 1.4rem;
+		font-weight: 700;
+		color: var(--gray-400);
 		margin-top: 0.6rem;
+		margin-bottom: 0.6rem;
+		line-height: 1.2;
+	}
+
+
+
+	/* Passage listing — the references + translation badge. The lightest of the
+	   header text (1.1rem, docx sz22, #555453 → --gray-300), not bold. */
+	.study-references {
+		font-size: 1.1rem;
+		color: var(--gray-300);
+		margin-top: 0;
+		margin-bottom: 0;
 		line-height: 1.5;
 	}
 
-	.study-references {
-		font-size: 1.4rem;
-		color: var(--gray-400);
-		margin-top: 0.0rem;
-		margin-bottom: 2.7rem;
-	}
+
 
 	.translation-badge {
 		display: inline-block;
 		margin-left: 0.3rem;
-		font-size: 1.4rem;
-		color: var(--gray-400);
+		font-size: 1.1rem;
+		color: var(--gray-300);
 	}
+
 
 	.document-content {
 		width: 100%;
@@ -828,21 +916,46 @@
 		margin-bottom: 3.6rem;
 	}
 
-	.passage-reference {
-		font-size: 1.6rem;
-		font-weight: 600;
-		color: var(--gray-300);
-		margin-bottom: 1.8rem;
-		text-align: left;
-	}
-
 	.passage-text {
-		font-size: 1.6rem;
-		line-height: 1.8;
+
+		font-size: 1.2rem;
+		line-height: 1.7;
 		color: var(--gray-100);
 		white-space: pre-wrap;
 		text-align: left;
 	}
+
+	/* ============================================
+	   VERSE NOTATION — the inline chapter:verse markers (e.g. "5:3") that the
+	   passage HTML carries as <span class="chapter-verse">. The Analyze view styles
+	   these via a `:global(.chapter-verse)` rule, but that styling is scoped to that
+	   page — it never reaches the Document page on a fresh load/refresh, so the
+	   markers rendered here (verbatim via {@html}) would otherwise appear as
+	   unstyled inline numbers. Mirror Analyze's treatment (bold, blue, slight right
+	   gap) scoped to the passage text so the notation reads the same in both views.
+	   The paragraph-break-marker rule reproduces the same vertical paragraph spacing
+	   the passage HTML expects. ============================================ */
+	.passage-text :global(.chapter-verse) {
+		font-weight: bold;
+		color: var(--blue-500);
+		padding-right: 0.3rem;
+	}
+
+	.passage-text :global(.paragraph-break-marker) {
+		display: block;
+		width: 100%;
+		height: 0;
+		margin-top: 0.8em;
+		-webkit-user-select: none;
+		user-select: none;
+		pointer-events: none;
+	}
+
+	.passage-text :global(.paragraph-break-marker:first-child) {
+		margin-top: 0;
+	}
+
+
 
 	/* ============================================
 	   DOCUMENT HEADINGS — the author's Heading One/Two/Three (rendered h3/h4/h5)
@@ -855,7 +968,7 @@
 	   ============================================ */
 	.doc-heading {
 		text-align: left;
-		color: var(--gray-100);
+		color: var(--gray-200);
 		margin: 2.7rem 0 0.9rem;
 	}
 
@@ -863,26 +976,35 @@
 		margin-top: 0;
 	}
 
-	/* Heading One — the most prominent section heading. */
+	/* Heading One — 1.6rem bold (docx sz32). */
 	.doc-heading-one {
-		font-size: 2.0rem;
-		font-weight: 700;
-		line-height: 1.3;
-	}
-
-	/* Heading Two — secondary heading, slightly smaller. */
-	.doc-heading-two {
-		font-size: 1.7rem;
-		font-weight: 700;
-		line-height: 1.3;
-	}
-
-	/* Heading Three — the finest level: smaller and set apart with weight only. */
-	.doc-heading-three {
 		font-size: 1.6rem;
-		font-weight: 600;
-		line-height: 1.3;
-		color: var(--gray-300);
+		font-weight: 700;
+		line-height: 1.5;
+	}
+
+	/* Heading Two — 1.4rem bold (docx sz28). */
+	.doc-heading-two {
+		font-size: 1.4rem;
+		font-weight: 700;
+		line-height: 1.5;
+	}
+
+	/* Heading Three — 1.2rem bold (docx sz24). */
+	.doc-heading-three {
+		font-size: 1.2rem;
+		font-weight: 700;
+		line-height: 1.5;
+	}
+
+
+	/* Stacked headings hug each other: a Heading Two directly under a Heading One,
+	   and a Heading Three directly under a Heading One or Two, drop their top margin
+	   so a heading group reads as one unit rather than separated lines. */
+	.doc-heading-one + .doc-heading-two,
+	.doc-heading-one + .doc-heading-three,
+	.doc-heading-two + .doc-heading-three {
+		margin-top: 0;
 	}
 
 	/* A heading directly followed by its segment text should hug that text. */
@@ -890,77 +1012,67 @@
 		margin-top: 0;
 	}
 
+
 	/* ============================================
-	   EDITORIAL ASIDES — column/section commentary
+	   COMMENTARY — column/section/segment commentary as flowing body text.
 	   --------------------------------------------
-	   Columns and sections carry commentary but own NO heading in the document
-	   outline (segments do). Rendered as plain body text, that commentary would
-	   land above the first segment heading and look like it belongs to that
-	   narrow heading — a scope inversion, since column/section commentary speaks
-	   to many segments at once.
-
-	   So we frame it as a clearly-delineated editorial callout: an indented block
-	   with a left rule and a small uppercase label naming its scope. This sits
-	   OUTSIDE the heading hierarchy (it's a note, not a heading and not body copy),
-	   so a reader never mistakes the broad-scope commentary for the segment text
-	   that follows. The left rule + label do the scoping work that a heading would
-	   otherwise do, without overflowing the 6 legal heading levels.
+	   In the mockup, commentary reads as ordinary prose directly beneath the
+	   structural label it follows (Column/Section/Segment), NOT as a boxed callout.
+	   So this is simply body copy: same measure and color as the passage text, set
+	   apart only by spacing. Footnotes authored in the commentary surface as a
+	   numbered list directly below (see .doc-footnotes).
 	   ============================================ */
-	.doc-aside {
-		margin: 2.7rem 0;
-		padding: 1.2rem 0 1.2rem 1.8rem;
-		border-left: 0.3rem solid var(--gray-600);
-		background-color: var(--gray-900);
-		border-radius: 0 0.4rem 0.4rem 0;
+	.doc-commentary {
+		margin: 0.6rem 0 0;
 	}
 
-	/* Section commentary is the narrower scope of the two, so it reads a touch
-	   lighter/quieter than column commentary to imply the nesting. */
-	.doc-aside-section {
-		border-left-color: var(--gray-700);
-	}
-
-	/* Segment commentary is the NARROWEST scope — a trailing note on a single
-	   segment's text — so it gets the lightest left rule to nest visually beneath
-	   the broader column/section asides. */
-	.doc-aside-segment {
-		border-left-color: var(--gray-800);
-	}
-
-	.doc-aside-label {
-		font-size: 1.1rem;
-		font-weight: 700;
-		letter-spacing: 0.05rem;
-		text-transform: uppercase;
-		color: var(--gray-400);
-		margin: 0 0 0.6rem;
-	}
-
-	.doc-aside-body {
-		font-size: 1.5rem;
+	.doc-commentary-body {
+		font-size: 1.2rem;
 		line-height: 1.7;
-		color: var(--gray-200);
+		color: var(--gray-100);
+
+
 		/* No default italic: commentary is rich text where the user can italicize
 		   specific runs, so forcing italic on the whole block would both clash with
-		   and visually erase those intentional emphases. The left rule + uppercase
-		   label already distinguish the aside as editorial. */
+		   and visually erase those intentional emphases. */
 	}
 
-	/* Keep rich-text commentary tidy inside the aside: no stray top/bottom margins
-	   on the first/last block so the callout padding is the only spacing. */
-	.doc-aside-body :global(> :first-child) {
+	/* Keep rich-text commentary tidy: no stray top/bottom margins on the first/last
+	   block so the surrounding spacing is controlled here. */
+	.doc-commentary-body :global(> :first-child) {
 		margin-top: 0;
 	}
 
-	.doc-aside-body :global(> :last-child) {
+	.doc-commentary-body :global(> :last-child) {
 		margin-bottom: 0;
+	}
+
+	/* Lists in commentary — mirror the CommentaryEditor (Analyze view) so ordered
+	   and unordered lists read with the same indentation and inter-item spacing the
+	   author saw while writing. The editor sets ul/ol padding-left: 2.4rem, li
+	   margin: 0.6rem 0, and zeroes the margin on paragraphs nested in list items. */
+	.doc-commentary-body :global(ul),
+	.doc-commentary-body :global(ol),
+	.doc-connection-commentary :global(ul),
+	.doc-connection-commentary :global(ol) {
+		padding-left: 2.4rem;
+	}
+
+	.doc-commentary-body :global(li),
+	.doc-connection-commentary :global(li) {
+		margin: 0.6rem 0;
+	}
+
+	.doc-commentary-body :global(li p),
+	.doc-connection-commentary :global(li p) {
+		margin: 0;
 	}
 
 	/* Footnote markers inline in the commentary body — a small superscript number
 	   tied to the matching entry in the footnote list below. The marker is a span
 	   (.footnote-marker) emitted from the stored commentary HTML; we only need to
 	   size/lift its superscript so it reads as a reference, not body text. */
-	.doc-aside-body :global(.footnote-marker sup),
+	.doc-commentary-body :global(.footnote-marker sup),
 	.doc-connection-commentary :global(.footnote-marker sup) {
 		font-size: 0.7em;
 		line-height: 0;
@@ -969,19 +1081,19 @@
 		font-weight: 600;
 	}
 
+
 	/* ============================================
 	   FOOTNOTES — the note text behind each commentary's superscript markers.
 	   --------------------------------------------
 	   Authored in the CommentaryEditor and stored inline on each marker's
 	   data-footnote-content attribute. Surfaced here as an ordered list directly
 	   beneath the commentary it belongs to, numbered PER COMMENTARY (1, 2, 3…) to
-	   match the numbers the author entered. Quiet, small type set off by a hairline
-	   rule so it reads as supporting apparatus, not body copy.
+	   match the numbers the author entered. Quiet, small type so it reads as
+	   supporting apparatus, not body copy.
 	   ============================================ */
 	.doc-footnotes {
 		margin: 0.9rem 0 0;
 		padding: 0.6rem 0 0 1.8rem;
-		border-top: 0.1rem solid var(--gray-700);
 		list-style: decimal;
 		list-style-position: outside;
 	}
@@ -1006,61 +1118,95 @@
 	}
 
 	/* ============================================
-	   REFERENCE LABELS — column/section/segment verse spans
+	   REFERENCE LABELS — "Label: Reference" lines
 	   --------------------------------------------
-	   Every column, section, and segment carries a scripture reference so the
-	   reading document is navigable by passage location. These are quiet, muted
-	   labels with a clear size hierarchy (column > section > segment) so they aid
+	   Per the mockup, every structural reference is rendered as a labeled line:
+	   "Passage: …", "Column: …", "Section: …", "Segment: …", "Connection: …".
+	   They share a common left-aligned label family (the colored "Label:" prefix),
+	   with a size hierarchy (passage > column > section > segment) so they aid
 	   navigation without competing with the reading flow.
 	   ============================================ */
-	.doc-ref {
+	.doc-ref-line {
 		text-align: left;
-		margin: 0;
-	}
-
-	/* Column reference — the most prominent of the three; an underlined band that
-	   announces a new column's verse span. */
-	.doc-column-ref {
-		font-size: 1.3rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.05rem;
+		margin: 1.5rem 0 0.3rem;
 		color: var(--gray-300);
-		margin-top: 2.7rem;
-		padding-bottom: 0.3rem;
-		border-bottom: 0.1rem solid var(--gray-700);
+		line-height: 1.5;
 	}
 
-	.doc-column-ref:first-child {
+	/* The "Label:" prefix — a bold lead-in that names the level. Inherits the
+	   line's color (per the mockup the whole label line is one near-black gray). */
+	.doc-ref-label {
+		font-weight: 700;
+	}
+
+	/* Passage reference — bold 1.6rem, opens each passage block (docx sz32). */
+	.doc-passage-ref {
+		font-size: 1.6rem;
+		font-weight: 700;
+		line-height: 1.5;
+		margin-top: 0;
+		margin-bottom: 1.2rem;
+	}
+
+	/* ============================================
+	   STRUCTURAL DIVIDERS — Column / Section / Segment
+	   --------------------------------------------
+	   Per the mockup, each structural reference is a CENTERED label sitting on a
+	   horizontal rule that runs to both margins. The rule's line-style encodes the
+	   level: Column = solid, Section = dashed, Segment = dotted. Built as a flex
+	   row whose ::before/::after pseudo-rules fill the space on either side of the
+	   centered text. Text: bold 1.2rem, near-black (docx sz24, #545352 →
+	   --gray-300); rule: 0.1rem --gray-700 (docx #b5b4b3).
+	   ============================================ */
+	.doc-divider {
+		display: flex;
+		align-items: center;
+		gap: 0.9rem;
+		margin: 2.7rem 0 1.2rem;
+		line-height: 1;
+	}
+
+	/* The first divider in a passage hugs the passage reference above it. */
+	.doc-divider:first-child {
 		margin-top: 0;
 	}
 
-	/* Section reference — secondary. */
-	.doc-section-ref {
+	/* The rule on either side of the centered label. */
+	.doc-divider::before,
+	.doc-divider::after {
+		content: '';
+		flex: 1 1 auto;
+		border-top-width: 0.1rem;
+		border-top-color: var(--gray-700);
+	}
+
+	.doc-divider-text {
+		flex: 0 0 auto;
 		font-size: 1.2rem;
-		font-weight: 600;
-		color: var(--gray-400);
-		margin-top: 1.8rem;
+		font-weight: 700;
+		color: var(--gray-300);
+		text-align: center;
 	}
 
-	/* Segment reference — the finest level: a small muted location label that sits
-	   directly above its segment's text. */
-	.doc-segment-ref {
-		font-size: 1.1rem;
-		font-weight: 600;
-		color: var(--gray-500);
-		margin-top: 1.2rem;
+	/* Column → solid rule. */
+	.doc-divider-column::before,
+	.doc-divider-column::after {
+		border-top-style: solid;
 	}
 
-	.doc-segment-ref + .passage-text {
-		margin-top: 0.2rem;
+	/* Section → dashed rule. */
+	.doc-divider-section::before,
+	.doc-divider-section::after {
+		border-top-style: dashed;
 	}
 
-	/* Reference appended to a commentary aside's label. */
-	.doc-aside-ref {
-		font-weight: 600;
-		color: var(--gray-500);
+	/* Segment → dotted rule. */
+	.doc-divider-segment::before,
+	.doc-divider-segment::after {
+		border-top-style: dotted;
 	}
+
+
 
 	/* ============================================
 	   QUICK NOTE — a brief plain-text note authored on a segment, shown directly
@@ -1069,42 +1215,46 @@
 	   preserved line breaks. Sits before any segment-commentary aside that follows.
 	   ============================================ */
 	.doc-note {
-		font-size: 1.3rem;
+		font-size: 1.2rem;
 		font-style: italic;
+		/* Medium-bold so the quick note reads as an emphasized authoring mark. */
+		font-weight: 500;
 		line-height: 1.6;
+
 		color: var(--gray-300);
 		white-space: pre-wrap;
 		word-wrap: break-word;
 		margin: 0.9rem 0 0;
-		padding-left: 1.2rem;
-		border-left: 0.2rem solid var(--gray-700);
+		/* Highlighter look: the note sits on a light --gray-800 band. display:inline so
+
+		   the highlight hugs the text (like a marker stroke) rather than filling the line. */
+		display: inline-block;
+		background-color: var(--gray-800);
+		padding: 0.1rem 0.4rem;
+		border-radius: 0.3rem;
 	}
+
+
 
 	/* ============================================
 	   CONNECTIONS — links an item (column/section/segment) makes to others.
 	   --------------------------------------------
-	   Shown once at the FROM end, grouped at the end of that item's block. Each
-	   entry reads "fromRef → toRef", then its quick note (plain text) and commentary
-	   (rich text). Framed as a quiet labeled group, distinct from the body text and
-	   the commentary asides, and indented to read as item metadata.
+	   Shown once at the FROM end, grouped at the end of that item's block. Per the
+	   mockup each connection sits inside its own SUBTLE ROUNDED RECTANGLE — a quiet
+	   bordered card that visually fences the cross-reference off from the body copy.
+	   Inside: a "Connection: fromRef → toRef" label line, then the quick note (plain
+	   text) and commentary (rich text).
 	   ============================================ */
 	.doc-connections {
-		margin: 1.2rem 0 0;
-		padding: 0.9rem 0 0.3rem 1.2rem;
-		border-left: 0.2rem dashed var(--gray-700);
+		margin: 1.5rem 0 0;
 	}
 
-	.doc-connections-label {
-		font-size: 1.1rem;
-		font-weight: 700;
-		letter-spacing: 0.05rem;
-		text-transform: uppercase;
-		color: var(--gray-400);
-		margin: 0 0 0.6rem;
-	}
-
+	/* The subtle rounded rectangle around each connection. */
 	.doc-connection {
 		margin: 0 0 0.9rem;
+		padding: 0.9rem 1.2rem;
+		border: 0.1rem solid var(--gray-700);
+		border-radius: 0.6rem;
 	}
 
 	.doc-connection:last-child {
@@ -1114,32 +1264,45 @@
 	.doc-connection-ref {
 		font-size: 1.2rem;
 		font-weight: 600;
-		color: var(--gray-300);
+		color: var(--gray-200);
 		margin: 0;
+		text-align: center;
 	}
 
 	.doc-connection-arrow {
 		color: var(--gray-500);
 	}
 
-	/* Connection quick note — brief plain text, mirrors the segment quick note look. */
+	/* Connection quick note — brief plain text, mirrors the segment quick note look:
+	   medium-bold on a light --gray-800 highlight band. */
 	.doc-connection-note {
 		font-size: 1.2rem;
 		font-style: italic;
+		font-weight: 500;
 		line-height: 1.6;
+
 		color: var(--gray-300);
 		white-space: pre-wrap;
 		word-wrap: break-word;
 		margin: 0.4rem 0 0;
+		display: inline-block;
+		background-color: var(--gray-800);
+		padding: 0.1rem 0.4rem;
+		border-radius: 0.3rem;
 	}
+
+
 
 	/* Connection commentary — rich text; no forced italic so authored emphases show. */
 	.doc-connection-commentary {
-		font-size: 1.4rem;
+		font-size: 1.2rem;
 		line-height: 1.7;
-		color: var(--gray-200);
+		color: var(--gray-100);
 		margin: 0.4rem 0 0;
 	}
+
+
+
 
 	.doc-connection-commentary :global(> :first-child) {
 		margin-top: 0;
@@ -1147,6 +1310,25 @@
 
 	.doc-connection-commentary :global(> :last-child) {
 		margin-bottom: 0;
+	}
+
+	/* ============================================
+	   GLOSSARY TAGS STRIP — read-only reflection of the glossary terms used inline
+	   in a commentary, mirroring the Analyze view's CommentaryEditor bottom strip.
+	   A bordered box holds the wrapped row of GlossaryBadge pills.
+	   ============================================ */
+	.doc-tags {
+		margin: 0.9rem 0 0;
+		border: 0.1rem solid var(--gray-700);
+		border-radius: 0.3rem;
+		padding: 1.2rem;
+	}
+
+	.doc-tags-list {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem;
 	}
 
 	.error-message {
@@ -1212,17 +1394,12 @@
 			background: none;
 		}
 
-		/* Keep the aside readable on paper: drop the screen fill, keep the left rule
-		   so the editorial scope still reads in print/PDF export. */
-		.doc-aside {
-			background: none;
+		/* Connection cards keep their border in print so the cross-reference still
+		   reads as a fenced-off block on paper / in the PDF export. */
+		.doc-connection {
+			border-color: var(--gray-400);
 		}
 
-		/* Footnotes must survive into the printed/PDF output — keep them visible and
-		   their hairline rule intact so the apparatus reads on paper too. */
-		.doc-footnotes {
-			border-top-color: var(--gray-400);
-		}
 	}
 </style>
 

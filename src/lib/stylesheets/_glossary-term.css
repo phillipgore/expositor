@@ -1,0 +1,95 @@
+/* ============================================================
+   INLINE GLOSSARY TERMS & TAGGED HIGHLIGHTS — GLOBAL
+   ------------------------------------------------------------
+   Commentary authored in the CommentaryEditor stores inline glossary "pills"
+   (<span class="glossary-term {color} shape-{shape}">) and the tinted "band"
+   they sit on (<span class="tagged-highlight {color}">) directly in its HTML.
+
+   That HTML is re-rendered VERBATIM (via {@html}) in read-only views such as
+   the Document page, which are NOT `.tiptap-editor`/`.commentary-display`
+   containers — so the editor's scoped pill styling never reaches them and the
+   pills render unstyled.
+
+   These classes only ever exist inside trusted, app-generated {@html} content,
+   so styling them globally is the reliable way to make tagged terms look the
+   same everywhere they're displayed. The CommentaryEditor's own
+   `.tiptap-editor`-scoped rules (higher specificity) still win inside the
+   editor — they're identical, so the appearance is consistent.
+   ============================================================ */
+
+/* Base pill */
+.glossary-term {
+	display: inline-block;
+	padding: 0.4rem 0.6rem;
+	border-radius: 0.4rem;
+	font-size: 0.9em;
+	font-weight: 500;
+	line-height: 1.4;
+	white-space: nowrap;
+	cursor: default;
+	vertical-align: baseline;
+}
+
+/* Both domain shape classes resolve to the same rounded-rectangle radius. */
+.glossary-term.shape-pill,
+.glossary-term.shape-rounded {
+	border-radius: 0.4rem;
+}
+
+/* Per-category pill colors — `-light` background with `-darker` text. */
+.glossary-term.gray { background-color: var(--gray-light); color: var(--gray-darker); }
+.glossary-term.red { background-color: var(--red-light); color: var(--red-darker); }
+.glossary-term.orange { background-color: var(--orange-light); color: var(--orange-darker); }
+.glossary-term.yellow { background-color: var(--yellow-light); color: var(--yellow-darker); }
+.glossary-term.green { background-color: var(--green-light); color: var(--green-darker); }
+.glossary-term.aqua { background-color: var(--aqua-light); color: var(--aqua-darker); }
+.glossary-term.blue { background-color: var(--blue-light); color: var(--blue-darker); }
+.glossary-term.purple { background-color: var(--purple-light); color: var(--purple-darker); }
+.glossary-term.pink { background-color: var(--pink-light); color: var(--pink-darker); }
+
+/* The label text sits inline with any (editor-only) controls. */
+.glossary-term .glossary-term-label {
+	vertical-align: baseline;
+}
+
+/* The "×" remove control is an editor-only affordance — revealed only inside the
+   editable `.tiptap-editor`. In every read-only render it stays hidden. */
+.glossary-term .glossary-term-remove {
+	display: none;
+}
+
+/* ------------------------------------------------------------ */
+/* Tagged-highlight band — the tinted run a pill anchors.       */
+/* Uses the faint `-lighter` shade so the deeper `-light` pill   */
+/* stands out as the anchor on top.                             */
+/* ------------------------------------------------------------ */
+.tagged-highlight {
+	padding: 0.5rem 0;
+	border-radius: 0.4rem;
+	box-decoration-break: clone;
+	-webkit-box-decoration-break: clone;
+}
+
+/* When the band ends with a trailing pill, round its right edge so the tint
+   tucks neatly under the tag. */
+.tagged-highlight:has(> .glossary-term:last-child) {
+	border-top-right-radius: 0.4rem;
+	border-bottom-right-radius: 0.4rem;
+}
+
+.tagged-highlight.gray { background-color: var(--gray-lighter); }
+.tagged-highlight.red { background-color: var(--red-lighter); }
+.tagged-highlight.orange { background-color: var(--orange-lighter); }
+.tagged-highlight.yellow { background-color: var(--yellow-lighter); }
+.tagged-highlight.green { background-color: var(--green-lighter); }
+.tagged-highlight.aqua { background-color: var(--aqua-lighter); }
+.tagged-highlight.blue { background-color: var(--blue-lighter); }
+.tagged-highlight.purple { background-color: var(--purple-lighter); }
+.tagged-highlight.pink { background-color: var(--pink-lighter); }
+
+/* Give a trailing pill a touch of left spacing; the -1px right margin pulls it
+   flush with the band's rounded right edge so no sliver of tint bleeds through. */
+.tagged-highlight .glossary-term {
+	margin-left: 0.3rem;
+	margin-right: -1px;
+}
