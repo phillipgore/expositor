@@ -628,12 +628,54 @@
 	}
 
 	/**
+	 * Collect every glossary term id used inline ANYWHERE in the study's commentary
+	 * into a single deduped, first-appearance-ordered list for the universal "Tags"
+	 * section at the end of the document. Each commentary used to surface its own
+	 * trailing tags strip; they're now gathered here instead so the whole study's
+	 * vocabulary reads as one consolidated index. Walks the structure in reading
+	 * order (passage → column → section → segment), pulling term ids from each
+	 * segment's commentary and each heading's commentary, then appends the term ids
+	 * from every connection's commentary (in the same order the Connections appendix
+	 * lists them). The shared `seen` set keeps each term to its FIRST occurrence.
+	 * @param {Array<Object>|undefined} passagesWithText
+	 * @param {Array<Object>} allConnections - connections in appendix order
+	 * @returns {string[]}
+	 */
+	function collectAllGlossaryTermIds(passagesWithText, allConnections) {
+		/** @type {string[]} */
+		const ids = [];
+		const seen = new Set();
+		const take = (html) => {
+			for (const id of extractGlossaryTermIds(html)) {
+				if (seen.has(id)) continue;
+				seen.add(id);
+				ids.push(id);
+			}
+		};
+		for (const passageText of passagesWithText ?? []) {
+			const cols = passageText?.structure?.columns;
+			if (!cols?.length) continue;
+			for (const column of cols) {
+				for (const section of column.sections ?? []) {
+					for (const segment of section.segments ?? []) {
+						take(segment.commentary);
+						for (const h of segment.headings ?? []) take(h.commentary);
+					}
+				}
+			}
+		}
+		for (const conn of allConnections ?? []) take(conn.commentary);
+		return ids;
+	}
+
+	/**
 	 * Flatten the streamed study content into a single ordered list of renderable
 	 * "flow items" — the atomic units the paginator packs onto pages. Each item is
 	 * `{ id, kind, ... }`; `kind` selects which snippet renders it.
 	 * @returns {Array<Object>}
 	 */
 	function buildFlowItems(passagesWithText, passages, connectionsByFromIdMap) {
+
 
 		/** @type {Array<Object>} */
 		const items = [{ id: 'header', kind: 'header' }];
@@ -692,8 +734,19 @@
 			}
 		}
 
+		// Tags section — every glossary term used inline anywhere in the study's
+		// commentary, consolidated into a single titled "Tags" section at the END of
+		// the document (after Connections, before the copyright). Replaces the
+		// per-commentary tags strips that used to trail each commentary block. Only
+		// emitted when at least one term is used study-wide.
+		const allTermIds = collectAllGlossaryTermIds(passagesWithText, allConnections);
+		if (allTermIds.length) {
+			items.push({ id: 'tags-appendix', kind: 'tags', termIds: allTermIds });
+		}
+
 		items.push({ id: 'copyright', kind: 'copyright' });
 		return items;
+
 	}
 
 
@@ -939,7 +992,6 @@
      modifier class so callers can tune spacing per context. -->
 {#snippet commentaryContent(html, scope)}
 	{@const rendered = renderCommentaryWithFootnotes(html)}
-	{@const termIds = extractGlossaryTermIds(html)}
 	<div class="doc-commentary doc-commentary-{scope}">
 		<div class="doc-commentary-body">{@html rendered.html}</div>
 		{#if rendered.footnotes.length > 0}
@@ -949,24 +1001,17 @@
 				{/each}
 			</ol>
 		{/if}
-		<!-- Glossary tags strip: a read-only reflection of the glossary terms
-		     used inline in this commentary, mirroring the Analyze view's
-		     CommentaryEditor bottom strip. -->
-		{#if termIds.length > 0}
-			<div class="doc-tags">
-				<div class="doc-tags-list">
-					{#each termIds as termId (termId)}
-						<GlossaryBadge {termId} removable={false} />
-					{/each}
-				</div>
-			</div>
-		{/if}
+		<!-- Glossary terms used inline here are no longer reflected per-commentary;
+		     they are collected into a single universal "Tags" section at the end of
+		     the document (see the tags flow item / tagsContent snippet). -->
 	</div>
 {/snippet}
 
+
 <!-- Reusable single-connection card: renders one connection's "Connection:
-     fromRef → toRef" label, its quick note, and its commentary (with footnotes
-     and glossary tags). Shared by the end-of-document Connections appendix. -->
+     fromRef → toRef" label, its quick note, and its commentary (with footnotes).
+     Glossary terms used inline are collected into the universal "Tags" section at
+     the end of the document. Shared by the end-of-document Connections appendix. -->
 {#snippet connectionCard(conn)}
 	<div class="doc-connection doc-connection-appendix">
 
@@ -996,7 +1041,6 @@
 			<!-- Connection commentary carries footnotes too; surface them the
 			     same way as the commentary above. -->
 			{@const connRendered = renderCommentaryWithFootnotes(conn.commentary)}
-			{@const connTermIds = extractGlossaryTermIds(conn.commentary)}
 			<div class="doc-connection-commentary">{@html connRendered.html}</div>
 			{#if connRendered.footnotes.length > 0}
 				<ol class="doc-footnotes doc-footnotes-connection">
@@ -1005,23 +1049,32 @@
 					{/each}
 				</ol>
 			{/if}
-			<!-- Glossary tags strip for the connection commentary. -->
-			{#if connTermIds.length > 0}
-				<div class="doc-tags">
-					<div class="doc-tags-list">
-						{#each connTermIds as termId (termId)}
-							<GlossaryBadge {termId} removable={false} />
-						{/each}
-					</div>
-				</div>
-			{/if}
 		{/if}
 	</div>
 {/snippet}
 
+
+<!-- Universal Tags section: a single read-only reflection of EVERY glossary term
+     used inline anywhere in the study's commentary, consolidated at the end of the
+     document (replaces the per-commentary tags strips). Mirrors the Connections
+     appendix: a "Tags" title line followed by the bordered box of GlossaryBadge
+     pills. -->
+{#snippet tagsContent(termIds)}
+	<p class="doc-ref-line doc-passage-ref doc-tags-title">Tags</p>
+	<div class="doc-tags">
+		<div class="doc-tags-list">
+			{#each termIds as termId (termId)}
+				<GlossaryBadge {termId} removable={false} />
+			{/each}
+		</div>
+	</div>
+{/snippet}
+
+
 {#snippet blockContent(block)}
 
 	{#if block.type === 'column-start'}
+
 
 		<!-- Column break: each column (after the first in its passage) begins on a
 		     fresh page. There is no visible label or rule — the new page IS the
@@ -1062,9 +1115,9 @@
 					{/if}
 					{#if conn.commentary}
 						<!-- Connection commentary carries footnotes too; surface them the
-						     same way as the commentary above. -->
+						     same way as the commentary above. Glossary terms used inline are
+						     collected into the universal "Tags" section at the document end. -->
 						{@const connRendered = renderCommentaryWithFootnotes(conn.commentary)}
-						{@const connTermIds = extractGlossaryTermIds(conn.commentary)}
 						<div class="doc-connection-commentary">{@html connRendered.html}</div>
 						{#if connRendered.footnotes.length > 0}
 							<ol class="doc-footnotes doc-footnotes-connection">
@@ -1073,20 +1126,11 @@
 								{/each}
 							</ol>
 						{/if}
-						<!-- Glossary tags strip for the connection commentary. -->
-						{#if connTermIds.length > 0}
-							<div class="doc-tags">
-								<div class="doc-tags-list">
-									{#each connTermIds as termId (termId)}
-										<GlossaryBadge {termId} removable={false} />
-									{/each}
-								</div>
-							</div>
-						{/if}
 					{/if}
 				</div>
 			{/each}
 		</div>
+
 	{:else}
 		<!-- Segment divider: a fixed 36px vertical space separates each segment from
 		     the one before it. Suppressed for the first segment of a section, which
@@ -1161,7 +1205,13 @@
 		<!-- One connection card in the appendix, rendered via the shared snippet so
 		     it matches the inline treatment connections used to have. -->
 		{@render connectionCard(item.connection)}
+	{:else if item.kind === 'tags'}
+		<!-- Universal Tags section — every glossary term used study-wide,
+		     consolidated at the end of the document (after Connections, before the
+		     copyright). Replaces the per-commentary tags strips. -->
+		{@render tagsContent(item.termIds)}
 	{:else if item.kind === 'copyright'}
+
 		{@render copyrightContent()}
 	{/if}
 {/snippet}
@@ -1403,7 +1453,7 @@
 
 	.passage-text {
 
-		font-size: 1.2rem;
+		font-size: 1.4rem;
 		line-height: 1.7;
 		color: var(--black);
 		white-space: pre-wrap;
@@ -1617,7 +1667,7 @@
 	.doc-ref-line {
 		text-align: left;
 		margin: 1.5rem 0 0.3rem;
-		color: var(--gray-300);
+		color: var(--black);
 		line-height: 1.5;
 	}
 
@@ -1625,6 +1675,7 @@
 	   line's color (per the mockup the whole label line is one near-black gray). */
 	.doc-ref-label {
 		font-weight: 700;
+		color: var(--black);
 	}
 
 	/* Passage reference — bold 1.6rem, opens each passage block (docx sz32). */
