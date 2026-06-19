@@ -25,6 +25,11 @@
   "instructions": {
     "passwordResetRequest": "Enter your email address and we'll send you a link to reset your password."
   },
+  "notices": {
+    "connectionExistsHidden": "Connection already exists. Toggle on connections to see it.",
+    "connectionNoteExistsHidden": "Connection Quick Note already exists. Toggle on Connection Quick Notes to see it."
+  },
+
   "errors": {
     "unexpectedError": "An unexpected error occurred.",
     "missingFields": "Missing required fields.",

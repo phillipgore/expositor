@@ -31,6 +31,9 @@
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import { toolbarState, showConnectionNotes } from '$lib/stores/toolbar.js';
+	import { showPopover } from '$lib/stores/popover.js';
+	import messages from '$lib/data/messages.json';
+
 
 	let { menuId = 'MenuConnect' } = $props();
 
@@ -62,16 +65,31 @@
 	);
 
 	// "Connection Quick Note" stays SINGLE-selection: a note can only be added to one
-	// connection at a time. It is enabled only when EXACTLY ONE connection is selected
-	// AND that connection does not already have a note — so it is disabled under
-	// multi-select, or when the single selected line already carries a note.
+	// connection at a time. The base requirement is EXACTLY ONE connection selected
+	// (disabled under multi-select or with nothing selected).
+	let singleConnectionSelected = $derived(
+		$toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1
+	);
+
+	// The selected connection already has a quick note, but connection quick notes are
+	// currently toggled OFF so it isn't shown. In this case we keep the button ENABLED
+	// (rather than silently disabling it) so a click can surface an explanatory popover
+	// telling the user the note already exists and to toggle connection notes on.
+	let noteExistsButHidden = $derived(
+		singleConnectionSelected &&
+		$toolbarState.activeConnectionHasNote &&
+		!$toolbarState.connectionNotesVisible
+	);
+
+	// Enabled when a single connection is selected AND either it has no note yet (normal
+	// add) OR it has a note that is currently hidden by the toggle (click → popover).
 	let quickNoteDisabled = $derived(
 		!(
-			$toolbarState.hasActiveConnection &&
-			$toolbarState.activeConnectionIds.length === 1 &&
-			!$toolbarState.activeConnectionHasNote
+			singleConnectionSelected &&
+			(!$toolbarState.activeConnectionHasNote || noteExistsButHidden)
 		)
 	);
+
 </script>
 
 
@@ -98,6 +116,14 @@
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
+			// If the selected connection already HAS a note but connection notes are
+			// toggled off, don't add a duplicate — tell the user it exists and that they
+			// can toggle Connection Quick Notes on to see it. The transient popover
+			// auto-dismisses on its own.
+			if (noteExistsButHidden) {
+				showPopover(messages.notices.connectionNoteExistsHidden);
+				return;
+			}
 			// Auto-show connection notes if hidden, so the new note is visible.
 			// Recomputes the master notesVisible toggle and persists the preference.
 			showConnectionNotes();

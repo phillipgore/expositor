@@ -1,9 +1,12 @@
 <script>
 	import { invalidate } from '$app/navigation';
 	import { navigating } from '$app/stores';
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
+
 	import Alert from '$lib/componentElements/Alert.svelte';
+	import Popover from '$lib/componentElements/Popover.svelte';
 	import Spinner from '$lib/componentElements/Spinner.svelte';
+
 
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
@@ -45,6 +48,9 @@
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState } from '$lib/stores/toolbar.js';
 
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
+	import { showPopover } from '$lib/stores/popover.js';
+	import messages from '$lib/data/messages.json';
+
 
 
 
@@ -1628,6 +1634,25 @@
 		});
 	}
 
+	/**
+	 * Determine whether a connection of the given endpoint types is currently visible,
+	 * based on the per-type View-menu toggles. Mirrors showConnectionsForTypes():
+	 *   - different types (cross-item) → crossItemConnectionsVisible
+	 *   - section ↔ section            → sectionConnectionsVisible
+	 *   - column ↔ column              → columnConnectionsVisible
+	 *   - segment ↔ segment            → segmentConnectionsVisible
+	 * @param {string} fromType
+	 * @param {string} toType
+	 * @returns {boolean}
+	 */
+	function isConnectionTypeVisible(fromType, toType) {
+		const state = $toolbarState;
+		if (fromType !== toType) return state.crossItemConnectionsVisible;
+		if (fromType === 'section') return state.sectionConnectionsVisible;
+		if (fromType === 'column') return state.columnConnectionsVisible;
+		return state.segmentConnectionsVisible;
+	}
+
 	// Update Insert/Remove Connection button states when selection changes.
 	// Activates when exactly 2 items total are selected (any combination of types).
 	$effect(() => {
@@ -1641,8 +1666,29 @@
 
 		const [itemA, itemB] = selected;
 		const existing = findExistingConnection(connections, itemA, itemB);
-		setConnectionButtonStates(!existing, !!existing);
+
+		if (existing) {
+			// A connection already exists between these two items. If it is currently
+			// HIDDEN by its View-menu type toggle, keep the Connect button ENABLED so the
+			// user can click it and receive an explanatory popover (handleInsertConnection
+			// surfaces the message instead of creating a duplicate). When the existing
+			// connection is visible, disable Connect (Remove takes over) as before.
+			// untrack the toolbar-state read so this effect does NOT subscribe to
+			// $toolbarState — otherwise writing to the same store via
+			// setConnectionButtonStates() below would re-trigger this effect in an
+			// infinite read→write loop (which trips Svelte's update-depth guard and
+			// breaks downstream reactivity, e.g. Cmd-click multi-select). The effect
+			// should re-run only when the SELECTION or connections change.
+			const visible = untrack(() =>
+				isConnectionTypeVisible(existing.fromType, existing.toType)
+			);
+			setConnectionButtonStates(!visible, true);
+
+		} else {
+			setConnectionButtonStates(true, false);
+		}
 	});
+
 
 	/**
 	 * Handle Insert Connection action.
@@ -1654,7 +1700,20 @@
 
 		const [itemA, itemB] = selected;
 
+		// Guard against creating a duplicate when a matching connection already exists but
+		// is currently HIDDEN by its View-menu type toggle (the button is left enabled in
+		// that state so the user can act on it — see the effect above). Instead of writing
+		// a second connection, surface a transient popover telling them to toggle it on.
+		const existing = findExistingConnection(data.connections || [], itemA, itemB);
+		if (existing) {
+			if (!isConnectionTypeVisible(existing.fromType, existing.toType)) {
+				showPopover(messages.notices.connectionExistsHidden);
+			}
+			return;
+		}
+
 		const body = {
+
 			studyId: data.study.id,
 			fromType: itemA.type,
 			toType:   itemB.type,
@@ -4771,7 +4830,13 @@
 		onConfirm={confirmJoin}
 		onClose={() => { joinModalOpen = false; joinPending = null; }}
 	/>
+
+	<!-- Transient, self-dismissing popover (centered on screen). Driven by the shared
+	     popover store; used to tell the user when a connection or connection quick note
+	     they tried to add already exists but is hidden by a View-menu toggle. -->
+	<Popover />
 </div>
+
 
 
 <style>
