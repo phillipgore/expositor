@@ -1341,7 +1341,7 @@
 	.study-title {
 		font-size: 1.8rem;
 		font-weight: 700;
-		color: var(--gray-200);
+		color: var(--black);
 		line-height: 1.5;
 		margin: 0;
 	}
@@ -1405,7 +1405,7 @@
 
 		font-size: 1.2rem;
 		line-height: 1.7;
-		color: var(--gray-100);
+		color: var(--black);
 		white-space: pre-wrap;
 		text-align: left;
 	}
@@ -1422,7 +1422,7 @@
 	   the passage HTML expects. ============================================ */
 	.passage-text :global(.chapter-verse) {
 		font-weight: bold;
-		color: var(--blue-500);
+		color: var(--black);
 		padding-right: 0.3rem;
 	}
 
@@ -1453,7 +1453,7 @@
 	   ============================================ */
 	.doc-heading {
 		text-align: left;
-		color: var(--gray-200);
+		color: var(--black);
 		margin: 3.6rem 0 0.6rem;
 	}
 
@@ -1743,13 +1743,13 @@
 	.doc-connection-ref {
 		font-size: 1.2rem;
 		font-weight: 600;
-		color: var(--gray-200);
+		color: var(--black);
 		margin: 0;
 		text-align: center;
 	}
 
 	.doc-connection-arrow {
-		color: var(--gray-500);
+		color: var(--black);
 	}
 
 	/* Connection KIND line — names the structural level of each endpoint
@@ -1761,7 +1761,7 @@
 		font-weight: 600;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
-		color: var(--gray-400);
+		color: var(--gray-300);
 		margin: 0.2rem 0 0;
 		text-align: center;
 	}
@@ -1846,7 +1846,6 @@
 	   notice after the final block.) */
 	.copyright-notice {
 		padding-top: 2.7rem;
-		border-top: 1px solid var(--gray-700);
 	}
 
 
