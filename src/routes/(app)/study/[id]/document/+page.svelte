@@ -352,7 +352,11 @@
 			blocks.push({
 				type: 'column-start',
 				key: `colstart-${column.id}`,
-				ref: columnRef
+				ref: columnRef,
+				// First column of the passage already sits at the top of the passage's
+				// new page (under the Passage ref), so it must NOT force a further break.
+				// Every subsequent column begins on its own fresh page.
+				firstInPassage: ci === 0
 			});
 
 			// Columns no longer carry their own commentary (it was removed in favor
@@ -361,7 +365,9 @@
 			// into a single "Connections" appendix at the end of the document (see
 			// buildFlowItems), so the reading flow isn't interrupted by cross-refs.
 
-			for (const section of column.sections ?? []) {
+			const columnSections = column.sections ?? [];
+			for (let secIdx = 0; secIdx < columnSections.length; secIdx++) {
+				const section = columnSections[secIdx];
 
 				const sIdx = sectionCursor++;
 				const sectionRef = refOf(sectionFirstWord[sIdx], sectionFirstWord[sIdx + 1] ?? null);
@@ -369,7 +375,12 @@
 				blocks.push({
 					type: 'section-start',
 					key: `secstart-${section.id}`,
-					ref: sectionRef
+					ref: sectionRef,
+					// First section of a column sits at the top of that column (under the
+					// passage ref for the first column, or at the top of the column's fresh
+					// page otherwise), so it gets NO leading horizontal rule. Every
+					// subsequent section in the column is separated by a rule.
+					firstInColumn: secIdx === 0
 				});
 
 				// Sections no longer carry their own commentary (it was removed in
@@ -377,9 +388,12 @@
 				// Section connections are collected into the end-of-document
 				// "Connections" appendix rather than emitted inline here.
 
-				for (const segment of section.segments ?? []) {
+				const sectionSegments = section.segments ?? [];
+				for (let segIdx = 0; segIdx < sectionSegments.length; segIdx++) {
+					const segment = sectionSegments[segIdx];
 
 					const segmentRef = refOf(segment.startingWordId, nextStartById[segment.id]);
+
 
 					// Each heading carries its OWN commentary (stored per-heading in the
 					// passage_heading table and projected onto segment.headings[] by the
@@ -393,7 +407,12 @@
 						type: 'segment',
 						key: segment.id,
 						id: segment.id,
+						// First segment of a section sits directly under that section's
+						// horizontal rule, so it must NOT add a leading 36px segment gap;
+						// every subsequent segment in the section does.
+						firstInSection: segIdx === 0,
 						headingOne: segment.headingOne,
+
 						headingTwo: segment.headingTwo,
 						headingThree: segment.headingThree,
 						headingOneCommentary: headingsByType.one?.commentary ?? null,
@@ -619,7 +638,13 @@
 		/** @type {Array<Object>} */
 		const items = [{ id: 'header', kind: 'header' }];
 
+		// Tracks whether we've already emitted a passage. Every passage AFTER the
+		// first begins on a fresh page (forceBreak); the first passage shares page 1
+		// with the study header so the header never sits alone on a near-empty page.
+		let passageCount = 0;
+
 		for (const passageText of passagesWithText ?? []) {
+
 			if (passageText.error) {
 				items.push({
 					id: `err-${passageText.reference}`,
@@ -637,8 +662,12 @@
 			items.push({
 				id: `pref-${passageId}`,
 				kind: 'passage-ref',
-				reference: passageText.reference
+				reference: passageText.reference,
+				// Every passage after the first begins on a fresh page.
+				forceBreak: passageCount > 0
 			});
+			passageCount++;
+
 
 			const blocks = buildDocumentBlocks(passageText, passageData, connectionsByFromIdMap);
 			if (blocks) {
@@ -716,6 +745,65 @@
 		}
 
 		const containerTop = measureEl.getBoundingClientRect().top;
+
+		// Precompute each flow item's laid-out top/bottom offset (relative to the
+		// measure layer's top). Cached in arrays — rather than read inline — so that
+		// after peeling orphaned intro items onto a new page (keep-with-next, below)
+		// we can recompute that page's starting offset from the first moved item.
+		const tops = /** @type {number[]} */ (new Array(nodes.length));
+		const bottoms = /** @type {number[]} */ (new Array(nodes.length));
+		for (let i = 0; i < nodes.length; i++) {
+			const rect = nodes[i].getBoundingClientRect();
+			tops[i] = rect.top - containerTop;
+			bottoms[i] = rect.bottom - containerTop;
+		}
+
+		// KEEP-WITH-NEXT: lightweight "intro" flow items must never be left stranded
+		// as the last thing on a page while the content they introduce flows onto the
+		// next page (which, since every .page is a full sheet tall, would show as a
+		// near-empty page of white space). Flag those kinds: the study header, passage
+		// references, the column/section structural dividers (segment dividers live
+		// INSIDE a `block` flow item, so divider-typed blocks count too), and the
+		// Connections title.
+		//
+		// The header is included so that when the VERY FIRST content block overflows
+		// (the only time the header can be a page's trailing item — nothing but the
+		// header + intros precede that block), the whole lead group stays WITH the
+		// block instead of the header being orphaned on a near-empty first page. In
+		// that case every item on the page is keep-with-next, so the `keep === 0`
+		// branch below keeps them together and lets the tall block share their page.
+		const isKeepWithNext = (idx) => {
+			const item = flowItems[idx];
+			if (!item) return false;
+			if (
+				item.kind === 'header' ||
+				item.kind === 'passage-ref' ||
+				item.kind === 'connections-title'
+			)
+				return true;
+			if (item.kind === 'block') {
+				const t = item.block?.type;
+				return t === 'column-start' || t === 'section-start';
+			}
+			return false;
+		};
+
+		// FORCES-BREAK: items that must ALWAYS begin a fresh page (mirroring the
+		// print rule `break-before: page`). A passage-ref carries `forceBreak` for
+		// every passage after the first; a column-start carries it for every column
+		// after the first in its passage. When such an item is reached and the
+		// current page already holds content, the page is flushed and the item
+		// starts a new one — so passages and columns each open at the top of a sheet.
+		const forcesBreak = (idx) => {
+			const item = flowItems[idx];
+			if (!item) return false;
+			if (item.kind === 'passage-ref') return !!item.forceBreak;
+			if (item.kind === 'block' && item.block?.type === 'column-start')
+				return !item.block.firstInPassage;
+			return false;
+		};
+
+
 		/** @type {number[][]} */
 		const newPages = [];
 		/** @type {number[]} */
@@ -723,16 +811,44 @@
 		let pageStartTop = null;
 
 		for (let i = 0; i < nodes.length; i++) {
-			const rect = nodes[i].getBoundingClientRect();
-			const top = rect.top - containerTop;
-			const bottom = rect.bottom - containerTop;
+			const top = tops[i];
+			const bottom = bottoms[i];
 
 			if (pageStartTop === null) pageStartTop = top;
 
-			if (current.length && bottom - pageStartTop > pageContentHeight) {
+			// FORCED PAGE BREAK: a passage (after the first) or a column (after the
+			// first in its passage) must open at the top of a fresh page. If the
+			// current page already holds content, flush it and start this item on a
+			// new page. Take this branch BEFORE the overflow check so the break is
+			// honored even when the item would otherwise fit on the current page.
+			if (current.length && forcesBreak(i)) {
 				newPages.push(current);
 				current = [i];
 				pageStartTop = top;
+				continue;
+			}
+
+			if (current.length && bottom - pageStartTop > pageContentHeight) {
+				// Item `i` overflows the current page. Before breaking, peel any trailing
+				// keep-with-next intro items off the end of the current page so they
+				// travel onto the new page WITH the content they introduce.
+				let keep = current.length;
+				while (keep > 0 && isKeepWithNext(current[keep - 1])) keep--;
+
+				if (keep === 0) {
+					// The current page holds ONLY intro items (e.g. a section divider that
+					// just opened a fresh page, now followed by an oversized segment block).
+					// Breaking here would orphan those intros on an otherwise empty page, so
+					// instead keep them and let the tall item share their page — it simply
+					// overflows the sheet, as oversized blocks always have.
+					current.push(i);
+				} else {
+					const moved = current.slice(keep);
+					current = current.slice(0, keep);
+					newPages.push(current);
+					current = [...moved, i];
+					pageStartTop = moved.length ? tops[moved[0]] : top;
+				}
 			} else {
 				current.push(i);
 			}
@@ -907,19 +1023,18 @@
 
 	{#if block.type === 'column-start'}
 
-		<!-- Column divider: a centered "Column: <ref>" label sitting on a SOLID
-		     rule that runs to both margins, marking where a new column begins. -->
-		{#if block.ref}
-			<p class="doc-divider doc-divider-column">
-				<span class="doc-divider-text">Column: {block.ref}</span>
-			</p>
-		{/if}
+		<!-- Column break: each column (after the first in its passage) begins on a
+		     fresh page. There is no visible label or rule — the new page IS the
+		     divider. This zero-height marker carries the page-break class so the
+		     print/PDF paginator breaks before it; the first column of a passage is
+		     already at the top of the passage's new page, so it doesn't break. -->
+		<div class="doc-column-break" class:doc-break-before={!block.firstInPassage}></div>
 	{:else if block.type === 'section-start'}
-		<!-- Section divider: centered "Section: <ref>" on a DASHED rule. -->
-		{#if block.ref}
-			<p class="doc-divider doc-divider-section">
-				<span class="doc-divider-text">Section: {block.ref}</span>
-			</p>
+		<!-- Section divider: a plain horizontal rule. Suppressed for the first
+		     section of a column, which already sits at the top of the column's
+		     fresh page (no rule needed there). -->
+		{#if !block.firstInColumn}
+			<hr class="doc-section-rule" />
 		{/if}
 	{:else if block.type === 'aside'}
 		<!-- Editorial commentary: segment-level (columns/sections no longer carry
@@ -973,11 +1088,11 @@
 			{/each}
 		</div>
 	{:else}
-		<!-- Segment divider: centered "Segment: <ref>" on a DOTTED rule. -->
-		{#if block.ref}
-			<p class="doc-divider doc-divider-segment">
-				<span class="doc-divider-text">Segment: {block.ref}</span>
-			</p>
+		<!-- Segment divider: a fixed 36px vertical space separates each segment from
+		     the one before it. Suppressed for the first segment of a section, which
+		     sits directly under that section's horizontal rule (no leading gap). -->
+		{#if !block.firstInSection}
+			<div class="doc-segment-space"></div>
 		{/if}
 
 		<!-- Each heading is followed by its OWN commentary (if any), so Heading One
@@ -1025,7 +1140,7 @@
 		     structural ref in the document is rendered as "Label: Reference"
 		     (Passage / Column / Section / Segment / Connection) so the reading
 		     document is navigable by location, matching the mockup. -->
-		<p class="doc-ref-line doc-passage-ref">
+		<p class="doc-ref-line doc-passage-ref" class:doc-break-before={item.forceBreak}>
 			<span class="doc-ref-label">Passage:</span> {item.reference}
 		</p>
 	{:else if item.kind === 'block'}
@@ -1516,57 +1631,42 @@
 	}
 
 	/* ============================================
-	   STRUCTURAL DIVIDERS — Column / Section / Segment
+	   STRUCTURAL DIVISIONS — Column / Section / Segment
 	   --------------------------------------------
-	   Per the mockup, each structural reference is a CENTERED label sitting on a
-	   horizontal rule that runs to both margins. The rule's line-style encodes the
-	   level: Column = solid, Section = dashed, Segment = dotted. Built as a flex
-	   row whose ::before/::after pseudo-rules fill the space on either side of the
-	   centered text. Text: bold 1.2rem, near-black (docx sz24, #545352 →
-	   --gray-300); rule: 0.1rem --gray-700 (docx #b5b4b3).
+	   The structural levels are now indicated SPATIALLY rather than with labeled
+	   rules:
+	     • Passage  → begins on a new page (see .doc-break-before, print rules and
+	                  the JS paginator's forcesBreak()).
+	     • Column   → begins on a new page (zero-height .doc-column-break marker
+	                  carries the page break; no visible mark on screen).
+	     • Section  → a plain horizontal rule (.doc-section-rule).
+	     • Segment  → 36px of vertical space (.doc-segment-space).
 	   ============================================ */
-	.doc-divider {
-		display: flex;
-		align-items: center;
-		gap: 0.9rem;
-		margin: 2.7rem 0 1.2rem;
-		line-height: 1;
+
+	/* Column break marker — an invisible, zero-height element whose only job is to
+	   carry the page-break class so the print/PDF paginator breaks before a new
+	   column. On screen the JS paginator handles the break (forcesBreak), so this
+	   contributes no visible box. */
+	.doc-column-break {
+		height: 0;
+		margin: 0;
+		padding: 0;
 	}
 
-	/* The rule on either side of the centered label. */
-
-	.doc-divider::before,
-	.doc-divider::after {
-		content: '';
-		flex: 1 1 auto;
-		border-top-width: 0.1rem;
-		border-top-color: var(--gray-700);
+	/* Section rule — a plain full-measure horizontal line separating sections,
+	   with generous space above and below so it reads as a clear division. */
+	.doc-section-rule {
+		border: none;
+		border-top: 0.1rem solid var(--gray-700);
+		margin: 2.7rem 0;
 	}
 
-	.doc-divider-text {
-		flex: 0 0 auto;
-		font-size: 1.2rem;
-		font-weight: 700;
-		color: var(--gray-300);
-		text-align: center;
-	}
-
-	/* Column → solid rule. */
-	.doc-divider-column::before,
-	.doc-divider-column::after {
-		border-top-style: solid;
-	}
-
-	/* Section → dashed rule. */
-	.doc-divider-section::before,
-	.doc-divider-section::after {
-		border-top-style: dashed;
-	}
-
-	/* Segment → dotted rule. */
-	.doc-divider-segment::before,
-	.doc-divider-segment::after {
-		border-top-style: dotted;
+	/* Segment space — a fixed 36px (3.6rem) vertical gap before each segment
+	   (except the first in its section). A plain spacer div rather than a margin so
+	   the gap is deterministic and unaffected by margin collapsing in either the
+	   measure layer or the visible pages. */
+	.doc-segment-space {
+		height: 3.6rem;
 	}
 
 
@@ -1797,6 +1897,19 @@
 		   reads as a fenced-off block on paper / in the PDF export. */
 		.doc-connection {
 			border-color: var(--gray-400);
+		}
+
+		/* FORCED PAGE BREAKS — passages (after the first) and columns (after the
+		   first in their passage) each open on a fresh sheet. On screen the JS
+		   paginator enforces this (forcesBreak); in print the browser's native
+		   paginator does, via break-before: page on the marker carrying this class.
+		   The passage-ref flow item and the zero-height .doc-column-break marker both
+		   receive .doc-break-before. `break-before` is the modern property; the
+		   legacy `page-break-before` alias is kept for broad print-engine support. */
+		.doc-break-before {
+			-webkit-column-break-before: page;
+			break-before: page;
+			page-break-before: always;
 		}
 
 	}
