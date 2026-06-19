@@ -9,7 +9,7 @@
 	 * 
 	 * Order flows from what is printed on the text → annotations layered on top →
 	 * how the whole view is laid out:
-	 * - Headings         — Heading labels on segments
+	 * - Structure labels — Headings, Passage Dividers (segment + passage separators)
 	 * - Text markers     — References, Notations, Paragraphs
 	 * - Connections      — All / Column / Section / Segment (largest container first)
 	 * - Quick Notes      — All / Passage / Connection
@@ -59,6 +59,12 @@
 		isActive={$toolbarState.headingsVisible}
 		onToggle={toggleHeadings}
 		isDisabled={!$toolbarState.canToggleHeadings || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Passage Dividers"
+		isActive={$toolbarState.passageDividersVisible}
+		onToggle={togglePassageDividers}
+		isDisabled={!$toolbarState.canTogglePassageDividers}
 	/>
 
 	<DividerHorizontal />
@@ -149,12 +155,6 @@
 		isActive={$toolbarState.overviewMode}
 		onToggle={toggleOverview}
 		isDisabled={!$toolbarState.canToggleOverview}
-	/>
-	<MenuToggleItem
-		label="Passage Dividers"
-		isActive={$toolbarState.passageDividersVisible}
-		onToggle={togglePassageDividers}
-		isDisabled={!$toolbarState.canTogglePassageDividers}
 	/>
 
 	<DividerHorizontal />
