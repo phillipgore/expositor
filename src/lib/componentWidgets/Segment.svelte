@@ -333,7 +333,7 @@
 		/* Fill remaining vertical space when the segment has a set min-height. */
 		flex: 1 1 auto;
 		font-size: 1.2rem;
-		line-height: 1.6;
+		line-height: 1.7;
 		color: var(--gray-100);
 		white-space: pre-wrap;
 		text-align: left;

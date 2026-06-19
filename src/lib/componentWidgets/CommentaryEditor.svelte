@@ -1634,12 +1634,14 @@
 		outline: none;
 		min-height: 100%;
 		font-family: inherit;
-		font-size: 1.4rem;
+		/* Match the passage text (Segment.svelte .text): same size, line-height,
+		   and color so commentary prose reads consistently with the passage. */
+		font-size: 1.2rem;
 		/* Slightly taller line-height grows the line box symmetrically (no risk of
 		   padding overlap), so the tagged-highlight band matches the inline tag's
 		   height while the tag keeps its original size. */
 		line-height: 1.7;
-		color: var(--black);
+		color: var(--gray-100);
 		padding: 1.8rem;
 	}
 
@@ -1815,8 +1817,10 @@
 
 	.footnote-item {
 		display: flex;
-		font-size: 1.4rem;
-		line-height: 1.6;
+		/* Match the passage/commentary text styles. */
+		font-size: 1.2rem;
+		line-height: 1.7;
+		color: var(--gray-100);
 		margin-bottom: 0.6rem;
 	}
 
@@ -1836,10 +1840,11 @@
 		border: none;
 		border-radius: 0.3rem;
 		padding: 0.0rem;
-		font-size: 1.4rem;
+		/* Match the passage/commentary text styles. */
+		font-size: 1.2rem;
 		font-family: inherit;
-		line-height: 1.6;
-		color: var(--black);
+		line-height: 1.7;
+		color: var(--gray-100);
 		background-color: transparent;
 		resize: none;
 		min-height: 2.4rem;
