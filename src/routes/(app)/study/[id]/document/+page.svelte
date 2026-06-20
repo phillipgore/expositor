@@ -8,7 +8,7 @@
 
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
-	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveSegment } from '$lib/stores/toolbar.js';
 
 	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
@@ -1148,6 +1148,219 @@
 			window.removeEventListener('resize', onResize);
 		};
 	});
+
+
+	/* ============================================================
+	   IN-PLACE HEADING EDITING — Heading One/Two/Three are editable directly in
+	   the document. Clicking a segment "activates" it (mirroring the Analyze view's
+	   setActiveSegment flow) so the toolbar's Markup menu lights up its Heading
+	   One/Two/Three items; choosing one inserts an empty, focused heading inline.
+	   Existing headings are contenteditable and save on blur. All edits persist via
+	   the shared POST /api/passages/segments/heading endpoint, then re-load via
+	   invalidate('app:studies') so the document re-paginates against the new text.
+	   ============================================================ */
+
+	// The segment id whose headings are currently being edited / is active for the
+	// Markup menu. A subtle highlight marks it; clicking elsewhere clears it.
+	let activeDocSegmentId = $state(/** @type {string | null} */ (null));
+
+	// Per-(segment, headingType) "newly inserted, awaiting first input" flags. When a
+	// heading is inserted from the Markup menu it has no stored text yet, so the
+	// template renders an empty editable element for it; this set tells the template
+	// which (segmentId|type) pairs to render even though their block.headingX is null.
+	let pendingHeadings = $state(/** @type {Set<string>} */ (new Set()));
+
+	const pendingKey = (segmentId, type) => `${segmentId}|${type}`;
+
+	/**
+	 * Look up the raw (un-nulled) segment record for a given id across all passages,
+	 * so we can read its true heading presence even when a toggle has hidden them in
+	 * the rendered blocks. Returns null when not found / not yet streamed.
+	 * @param {string} segmentId
+	 */
+	function findRawSegment(segmentId) {
+		for (const passageText of data.passagesWithText ?? []) {
+			for (const seg of flattenSegments(passageText)) {
+				if (seg.id === segmentId) return /** @type {any} */ (seg);
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Push the active segment's heading/note presence into the shared toolbar store
+	 * so the Markup menu enables/disables Heading One/Two/Three correctly. Pending
+	 * (just-inserted) headings count as present so the menu can't insert a duplicate.
+	 * @param {string | null} segmentId
+	 */
+	function syncActiveSegment(segmentId) {
+		if (!segmentId) {
+			setActiveSegment(false);
+			return;
+		}
+		const seg = findRawSegment(segmentId);
+		setActiveSegment(true, segmentId, {
+			hasHeadingOne: !!seg?.headingOne || pendingHeadings.has(pendingKey(segmentId, 'one')),
+			hasHeadingTwo: !!seg?.headingTwo || pendingHeadings.has(pendingKey(segmentId, 'two')),
+			hasHeadingThree: !!seg?.headingThree || pendingHeadings.has(pendingKey(segmentId, 'three')),
+			hasNote: !!seg?.note
+		});
+	}
+
+	/**
+	 * Activate a segment (click on its text/headings). Marks it active for the
+	 * Markup menu and shows the subtle highlight. Re-clicking the same segment keeps
+	 * it active (idempotent).
+	 * @param {string} segmentId
+	 */
+	function activateSegment(segmentId) {
+		activeDocSegmentId = segmentId;
+		syncActiveSegment(segmentId);
+	}
+
+	/**
+	 * Clear the active segment (click on empty gutter / Escape). Drops the highlight
+	 * and tells the toolbar nothing is active so the Markup items disable again.
+	 */
+	function clearActiveSegment() {
+		activeDocSegmentId = null;
+		setActiveSegment(false);
+	}
+
+	/**
+	 * Persist a heading edit for a segment. Empty text removes the heading. Re-loads
+	 * the study afterward so the rendered document reflects the new text and the
+	 * pagination is recomputed against it.
+	 * @param {string} segmentId
+	 * @param {'one'|'two'|'three'} headingType
+	 * @param {string} text
+	 */
+	async function saveHeading(segmentId, headingType, text) {
+		const headingText = (text ?? '').trim();
+		try {
+			await fetch('/api/passages/segments/heading', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ segmentId, headingType, headingText })
+			});
+			// Clear the pending flag now that the row is persisted (or removed).
+			pendingHeadings.delete(pendingKey(segmentId, headingType));
+			pendingHeadings = new Set(pendingHeadings);
+			await invalidate('app:studies');
+			// Refresh the toolbar's view of this segment's headings after the reload.
+			if (activeDocSegmentId === segmentId) syncActiveSegment(segmentId);
+		} catch (error) {
+			console.error('Error saving heading:', error);
+		}
+	}
+
+	/**
+	 * Blur handler for an editable heading: read the element's text and persist it.
+	 * @param {FocusEvent} event
+	 * @param {string} segmentId
+	 * @param {'one'|'two'|'three'} headingType
+	 */
+	function handleHeadingBlur(event, segmentId, headingType) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		saveHeading(segmentId, headingType, el.textContent ?? '');
+	}
+
+	/**
+	 * Keydown handler for an editable heading: Enter commits (blur), Escape cancels
+	 * (restore original text, blur without saving).
+	 * @param {KeyboardEvent} event
+	 * @param {string} original
+	 */
+	function handleHeadingKeydown(event, original) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			el.blur();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			el.textContent = original ?? '';
+			el.blur();
+		}
+	}
+
+	// Listen for the Markup menu's "insert heading" events. Each inserts an empty,
+	// pending heading on the active segment and focuses it for typing. Mirrors the
+	// Analyze page's handleInsertHeading*FromMenuEvent handlers, but tailored to the
+	// document's inline editing.
+	onMount(() => {
+		if (typeof window === 'undefined') return;
+
+		const insert = (type) => {
+			const segmentId = activeDocSegmentId;
+			if (!segmentId) return;
+			// Mark this heading pending so the template renders an empty editable for it.
+			pendingHeadings.add(pendingKey(segmentId, type));
+			pendingHeadings = new Set(pendingHeadings);
+			syncActiveSegment(segmentId);
+			// Focus the new editable once it renders.
+			tick().then(() => {
+				// Scope to the VISIBLE pages so we never focus the off-screen,
+				// pointer-events:none measure-layer copy of the same heading.
+				const el = document.querySelector(
+					`.pages-inner [data-doc-heading="${segmentId}|${type}"]`
+				);
+				if (el instanceof HTMLElement) {
+					el.focus();
+					// Place caret inside the empty element.
+					const range = document.createRange();
+					range.selectNodeContents(el);
+					range.collapse(false);
+					const sel = window.getSelection();
+					sel?.removeAllRanges();
+					sel?.addRange(range);
+				}
+			});
+		};
+
+		const onOne = () => insert('one');
+		const onTwo = () => insert('two');
+		const onThree = () => insert('three');
+
+		window.addEventListener('insert-heading-one-from-menu', onOne);
+		window.addEventListener('insert-heading-two-from-menu', onTwo);
+		window.addEventListener('insert-heading-three-from-menu', onThree);
+
+		return () => {
+			window.removeEventListener('insert-heading-one-from-menu', onOne);
+			window.removeEventListener('insert-heading-two-from-menu', onTwo);
+			window.removeEventListener('insert-heading-three-from-menu', onThree);
+		};
+	});
+
+	// Click-outside to deselect: a pointerdown anywhere that ISN'T on an editable
+	// segment text / heading (and isn't in the toolbar, whose Markup menu acts on the
+	// active segment) clears the active segment so its highlight drops and the Markup
+	// items disable again. Editable elements are matched via closest() so clicking
+	// within a selected segment (or its headings) keeps it active. Capture phase so it
+	// runs before the segment/heading click handlers re-activate.
+	onMount(() => {
+		if (typeof window === 'undefined') return;
+
+		const onDocPointerDown = (event) => {
+			if (!activeDocSegmentId) return;
+			const target = /** @type {Element | null} */ (event.target);
+			if (
+				target?.closest?.(
+					'.passage-text-editable, .doc-heading-editable, .toolbar, [class*="toolbar"], [class*="menu"]'
+				)
+			) {
+				return;
+			}
+			clearActiveSegment();
+		};
+
+		document.addEventListener('pointerdown', onDocPointerDown, true);
+		return () => document.removeEventListener('pointerdown', onDocPointerDown, true);
+	});
+
+	// Clear the active segment when this page is torn down so the Markup menu doesn't
+	// stay enabled against a segment that's no longer mounted (e.g. switching views).
+	onMount(() => () => setActiveSegment(false));
 </script>
 
 
@@ -1345,26 +1558,72 @@
 		     commentary sits under Heading One, Heading Two commentary under Heading
 		     Two, and Heading Three commentary under Heading Three. The shared
 		     commentaryContent snippet renders the body, footnotes, and glossary tags
-		     identically to segment/connection commentary. -->
-		{#if block.headingOne}
-			<h3 class="doc-heading doc-heading-one">{block.headingOne}</h3>
+		     identically to segment/connection commentary.
+
+		     Headings are EDITABLE IN PLACE: each is contenteditable so the author can
+		     retype it; a hover affordance (dashed lower border) signals editability,
+		     and edits persist on blur. A heading is rendered when it has stored text OR
+		     when it's a freshly-inserted "pending" heading (from the Markup menu) for
+		     this segment. -->
+		{#if block.headingOne || pendingHeadings.has(pendingKey(block.id, 'one'))}
+			<h3
+				class="doc-heading doc-heading-one doc-heading-editable"
+				class:active={activeDocSegmentId === block.id}
+				data-doc-heading="{block.id}|one"
+				contenteditable="true"
+				role="textbox"
+				tabindex="0"
+				spellcheck="false"
+				onfocus={() => activateSegment(block.id)}
+				onblur={(e) => handleHeadingBlur(e, block.id, 'one')}
+				onkeydown={(e) => handleHeadingKeydown(e, block.headingOne ?? '')}
+			>{block.headingOne ?? ''}</h3>
 			{#if block.headingOneCommentary}
 				{@render commentaryContent(block.headingOneCommentary, 'heading-one')}
 			{/if}
 		{/if}
-		{#if block.headingTwo}
-			<h4 class="doc-heading doc-heading-two">{block.headingTwo}</h4>
+		{#if block.headingTwo || pendingHeadings.has(pendingKey(block.id, 'two'))}
+			<h4
+				class="doc-heading doc-heading-two doc-heading-editable"
+				class:active={activeDocSegmentId === block.id}
+				data-doc-heading="{block.id}|two"
+				contenteditable="true"
+				role="textbox"
+				tabindex="0"
+				spellcheck="false"
+				onfocus={() => activateSegment(block.id)}
+				onblur={(e) => handleHeadingBlur(e, block.id, 'two')}
+				onkeydown={(e) => handleHeadingKeydown(e, block.headingTwo ?? '')}
+			>{block.headingTwo ?? ''}</h4>
 			{#if block.headingTwoCommentary}
 				{@render commentaryContent(block.headingTwoCommentary, 'heading-two')}
 			{/if}
 		{/if}
-		{#if block.headingThree}
-			<h5 class="doc-heading doc-heading-three">{block.headingThree}</h5>
+		{#if block.headingThree || pendingHeadings.has(pendingKey(block.id, 'three'))}
+			<h5
+				class="doc-heading doc-heading-three doc-heading-editable"
+				class:active={activeDocSegmentId === block.id}
+				data-doc-heading="{block.id}|three"
+				contenteditable="true"
+				role="textbox"
+				tabindex="0"
+				spellcheck="false"
+				onfocus={() => activateSegment(block.id)}
+				onblur={(e) => handleHeadingBlur(e, block.id, 'three')}
+				onkeydown={(e) => handleHeadingKeydown(e, block.headingThree ?? '')}
+			>{block.headingThree ?? ''}</h5>
 			{#if block.headingThreeCommentary}
 				{@render commentaryContent(block.headingThreeCommentary, 'heading-three')}
 			{/if}
 		{/if}
-		<div class="passage-text">{@html block.html}</div>
+		<!-- Clicking the segment text activates this segment so the Markup menu can
+		     add a heading to it. svelte:element-free static handlers keep it simple. -->
+		<div
+			class="passage-text passage-text-editable"
+			class:active={activeDocSegmentId === block.id}
+			role="presentation"
+			onclick={() => activateSegment(block.id)}
+		>{@html block.html}</div>
 
 		<!-- Quick note: a brief plain-text margin note authored on the segment.
 		     Rendered right after the segment's text (and before any segment
@@ -1728,6 +1987,36 @@
 	}
 
 	/* ============================================
+	   EDITABLE SEGMENT TEXT — clicking a segment's text "selects" it so the Markup
+	   menu can add a Heading One/Two/Three to it. The affordance mirrors the
+	   headings: a quiet hover highlight tells the reader the text is interactive,
+	   and a stronger, persistent highlight marks the currently-selected segment.
+	   A small negative inset + matching padding lets the highlight breathe slightly
+	   around the text without shifting the surrounding layout. Screen-only — the
+	   highlights are stripped in print so the exported document stays clean.
+	   ============================================ */
+	.passage-text-editable {
+		cursor: pointer;
+		border-radius: 0.3rem;
+		padding: 0.2rem 0.4rem;
+		margin: 0 -0.4rem;
+		transition: background-color 0.15s ease;
+	}
+
+	/* Hover hint — a faint band signalling the segment text is clickable. */
+	.passage-text-editable:hover {
+		background-color: var(--gray-800);
+	}
+
+	/* Selected segment — a stronger, persistent highlight marking the segment a new
+	   heading would attach to. Overrides hover so the selection stays clear even
+	   while hovered. */
+	.passage-text-editable.active,
+	.passage-text-editable.active:hover {
+		background-color: var(--gray-700);
+	}
+
+	/* ============================================
 	   VERSE NOTATION — the inline chapter:verse markers (e.g. "5:3") that the
 	   passage HTML carries as <span class="chapter-verse">. The Analyze view styles
 	   these via a `:global(.chapter-verse)` rule, but that styling is scoped to that
@@ -1815,6 +2104,44 @@
 		font-weight: 700;
 		line-height: 1.5;
 		margin-left: 3.2rem;
+	}
+
+
+	/* ============================================
+	   EDITABLE HEADINGS — Heading One/Two/Three are contenteditable in the document.
+	   --------------------------------------------
+	   The affordance for editability mirrors the Analyze view's HeadingEditor: a
+	   dashed lower border appears on hover (and on focus while editing) to signal
+	   "click to type here" without adding visual weight at rest. A transparent
+	   bottom border is reserved at rest so the dashed line on hover/focus doesn't
+	   shift the heading's layout. The caret + outline are tuned so the contenteditable
+	   reads as inline editable text, not a form field. These affordances are
+	   screen-only — they're stripped in print so the exported document is clean. */
+	.doc-heading-editable {
+		cursor: text;
+		border-bottom: 0.1rem dashed transparent;
+		outline: none;
+		transition: border-color 0.15s ease;
+	}
+
+	/* Hover / focus reveal the dashed lower border (the editability hint). */
+	.doc-heading-editable:hover,
+	.doc-heading-editable:focus {
+		border-bottom-color: var(--gray-500);
+	}
+
+	/* While focused (actively editing), the dashed line darkens for a clear
+	   "you are here" cue. */
+	.doc-heading-editable:focus {
+		border-bottom-color: var(--gray-300);
+	}
+
+	/* Empty heading (just inserted, no text yet) shows a faint placeholder so the
+	   caret has something to anchor against and the author knows what they're typing. */
+	.doc-heading-editable:empty::before {
+		content: 'Heading';
+		color: var(--gray-500);
+		pointer-events: none;
 	}
 
 
@@ -2262,6 +2589,24 @@
 		   reads as a fenced-off block on paper / in the PDF export. */
 		.doc-connection {
 			border-color: var(--gray-400);
+		}
+
+		/* The editing affordances (segment-text hover/selected highlight and the
+		   heading's dashed editability border + placeholder) are screen-only UI —
+		   strip them so the printed / exported document reads as clean prose. */
+		.passage-text-editable,
+		.passage-text-editable.active {
+			background-color: transparent;
+			padding: 0;
+			margin: 0;
+		}
+
+		.doc-heading-editable {
+			border-bottom-color: transparent;
+		}
+
+		.doc-heading-editable:empty::before {
+			content: none;
 		}
 
 		/* FORCED PAGE BREAKS — passages (after the first) and columns (after the
