@@ -2000,21 +2000,28 @@
 		border-radius: 0.3rem;
 		padding: 0.2rem 0.4rem;
 		margin: 0 -0.4rem;
-		transition: background-color 0.15s ease;
+		/* Transparent border by default so the selected-state blue border can appear
+		   without shifting the surrounding layout. */
+		border: 0.1rem solid transparent;
+		transition:
+			background-color 0.15s ease,
+			border-color 0.15s ease;
 	}
 
-	/* Hover hint — a faint band signalling the segment text is clickable. */
+	/* Hover hint — the lightest blue band signalling the segment text is clickable. */
 	.passage-text-editable:hover {
-		background-color: var(--gray-800);
+		background-color: var(--blue-lighter);
 	}
 
-	/* Selected segment — a stronger, persistent highlight marking the segment a new
-	   heading would attach to. Overrides hover so the selection stays clear even
-	   while hovered. */
+	/* Selected segment — a blue border (with the original transparent background)
+	   marks the segment a new heading would attach to. Overrides hover so the
+	   selection stays clear even while hovered. */
 	.passage-text-editable.active,
 	.passage-text-editable.active:hover {
-		background-color: var(--gray-700);
+		background-color: transparent;
+		border-color: var(--blue);
 	}
+
 
 	/* ============================================
 	   VERSE NOTATION — the inline chapter:verse markers (e.g. "5:3") that the
@@ -2597,9 +2604,11 @@
 		.passage-text-editable,
 		.passage-text-editable.active {
 			background-color: transparent;
+			border-color: transparent;
 			padding: 0;
 			margin: 0;
 		}
+
 
 		.doc-heading-editable {
 			border-bottom-color: transparent;
