@@ -8,7 +8,16 @@
 
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
-	import { toolbarState, setActiveSegment } from '$lib/stores/toolbar.js';
+	import {
+		toolbarState,
+		setActiveSegment,
+		setWordSelection,
+		setCanInsertColumn,
+		setActiveSection,
+		setActiveColumn
+	} from '$lib/stores/toolbar.js';
+
+
 
 	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
@@ -1188,6 +1197,27 @@
 	}
 
 	/**
+	 * Determine whether a segment is the FIRST segment in its passage. Mirrors the
+	 * Analyze view's `isFirstSegment` computation: the first segment of a passage has
+	 * nothing before it to join to, so Join Segment must disable for it. Walks each
+	 * passage's flattened (reading-order) segments and compares the leading id.
+	 * @param {string} segmentId
+	 * @returns {boolean}
+	 */
+	function isFirstSegmentInPassage(segmentId) {
+		for (const passageText of data.passagesWithText ?? []) {
+			const segments = flattenSegments(passageText);
+			if (!segments.length) continue;
+			// Only the passage that CONTAINS this segment is decisive; once found, stop.
+			if (segments.some((seg) => seg.id === segmentId)) {
+				return segments[0].id === segmentId;
+			}
+		}
+		return false;
+	}
+
+
+	/**
 	 * Push the active segment's heading/note presence into the shared toolbar store
 	 * so the Markup menu enables/disables Heading One/Two/Three correctly. Pending
 	 * (just-inserted) headings count as present so the menu can't insert a duplicate.
@@ -1198,14 +1228,24 @@
 			setActiveSegment(false);
 			return;
 		}
+		// The Document view never selects a column or section (there's no UI for it),
+		// so force those flags off here. Otherwise a stale hasActiveSection /
+		// hasActiveColumn carried over from the Analyze view would survive into the
+		// Document view and wrongly enable Join Section while only a segment is active.
+		setActiveSection(false);
+		setActiveColumn(false);
 		const seg = findRawSegment(segmentId);
 		setActiveSegment(true, segmentId, {
 			hasHeadingOne: !!seg?.headingOne || pendingHeadings.has(pendingKey(segmentId, 'one')),
 			hasHeadingTwo: !!seg?.headingTwo || pendingHeadings.has(pendingKey(segmentId, 'two')),
 			hasHeadingThree: !!seg?.headingThree || pendingHeadings.has(pendingKey(segmentId, 'three')),
-			hasNote: !!seg?.note
+			hasNote: !!seg?.note,
+			// The first segment of a passage has nothing before it to join to, so Join
+			// Segment must disable for it (matches the Analyze view's isFirst handling).
+			isFirst: isFirstSegmentInPassage(segmentId)
 		});
 	}
+
 
 	/**
 	 * Activate a segment (click on its text/headings). Marks it active for the
@@ -1221,11 +1261,211 @@
 	/**
 	 * Clear the active segment (click on empty gutter / Escape). Drops the highlight
 	 * and tells the toolbar nothing is active so the Markup items disable again.
+	 * Also clears any word-level selection so the two stay in sync.
 	 */
 	function clearActiveSegment() {
 		activeDocSegmentId = null;
 		setActiveSegment(false);
+		// Keep section/column flags off — the Document view never selects them, so a
+		// stale flag must never linger to wrongly enable Join Section / Join Column.
+		setActiveSection(false);
+		setActiveColumn(false);
+		selectedWord = null;
+		suppressHoverCaret = null;
 	}
+
+
+	/* ============================================================
+	   WORD SELECTION — reuses the Analyze view's data-word-id-based logic.
+	   ------------------------------------------------------------
+	   The passage HTML rendered here already wraps every word in a
+	   `.selectable-word` span (via the shared extractSegmentText helper), so the
+	   words just need handlers + state to become interactive. State and handlers
+	   mirror the Analyze page exactly: hovering shows a caret, and the click cycle
+	   is before → after → deselect (Shift+Click jumps straight to "after").
+
+	   Selecting a word ALSO activates its segment (the passage-text div's onclick
+	   calls activateSegment alongside handleWordClick), matching the requirement
+	   that selecting a single word makes its segment active.
+
+	   Because each block is rendered TWICE (the off-screen measure layer + the
+	   visible pages), the attribute-stamping effect uses querySelectorAll so both
+	   copies of the selected word reflect the state; the measure layer is
+	   pointer-events:none so only the visible copy ever fires the handlers.
+	   ============================================================ */
+	let hoveredWord = $state(/** @type {{ passageIndex: number, wordId: string } | null} */ (null));
+	let selectedWord = $state(
+		/** @type {{ passageIndex: number, wordId: string, position: 'before'|'after' } | null} */ (null)
+	);
+	let suppressHoverCaret = $state(/** @type {{ passageIndex: number, wordId: string } | null} */ (null));
+
+	/**
+	 * Track the hovered word so its caret can render.
+	 * @param {MouseEvent} event
+	 */
+	function handleWordHover(event) {
+		const target = /** @type {HTMLElement} */ (event.target);
+		if (target?.classList?.contains('selectable-word')) {
+			hoveredWord = {
+				passageIndex: parseInt(target.dataset.passageIndex || '0'),
+				wordId: target.dataset.wordId || ''
+			};
+		}
+	}
+
+	/** Clear hover state (and the post-deselect caret suppression) on mouse-out. */
+	function handleWordHoverEnd() {
+		hoveredWord = null;
+		suppressHoverCaret = null;
+	}
+
+	/**
+	 * Three-state word selection (click 1 → before, click 2 same word → after,
+	 * click 3 same word → deselect; Shift+Click → straight to "after"). Mirrors the
+	 * Analyze view's handleWordClick.
+	 * @param {MouseEvent} event
+	 */
+	function handleWordClick(event) {
+		const target = /** @type {HTMLElement} */ (event.target);
+		if (!target?.classList?.contains('selectable-word')) return;
+
+		const passageIndex = parseInt(target.dataset.passageIndex || '0');
+		const wordId = target.dataset.wordId || '';
+		const isShiftKey = event.shiftKey;
+		const isSameWord = selectedWord?.passageIndex === passageIndex && selectedWord?.wordId === wordId;
+
+		if (isShiftKey) {
+			selectedWord = { passageIndex, wordId, position: 'after' };
+			suppressHoverCaret = null;
+		} else if (isSameWord) {
+			if (selectedWord.position === 'before') {
+				selectedWord = { passageIndex, wordId, position: 'after' };
+				suppressHoverCaret = null;
+			} else {
+				selectedWord = null;
+				suppressHoverCaret = { passageIndex, wordId };
+			}
+		} else {
+			selectedWord = { passageIndex, wordId, position: 'before' };
+			suppressHoverCaret = null;
+		}
+	}
+
+	// Stamp data-selected / data-position / data-suppress-hover-caret onto the
+	// matching word span(s) whenever the selection changes. Re-runs after the DOM
+	// settles (tick) and also when the rendered content/pagination changes so the
+	// attributes survive re-renders. Uses querySelectorAll because the same word
+	// exists in both the measure layer and the visible pages.
+	$effect(() => {
+		if (typeof document === 'undefined') return;
+		// Touch deps so the effect re-runs on selection AND content/layout changes.
+		selectedWord;
+		suppressHoverCaret;
+		flowItems;
+		pages;
+
+		tick().then(() => {
+			document.querySelectorAll('.selectable-word').forEach((word) => {
+				word.removeAttribute('data-selected');
+				word.removeAttribute('data-position');
+				word.removeAttribute('data-suppress-hover-caret');
+			});
+
+			if (selectedWord) {
+				document
+					.querySelectorAll(
+						`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+					)
+					.forEach((el) => {
+						el.setAttribute('data-selected', 'true');
+						el.setAttribute('data-position', selectedWord.position);
+					});
+			}
+
+			if (suppressHoverCaret) {
+				document
+					.querySelectorAll(
+						`.selectable-word[data-passage-index="${suppressHoverCaret.passageIndex}"][data-word-id="${suppressHoverCaret.wordId}"]`
+					)
+					.forEach((el) => el.setAttribute('data-suppress-hover-caret', 'true'));
+			}
+		});
+	});
+
+	// Mirror the Analyze view's Split/Join button enabling: push the word-selection
+	// flags to the shared toolbar store so getPassageToolbarConfig's disabledCheck
+	// rules light up the same way on the Document view. hasActiveSegment (driving
+	// Join Segment, Split/Join Section, Join Column) is already synced via
+	// activateSegment / clearActiveSegment; these two effects add the remaining
+	// word-driven flags: hasWordSelection (Split Segment) and canInsertColumn
+	// (Split Column).
+	$effect(() => {
+		setWordSelection(selectedWord !== null);
+	});
+
+	// Validate Split Column availability based on word selection — lifted verbatim
+	// from the Analyze view. Split Column is enabled only when the selection marks a
+	// valid mid-column insertion point (not the first word of a column, not after the
+	// last word). Uses the same `.selectable-word` DOM + structure.columns the
+	// Document page already renders.
+	$effect(() => {
+		if (!selectedWord || !data.passagesWithText || data.passagesWithText.length === 0) {
+			setCanInsertColumn(false);
+			return;
+		}
+
+		const passageText = data.passagesWithText[selectedWord.passageIndex];
+		if (!passageText || !passageText.structure || !passageText.structure.columns) {
+			setCanInsertColumn(false);
+			return;
+		}
+
+		// Get the insertion word ID based on position
+		let insertionWordId = null;
+		if (selectedWord.position === 'before') {
+			// Before: use current word's ID directly
+			insertionWordId = selectedWord.wordId;
+		} else {
+			// After: need to find next word's ID
+			const wordElement = document.querySelector(
+				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+			);
+
+			if (wordElement) {
+				// Find next word sibling in the DOM
+				let nextElement = /** @type {HTMLElement | null} */ (wordElement.nextElementSibling);
+				while (nextElement) {
+					if (nextElement.classList.contains('selectable-word')) {
+						insertionWordId = nextElement.dataset.wordId;
+						break;
+					}
+					nextElement = /** @type {HTMLElement | null} */ (nextElement.nextElementSibling);
+				}
+
+			}
+		}
+
+		if (!insertionWordId) {
+			// No valid insertion point (e.g., after last word)
+			setCanInsertColumn(false);
+			return;
+		}
+
+		// Check if insertion point is at the beginning of a column
+		const columns = passageText.structure.columns;
+		for (const column of columns) {
+			if (column.startingWordId === insertionWordId) {
+				// Cannot insert at column start
+				setCanInsertColumn(false);
+				return;
+			}
+		}
+
+		// Valid insertion point
+		setCanInsertColumn(true);
+	});
+
+
 
 	/**
 	 * Persist a heading edit for a segment. Empty text removes the heading. Re-loads
@@ -1354,13 +1594,46 @@
 			clearActiveSegment();
 		};
 
+		// Escape clears the active segment AND any word selection, mirroring Analyze.
+		const onKeyDown = (event) => {
+			if (event.key === 'Escape') {
+				hoveredWord = null;
+				clearActiveSegment();
+			}
+		};
+
 		document.addEventListener('pointerdown', onDocPointerDown, true);
-		return () => document.removeEventListener('pointerdown', onDocPointerDown, true);
+		window.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('pointerdown', onDocPointerDown, true);
+			window.removeEventListener('keydown', onKeyDown);
+		};
 	});
 
-	// Clear the active segment when this page is torn down so the Markup menu doesn't
-	// stay enabled against a segment that's no longer mounted (e.g. switching views).
-	onMount(() => () => setActiveSegment(false));
+
+	// On ENTRY, force the section/column selection flags off: the Document view has no
+	// section/column selection UI, so a stale hasActiveSection / hasActiveColumn carried
+	// over from the Analyze view must not survive to wrongly enable Join Section / Join
+	// Column here. (syncActiveSegment / clearActiveSegment also keep these off, but those
+	// only run once the user interacts — this clears the carried-over state immediately.)
+	//
+	// On TEARDOWN, clear the active segment AND the word-selection flags so the Markup /
+	// Split-Join buttons don't stay enabled against a segment or selection that's no
+	// longer mounted (e.g. switching views). Mirrors the flags the effects above push
+	// while the page is live.
+	onMount(() => {
+		setActiveSection(false);
+		setActiveColumn(false);
+		return () => {
+			setActiveSegment(false);
+			setWordSelection(false);
+			setCanInsertColumn(false);
+			setActiveSection(false);
+			setActiveColumn(false);
+		};
+	});
+
+
 </script>
 
 
@@ -1617,13 +1890,22 @@
 			{/if}
 		{/if}
 		<!-- Clicking the segment text activates this segment so the Markup menu can
-		     add a heading to it. svelte:element-free static handlers keep it simple. -->
+		     add a heading to it. Clicking a single WORD additionally selects that word
+		     (handleWordClick) while still activating the segment, mirroring the Analyze
+		     view. onmouseover/onmouseleave drive the per-word hover caret. -->
 		<div
 			class="passage-text passage-text-editable"
 			class:active={activeDocSegmentId === block.id}
 			role="presentation"
-			onclick={() => activateSegment(block.id)}
+			onmouseover={handleWordHover}
+			onmouseleave={handleWordHoverEnd}
+			onfocus={() => {}}
+			onclick={(e) => {
+				handleWordClick(e);
+				activateSegment(block.id);
+			}}
 		>{@html block.html}</div>
+
 
 		<!-- Quick note: a brief plain-text margin note authored on the segment.
 		     Rendered right after the segment's text (and before any segment
@@ -2008,19 +2290,91 @@
 			border-color 0.15s ease;
 	}
 
-	/* Hover hint — the lightest blue band signalling the segment text is clickable. */
+	/* Hover hint — a light-blue border signals the segment text is clickable.
+	   The block background is intentionally NOT changed on hover (word-level hover
+	   draws its own highlight). Hovering the block OR any word inside it triggers
+	   this (a normal :hover on the block, since words are children). */
 	.passage-text-editable:hover {
-		background-color: var(--blue-lighter);
+		border-color: var(--blue-light);
 	}
 
-	/* Selected segment — a blue border (with the original transparent background)
-	   marks the segment a new heading would attach to. Overrides hover so the
-	   selection stays clear even while hovered. */
+
+	/* Selected segment — a solid blue border (with the original transparent
+	   background) marks the segment a new heading would attach to. Overrides hover
+	   so the selection stays clear even while hovered. */
 	.passage-text-editable.active,
 	.passage-text-editable.active:hover {
 		background-color: transparent;
 		border-color: var(--blue);
 	}
+
+	/* ============================================
+	   WORD SELECTION — mirrors the Analyze view, tuned for the light document page.
+	   Each word in the passage HTML is wrapped in a `.selectable-word` span (by the
+	   shared extractSegmentText helper). Hovering / selecting a word draws the
+	   lightest-blue highlight and a blue caret; the click cycle is before → after →
+	   deselect. Selecting a word also activates its segment (the container's onclick
+	   calls activateSegment). Screen-only — stripped in print below.
+	   ============================================ */
+	.passage-text :global(.selectable-word) {
+		position: relative;
+		cursor: pointer;
+		padding: 0.2rem 0.1rem;
+		border-radius: 0.2rem;
+	}
+
+	/* Hover highlight — lightest blue (only when not already selected). */
+	.passage-text :global(.selectable-word:hover:not([data-selected])) {
+		background-color: var(--blue-lighter);
+	}
+
+	/* Hover caret — a blue caret above the word (not selected, not suppressed). */
+	.passage-text
+		:global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059FF' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+		position: absolute;
+		left: -0.7rem;
+		top: -0.9rem;
+		width: 1rem;
+		height: 1rem;
+		opacity: 0.5;
+	}
+
+	/* Safari-specific fix: force GPU compositing so :hover state updates reliably. */
+	@supports (-webkit-appearance: none) {
+		.passage-text :global(.selectable-word::before) {
+			transform: translateZ(0);
+			-webkit-transform: translateZ(0);
+		}
+	}
+
+	/* Selected highlight — persistent lightest blue. */
+	.passage-text :global(.selectable-word[data-selected="true"]) {
+		background-color: var(--blue-lighter);
+	}
+
+	/* Selected caret (before position) — persistent blue caret. */
+	.passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059FF' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+		position: absolute;
+		left: -0.7rem;
+		top: -0.9rem;
+		width: 1rem;
+		height: 1rem;
+		opacity: 1;
+	}
+
+	/* Selected caret (after position) — persistent blue caret on the right. */
+	.passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
+		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059FF' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
+		position: absolute;
+		right: -0.7rem;
+		top: -0.9rem;
+		width: 1rem;
+		height: 1rem;
+		opacity: 1;
+	}
+
 
 
 	/* ============================================
@@ -2608,6 +2962,19 @@
 			padding: 0;
 			margin: 0;
 		}
+
+		/* Word selection is a screen-only authoring affordance — strip the per-word
+		   highlight and the hover/selected carets so the printed / exported document
+		   reads as clean prose. */
+		.passage-text :global(.selectable-word) {
+			background-color: transparent;
+			padding: 0;
+		}
+
+		.passage-text :global(.selectable-word::before) {
+			content: none;
+		}
+
 
 
 		.doc-heading-editable {
