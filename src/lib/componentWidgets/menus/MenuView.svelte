@@ -118,7 +118,12 @@
 	let headingsDisabled = $derived(!$toolbarState.canToggleHeadings || (!isDocument && $toolbarState.overviewMode));
 	let versesDisabled = $derived(!$toolbarState.canToggleVerses || (!isDocument && $toolbarState.overviewMode));
 	let paragraphsDisabled = $derived(!$toolbarState.canToggleParagraphBreaks || (!isDocument && $toolbarState.overviewMode));
-	let connectionsDisabled = $derived(!$toolbarState.canToggleConnections || (!isDocument && $toolbarState.overviewMode));
+	// In the Document view connections are no longer toggleable from here — they render
+	// in a fixed appendix at the END of the study — so the five connection items (All /
+	// Column / Section / Segment / Cross-Item) are DISABLED there. In Analyze they keep
+	// their capability + overview-mode gating.
+	let connectionsDisabled = $derived(isDocument || !$toolbarState.canToggleConnections || (!isDocument && $toolbarState.overviewMode));
+
 	let notesDisabled = $derived(!$toolbarState.canToggleNotes);
 
 	// View-specific items are always RENDERED but DISABLED when they don't apply to the

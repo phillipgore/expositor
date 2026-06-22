@@ -375,12 +375,14 @@
 			blocks.push({
 				type: 'column-start',
 				key: `colstart-${column.id}`,
+				id: column.id,
 				ref: columnRef,
 				// First column of the passage already sits at the top of the passage's
 				// new page (under the Passage ref), so it must NOT force a further break.
 				// Every subsequent column begins on its own fresh page.
 				firstInPassage: ci === 0
 			});
+
 
 			// Columns no longer carry their own commentary (it was removed in favor
 			// of heading commentary), so no column-level aside is emitted here.
@@ -398,7 +400,9 @@
 				blocks.push({
 					type: 'section-start',
 					key: `secstart-${section.id}`,
+					id: section.id,
 					ref: sectionRef,
+
 					// First section of a column sits at the top of that column (under the
 					// passage ref for the first column, or at the top of the column's fresh
 					// page otherwise), so it gets NO leading horizontal rule. Every
@@ -434,6 +438,14 @@
 						// horizontal rule, so it must NOT add a leading 36px segment gap;
 						// every subsequent segment in the section does.
 						firstInSection: segIdx === 0,
+						// First segment of a COLUMN (first section, first segment) sits at
+						// the very top of the column's fresh page — where the left-margin
+						// Column/Section selectors are anchored. Its leading heading/text
+						// margin would otherwise push the content ~3.6rem below those
+						// selectors; this flag lets the template zero that top margin so the
+						// content top lines up with the selector pair.
+						firstInColumn: secIdx === 0 && segIdx === 0,
+
 						// Headings (and their per-heading commentary) are suppressed entirely
 						// when the Document view's Headings toggle is off — nulled here so they
 						// never enter pagination. The per-heading commentary additionally
@@ -779,9 +791,15 @@
 			items.push({ id: 'connections-appendix-title', kind: 'connections-title' });
 			for (const conn of allConnections) {
 				// Suppress the connection's quick note when the Document view's Connection
-				// Quick Notes toggle is off — pass a note-stripped copy so the card renders
-				// the connection (and its commentary) without the note.
-				const c = view.connectionNotes === false ? { ...conn, note: null } : conn;
+				// Quick Notes toggle is off, and its commentary when the Commentary toggle
+				// is off — pass a stripped copy so the card renders the connection without
+				// the suppressed pieces. Mirrors how segment/heading commentary respects the
+				// same Commentary toggle, so turning Commentary off hides Connection
+				// Commentary too.
+				let c = conn;
+				if (view.connectionNotes === false) c = { ...c, note: null };
+				if (view.commentaries === false) c = { ...c, commentary: null };
+
 				items.push({ id: `appendix-conn-${conn.key}`, kind: 'connection', connection: c });
 			}
 		}
@@ -1173,6 +1191,15 @@
 	// Markup menu. A subtle highlight marks it; clicking elsewhere clears it.
 	let activeDocSegmentId = $state(/** @type {string | null} */ (null));
 
+	// The column / section id currently selected via the left-margin selector buttons
+	// (the rounded-square Column control and the circular Section control). At most one
+	// of activeDocSegmentId / activeDocColumnId / activeDocSectionId is set at a time —
+	// selecting any structural level clears the others — so the toolbar's Split/Join
+	// Column / Section / Segment buttons enable against exactly one active item.
+	let activeDocColumnId = $state(/** @type {string | null} */ (null));
+	let activeDocSectionId = $state(/** @type {string | null} */ (null));
+
+
 	// Per-(segment, headingType) "newly inserted, awaiting first input" flags. When a
 	// heading is inserted from the Markup menu it has no stored text yet, so the
 	// template renders an empty editable element for it; this set tells the template
@@ -1215,6 +1242,107 @@
 		}
 		return false;
 	}
+
+	/**
+	 * Determine whether a column is the FIRST column in its passage. The first column
+	 * has nothing before it to join to, so Join Column must disable for it. Walks each
+	 * passage's structure.columns and compares the leading column id.
+	 * @param {string} columnId
+	 * @returns {boolean}
+	 */
+	function isFirstColumnInPassage(columnId) {
+		for (const passageText of data.passagesWithText ?? []) {
+			const cols = passageText?.structure?.columns;
+			if (!cols?.length) continue;
+			if (cols.some((c) => c.id === columnId)) {
+				return cols[0].id === columnId;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Determine whether a section is the FIRST section in its passage (across all of
+	 * the passage's columns, in reading order). The first section has nothing before
+	 * it to join to, so Join Section must disable for it. Mirrors the Analyze view's
+	 * first-section handling.
+	 * @param {string} sectionId
+	 * @returns {boolean}
+	 */
+	function isFirstSectionInPassage(sectionId) {
+		for (const passageText of data.passagesWithText ?? []) {
+			const cols = passageText?.structure?.columns;
+			if (!cols?.length) continue;
+			const sections = [];
+			for (const column of cols) {
+				for (const section of column.sections ?? []) sections.push(section);
+			}
+			if (!sections.length) continue;
+			if (sections.some((s) => s.id === sectionId)) {
+				return sections[0].id === sectionId;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Select a COLUMN via its left-margin rounded-square selector. Toggles: clicking
+	 * the already-selected column clears the selection. Selecting a column clears any
+	 * active segment / word / section selection (only one structural level is active
+	 * at a time) and pushes the column into the shared toolbar store so the Markup
+	 * menu's Split/Join Column buttons enable correctly.
+	 * @param {string} columnId
+	 */
+	function selectColumn(columnId) {
+		if (activeDocColumnId === columnId) {
+			clearStructuralSelection();
+			return;
+		}
+		// Clear the other structural levels — only one is ever active at a time.
+		activeDocSegmentId = null;
+		activeDocSectionId = null;
+		selectedWord = null;
+		suppressHoverCaret = null;
+		setActiveSegment(false);
+		setActiveSection(false);
+		activeDocColumnId = columnId;
+		setActiveColumn(true, columnId, isFirstColumnInPassage(columnId), [columnId]);
+	}
+
+	/**
+	 * Select a SECTION via its left-margin circular selector. Toggles: clicking the
+	 * already-selected section clears the selection. Selecting a section clears any
+	 * active segment / word / column selection and pushes the section into the shared
+	 * toolbar store so the Markup menu's Split/Join Section buttons enable correctly.
+	 * @param {string} sectionId
+	 */
+	function selectSection(sectionId) {
+		if (activeDocSectionId === sectionId) {
+			clearStructuralSelection();
+			return;
+		}
+		activeDocSegmentId = null;
+		activeDocColumnId = null;
+		selectedWord = null;
+		suppressHoverCaret = null;
+		setActiveSegment(false);
+		setActiveColumn(false);
+		activeDocSectionId = sectionId;
+		setActiveSection(true, sectionId, isFirstSectionInPassage(sectionId), [sectionId]);
+	}
+
+	/**
+	 * Clear any column/section selection made via the left-margin selectors, dropping
+	 * the highlight and telling the toolbar nothing structural is active so the
+	 * Split/Join Column / Section buttons disable again.
+	 */
+	function clearStructuralSelection() {
+		activeDocColumnId = null;
+		activeDocSectionId = null;
+		setActiveColumn(false);
+		setActiveSection(false);
+	}
+
 
 
 	/**
@@ -1523,6 +1651,9 @@
 		}
 	}
 
+
+
+
 	// Listen for the Markup menu's "insert heading" events. Each inserts an empty,
 	// pending heading on the active segment and focuses it for typing. Mirrors the
 	// Analyze page's handleInsertHeading*FromMenuEvent handlers, but tailored to the
@@ -1582,25 +1713,30 @@
 		if (typeof window === 'undefined') return;
 
 		const onDocPointerDown = (event) => {
-			if (!activeDocSegmentId) return;
+			// Nothing selected (segment OR structural column/section) → nothing to clear.
+			if (!activeDocSegmentId && !activeDocColumnId && !activeDocSectionId) return;
 			const target = /** @type {Element | null} */ (event.target);
 			if (
 				target?.closest?.(
-					'.passage-text-editable, .doc-heading-editable, .toolbar, [class*="toolbar"], [class*="menu"]'
+					'.passage-text-editable, .doc-heading-editable, .doc-selector, .toolbar, [class*="toolbar"], [class*="menu"]'
 				)
 			) {
 				return;
 			}
 			clearActiveSegment();
+			clearStructuralSelection();
 		};
 
-		// Escape clears the active segment AND any word selection, mirroring Analyze.
+		// Escape clears the active segment, any word selection, AND any structural
+		// (column/section) selection, mirroring Analyze.
 		const onKeyDown = (event) => {
 			if (event.key === 'Escape') {
 				hoveredWord = null;
 				clearActiveSegment();
+				clearStructuralSelection();
 			}
 		};
+
 
 		document.addEventListener('pointerdown', onDocPointerDown, true);
 		window.addEventListener('keydown', onKeyDown);
@@ -1765,19 +1901,64 @@
 
 
 		<!-- Column break: each column (after the first in its passage) begins on a
-		     fresh page. There is no visible label or rule — the new page IS the
-		     divider. This zero-height marker carries the page-break class so the
-		     print/PDF paginator breaks before it; the first column of a passage is
-		     already at the top of the passage's new page, so it doesn't break. -->
-		<div class="doc-column-break" class:doc-break-before={!block.firstInPassage}></div>
+		     fresh page, and is introduced by a horizontal rule (like sections). The
+		     marker carries the page-break class so the print/PDF paginator breaks
+		     before it; the first column of a passage is already at the top of the
+		     passage's new page, so it doesn't break — but it still gets a rule, with
+		     its top margin zeroed (see .doc-column-break.first .doc-column-rule) so
+		     the column's content starts flush with the left-margin selectors.
+
+		     The rounded-square SELECTOR button rides in the page's left margin
+		     (absolutely positioned), mirroring the Analyze view's ToolbarColumn
+		     control so the Markup menu's Split/Join Column buttons can act on this
+		     column. Screen-only — it's hidden in print. -->
+		<div
+			class="doc-column-break"
+			class:first={block.firstInPassage}
+			class:doc-break-before={!block.firstInPassage}
+		>
+			<hr class="doc-column-rule" />
+			<button
+				type="button"
+				class="doc-selector doc-selector-column"
+				class:active={activeDocColumnId === block.id}
+				title="Select Column"
+				aria-label="Select Column"
+				aria-pressed={activeDocColumnId === block.id}
+				onclick={(e) => {
+					e.stopPropagation();
+					selectColumn(block.id);
+				}}
+			></button>
+		</div>
 	{:else if block.type === 'section-start'}
-		<!-- Section divider: a plain horizontal rule. Suppressed for the first
-		     section of a column, which already sits at the top of the column's
-		     fresh page (no rule needed there). -->
-		{#if !block.firstInColumn}
+		<!-- Section divider: a plain horizontal rule shown above EVERY section,
+		     including the first one in a column (which sits at the top of the
+		     column's fresh page). The first-in-column rule drops its top margin
+		     (see .doc-section-marker.first .doc-section-rule) so the column's
+		     content still starts flush with the left-margin selectors. The circular
+		     SELECTOR button rides in the page's left margin (absolutely positioned),
+		     mirroring the Analyze view's ToolbarSection control so the Markup menu's
+		     Split/Join Section buttons can act on this section. Screen-only — hidden
+		     in print. -->
+		<div class="doc-section-marker" class:first={block.firstInColumn}>
 			<hr class="doc-section-rule" />
-		{/if}
+			<button
+				type="button"
+				class="doc-selector doc-selector-section"
+				class:first={block.firstInColumn}
+				class:active={activeDocSectionId === block.id}
+				title="Select Section"
+				aria-label="Select Section"
+				aria-pressed={activeDocSectionId === block.id}
+				onclick={(e) => {
+					e.stopPropagation();
+					selectSection(block.id);
+				}}
+			></button>
+		</div>
 	{:else if block.type === 'aside'}
+
 		<!-- Editorial commentary: segment-level (columns/sections no longer carry
 		     their own commentary). Rendered as flowing body text directly beneath
 		     the segment text it comments on, NOT as a boxed callout. Footnotes and
@@ -1841,16 +2022,20 @@
 		{#if block.headingOne || pendingHeadings.has(pendingKey(block.id, 'one'))}
 			<h3
 				class="doc-heading doc-heading-one doc-heading-editable"
-				class:active={activeDocSegmentId === block.id}
+				class:doc-first-in-column={block.firstInColumn}
 				data-doc-heading="{block.id}|one"
+
+
 				contenteditable="true"
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
-				onfocus={() => activateSegment(block.id)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'one')}
+
+
 				onkeydown={(e) => handleHeadingKeydown(e, block.headingOne ?? '')}
 			>{block.headingOne ?? ''}</h3>
+
 			{#if block.headingOneCommentary}
 				{@render commentaryContent(block.headingOneCommentary, 'heading-one')}
 			{/if}
@@ -1858,16 +2043,20 @@
 		{#if block.headingTwo || pendingHeadings.has(pendingKey(block.id, 'two'))}
 			<h4
 				class="doc-heading doc-heading-two doc-heading-editable"
-				class:active={activeDocSegmentId === block.id}
+				class:doc-first-in-column={block.firstInColumn}
 				data-doc-heading="{block.id}|two"
+
+
 				contenteditable="true"
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
-				onfocus={() => activateSegment(block.id)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'two')}
+
+
 				onkeydown={(e) => handleHeadingKeydown(e, block.headingTwo ?? '')}
 			>{block.headingTwo ?? ''}</h4>
+
 			{#if block.headingTwoCommentary}
 				{@render commentaryContent(block.headingTwoCommentary, 'heading-two')}
 			{/if}
@@ -1875,16 +2064,20 @@
 		{#if block.headingThree || pendingHeadings.has(pendingKey(block.id, 'three'))}
 			<h5
 				class="doc-heading doc-heading-three doc-heading-editable"
-				class:active={activeDocSegmentId === block.id}
+				class:doc-first-in-column={block.firstInColumn}
 				data-doc-heading="{block.id}|three"
+
+
 				contenteditable="true"
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
-				onfocus={() => activateSegment(block.id)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'three')}
+
+
 				onkeydown={(e) => handleHeadingKeydown(e, block.headingThree ?? '')}
 			>{block.headingThree ?? ''}</h5>
+
 			{#if block.headingThreeCommentary}
 				{@render commentaryContent(block.headingThreeCommentary, 'heading-three')}
 			{/if}
@@ -2442,60 +2635,95 @@
 		margin: 3.6rem 0 0.6rem;
 	}
 
+	/* First heading of a COLUMN's first segment sits at the very top of the
+	   column's fresh page, where the left-margin Column/Section selectors are
+	   anchored (against the zero-height column-break / first-section markers at
+	   y = 0). Its default 3.6rem top margin would push the heading ~3.6rem below
+	   that selector pair, leaving the selectors floating above the text. Zero it so
+	   the column's content top lines up flush with the selectors — the fresh page
+	   already provides all the separation a leading gap would. */
+	.doc-heading.doc-first-in-column {
+		margin-top: 0;
+	}
 
-	/* Heading One — 1.8rem bold. Flush left as the top of the hierarchy. */
+
+
+	/* Heading One — 1.8rem bold. Flush left as the top of the hierarchy. The
+	   -0.4rem left margin folds in the editable affordance's left inset so the
+	   hover/focus border breathes 0.4rem to the left while the TEXT still aligns to
+	   the page's left edge (matching the segment text below). */
 	.doc-heading-one {
 		font-size: 1.8rem;
 		font-weight: 700;
 		line-height: 1.5;
-		margin-left: 0;
+		margin-left: -0.4rem;
 	}
 
-	/* Heading Two — 1.6rem bold. Indented one level to sit beneath Heading One. */
+	/* Heading Two — 1.6rem bold. Indented one level to sit beneath Heading One
+	   (1.6rem indent − 0.4rem editable inset = 1.2rem). */
 	.doc-heading-two {
 		font-size: 1.6rem;
 		font-weight: 700;
 		line-height: 1.5;
-		margin-left: 1.6rem;
+		margin-left: 1.2rem;
 	}
 
-	/* Heading Three — 1.4rem bold. Indented a further level beneath Heading Two. */
+	/* Heading Three — 1.4rem bold. Indented a further level beneath Heading Two
+	   (3.2rem indent − 0.4rem editable inset = 2.8rem). */
 	.doc-heading-three {
 		font-size: 1.4rem;
 		font-weight: 700;
 		line-height: 1.5;
-		margin-left: 3.2rem;
+		margin-left: 2.8rem;
 	}
 
-
 	/* ============================================
+
 	   EDITABLE HEADINGS — Heading One/Two/Three are contenteditable in the document.
 	   --------------------------------------------
-	   The affordance for editability mirrors the Analyze view's HeadingEditor: a
-	   dashed lower border appears on hover (and on focus while editing) to signal
-	   "click to type here" without adding visual weight at rest. A transparent
-	   bottom border is reserved at rest so the dashed line on hover/focus doesn't
-	   shift the heading's layout. The caret + outline are tuned so the contenteditable
-	   reads as inline editable text, not a form field. These affordances are
-	   screen-only — they're stripped in print so the exported document is clean. */
+	   The affordance for editability mirrors the editable SEGMENT TEXT: a quiet
+	   light-blue border appears on hover to signal "click to type here", and a
+	   stronger solid-blue border marks the heading while it's focused (actively
+	   being edited) — the heading's equivalent of a "selected" segment. A
+	   transparent border is reserved at rest, with a small negative inset + matching
+	   padding, so the highlight breathes around the heading on hover/focus without
+	   shifting the surrounding layout. The caret + outline are tuned so the
+	   contenteditable reads as inline editable text, not a form field. These
+	   affordances are screen-only — they're stripped in print so the exported
+	   document is clean. */
 	.doc-heading-editable {
 		cursor: text;
-		border-bottom: 0.1rem dashed transparent;
+		border-radius: 0.3rem;
+		padding: 0.2rem 0.4rem;
+		/* Only the RIGHT inset is set here (via the longhand) so this rule — which
+		   cascades after the per-level rules — never clobbers each heading's
+		   margin-left indent or the .doc-heading margin-top. The matching LEFT inset
+		   is folded into each level's own margin-left (see .doc-heading-one/two/three),
+		   so the border breathes 0.4rem on each side while the text stays aligned. */
+		margin-right: -0.4rem;
+		/* Transparent border by default so the focused-state blue border can appear
+		   without shifting the surrounding layout. */
+		border: 0.1rem solid transparent;
 		outline: none;
 		transition: border-color 0.15s ease;
 	}
 
-	/* Hover / focus reveal the dashed lower border (the editability hint). */
-	.doc-heading-editable:hover,
-	.doc-heading-editable:focus {
-		border-bottom-color: var(--gray-500);
+
+	/* Hover hint — a light-blue border signals the heading text is editable,
+	   mirroring the segment text's hover affordance. */
+	.doc-heading-editable:hover {
+		border-color: var(--blue-light);
 	}
 
-	/* While focused (actively editing), the dashed line darkens for a clear
-	   "you are here" cue. */
+	/* Focused (actively editing) — a solid blue border marks the heading being
+
+	   edited, mirroring the selected segment. Overrides hover so the focus state
+	   stays clear even while hovered. */
 	.doc-heading-editable:focus {
-		border-bottom-color: var(--gray-300);
+		border-color: var(--blue);
 	}
+
+
 
 	/* Empty heading (just inserted, no text yet) shows a faint placeholder so the
 	   caret has something to anchor against and the author knows what they're typing. */
@@ -2540,8 +2768,9 @@
 	   numbered list directly below (see .doc-footnotes).
 	   ============================================ */
 	.doc-commentary {
-		margin: 0.6rem 0 0;
+		margin: 0.6rem 0 1.2rem;
 	}
+
 
 	.doc-commentary-body {
 		font-size: 1.2rem;
@@ -2657,14 +2886,19 @@
 		color: var(--black);
 	}
 
-	/* Passage reference — bold 1.6rem, opens each passage block (docx sz32). */
+	/* Passage reference — bold 1.6rem, opens each passage block (docx sz32). The
+	   bottom margin opens a small gap between the passage ref and the first column's
+	   horizontal rule that immediately follows it (that rule's top margin is zeroed
+	   for the first column, so this provides the separation). */
 	.doc-passage-ref {
 		font-size: 2.0rem;
 		font-weight: 700;
 		line-height: 1.5;
 		margin-top: 0;
-		margin-bottom: 0.0rem;
+		margin-bottom: 2.4rem;
 	}
+
+
 
 	/* ============================================
 	   STRUCTURAL DIVISIONS — Column / Section / Segment
@@ -2679,14 +2913,30 @@
 	     • Segment  → 36px of vertical space (.doc-segment-space).
 	   ============================================ */
 
-	/* Column break marker — an invisible, zero-height element whose only job is to
-	   carry the page-break class so the print/PDF paginator breaks before a new
-	   column. On screen the JS paginator handles the break (forcesBreak), so this
-	   contributes no visible box. */
+	/* Column break marker — carries the page-break class so the print/PDF paginator
+	   breaks before a new column, AND introduces the column with a horizontal rule
+	   (like sections). On screen the JS paginator handles the page break
+	   (forcesBreak); the rule provides the visible division. */
 	.doc-column-break {
-		height: 0;
 		margin: 0;
 		padding: 0;
+	}
+
+	/* Column rule — a plain full-measure horizontal line introducing each column.
+	   Shares the exact same styling as the section rule. */
+	.doc-column-rule {
+		border: none;
+		border-top: 0.1rem solid var(--gray-700);
+		margin: 2.7rem 0;
+	}
+
+
+	/* First column of a passage: its rule sits at the very top of the passage's
+	   page (under the passage ref), where the left-margin Column/Section selectors
+	   are anchored. Zero the rule's top margin so the rule — and the content beneath
+	   it — starts flush with the selector pair. */
+	.doc-column-break.first .doc-column-rule {
+		margin-top: 0;
 	}
 
 	/* Section rule — a plain full-measure horizontal line separating sections,
@@ -2697,6 +2947,18 @@
 		margin: 2.7rem 0;
 	}
 
+
+	/* First section of a column: its rule sits at the very top of the column's
+	   fresh page, where the left-margin Column/Section selectors are anchored. The
+	   default 2.7rem top margin would push the rule (and the column's content) down
+	   below those selectors; zero it so the rule — and the content beneath it —
+	   starts flush with the selector pair. The bottom margin is kept so the first
+	   segment's heading/text still clears the rule. */
+	.doc-section-marker.first .doc-section-rule {
+		margin-top: 0;
+	}
+
+
 	/* Segment space — a fixed 36px (3.6rem) vertical gap before each segment
 	   (except the first in its section). A plain spacer div rather than a margin so
 	   the gap is deterministic and unaffected by margin collapsing in either the
@@ -2704,6 +2966,80 @@
 	.doc-segment-space {
 		height: 3.6rem;
 	}
+
+	/* ============================================
+	   STRUCTURAL SELECTORS — left-margin Column / Section selection buttons.
+	   --------------------------------------------
+	   Mirror the Analyze view's ToolbarColumn (rounded-square "checkbox") and
+	   ToolbarSection (circular "radio") controls, but rendered in the Document page's
+	   1" left margin. Each is absolutely positioned against its (relatively
+	   positioned) marker so it occupies NO layout space — pagination height is
+	   unaffected. The Document view is intentionally monochrome, so both selectors
+	   use a darker gray (rather than the per-section colors used on Analyze).
+	   Screen-only — stripped in print.
+	   ============================================ */
+
+	/* The zero-height column-break and the section marker each anchor their selector
+	   button: position:relative makes them the button's offset parent without adding
+	   any box of their own. */
+	.doc-column-break,
+	.doc-section-marker {
+		position: relative;
+	}
+
+	/* Shared selector look — a 2rem control sitting in the left margin, 2.9rem left
+	   of the page's content edge (clearing the text by ~0.9rem). The fill is clipped
+	   to the content box so the inner padding leaves a gap between the filled center
+	   and the outline when active (radio/checkbox style). */
+	.doc-selector {
+		box-sizing: border-box;
+		position: absolute;
+		left: -2.9rem;
+		width: 2rem;
+		height: 2rem;
+		padding: 0.3rem;
+		border: 0.1rem solid var(--gray-400);
+		background-color: transparent;
+		background-clip: content-box;
+		cursor: pointer;
+		outline: 0;
+		z-index: 2;
+		transition: background-color 80ms ease-in-out;
+	}
+
+	.doc-selector:hover {
+		background-color: var(--gray-600);
+	}
+
+	.doc-selector.active,
+	.doc-selector.active:hover {
+		background-color: var(--gray-400);
+	}
+
+	.doc-selector:focus-visible {
+		outline: 0.2rem solid var(--gray-400);
+		outline-offset: 0.2rem;
+	}
+
+	/* Column selector — rounded square (checkbox style), vertically centered on its
+	   column rule, exactly as the circular section selector centers on its section
+	   rule, so the button sits right beside the hr it controls. */
+	.doc-selector-column {
+		border-radius: 0.4rem;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+
+	/* Section selector — a circle (radio style), vertically centered on its section
+	   rule. For the first section of a column (no rule) the marker has zero height,
+	   so it centers at the column's content top instead. */
+	.doc-selector-section {
+		border-radius: 50%;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
 
 
 
@@ -2952,16 +3288,20 @@
 			border-color: var(--gray-400);
 		}
 
-		/* The editing affordances (segment-text hover/selected highlight and the
-		   heading's dashed editability border + placeholder) are screen-only UI —
-		   strip them so the printed / exported document reads as clean prose. */
+		/* The editing affordances (segment-text and heading hover/selected
+		   highlight + the heading placeholder) are screen-only UI — strip them so
+		   the printed / exported document reads as clean prose. */
 		.passage-text-editable,
-		.passage-text-editable.active {
+		.passage-text-editable.active,
+		.doc-heading-editable,
+		.doc-heading-editable:hover,
+		.doc-heading-editable:focus {
 			background-color: transparent;
 			border-color: transparent;
 			padding: 0;
 			margin: 0;
 		}
+
 
 		/* Word selection is a screen-only authoring affordance — strip the per-word
 		   highlight and the hover/selected carets so the printed / exported document
@@ -2977,13 +3317,19 @@
 
 
 
-		.doc-heading-editable {
-			border-bottom-color: transparent;
-		}
-
 		.doc-heading-editable:empty::before {
 			content: none;
 		}
+
+
+		/* The left-margin Column / Section selector buttons are screen-only authoring
+
+		   controls — remove them entirely so the printed / exported document is clean. */
+		.doc-selector {
+			display: none;
+		}
+
+
 
 		/* FORCED PAGE BREAKS — passages (after the first) and columns (after the
 		   first in their passage) each open on a fresh sheet. On screen the JS
