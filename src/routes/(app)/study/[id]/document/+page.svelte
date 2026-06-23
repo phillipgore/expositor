@@ -5,6 +5,8 @@
 
 	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import GlossaryBadge from '$lib/componentElements/GlossaryBadge.svelte';
+	import DocumentCommentaryToolbar from '$lib/componentWidgets/DocumentCommentaryToolbar.svelte';
+	import DocumentCommentaryEditor from '$lib/componentWidgets/DocumentCommentaryEditor.svelte';
 
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
@@ -430,6 +432,15 @@
 					const headingsByType = { one: null, two: null, three: null };
 					for (const h of segment.headings ?? []) headingsByType[h.headingType] = h;
 
+					// Heading row ids so the document can route per-heading commentary
+					// edits to the right passage_heading record (the commentary editor
+					// PATCHes /api/passages/headings/:id).
+					const headingIdByType = {
+						one: headingsByType.one?.id ?? null,
+						two: headingsByType.two?.id ?? null,
+						three: headingsByType.three?.id ?? null
+					};
+
 					blocks.push({
 						type: 'segment',
 						key: segment.id,
@@ -457,6 +468,12 @@
 						headingOneCommentary: showHeadings && showCommentaries ? headingsByType.one?.commentary ?? null : null,
 						headingTwoCommentary: showHeadings && showCommentaries ? headingsByType.two?.commentary ?? null : null,
 						headingThreeCommentary: showHeadings && showCommentaries ? headingsByType.three?.commentary ?? null : null,
+						// Heading row ids — the per-heading commentary editor PATCHes
+						// /api/passages/headings/:id, so the template needs the id of the
+						// passage_heading row backing each heading's commentary.
+						headingOneId: headingIdByType.one,
+						headingTwoId: headingIdByType.two,
+						headingThreeId: headingIdByType.three,
 						ref: segmentRef,
 
 						// Quick note (plain text) authored on the segment — carried through so the
@@ -478,6 +495,9 @@
 							scope: 'segment',
 							key: `seg-com-${segment.id}`,
 							ref: segmentRef,
+							// The segment id backs this commentary's inline editor (PATCHes
+							// /api/segments/:id) when the section is made editable.
+							subjectId: segment.id,
 							html: segment.commentary
 						});
 					}
@@ -1199,6 +1219,46 @@
 	let activeDocColumnId = $state(/** @type {string | null} */ (null));
 	let activeDocSectionId = $state(/** @type {string | null} */ (null));
 
+	/* ============================================================
+	   IN-PLACE COMMENTARY EDITING — clicking any commentary section (segment-level
+	   commentary, a heading's commentary, or a connection's commentary) "activates"
+	   it: the static read-only render is swapped for an inline Tiptap editor, and the
+	   universal commentary toolbar at the top of the page (DocumentCommentaryToolbar)
+	   drives that editor via the commentaryToolbar bus. At most ONE commentary section
+	   is editable at a time — activating another (or clicking away / Escape) saves and
+	   tears down the previous one. The active section is identified by a stable key of
+	   `subjectType:subjectId` so the same id can't collide across the three subject
+	   kinds (segment / heading / connection).
+	   ============================================================ */
+	let activeCommentaryKey = $state(/** @type {string | null} */ (null));
+
+	/** @param {string} type @param {string} id */
+	const commentaryKey = (type, id) => `${type}:${id}`;
+	/** @param {string} type @param {string} id */
+	const isActiveCommentary = (type, id) => activeCommentaryKey === commentaryKey(type, id);
+
+	/**
+	 * Make a commentary section editable. Setting the key deactivates whatever was
+	 * previously active (its editor flushes + saves on teardown), so only one editor
+	 * is ever mounted. No-op if the section is already active (idempotent click).
+	 * @param {string} type @param {string} id
+	 */
+	function activateCommentary(type, id) {
+		if (!id) return;
+		activeCommentaryKey = commentaryKey(type, id);
+	}
+
+	/** Drop the active commentary section (click-away / Escape), tearing down its editor. */
+	function clearActiveCommentary() {
+		activeCommentaryKey = null;
+	}
+
+	/** Re-load the study after a commentary save so the document re-paginates. */
+	function handleCommentarySaved() {
+		invalidate('app:studies');
+	}
+
+
 
 	// Per-(segment, headingType) "newly inserted, awaiting first input" flags. When a
 	// heading is inserted from the Markup menu it has no stored text yet, so the
@@ -1713,9 +1773,24 @@
 		if (typeof window === 'undefined') return;
 
 		const onDocPointerDown = (event) => {
-			// Nothing selected (segment OR structural column/section) → nothing to clear.
-			if (!activeDocSegmentId && !activeDocColumnId && !activeDocSectionId) return;
 			const target = /** @type {Element | null} */ (event.target);
+
+			// COMMENTARY: a pointerdown outside the active commentary section AND outside
+			// the universal commentary toolbar (and its popovers) deactivates the editor,
+			// flushing/saving its edits. Clicks INSIDE the editable section or the toolbar
+			// keep it active so the user can type and run toolbar commands.
+			if (activeCommentaryKey) {
+				if (
+					!target?.closest?.(
+						'.doc-commentary-editable, .doc-commentary-toolbar, .link-popover, .glossary-picker, [class*="popover"]'
+					)
+				) {
+					clearActiveCommentary();
+				}
+			}
+
+			// Nothing selected (segment OR structural column/section) → nothing more to clear.
+			if (!activeDocSegmentId && !activeDocColumnId && !activeDocSectionId) return;
 			if (
 				target?.closest?.(
 					'.passage-text-editable, .doc-heading-editable, .doc-selector, .toolbar, [class*="toolbar"], [class*="menu"]'
@@ -1727,11 +1802,12 @@
 			clearStructuralSelection();
 		};
 
-		// Escape clears the active segment, any word selection, AND any structural
-		// (column/section) selection, mirroring Analyze.
+		// Escape clears the active segment, any word selection, the active commentary
+		// editor, AND any structural (column/section) selection, mirroring Analyze.
 		const onKeyDown = (event) => {
 			if (event.key === 'Escape') {
 				hoveredWord = null;
+				clearActiveCommentary();
 				clearActiveSegment();
 				clearStructuralSelection();
 			}
@@ -1814,21 +1890,52 @@
      list, and reflects any inline glossary terms as a read-only tags strip —
      identical treatment everywhere commentary appears. `scope` is appended as a
      modifier class so callers can tune spacing per context. -->
-{#snippet commentaryContent(html, scope)}
-	{@const rendered = renderCommentaryWithFootnotes(html)}
-	<div class="doc-commentary doc-commentary-{scope}">
-		<div class="doc-commentary-body">{@html rendered.html}</div>
-		{#if rendered.footnotes.length > 0}
-			<ol class="doc-footnotes">
-				{#each rendered.footnotes as footnote (footnote.number)}
-					<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
-				{/each}
-			</ol>
-		{/if}
-		<!-- Glossary terms used inline here are no longer reflected per-commentary;
-		     they are collected into a single universal "Tags" section at the end of
-		     the document (see the tags flow item / tagsContent snippet). -->
-	</div>
+{#snippet commentaryContent(html, scope, interactive = false, subjectType = null, subjectId = null)}
+	{#if interactive && subjectId}
+		<!-- INTERACTIVE (visible pages only): clicking the section makes it editable;
+		     the universal toolbar at the top of the page then drives its inline editor.
+		     A light-blue hover border + solid-blue active border match the segment /
+		     heading affordances. Only the visible pages pass interactive=true — the
+		     off-screen measure layer renders the static branch below so it never mounts
+		     a second editor for the same subject. -->
+		<div
+			class="doc-commentary doc-commentary-{scope} doc-commentary-editable"
+			class:active={isActiveCommentary(subjectType, subjectId)}
+			role="button"
+			tabindex="0"
+			onclick={() => activateCommentary(subjectType, subjectId)}
+			onkeydown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					activateCommentary(subjectType, subjectId);
+				}
+			}}
+		>
+			<DocumentCommentaryEditor
+				{subjectType}
+				{subjectId}
+				content={html}
+				active={isActiveCommentary(subjectType, subjectId)}
+				{scope}
+				onSaved={handleCommentarySaved}
+			/>
+		</div>
+	{:else}
+		{@const rendered = renderCommentaryWithFootnotes(html)}
+		<div class="doc-commentary doc-commentary-{scope}">
+			<div class="doc-commentary-body">{@html rendered.html}</div>
+			{#if rendered.footnotes.length > 0}
+				<ol class="doc-footnotes">
+					{#each rendered.footnotes as footnote (footnote.number)}
+						<li class="doc-footnote" value={footnote.number}>{footnote.content}</li>
+					{/each}
+				</ol>
+			{/if}
+			<!-- Glossary terms used inline here are no longer reflected per-commentary;
+			     they are collected into a single universal "Tags" section at the end of
+			     the document (see the tags flow item / tagsContent snippet). -->
+		</div>
+	{/if}
 {/snippet}
 
 
@@ -1836,7 +1943,7 @@
      fromRef → toRef" label, its quick note, and its commentary (with footnotes).
      Glossary terms used inline are collected into the universal "Tags" section at
      the end of the document. Shared by the end-of-document Connections appendix. -->
-{#snippet connectionCard(conn)}
+{#snippet connectionCard(conn, interactive = false)}
 	<div class="doc-connection doc-connection-appendix">
 
 		<p class="doc-ref-line doc-connection-ref">
@@ -1861,7 +1968,36 @@
 		{#if conn.note}
 			<p class="doc-connection-note">{conn.note}</p>
 		{/if}
-		{#if conn.commentary}
+		{#if interactive}
+			<!-- Connection commentary is click-to-edit on the visible pages: clicking it
+			     mounts the inline editor (PATCHes /api/segments/connections/:id) driven by
+			     the universal toolbar. The measure layer passes interactive=false so it
+			     renders the static branch below. -->
+			<div
+				class="doc-connection-commentary-editable doc-commentary-editable"
+				class:active={isActiveCommentary('connection', conn.key)}
+				role="button"
+				tabindex="0"
+				onclick={() => activateCommentary('connection', conn.key)}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						activateCommentary('connection', conn.key);
+					}
+				}}
+			>
+				<DocumentCommentaryEditor
+					subjectType="connection"
+					subjectId={conn.key}
+					content={conn.commentary ?? ''}
+					active={isActiveCommentary('connection', conn.key)}
+					scope="connection"
+					variant="connection"
+					placeholder="Add connection commentary"
+					onSaved={handleCommentarySaved}
+				/>
+			</div>
+		{:else if conn.commentary}
 			<!-- Connection commentary carries footnotes too; surface them the
 			     same way as the commentary above. -->
 			{@const connRendered = renderCommentaryWithFootnotes(conn.commentary)}
@@ -1895,7 +2031,7 @@
 {/snippet}
 
 
-{#snippet blockContent(block)}
+{#snippet blockContent(block, interactive = false)}
 
 	{#if block.type === 'column-start'}
 
@@ -1962,8 +2098,10 @@
 		<!-- Editorial commentary: segment-level (columns/sections no longer carry
 		     their own commentary). Rendered as flowing body text directly beneath
 		     the segment text it comments on, NOT as a boxed callout. Footnotes and
-		     glossary tags are surfaced by the shared commentaryContent snippet. -->
-		{@render commentaryContent(block.html, block.scope)}
+		     glossary tags are surfaced by the shared commentaryContent snippet. On the
+		     visible pages it is click-to-edit (interactive); the measure layer renders
+		     the static read-only branch. -->
+		{@render commentaryContent(block.html, block.scope, interactive, 'segment', block.subjectId)}
 	{:else if block.type === 'connections'}
 
 		<!-- Connections group: links this item makes to others, shown once at the
@@ -2037,7 +2175,7 @@
 			>{block.headingOne ?? ''}</h3>
 
 			{#if block.headingOneCommentary}
-				{@render commentaryContent(block.headingOneCommentary, 'heading-one')}
+				{@render commentaryContent(block.headingOneCommentary, 'heading-one', interactive, 'heading', block.headingOneId)}
 			{/if}
 		{/if}
 		{#if block.headingTwo || pendingHeadings.has(pendingKey(block.id, 'two'))}
@@ -2058,7 +2196,7 @@
 			>{block.headingTwo ?? ''}</h4>
 
 			{#if block.headingTwoCommentary}
-				{@render commentaryContent(block.headingTwoCommentary, 'heading-two')}
+				{@render commentaryContent(block.headingTwoCommentary, 'heading-two', interactive, 'heading', block.headingTwoId)}
 			{/if}
 		{/if}
 		{#if block.headingThree || pendingHeadings.has(pendingKey(block.id, 'three'))}
@@ -2079,7 +2217,7 @@
 			>{block.headingThree ?? ''}</h5>
 
 			{#if block.headingThreeCommentary}
-				{@render commentaryContent(block.headingThreeCommentary, 'heading-three')}
+				{@render commentaryContent(block.headingThreeCommentary, 'heading-three', interactive, 'heading', block.headingThreeId)}
 			{/if}
 		{/if}
 		<!-- Clicking the segment text activates this segment so the Markup menu can
@@ -2112,7 +2250,7 @@
 
 <!-- Render a single flow item by kind. Used by both the measure layer and the
      visible pages so they render identically. -->
-{#snippet flowItemContent(item)}
+{#snippet flowItemContent(item, interactive = false)}
 	{#if item.kind === 'header'}
 		{@render headerContent()}
 	{:else if item.kind === 'passage-ref'}
@@ -2124,7 +2262,7 @@
 			<span class="doc-ref-label">Passage:</span> {item.reference}
 		</p>
 	{:else if item.kind === 'block'}
-		{@render blockContent(item.block)}
+		{@render blockContent(item.block, interactive)}
 	{:else if item.kind === 'fallback-text'}
 		<!-- Fallback: a passage with no usable structure renders whole, so text
 		     is never lost (legacy/edge studies). -->
@@ -2140,7 +2278,7 @@
 	{:else if item.kind === 'connection'}
 		<!-- One connection card in the appendix, rendered via the shared snippet so
 		     it matches the inline treatment connections used to have. -->
-		{@render connectionCard(item.connection)}
+		{@render connectionCard(item.connection, interactive)}
 	{:else if item.kind === 'tags'}
 		<!-- Universal Tags section — every glossary term used study-wide,
 		     consolidated at the end of the document (after Connections, before the
@@ -2158,6 +2296,12 @@
      placed on the gutter (which wraps BOTH the off-screen measure layer and the visible
      pages) so measurement and render stay in lock-step — pagination sees the same
      hidden markers the pages do. -->
+<!-- The Document view is a vertical stack: the universal commentary toolbar pinned
+     just below the app's main toolbar, then the scrollable page gutter beneath it.
+     The toolbar drives whichever commentary section is currently editable (via the
+     commentaryToolbar bus) and is disabled when none is. -->
+<div class="document-view">
+<DocumentCommentaryToolbar />
 <div
 	class="document-gutter"
 	class:hide-verses={!$toolbarState.documentVersesVisible}
@@ -2198,7 +2342,7 @@
 					<div class="page">
 						{#each pageIndices as idx (flowItems[idx].id)}
 							<div class="doc-flow-item">
-								{@render flowItemContent(flowItems[idx])}
+								{@render flowItemContent(flowItems[idx], true)}
 							</div>
 						{/each}
 					</div>
@@ -2227,6 +2371,7 @@
 			<p class="placeholder-text">No passages available for this study.</p>
 		</div>
 	{/if}
+</div>
 </div>
 
 
@@ -2259,6 +2404,17 @@
 	}
 
 
+	/* The Document view stacks the universal commentary toolbar above the scrollable
+	   page gutter. It fills the content area so the gutter can scroll independently
+	   beneath the pinned toolbar. */
+	.document-view {
+		display: flex;
+		flex-direction: column;
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow: hidden;
+	}
+
 	/* The gutter is the gray surface the pages float on (Google Docs style). It
 	   fills the scroll container and centers the page column horizontally. */
 	.document-gutter {
@@ -2266,10 +2422,42 @@
 		flex-direction: column;
 		align-items: center;
 		gap: var(--page-gap);
-		flex: 1 0 auto;
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
 		padding: var(--page-gap) var(--page-gap) 6rem;
 		background-color: var(--gray-900);
 	}
+
+	/* ============================================
+	   EDITABLE COMMENTARY — clicking a commentary section makes it editable; the
+	   universal toolbar at the top of the page then drives it. The affordance
+	   mirrors the editable segment text / headings: a quiet light-blue border on
+	   hover signals "click to edit", and a solid-blue border marks the section while
+	   it's active (being edited). A transparent border is reserved at rest so the
+	   border can appear without shifting the surrounding layout. Screen-only — these
+	   affordances are stripped in print.
+	   ============================================ */
+	.doc-commentary-editable {
+		cursor: pointer;
+		border-radius: 0.3rem;
+		padding: 0.4rem 0.6rem;
+		margin-left: -0.6rem;
+		margin-right: -0.6rem;
+		border: 0.1rem solid transparent;
+		transition: border-color 0.15s ease;
+	}
+
+	.doc-commentary-editable:hover {
+		border-color: var(--blue-light);
+	}
+
+	.doc-commentary-editable.active,
+	.doc-commentary-editable.active:hover {
+		border-color: var(--blue);
+		cursor: text;
+	}
+
 
 	/* A single physical page: fixed Letter width and height (the paginator packs a
 	   bounded set of flow items onto each), white surface, 1" padding for the
