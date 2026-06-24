@@ -49,6 +49,23 @@
 	// cursor moves, not just when document content changes.
 	let editorState = $state(0);
 
+	// Coalesced, DEFERRED bump of `editorState`. Tiptap emits onSelectionUpdate /
+	// onTransaction SYNCHRONOUSLY — including from a blur that dispatches a
+	// transaction — which can fire WHILE Svelte is flushing a render that reads
+	// `editorState` (the toolbar's isActive proxy). Mutating reactive state during
+	// that flush throws `state_unsafe_mutation`, so we queue the increment onto a
+	// microtask and collapse multiple bumps in the same tick into one.
+	let editorStateBumpScheduled = false;
+	function bumpEditorState() {
+		if (editorStateBumpScheduled) return;
+		editorStateBumpScheduled = true;
+		queueMicrotask(() => {
+			editorStateBumpScheduled = false;
+			editorState++;
+		});
+	}
+
+
 	// Lists dropdown (Bullet / Numbered) state
 	let showListsMenu = $state(false);
 	let listsMenuElement = $state(null);
@@ -145,13 +162,19 @@
 				onUpdate(html);
 			},
 			// Bump the reactive counter so toolbar active states re-evaluate as the
-			// selection moves or any transaction is applied.
+			// selection moves or any transaction is applied. Deferred to a microtask:
+			// Tiptap fires these SYNCHRONOUSLY (e.g. a blur dispatches a transaction)
+			// and that can land WHILE Svelte is flushing a render that reads
+			// `editorState` (via the toolbar's isActive proxy). Writing the $state
+			// straight away would mutate reactive state mid-render and throw
+			// `state_unsafe_mutation`; queuing it lets the current flush finish first.
 			onSelectionUpdate: () => {
-				editorState++;
+				bumpEditorState();
 			},
 			onTransaction: () => {
-				editorState++;
+				bumpEditorState();
 			},
+
 			autofocus: 'end'
 		});
 	});

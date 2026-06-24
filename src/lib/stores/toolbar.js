@@ -112,8 +112,11 @@ async function persistPreference(updates) {
  * @property {boolean} documentVersesVisible - (Document view) Whether verse notations are visible
  * @property {boolean} documentParagraphBreaksVisible - (Document view) Whether paragraph break markers are visible
  * @property {boolean} documentCommentariesVisible - (Document view) Whether commentaries are shown in the document (NOT the commentary editor slide-out)
+ * @property {boolean} documentCommentaryEditorOpen - (Document view) Whether an inline commentary editor is currently open/active (drives the Comment toolbar button's highlight + lets it toggle the editor closed)
+
 
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
+
 
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
@@ -228,7 +231,16 @@ const defaultState = {
 	documentVersesVisible: false,
 	documentParagraphBreaksVisible: false,
 	documentCommentariesVisible: true,
+	// Document view: whether an inline commentary editor is currently open/active.
+	// Session-only (NOT persisted). The Comment toolbar button on the Document view
+	// reflects this as its highlight and, when an editor is open, toggling it closes
+	// the editor; when one is selected-but-empty it opens that item's editor. (On the
+	// Analyze view the Comment button drives the slide-out — commentaryPanelOpen —
+	// instead.) The document page owns the actual editor lifecycle and pushes this flag.
+	documentCommentaryEditorOpen: false,
 	analyzeZoomLevel: 100,
+
+
 	documentZoomLevel: 100,
 
 	selectedItem: null,
@@ -486,14 +498,17 @@ export function updateToolbarForRoute(pathname) {
 
 				canToggleHeadings: true,
 				canToggleNotes: true,
-				// Comment button = the commentary editor slide-out, which is an ANALYZE-ONLY
-				// authoring affordance. Enabled only on the Analyze view; on the Document
-				// view the slide-out is always hidden and its button is DISABLED (the
-				// read-only document has nothing to author). NOTE: this gates the slide-out
-				// button specifically — the Document view's separate "Commentary" toggle
-				// (which shows/hides commentary PROSE in the read-only document) lives in
-				// the View menu and is gated there on the view, not on this flag.
-				canToggleComment: isAnalyzeRoute,
+				// Comment button is an authoring affordance that drives a DIFFERENT thing
+				// on each study view (resolved in ToolbarApp):
+				//  - Analyze view → opens/closes the commentary editor slide-out
+				//    (commentaryPanelOpen). Always enabled here.
+				//  - Document view → opens the inline commentary editor for the currently
+				//    SELECTED commentary-capable item (a segment), or closes the open one.
+				//    So on Document it's enabled only when such an item is selected OR an
+				//    editor is already open (so the user can toggle it closed).
+				canToggleComment: isAnalyzeRoute || (isDocumentView && (state.hasActiveSegment || state.hasActiveHeading || state.hasActiveConnection || state.documentCommentaryEditorOpen)),
+
+
 
 				canToggleReferences: true,
 
@@ -1122,6 +1137,18 @@ export function toggleDocumentCommentaries() {
 	toolbarStateStore.update(state => ({ ...state, documentCommentariesVisible: newValue }));
 	persistPreference({ documentCommentariesVisible: newValue });
 }
+
+/**
+ * Reflect whether an inline commentary editor is currently open/active (Document
+ * view). The document page owns the editor lifecycle and calls this so the Comment
+ * toolbar button can highlight while an editor is open. Session-only, never persisted.
+ * @param {boolean} isOpen - Whether a commentary editor is currently open
+ */
+export function setDocumentCommentaryEditorOpen(isOpen) {
+	toolbarStateStore.update(s => ({ ...s, documentCommentaryEditorOpen: isOpen }));
+}
+
+
 
 /**
  * Toggle all connections visibility (Document view master toggle).

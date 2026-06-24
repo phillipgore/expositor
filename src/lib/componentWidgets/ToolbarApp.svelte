@@ -73,6 +73,8 @@
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
 	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleFocus, toggleHeadings, toggleConnections, toggleNotes, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview, toggleCommentary, setZoomLevel, setZoomMode } from '$lib/stores/toolbar.js';
+
+
 	import { invalidate } from '$app/navigation';
 
 	// Props to receive data from layout
@@ -212,15 +214,37 @@
 		toggleParagraphBreaks,
 		toggleWide,
 		toggleOverview,
-		toggleCommentary,
+		// View-aware Comment toggle: on the Analyze view it opens/closes the commentary
+		// editor slide-out; on the Document view it opens the inline commentary editor
+		// for the currently-selected item (or closes the open one). The same toolbar
+		// button, two behaviours, resolved here by the active view.
+		toggleCommentary: handleCommentToggle,
+
 		handleDelete: handleDeleteAction,
 		handleEdit: handleEditClick
 	};
 
 	/**
+	 * Dispatch the Comment toolbar button to the right action for the active view.
+	 * On the Document view the page owns the inline-editor lifecycle, so we just fire
+	 * an event it listens for (open the editor for the selected item, or close the
+	 * open one). On the Analyze view we drive the commentary editor slide-out.
+	 */
+	function handleCommentToggle() {
+		if (activeModeButton === 'document') {
+			window.dispatchEvent(new CustomEvent('document-toggle-commentary'));
+		} else {
+			toggleCommentary();
+		}
+	}
+
+
+
+	/**
 	 * Determine active button for mode switcher based on current route
 	 */
 	let activeModeButton = $derived.by(() => {
+
 		const pathname = $page.url.pathname;
 		if (pathname.includes('/study/') && !pathname.includes('/study-group')) {
 			if (pathname.endsWith('/analyze') || pathname.includes('/analyze/')) {
@@ -467,17 +491,37 @@
 						underLabel={button.underLabel}
 						classes={button.classes}
 						underLabelClasses={button.underLabelClasses}
-						isActive={button.activeStateProp ? $toolbarState[button.activeStateProp] : undefined}
+						isActive={
+							button.toggleHandler === 'toggleCommentary'
+								? (activeModeButton === 'document'
+										? $toolbarState.documentCommentaryEditorOpen
+										: $toolbarState.commentaryPanelOpen)
+
+								: button.activeStateProp
+									? $toolbarState[button.activeStateProp]
+									: undefined
+						}
 						onToggle={button.toggleHandler ? handlers[button.toggleHandler] : undefined}
+
 						isDisabled={
-							button.disabledCheck
-								? button.disabledCheck($toolbarState)
-								: button.disabledStateProp
-									? !$toolbarState[button.disabledStateProp]
-									: false
+							button.toggleHandler === 'toggleCommentary'
+								? (activeModeButton === 'document'
+										// Document view: enable as soon as a commentary-capable item
+										// (a segment) is selected, or whenever an editor is already open
+										// (so the button can toggle it closed). Read LIVE selection state
+										// here rather than the route-level `canToggleComment`, which is only
+										// recomputed on route changes — not when a segment is selected.
+										? !($toolbarState.hasActiveSegment || $toolbarState.hasActiveHeading || $toolbarState.hasActiveConnection || $toolbarState.documentCommentaryEditorOpen)
+										: !$toolbarState.canToggleComment)
+								: button.disabledCheck
+									? button.disabledCheck($toolbarState)
+									: button.disabledStateProp
+										? !$toolbarState[button.disabledStateProp]
+										: false
 						}
 					/>
 				{:else if button.type === 'grouped'}
+
 					<ButtonGrouped
 						buttons={button.buttons}
 						activeButton={activeModeButton}

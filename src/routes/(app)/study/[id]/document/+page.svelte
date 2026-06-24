@@ -16,8 +16,12 @@
 		setWordSelection,
 		setCanInsertColumn,
 		setActiveSection,
-		setActiveColumn
+		setActiveColumn,
+		setActiveHeading,
+		setActiveConnection,
+		setDocumentCommentaryEditorOpen
 	} from '$lib/stores/toolbar.js';
+
 
 
 
@@ -298,6 +302,15 @@
 		const showHeadings = view.headings !== false;
 		const showCommentaries = view.commentaries !== false;
 		const showPassageNotes = view.passageNotes !== false;
+		// Commentary-authoring: the user selects a commentary-capable item (a segment)
+		// that has no commentary yet and clicks the Comment toolbar button, which adds
+		// that segment's id to `revealedSegmentIds`. For each such id we emit an EMPTY,
+		// click-to-edit commentary slot beneath the segment so the inline editor can be
+		// opened and focused. (Only the selected item is revealed — never all of them.)
+		const revealedSegmentIds =
+			view.revealedSegmentIds instanceof Set ? view.revealedSegmentIds : new Set();
+
+
 
 
 		// Flatten segments first (reading order) so each segment's text slice can be
@@ -500,7 +513,25 @@
 							subjectId: segment.id,
 							html: segment.commentary
 						});
+					} else if (revealedSegmentIds.has(segment.id)) {
+						// Commentary-authoring: the user selected THIS segment (which has no
+						// commentary yet) and clicked the Comment toolbar button, so reveal an
+						// EMPTY aside as a click-to-edit slot. Rendered (and measured) in both
+						// layers; on the visible pages it mounts the inline editor showing the
+						// "Add commentary" placeholder, on the measure layer it renders a matching
+						// static placeholder so pagination stays in agreement. Only the selected
+						// segment is ever revealed — never every empty slot at once.
+						blocks.push({
+							type: 'aside',
+							scope: 'segment',
+							key: `seg-com-${segment.id}`,
+							ref: segmentRef,
+							subjectId: segment.id,
+							html: ''
+						});
 					}
+
+
 
 					// Connections are no longer emitted inline alongside the segment —
 					// they are collected into the end-of-document "Connections" appendix
@@ -848,6 +879,22 @@
 	// inside the passage HTML and are hidden via CSS classes on the gutter instead
 	// (both the measure layer and the visible pages inherit those classes, so
 	// measurement still matches what's rendered).
+	// Commentary-authoring: the set of segment ids the user has revealed an empty,
+	// click-to-edit commentary slot for (by selecting the segment and clicking the
+	// Comment toolbar button). Only these segments emit an empty aside — never every
+	// commentary-capable item at once. Threaded into the flow-item builders (via
+	// docView.revealedSegmentIds) so the measure layer and the visible pages both see
+	// the same set and the revealed slot is measured into pagination exactly as shown.
+	let revealedCommentarySegmentIds = $state(/** @type {Set<string>} */ (new Set()));
+
+	// Commentary-authoring (headings): the set of passage_heading row ids the user has
+	// revealed an empty, click-to-edit commentary slot for (by focusing the heading and
+	// clicking the Comment toolbar button). Parallels revealedCommentarySegmentIds — a
+	// heading with no stored commentary otherwise has no editor to mount, so this lets
+	// an empty slot appear for exactly the active heading. (Connections always render
+	// their editable area with a placeholder, so they need no reveal set.)
+	let revealedCommentaryHeadingIds = $state(/** @type {Set<string>} */ (new Set()));
+
 	let docView = $derived({
 		headings: $toolbarState.documentHeadingsVisible,
 		commentaries: $toolbarState.documentCommentariesVisible,
@@ -856,8 +903,11 @@
 		columnConnections: $toolbarState.documentColumnConnectionsVisible,
 		sectionConnections: $toolbarState.documentSectionConnectionsVisible,
 		segmentConnections: $toolbarState.documentSegmentConnectionsVisible,
-		crossItemConnections: $toolbarState.documentCrossItemConnectionsVisible
+		crossItemConnections: $toolbarState.documentCrossItemConnectionsVisible,
+		revealedSegmentIds: revealedCommentarySegmentIds
 	});
+
+
 
 	let flowItems = $derived(
 		streamedContent && data.passagesWithText && data.passagesWithText.length > 0
@@ -1219,6 +1269,16 @@
 	let activeDocColumnId = $state(/** @type {string | null} */ (null));
 	let activeDocSectionId = $state(/** @type {string | null} */ (null));
 
+	// The heading row (passage_heading id) / connection (segment_connection id) that
+	// is currently the active commentary subject. Headings become active simply by
+	// clicking/focusing their text; connections by clicking their card. Like the
+	// segment/column/section selections above, at most ONE commentary subject is
+	// active at a time — activating any clears the others — so the Comment toolbar
+	// button enables against exactly one item regardless of its kind.
+	let activeDocHeadingId = $state(/** @type {string | null} */ (null));
+	let activeDocConnectionKey = $state(/** @type {string | null} */ (null));
+
+
 	/* ============================================================
 	   IN-PLACE COMMENTARY EDITING — clicking any commentary section (segment-level
 	   commentary, a heading's commentary, or a connection's commentary) "activates"
@@ -1248,15 +1308,116 @@
 		activeCommentaryKey = commentaryKey(type, id);
 	}
 
-	/** Drop the active commentary section (click-away / Escape), tearing down its editor. */
+	/**
+	 * Drop the active commentary section (click-away / Escape), tearing down its
+	 * editor. If the section was an EMPTY slot revealed via the Comment toolbar button
+	 * (a segment with no stored commentary), and the user left without saving any text,
+	 * remove its id from the revealed set so the empty slot disappears rather than
+	 * lingering. (When the user DID save, the reload gives the segment real commentary,
+	 * which the normal branch renders — so dropping the revealed id here is harmless.)
+	 */
 	function clearActiveCommentary() {
+		if (activeCommentaryKey) {
+			const sep = activeCommentaryKey.indexOf(':');
+			const type = activeCommentaryKey.slice(0, sep);
+			const id = activeCommentaryKey.slice(sep + 1);
+			if (type === 'segment' && revealedCommentarySegmentIds.has(id)) {
+				revealedCommentarySegmentIds.delete(id);
+				revealedCommentarySegmentIds = new Set(revealedCommentarySegmentIds);
+			}
+			if (type === 'heading' && revealedCommentaryHeadingIds.has(id)) {
+				revealedCommentaryHeadingIds.delete(id);
+				revealedCommentaryHeadingIds = new Set(revealedCommentaryHeadingIds);
+			}
+		}
 		activeCommentaryKey = null;
 	}
+
+	/**
+	 * Comment toolbar button handler (Document view). Opens the inline commentary
+	 * editor for the currently-SELECTED commentary-capable item (a segment), or closes
+	 * the one that's already open. Dispatched as the `document-toggle-commentary` window
+	 * event by ToolbarApp's Comment button (the button is only enabled when a segment is
+	 * selected OR an editor is open). If the selected segment already has commentary we
+	 * just focus that existing editor; if it has none we reveal an empty slot for THAT
+	 * segment only (added to revealedCommentarySegmentIds) and activate it once rendered.
+	 */
+	function toggleDocumentCommentaryForSelection() {
+		// An editor is already open → toggle it closed (mirrors the button's highlight).
+		if (activeCommentaryKey) {
+			clearActiveCommentary();
+			return;
+		}
+
+		// Resolve the active commentary subject by priority: heading → connection →
+		// segment. Each kind opens (or reveals + opens) its OWN inline editor, driven by
+		// the same universal toolbar — so the Comment button works for anything that can
+		// carry commentary, not just segments.
+
+		// HEADING: a heading's commentary lives on its passage_heading row. If it already
+		// has commentary, focus the existing editor; otherwise reveal an empty slot for
+		// THIS heading only, then activate it once rendered.
+		if (activeDocHeadingId) {
+			const headingId = activeDocHeadingId;
+			if (findRawHeading(headingId)?.commentary) {
+				activateCommentary('heading', headingId);
+			} else {
+				revealedCommentaryHeadingIds.add(headingId);
+				revealedCommentaryHeadingIds = new Set(revealedCommentaryHeadingIds);
+				tick().then(() => activateCommentary('heading', headingId));
+			}
+			return;
+		}
+
+		// CONNECTION: its editable area is always rendered (with a placeholder when
+		// empty), so there's nothing to reveal — just open its editor.
+		if (activeDocConnectionKey) {
+			activateCommentary('connection', activeDocConnectionKey);
+			return;
+		}
+
+		// SEGMENT (default).
+		const segmentId = activeDocSegmentId;
+		if (!segmentId) return;
+		const seg = findRawSegment(segmentId);
+		if (seg?.commentary) {
+			// Already has commentary — just focus its existing inline editor.
+			activateCommentary('segment', segmentId);
+		} else {
+			// No commentary yet — reveal an empty slot for this one segment, then
+			// activate it after it renders so the universal toolbar drives it.
+			revealedCommentarySegmentIds.add(segmentId);
+			revealedCommentarySegmentIds = new Set(revealedCommentarySegmentIds);
+			tick().then(() => activateCommentary('segment', segmentId));
+		}
+	}
+
 
 	/** Re-load the study after a commentary save so the document re-paginates. */
 	function handleCommentarySaved() {
 		invalidate('app:studies');
 	}
+
+	// Mirror whether a commentary editor is currently open into the shared toolbar
+	// store so the Comment toolbar button highlights while editing (and stays enabled
+	// so the user can click it again to close the editor).
+	$effect(() => {
+		setDocumentCommentaryEditorOpen(activeCommentaryKey !== null);
+	});
+
+	// The Comment toolbar button (Document view) dispatches `document-toggle-commentary`;
+
+
+	// open/close the inline editor for the currently-selected item in response.
+	onMount(() => {
+		if (typeof window === 'undefined') return;
+		const onToggle = () => toggleDocumentCommentaryForSelection();
+
+
+		window.addEventListener('document-toggle-commentary', onToggle);
+		return () => window.removeEventListener('document-toggle-commentary', onToggle);
+	});
+
 
 
 
@@ -1460,6 +1621,149 @@
 		setActiveColumn(false);
 		selectedWord = null;
 		suppressHoverCaret = null;
+	}
+
+	/**
+	 * Make a HEADING the active commentary subject (focusing/clicking its text). Like
+	 * activateSegment this only SELECTS the subject — it doesn't open the editor; the
+	 * Comment toolbar button (or clicking the heading's commentary) does that. Clears
+	 * the other commentary subjects so exactly one is active. No-op for a not-yet-saved
+	 * (pending) heading, which has no passage_heading row id to attach commentary to.
+	 * @param {string|null} headingId - The passage_heading row id (block.headingXId)
+	 */
+	function activateHeadingCommentary(headingId) {
+		if (!headingId) return;
+		// Idempotent: this also fires from the heading's `onfocus`, which the browser can
+		// dispatch SYNCHRONOUSLY while Svelte is flushing a re-render (DOM reconciliation
+		// re-focuses the contenteditable). Writing $state during that flush throws
+		// `state_unsafe_mutation`, so when the heading is already the active subject we
+		// bail before touching any state — the redundant refocus becomes a no-op.
+		if (activeDocHeadingId === headingId) return;
+		activeDocSegmentId = null;
+		activeDocConnectionKey = null;
+		activeDocHeadingId = headingId;
+		// Pushes hasActiveHeading + clears segment/section/column/connection in the store.
+		setActiveHeading(true, headingId);
+	}
+
+
+	/**
+	 * Pointer handler for an editable heading. Two failure modes had to be solved:
+	 *
+	 *  1. Selecting a heading writes to the shared toolbar store (setActiveHeading),
+	 *     which recomputes docView → flowItems → pages and RE-RENDERS the visible
+	 *     {#each displayPages} blocks. That DOM reconciliation can steal focus from the
+	 *     contenteditable — the original "have to click twice" bug.
+	 *  2. The heading text is a single short text node, so the browser only establishes
+	 *     the caret/focus SYNCHRONOUSLY when the pointer lands ON the text. Clicking the
+	 *     blank PADDING inside the hover border (past the end of the text) does NOT focus
+	 *     natively, so a focus deferred until after the store re-render lands too late /
+	 *     on a stale node — requiring a second click.
+	 *
+	 * Fix for both: focus the element and place the caret at the click point
+	 * SYNCHRONOUSLY here — within the user's pointer gesture, BEFORE activation triggers
+	 * the store write/re-render — exactly mirroring what the browser already does for a
+	 * text click. Focus set during the gesture survives the subsequent re-render, so a
+	 * SINGLE click anywhere inside the hover border (text OR padding) focuses the heading.
+	 * Activation (the selection store write) happens after, and the onfocus handler keeps
+	 * it idempotent.
+	 * @param {PointerEvent} event
+	 * @param {string|null} headingId
+	 */
+	function focusHeadingAtPoint(event, headingId) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		if (el instanceof HTMLElement && document.activeElement !== el) {
+			// Take focus during the gesture so it survives the activation re-render, and
+			// suppress the browser's own default focus/caret handling for this pointerdown
+			// so it can't fight the caret we place below.
+			event.preventDefault();
+			el.focus();
+			// Place the caret where the user clicked so typing begins where they aimed.
+			const sel = window.getSelection();
+			if (sel) {
+				// caretRangeFromPoint (WebKit/Blink) / caretPositionFromPoint (Gecko).
+				let range = null;
+				if (typeof document.caretRangeFromPoint === 'function') {
+					range = document.caretRangeFromPoint(event.clientX, event.clientY);
+				} else if (typeof (/** @type {any} */ (document).caretPositionFromPoint) === 'function') {
+					const pos = /** @type {any} */ (document).caretPositionFromPoint(
+						event.clientX,
+						event.clientY
+					);
+					if (pos) {
+						range = document.createRange();
+						range.setStart(pos.offsetNode, pos.offset);
+						range.collapse(true);
+					}
+				}
+				// Only use the hit-tested caret if it actually landed inside THIS heading
+				// (a click in the padding hit-tests to nothing useful); otherwise fall back
+				// to placing the caret at the end of the heading's text.
+				if (!range || !el.contains(range.startContainer)) {
+					range = document.createRange();
+					range.selectNodeContents(el);
+					range.collapse(false);
+				}
+				sel.removeAllRanges();
+				sel.addRange(range);
+			}
+		}
+		// Select the heading as the active commentary subject. Done AFTER focusing so the
+		// resulting re-render can't pre-empt the focus we just established.
+		activateHeadingCommentary(headingId);
+	}
+
+
+
+	/**
+	 * Make a CONNECTION the active commentary subject (focusing/clicking its card).
+	 * Clears the other commentary subjects so exactly one is active.
+	 * @param {string|null} connectionKey - The segment_connection id (conn.key)
+	 */
+	function activateConnectionCommentary(connectionKey) {
+		if (!connectionKey) return;
+		// Idempotent (same reasoning as activateHeadingCommentary): the card's `onfocus`
+		// can fire SYNCHRONOUSLY during a render flush, and writing $state then throws
+		// `state_unsafe_mutation`. Bail when this connection is already the active subject.
+		if (activeDocConnectionKey === connectionKey) return;
+		activeDocSegmentId = null;
+		activeDocHeadingId = null;
+		activeDocConnectionKey = connectionKey;
+		// Pushes hasActiveConnection + clears segment/heading in the store.
+		setActiveConnection(true, [connectionKey]);
+	}
+
+
+	/**
+	 * Clear any active heading/connection commentary subject (click-away / Escape),
+	 * dropping the shared toolbar flags so the Comment button disables again. Mirrors
+	 * clearActiveSegment / clearStructuralSelection for the heading/connection subjects.
+	 */
+	function clearActiveCommentarySubject() {
+		if (activeDocHeadingId) {
+			activeDocHeadingId = null;
+			setActiveHeading(false);
+		}
+		if (activeDocConnectionKey) {
+			activeDocConnectionKey = null;
+			setActiveConnection(false);
+		}
+	}
+
+	/**
+	 * Look up a raw passage_heading record (by its row id) across all passages, so we
+	 * can read whether it already has stored commentary. Returns null when not found.
+	 * @param {string} headingId
+	 */
+	function findRawHeading(headingId) {
+		for (const passageText of data.passagesWithText ?? []) {
+			for (const seg of flattenSegments(passageText)) {
+				for (const h of /** @type {any} */ (seg).headings ?? []) {
+					if (h.id === headingId) return /** @type {any} */ (h);
+				}
+			}
+		}
+		return null;
 	}
 
 
@@ -1789,6 +2093,20 @@
 				}
 			}
 
+			// HEADING / CONNECTION commentary subject: a pointerdown outside the active
+			// heading text / connection card (and outside the commentary toolbar) clears
+			// the subject so the Comment button disables again. Clicks inside the heading,
+			// the connection card, or the toolbar keep it active.
+			if (activeDocHeadingId || activeDocConnectionKey) {
+				if (
+					!target?.closest?.(
+						'.doc-heading-editable, .doc-connection, .doc-commentary-editable, .doc-commentary-toolbar, .toolbar, [class*="toolbar"], [class*="menu"]'
+					)
+				) {
+					clearActiveCommentarySubject();
+				}
+			}
+
 			// Nothing selected (segment OR structural column/section) → nothing more to clear.
 			if (!activeDocSegmentId && !activeDocColumnId && !activeDocSectionId) return;
 			if (
@@ -1808,6 +2126,7 @@
 			if (event.key === 'Escape') {
 				hoveredWord = null;
 				clearActiveCommentary();
+				clearActiveCommentarySubject();
 				clearActiveSegment();
 				clearStructuralSelection();
 			}
@@ -1978,10 +2297,15 @@
 				class:active={isActiveCommentary('connection', conn.key)}
 				role="button"
 				tabindex="0"
-				onclick={() => activateCommentary('connection', conn.key)}
+				onclick={() => {
+					activateConnectionCommentary(conn.key);
+					activateCommentary('connection', conn.key);
+				}}
+
 				onkeydown={(e) => {
 					if (e.key === 'Enter' || e.key === ' ') {
 						e.preventDefault();
+						activateConnectionCommentary(conn.key);
 						activateCommentary('connection', conn.key);
 					}
 				}}
@@ -2168,16 +2492,20 @@
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
+				onpointerdown={(e) => focusHeadingAtPoint(e, block.headingOneId)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'one')}
+
 
 
 				onkeydown={(e) => handleHeadingKeydown(e, block.headingOne ?? '')}
 			>{block.headingOne ?? ''}</h3>
 
-			{#if block.headingOneCommentary}
+			{#if block.headingOneCommentary || revealedCommentaryHeadingIds.has(block.headingOneId)}
 				{@render commentaryContent(block.headingOneCommentary, 'heading-one', interactive, 'heading', block.headingOneId)}
 			{/if}
+
 		{/if}
+
 		{#if block.headingTwo || pendingHeadings.has(pendingKey(block.id, 'two'))}
 			<h4
 				class="doc-heading doc-heading-two doc-heading-editable"
@@ -2189,16 +2517,20 @@
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
+				onpointerdown={(e) => focusHeadingAtPoint(e, block.headingTwoId)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'two')}
+
 
 
 				onkeydown={(e) => handleHeadingKeydown(e, block.headingTwo ?? '')}
 			>{block.headingTwo ?? ''}</h4>
 
-			{#if block.headingTwoCommentary}
+			{#if block.headingTwoCommentary || revealedCommentaryHeadingIds.has(block.headingTwoId)}
 				{@render commentaryContent(block.headingTwoCommentary, 'heading-two', interactive, 'heading', block.headingTwoId)}
 			{/if}
+
 		{/if}
+
 		{#if block.headingThree || pendingHeadings.has(pendingKey(block.id, 'three'))}
 			<h5
 				class="doc-heading doc-heading-three doc-heading-editable"
@@ -2210,16 +2542,20 @@
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
+				onpointerdown={(e) => focusHeadingAtPoint(e, block.headingThreeId)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'three')}
+
 
 
 				onkeydown={(e) => handleHeadingKeydown(e, block.headingThree ?? '')}
 			>{block.headingThree ?? ''}</h5>
 
-			{#if block.headingThreeCommentary}
+			{#if block.headingThreeCommentary || revealedCommentaryHeadingIds.has(block.headingThreeId)}
 				{@render commentaryContent(block.headingThreeCommentary, 'heading-three', interactive, 'heading', block.headingThreeId)}
 			{/if}
+
 		{/if}
+
 		<!-- Clicking the segment text activates this segment so the Markup menu can
 		     add a heading to it. Clicking a single WORD additionally selects that word
 		     (handleWordClick) while still activating the segment, mirroring the Analyze

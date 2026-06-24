@@ -57,10 +57,30 @@ export function hasActiveCommentary() {
 	return activeApi.value !== null;
 }
 
-/** Bump on every selection/transaction so toolbar active-states re-evaluate. */
+/**
+ * Bump on every selection/transaction so toolbar active-states re-evaluate.
+ *
+ * Deferred to a microtask on purpose: Tiptap fires `onTransaction` /
+ * `onSelectionUpdate` SYNCHRONOUSLY while the `Editor` is being constructed
+ * (its `autofocus` places the caret, emitting a transaction). That construction
+ * happens inside the editor component's mount `$effect`, which can run while
+ * Svelte is still evaluating the universal toolbar's template expressions that
+ * READ `version` (via `isCommentaryActive`). Writing `version` straight away
+ * would mutate reactive state mid-derivation and throw `state_unsafe_mutation`.
+ * Pushing the increment to a microtask lets the current flush finish first, then
+ * re-evaluates the toolbar's active-states — which is exactly when we want them
+ * recomputed anyway.
+ */
+let bumpScheduled = false;
 export function bumpCommentaryState() {
-	version.value++;
+	if (bumpScheduled) return;
+	bumpScheduled = true;
+	queueMicrotask(() => {
+		bumpScheduled = false;
+		version.value++;
+	});
 }
+
 
 /**
  * Reactive `isActive` proxy for the toolbar. Touches `version` so it
