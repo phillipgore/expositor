@@ -210,7 +210,13 @@
 		></div>
 	{/if}
 	<div class="panel-content" style:width="{panelWidth}px">
-		{#if $toolbarState.hasActiveHeading || $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1)}
+		<!-- Gate on `isOpen`: the CommentaryEditor autofocuses on mount, so it must NOT
+		     be instantiated while this panel is closed. On the Document view the panel
+		     is closed (width 0) but it still reacts to the shared activeHeading/segment/
+		     connection toolbar state; without this guard the hidden editor would mount
+		     and steal focus from the Document view's own inline heading/commentary
+		     editor the instant a heading is clicked. -->
+		{#if isOpen && ($toolbarState.hasActiveHeading || $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1))}
 
 			{#key currentSubject?.id}
 				<CommentaryEditor

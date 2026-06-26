@@ -1648,68 +1648,24 @@
 
 
 	/**
-	 * Pointer handler for an editable heading. Two failure modes had to be solved:
+	 * Click handler for an editable heading.
 	 *
-	 *  1. Selecting a heading writes to the shared toolbar store (setActiveHeading),
-	 *     which recomputes docView → flowItems → pages and RE-RENDERS the visible
-	 *     {#each displayPages} blocks. That DOM reconciliation can steal focus from the
-	 *     contenteditable — the original "have to click twice" bug.
-	 *  2. The heading text is a single short text node, so the browser only establishes
-	 *     the caret/focus SYNCHRONOUSLY when the pointer lands ON the text. Clicking the
-	 *     blank PADDING inside the hover border (past the end of the text) does NOT focus
-	 *     natively, so a focus deferred until after the store re-render lands too late /
-	 *     on a stale node — requiring a second click.
+	 * A heading is a NATIVE contenteditable element, so the browser already does the
+	 * right thing on a single click: it focuses the element and drops the caret at the
+	 * click point. Making the heading the "active" commentary subject only toggles a CSS
+	 * class (class:active) on this SAME node and flips a toolbar-store flag — it does NOT
+	 * rebuild flowItems/pages, so the heading node is never swapped and the native focus
+	 * is never lost. We therefore must NOT preventDefault or hand-roll focus/caret here.
 	 *
-	 * Fix for both: focus the element and place the caret at the click point
-	 * SYNCHRONOUSLY here — within the user's pointer gesture, BEFORE activation triggers
-	 * the store write/re-render — exactly mirroring what the browser already does for a
-	 * text click. Focus set during the gesture survives the subsequent re-render, so a
-	 * SINGLE click anywhere inside the hover border (text OR padding) focuses the heading.
-	 * Activation (the selection store write) happens after, and the onfocus handler keeps
-	 * it idempotent.
-	 * @param {PointerEvent} event
+	 * An earlier version did exactly that (preventDefault + manual focus + caret +
+	 * post-render refocus), which SUPPRESSED the browser's native caret and left the
+	 * heading with a blue border but no caret / not editable — and stray focus could land
+	 * in a commentary editor so typing went there. The whole mechanism is gone now; we
+	 * simply mark the heading active and let the browser focus it.
+	 *
 	 * @param {string|null} headingId
 	 */
-	function focusHeadingAtPoint(event, headingId) {
-		const el = /** @type {HTMLElement} */ (event.currentTarget);
-		if (el instanceof HTMLElement && document.activeElement !== el) {
-			// Take focus during the gesture so it survives the activation re-render, and
-			// suppress the browser's own default focus/caret handling for this pointerdown
-			// so it can't fight the caret we place below.
-			event.preventDefault();
-			el.focus();
-			// Place the caret where the user clicked so typing begins where they aimed.
-			const sel = window.getSelection();
-			if (sel) {
-				// caretRangeFromPoint (WebKit/Blink) / caretPositionFromPoint (Gecko).
-				let range = null;
-				if (typeof document.caretRangeFromPoint === 'function') {
-					range = document.caretRangeFromPoint(event.clientX, event.clientY);
-				} else if (typeof (/** @type {any} */ (document).caretPositionFromPoint) === 'function') {
-					const pos = /** @type {any} */ (document).caretPositionFromPoint(
-						event.clientX,
-						event.clientY
-					);
-					if (pos) {
-						range = document.createRange();
-						range.setStart(pos.offsetNode, pos.offset);
-						range.collapse(true);
-					}
-				}
-				// Only use the hit-tested caret if it actually landed inside THIS heading
-				// (a click in the padding hit-tests to nothing useful); otherwise fall back
-				// to placing the caret at the end of the heading's text.
-				if (!range || !el.contains(range.startContainer)) {
-					range = document.createRange();
-					range.selectNodeContents(el);
-					range.collapse(false);
-				}
-				sel.removeAllRanges();
-				sel.addRange(range);
-			}
-		}
-		// Select the heading as the active commentary subject. Done AFTER focusing so the
-		// resulting re-render can't pre-empt the focus we just established.
+	function focusHeadingAtPoint(headingId) {
 		activateHeadingCommentary(headingId);
 	}
 
@@ -2485,6 +2441,7 @@
 			<h3
 				class="doc-heading doc-heading-one doc-heading-editable"
 				class:doc-first-in-column={block.firstInColumn}
+				class:active={!!block.headingOneId && activeDocHeadingId === block.headingOneId}
 				data-doc-heading="{block.id}|one"
 
 
@@ -2492,7 +2449,7 @@
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
-				onpointerdown={(e) => focusHeadingAtPoint(e, block.headingOneId)}
+				onpointerdown={() => focusHeadingAtPoint(block.headingOneId)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'one')}
 
 
@@ -2510,6 +2467,7 @@
 			<h4
 				class="doc-heading doc-heading-two doc-heading-editable"
 				class:doc-first-in-column={block.firstInColumn}
+				class:active={!!block.headingTwoId && activeDocHeadingId === block.headingTwoId}
 				data-doc-heading="{block.id}|two"
 
 
@@ -2517,7 +2475,7 @@
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
-				onpointerdown={(e) => focusHeadingAtPoint(e, block.headingTwoId)}
+				onpointerdown={() => focusHeadingAtPoint(block.headingTwoId)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'two')}
 
 
@@ -2535,6 +2493,7 @@
 			<h5
 				class="doc-heading doc-heading-three doc-heading-editable"
 				class:doc-first-in-column={block.firstInColumn}
+				class:active={!!block.headingThreeId && activeDocHeadingId === block.headingThreeId}
 				data-doc-heading="{block.id}|three"
 
 
@@ -2542,7 +2501,7 @@
 				role="textbox"
 				tabindex="0"
 				spellcheck="false"
-				onpointerdown={(e) => focusHeadingAtPoint(e, block.headingThreeId)}
+				onpointerdown={() => focusHeadingAtPoint(block.headingThreeId)}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'three')}
 
 
@@ -3239,10 +3198,12 @@
 		border-color: var(--blue-light);
 	}
 
-	/* Focused (actively editing) — a solid blue border marks the heading being
-
-	   edited, mirroring the selected segment. Overrides hover so the focus state
-	   stays clear even while hovered. */
+	/* Active / focused (actively editing) — a solid blue border marks the heading
+	   being edited, mirroring the selected segment. The `.active` class is driven by
+	   the activeDocHeadingId selection so the border persists even if the re-render
+	   momentarily steals DOM focus; `:focus` keeps the border for keyboard-tab focus
+	   too. Both override hover so the active state stays clear while hovered. */
+	.doc-heading-editable.active,
 	.doc-heading-editable:focus {
 		border-color: var(--blue);
 	}
@@ -3819,6 +3780,7 @@
 		.passage-text-editable.active,
 		.doc-heading-editable,
 		.doc-heading-editable:hover,
+		.doc-heading-editable.active,
 		.doc-heading-editable:focus {
 			background-color: transparent;
 			border-color: transparent;
