@@ -96,8 +96,21 @@
 	// duplicated at both ends.
 	let connectionsByFromId = $derived(buildConnectionsByFromId(data.connections, itemRefMap));
 
+	/**
+	 * Whether a commentary HTML string carries any real text. Mirrors the inline
+	 * editor's own `hasContent` test: an "emptied" Tiptap editor saves `<p></p>`,
+	 * which is truthy but has no visible text — so a naive truthiness check would
+	 * keep an effectively-empty commentary box on screen (showing the quiet "Add
+	 * commentary" placeholder) instead of letting it return to hidden. Strip tags
+	 * and check for non-whitespace so emptied commentary counts as empty everywhere
+	 * (segment / heading / connection).
+	 * @param {string|null|undefined} html
+	 */
+	const commentaryHasContent = (html) => !!html && html.replace(/<[^>]*>/g, '').trim().length > 0;
+
 
 	// Invalidate studies list when study is accessed
+
 	onMount(() => {
 		if (data.invalidateStudies) {
 			invalidate('app:studies');
@@ -478,9 +491,15 @@
 
 						headingTwo: showHeadings ? segment.headingTwo : null,
 						headingThree: showHeadings ? segment.headingThree : null,
-						headingOneCommentary: showHeadings && showCommentaries ? headingsByType.one?.commentary ?? null : null,
-						headingTwoCommentary: showHeadings && showCommentaries ? headingsByType.two?.commentary ?? null : null,
-						headingThreeCommentary: showHeadings && showCommentaries ? headingsByType.three?.commentary ?? null : null,
+						// Effectively-empty commentary (an emptied editor saves `<p></p>`)
+						// is normalized to null here via commentaryHasContent, so the
+						// template's `{#if block.headingXCommentary || …}` goes false and the
+						// box returns to hidden after a save+reload instead of lingering as an
+						// "Add commentary" placeholder.
+						headingOneCommentary: showHeadings && showCommentaries && commentaryHasContent(headingsByType.one?.commentary) ? headingsByType.one.commentary : null,
+						headingTwoCommentary: showHeadings && showCommentaries && commentaryHasContent(headingsByType.two?.commentary) ? headingsByType.two.commentary : null,
+						headingThreeCommentary: showHeadings && showCommentaries && commentaryHasContent(headingsByType.three?.commentary) ? headingsByType.three.commentary : null,
+
 						// Heading row ids — the per-heading commentary editor PATCHes
 						// /api/passages/headings/:id, so the template needs the id of the
 						// passage_heading row backing each heading's commentary.
@@ -501,9 +520,10 @@
 					// column/section commentary, which is anchored ahead of the content it
 					// introduces). Same editorial-aside treatment so it's never mistaken for
 					// body text or a heading. Suppressed when the Commentaries toggle is off.
-					if (showCommentaries && segment.commentary) {
+					if (showCommentaries && commentaryHasContent(segment.commentary)) {
 
 						blocks.push({
+
 							type: 'aside',
 							scope: 'segment',
 							key: `seg-com-${segment.id}`,
@@ -894,6 +914,15 @@
 	// an empty slot appear for exactly the active heading. (Connections always render
 	// their editable area with a placeholder, so they need no reveal set.)
 	let revealedCommentaryHeadingIds = $state(/** @type {Set<string>} */ (new Set()));
+
+	// Commentary-authoring (connections): the set of segment_connection ids the user has
+	// revealed an empty, click-to-edit commentary slot for (by selecting the connection
+	// card and clicking the Comment toolbar button). Parallels the segment/heading reveal
+	// sets — a connection with no stored commentary otherwise has no editor to mount, so
+	// this lets an empty slot appear for exactly the active connection, and lets the box
+	// return to hidden once the user leaves an emptied commentary.
+	let revealedCommentaryConnectionKeys = $state(/** @type {Set<string>} */ (new Set()));
+
 
 	let docView = $derived({
 		headings: $toolbarState.documentHeadingsVisible,
@@ -1329,9 +1358,14 @@
 				revealedCommentaryHeadingIds.delete(id);
 				revealedCommentaryHeadingIds = new Set(revealedCommentaryHeadingIds);
 			}
+			if (type === 'connection' && revealedCommentaryConnectionKeys.has(id)) {
+				revealedCommentaryConnectionKeys.delete(id);
+				revealedCommentaryConnectionKeys = new Set(revealedCommentaryConnectionKeys);
+			}
 		}
 		activeCommentaryKey = null;
 	}
+
 
 	/**
 	 * Comment toolbar button handler (Document view). Opens the inline commentary
@@ -1359,7 +1393,7 @@
 		// THIS heading only, then activate it once rendered.
 		if (activeDocHeadingId) {
 			const headingId = activeDocHeadingId;
-			if (findRawHeading(headingId)?.commentary) {
+			if (commentaryHasContent(findRawHeading(headingId)?.commentary)) {
 				activateCommentary('heading', headingId);
 			} else {
 				revealedCommentaryHeadingIds.add(headingId);
@@ -1369,10 +1403,19 @@
 			return;
 		}
 
-		// CONNECTION: its editable area is always rendered (with a placeholder when
-		// empty), so there's nothing to reveal — just open its editor.
+		// CONNECTION: a connection's commentary lives on its segment_connection row. If
+		// it already has commentary, focus the existing editor; otherwise reveal an empty
+		// slot for THIS connection only, then activate it once rendered. Mirrors the
+		// heading branch so an emptied connection commentary box returns to hidden.
 		if (activeDocConnectionKey) {
-			activateCommentary('connection', activeDocConnectionKey);
+			const key = activeDocConnectionKey;
+			if (commentaryHasContent(findConnectionCommentary(key))) {
+				activateCommentary('connection', key);
+			} else {
+				revealedCommentaryConnectionKeys.add(key);
+				revealedCommentaryConnectionKeys = new Set(revealedCommentaryConnectionKeys);
+				tick().then(() => activateCommentary('connection', key));
+			}
 			return;
 		}
 
@@ -1380,7 +1423,8 @@
 		const segmentId = activeDocSegmentId;
 		if (!segmentId) return;
 		const seg = findRawSegment(segmentId);
-		if (seg?.commentary) {
+		if (commentaryHasContent(seg?.commentary)) {
+
 			// Already has commentary — just focus its existing inline editor.
 			activateCommentary('segment', segmentId);
 		} else {
@@ -1721,6 +1765,23 @@
 		}
 		return null;
 	}
+
+	/**
+	 * Look up a connection's stored commentary HTML by its segment_connection id, so
+	 * the Comment button can tell a connection that already has commentary (focus its
+	 * existing editor) from an empty one (reveal a fresh slot). Reads the raw
+	 * data.connections rows (the source the appendix is built from). Returns null when
+	 * not found.
+	 * @param {string} connectionKey
+	 * @returns {string|null}
+	 */
+	function findConnectionCommentary(connectionKey) {
+		for (const conn of data.connections ?? []) {
+			if (conn.id === connectionKey) return conn.commentary ?? null;
+		}
+		return null;
+	}
+
 
 
 	/* ============================================================
@@ -2219,9 +2280,31 @@
      Glossary terms used inline are collected into the universal "Tags" section at
      the end of the document. Shared by the end-of-document Connections appendix. -->
 {#snippet connectionCard(conn, interactive = false)}
-	<div class="doc-connection doc-connection-appendix">
+	<!-- The card itself is the connection's SELECT affordance (visible pages only):
+	     clicking it makes the connection the active commentary subject so the Comment
+	     toolbar button enables. Previously selection happened by clicking the
+	     always-rendered editable box — but now that box is hidden when the connection
+	     has no commentary, so the card needs its own way to be selected. A light-blue
+	     hover / solid-blue active border mirrors the segment & heading affordances. -->
+	<div
+		class="doc-connection doc-connection-appendix"
+		class:doc-connection-selectable={interactive}
+		class:active={interactive && activeDocConnectionKey === conn.key}
+		role={interactive ? 'button' : undefined}
+		tabindex={interactive ? 0 : undefined}
+		onclick={interactive ? () => activateConnectionCommentary(conn.key) : undefined}
+		onkeydown={interactive
+			? (e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						activateConnectionCommentary(conn.key);
+					}
+				}
+			: undefined}
+	>
 
 		<p class="doc-ref-line doc-connection-ref">
+
 			<span class="doc-ref-label">Connection:</span>
 			<span class="doc-connection-from">{conn.fromRef ?? '—'}</span>
 			<span class="doc-connection-arrow"> → </span>
@@ -2243,11 +2326,15 @@
 		{#if conn.note}
 			<p class="doc-connection-note">{conn.note}</p>
 		{/if}
-		{#if interactive}
-			<!-- Connection commentary is click-to-edit on the visible pages: clicking it
-			     mounts the inline editor (PATCHes /api/segments/connections/:id) driven by
-			     the universal toolbar. The measure layer passes interactive=false so it
-			     renders the static branch below. -->
+		{#if interactive && (commentaryHasContent(conn.commentary) || revealedCommentaryConnectionKeys.has(conn.key))}
+			<!-- Connection commentary editor (visible pages only). Mounted only when the
+			     connection HAS commentary or the user has revealed an empty slot for it
+			     (selected the card + clicked Comment) — mirroring the segment/heading
+			     reveal model so an emptied commentary box returns to hidden rather than
+			     lingering as an "Add commentary" placeholder. No `placeholder` is passed:
+			     the box only ever appears when there's content to edit or the user is
+			     actively authoring, so a lingering placeholder must never show. The
+			     measure layer passes interactive=false and renders the static branch. -->
 			<div
 				class="doc-connection-commentary-editable doc-commentary-editable"
 				class:active={isActiveCommentary('connection', conn.key)}
@@ -2273,11 +2360,11 @@
 					active={isActiveCommentary('connection', conn.key)}
 					scope="connection"
 					variant="connection"
-					placeholder="Add connection commentary"
 					onSaved={handleCommentarySaved}
 				/>
 			</div>
-		{:else if conn.commentary}
+		{:else if commentaryHasContent(conn.commentary)}
+
 			<!-- Connection commentary carries footnotes too; surface them the
 			     same way as the commentary above. -->
 			{@const connRendered = renderCommentaryWithFootnotes(conn.commentary)}
@@ -3590,6 +3677,27 @@
 	.doc-connection:last-child {
 		margin-bottom: 0;
 	}
+
+	/* Selectable connection card (visible pages only): the card is the connection's
+	   SELECT affordance now that the commentary box is hidden when empty. A quiet
+	   light-blue border on hover signals it's clickable; a solid-blue border marks it
+	   while it's the active commentary subject — mirroring the segment-text / heading
+	   affordances. The card already reserves a 0.1rem border, so swapping its color
+	   never shifts the layout. Screen-only — print keeps the neutral gray border. */
+	.doc-connection-selectable {
+		cursor: pointer;
+		transition: border-color 0.15s ease;
+	}
+
+	.doc-connection-selectable:hover {
+		border-color: var(--blue-light);
+	}
+
+	.doc-connection-selectable.active,
+	.doc-connection-selectable.active:hover {
+		border-color: var(--blue);
+	}
+
 
 	/* Appendix connection cards each live in their own flow-item wrapper (so the
 	   paginator can break between them), which means the `:last-child` rule above
