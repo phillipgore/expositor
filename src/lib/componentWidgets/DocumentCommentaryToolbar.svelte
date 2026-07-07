@@ -20,12 +20,20 @@
 	import { tooltip } from '$lib/composables/useTooltip.svelte.js';
 	import {
 		getActiveCommentaryApi,
-		hasActiveCommentary,
 		isCommentaryActive
 	} from '$lib/stores/commentaryToolbar.svelte.js';
+	import { toolbarState } from '$lib/stores/toolbar.js';
 
-	// Reactive: re-evaluates as the active editor (and its selection) changes.
-	let enabled = $derived(hasActiveCommentary());
+	// Enable the toolbar strictly from the page's authoritative "a commentary editor
+	// is open" flag (documentCommentaryEditorOpen), which the Document page sets when a
+	// section is activated and reliably clears on click-away / Escape / toggle-close.
+	// We deliberately do NOT gate on the commentaryToolbar bus's registration state
+	// (hasActiveCommentary): that flag tracks the Tiptap editor's mount/destroy
+	// lifecycle, which re-runs on every save-triggered re-paginate and can leave a
+	// stale registration behind — leaving these buttons stuck "enabled" after the
+	// editor is gone. The store flag has a single, race-free source of truth.
+	let enabled = $derived($toolbarState.documentCommentaryEditorOpen);
+
 
 	let showListsMenu = $state(false);
 	let showInsertMenu = $state(false);

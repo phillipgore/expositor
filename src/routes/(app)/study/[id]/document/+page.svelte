@@ -442,8 +442,16 @@
 					// passage ref for the first column, or at the top of the column's fresh
 					// page otherwise), so it gets NO leading horizontal rule. Every
 					// subsequent section in the column is separated by a rule.
-					firstInColumn: secIdx === 0
+					firstInColumn: secIdx === 0,
+
+					// First section of the PASSAGE (sectionCursor started at 0). This
+					// section has no preceding sibling within the passage to join into
+					// (Join Section can only fold a section into the one before it, within
+					// the same passage), so the template omits its left-margin Select
+					// button — there's nothing above it to select-and-join to.
+					firstInPassage: sIdx === 0
 				});
+
 
 				// Sections no longer carry their own commentary (it was removed in
 				// favor of heading commentary), so no section-level aside is emitted.
@@ -3087,19 +3095,26 @@
 			class:doc-break-before={!block.firstInPassage}
 		>
 			<hr class="doc-column-rule" />
-			<button
-				type="button"
-				class="doc-selector doc-selector-column"
-				class:active={activeDocColumnId === block.id}
-				title="Select Column"
-				aria-label="Select Column"
-				aria-pressed={activeDocColumnId === block.id}
-				onclick={(e) => {
-					e.stopPropagation();
-					selectColumn(block.id);
-				}}
-			></button>
+			<!-- The first column of a passage has no preceding column within that
+			     passage to join into (Join Column folds a column into the one before
+			     it), so it gets NO Select button — there's nothing above it to
+			     select-and-join to. Every subsequent column keeps its selector. -->
+			{#if !block.firstInPassage}
+				<button
+					type="button"
+					class="doc-selector doc-selector-column"
+					class:active={activeDocColumnId === block.id}
+					title="Select Column"
+					aria-label="Select Column"
+					aria-pressed={activeDocColumnId === block.id}
+					onclick={(e) => {
+						e.stopPropagation();
+						selectColumn(block.id);
+					}}
+				></button>
+			{/if}
 		</div>
+
 	{:else if block.type === 'section-start'}
 		<!-- Section divider: a plain horizontal rule shown above EVERY section,
 		     including the first one in a column (which sits at the top of the
@@ -3112,20 +3127,27 @@
 		     in print. -->
 		<div class="doc-section-marker" class:first={block.firstInColumn}>
 			<hr class="doc-section-rule" />
-			<button
-				type="button"
-				class="doc-selector doc-selector-section"
-				class:first={block.firstInColumn}
-				class:active={activeDocSectionId === block.id}
-				title="Select Section"
-				aria-label="Select Section"
-				aria-pressed={activeDocSectionId === block.id}
-				onclick={(e) => {
-					e.stopPropagation();
-					selectSection(block.id);
-				}}
-			></button>
+			<!-- The first section of a passage has no preceding section within that
+			     passage to join into (Join Section folds a section into the one before
+			     it), so it gets NO Select button — there's nothing above it to
+			     select-and-join to. Every subsequent section keeps its selector. -->
+			{#if !block.firstInPassage}
+				<button
+					type="button"
+					class="doc-selector doc-selector-section"
+					class:first={block.firstInColumn}
+					class:active={activeDocSectionId === block.id}
+					title="Select Section"
+					aria-label="Select Section"
+					aria-pressed={activeDocSectionId === block.id}
+					onclick={(e) => {
+						e.stopPropagation();
+						selectSection(block.id);
+					}}
+				></button>
+			{/if}
 		</div>
+
 	{:else if block.type === 'aside'}
 
 		<!-- Editorial commentary: segment-level (columns/sections no longer carry
