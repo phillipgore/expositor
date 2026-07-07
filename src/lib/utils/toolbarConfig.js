@@ -261,13 +261,15 @@ export function getAppToolbarConfig() {
 			id: 'export',
 			items: [
 				{
-					// Export the visual Analyze view (the .analyze-content) to an
-					// image/vector/PDF file. Only meaningful on a study route, where
-					// the analyze page is mounted to receive the export event.
+					// Output menu: Print the Document view and/or Export the visual
+					// Analyze view (the .analyze-content) to an image/PDF file. Only
+					// meaningful on a study route, where the view page is mounted to
+					// receive the print/export request. The Print item inside the menu
+					// is itself gated to the Document view.
 					type: 'menu',
 					iconId: 'export',
 					menuId: 'MenuExport',
-					underLabel: 'Export',
+					underLabel: 'Output',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledCheck: (state) => !state.isStudyRoute

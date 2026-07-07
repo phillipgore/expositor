@@ -569,7 +569,7 @@
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
 <MenuView menuId="MenuView" view={activeModeButton} />
 
-<MenuExport menuId="MenuExport" />
+<MenuExport menuId="MenuExport" view={activeModeButton} />
 <MenuSettings menuId="MenuSettings" alignment="end" />
 
 <MenuActions 

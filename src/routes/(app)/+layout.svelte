@@ -220,4 +220,37 @@
 		height: 100vh;
 		font-size: 1.2rem;
 	}
+
+	/* ============================================
+	   PRINT
+	   --------------------------------------------
+	   Only the WYSIWYG document pages should print — never the app interface.
+	   The chrome (app toolbar, studies/commentary panels, navigation overlay) is
+	   rendered HERE in the (app) layout as siblings of the page, OUTSIDE the
+	   document route, so the document page's own `@media print` rules cannot reach
+	   it. We therefore strip the chrome at the layer that owns it and let the page
+	   flow onto real sheets (the document page promotes its measure-layer and sets
+	   the @page geometry). `:global()` is required because these roots belong to
+	   child components. The document view has no <header>, so hiding the toolbar's
+	   <header> here is safe.
+	   ============================================ */
+	@media print {
+		:global(header),
+		:global(.studies-panel),
+		:global(.commentary-panel),
+		:global(.nav-overlay) {
+			display: none !important;
+		}
+
+		/* Release the on-screen flex/scroll constraints so the printed flow is not
+		   clipped or confined to a scroll viewport — it must span full sheets. */
+		.app-container {
+			display: block;
+			overflow: visible;
+		}
+		.content-wrapper {
+			overflow: visible;
+			transition: none;
+		}
+	}
 </style>
