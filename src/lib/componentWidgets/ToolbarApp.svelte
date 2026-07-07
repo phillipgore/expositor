@@ -78,7 +78,7 @@
 	import { invalidate } from '$app/navigation';
 
 	// Props to receive data from layout
-	let { groups = [] } = $props();
+	let { groups = [], isAdmin = false } = $props();
 
 	/**
 	 * Which view's zoom the toolbar currently controls. Analyze and Document keep
@@ -570,7 +570,7 @@
 <MenuView menuId="MenuView" view={activeModeButton} />
 
 <MenuExport menuId="MenuExport" view={activeModeButton} />
-<MenuSettings menuId="MenuSettings" alignment="end" />
+<MenuSettings menuId="MenuSettings" alignment="end" {isAdmin} />
 
 <MenuActions 
 	menuId="MenuActions" 

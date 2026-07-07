@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db/index.js';
 import { study, passage, studyGroup, user } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
@@ -14,6 +15,11 @@ export async function load({ request, depends }) {
 	if (!session?.user?.id) {
 		throw redirect(303, '/signin');
 	}
+
+	// Admin flag — true only for the seeded admin account. Kept server-side so
+	// the admin email never has to be hardcoded in client code.
+	const adminEmail = env.SEED_ADMIN_EMAIL || 'admin@expositor.app';
+	const isAdmin = session.user.email?.toLowerCase() === adminEmail.toLowerCase();
 
 	try {
 		// Get user preferences
@@ -168,6 +174,7 @@ export async function load({ request, depends }) {
 			.sort((a, b) => a.title.localeCompare(b.title));
 		
 		return {
+			isAdmin,
 			groups: groupsWithStudies,
 			ungroupedStudies,
 			studies: studiesWithPassages, // Keep for backwards compatibility
@@ -216,6 +223,7 @@ export async function load({ request, depends }) {
 
 		console.error('Error loading studies:', error);
 		return {
+			isAdmin,
 			groups: [],
 			ungroupedStudies: [],
 			studies: []

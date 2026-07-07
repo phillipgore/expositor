@@ -6,11 +6,15 @@
 	 * 
 	 * ## Features
 	 * - Displays current user's name and email
+	 * - Back Office button (mug icon) — disabled unless the user is an admin in the app context
+	 * - Application button (home icon) — disabled unless in the Back Office context
 	 * - Sign Out button with power icon
 	 * - Dark themed menu
 	 * 
 	 * ## Props
 	 * @property {string} menuId - Unique identifier for the menu
+	 * @property {boolean} [isAdmin=false] - Enables the Back Office button when true
+	 * @property {boolean} [inBackOffice=false] - Back Office context: enables Application, disables Back Office
 	 * 
 	 * ## Usage
 	 * ```svelte
@@ -26,8 +30,8 @@
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import { user, signOut } from '$lib/stores/auth.js';
 
-	/** @type {{ menuId: string, alignment?: string }} Props */
-	let { menuId, alignment = 'start' } = $props();
+	/** @type {{ menuId: string, alignment?: string, isAdmin?: boolean, inBackOffice?: boolean }} Props */
+	let { menuId, alignment = 'start', isAdmin = false, inBackOffice = false } = $props();
 
 	/** Handle logout */
 	const handleLogout = async () => {
@@ -44,6 +48,23 @@
 			<div class="user-name">{$user.name || 'User'}</div>
 			<div class="user-email">{$user.email}</div>
 		</div>
+		<DividerHorizontal />
+		<IconButton
+			iconId="mug"
+			label="Back Office"
+			classes="menu-light justify-content-left"
+			role="menuitem"
+			isDisabled={inBackOffice || !isAdmin}
+			handleClick={() => goto('/back-office')}
+		/>
+		<IconButton
+			iconId="home"
+			label="Application"
+			classes="menu-light justify-content-left"
+			role="menuitem"
+			isDisabled={!inBackOffice}
+			handleClick={() => goto('/dashboard')}
+		/>
 		<DividerHorizontal />
 		<IconButton
 			iconId="power"

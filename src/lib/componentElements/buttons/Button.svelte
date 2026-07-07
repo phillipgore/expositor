@@ -28,6 +28,7 @@
 	 * - `gray` - Secondary gray button
 	 * - `red` - Destructive red button
 	 * - `toolbar-dark` - Dark toolbar button with icon support
+	 * - `toolbar-blue` - Lighter blue toolbar button (Back Office toolbar)
 	 * - `menu-light` - Light menu item button
 	 * 
 	 * ## Usage Examples
@@ -487,6 +488,28 @@
 		fill: var(--gray-200);
 	}
 
+	button.toolbar-blue,
+	a.toolbar-blue {
+		background-color: var(--blue-dark);
+		margin: 0rem 0.3rem;
+	}
+
+	button.toolbar-blue :global(.icon path),
+	a.toolbar-blue :global(.icon path) {
+		fill: var(--blue-darker);
+	}
+
+	button.toolbar-blue.active:enabled,
+	a.toolbar-blue.active {
+		background-color: var(--blue-light);
+		color: var(--blue-darker);
+	}
+
+	button.toolbar-blue.active:enabled :global(.icon path),
+	a.toolbar-blue.active :global(.icon path) {
+		fill: var(--blue-darker);
+	}
+
 	/* ============================================
 	   CONTEXT VARIANTS - Menu
 	   ============================================ */
@@ -657,6 +680,12 @@
 	button.toolbar-dark:focus-visible,
 	a.toolbar-dark:focus-visible {
 		outline: 0.2rem solid var(--gray-800);
+		outline-offset: 0.1rem;
+	}
+
+	button.toolbar-blue:focus-visible,
+	a.toolbar-blue:focus-visible {
+		outline: 0.2rem solid var(--blue-light);
 		outline-offset: 0.1rem;
 	}
 

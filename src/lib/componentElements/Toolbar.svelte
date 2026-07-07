@@ -53,6 +53,7 @@
 	 * ## Available Classes
 	 * - `light` - White background (default)
 	 * - `dark` - Dark gray background
+	 * - `blue` - Dark blue background (Back Office)
 	 * - `rounded` - Fully rounded corners
 	 * - `bd-top` - Top border
 	 * - `bd-bottom` - Bottom border
@@ -120,6 +121,12 @@
 			background-color: var(--gray-200);
 			color: var(--white);
 			border-color: var(--black);
+		}
+
+		&.blue {
+			background-color: var(--blue-darker);
+			color: var(--white);
+			border-color: var(--blue-darker);
 		}
 
 		&.light {
