@@ -124,9 +124,9 @@
 		}
 
 		&.blue {
-			background-color: var(--blue-darker);
+			background-color: var(--blue);
 			color: var(--white);
-			border-color: var(--blue-darker);
+			border-color: var(--blue);
 		}
 
 		&.light {

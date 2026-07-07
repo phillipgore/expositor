@@ -490,24 +490,24 @@
 
 	button.toolbar-blue,
 	a.toolbar-blue {
-		background-color: var(--blue-dark);
+		background-color: var(--white);
 		margin: 0rem 0.3rem;
 	}
 
 	button.toolbar-blue :global(.icon path),
 	a.toolbar-blue :global(.icon path) {
-		fill: var(--blue-darker);
+		fill: var(--blue);
 	}
 
 	button.toolbar-blue.active:enabled,
 	a.toolbar-blue.active {
-		background-color: var(--blue-light);
-		color: var(--blue-darker);
+		background-color: var(--blue-lighter);
+		color: var(--blue);
 	}
 
 	button.toolbar-blue.active:enabled :global(.icon path),
 	a.toolbar-blue.active :global(.icon path) {
-		fill: var(--blue-darker);
+		fill: var(--blue);
 	}
 
 	/* ============================================
