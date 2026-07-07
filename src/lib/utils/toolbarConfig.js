@@ -261,11 +261,11 @@ export function getAppToolbarConfig() {
 			id: 'export',
 			items: [
 				{
-					// Output menu: Print the Document view and/or Export the visual
-					// Analyze view (the .analyze-content) to an image/PDF file. Only
-					// meaningful on a study route, where the view page is mounted to
-					// receive the print/export request. The Print item inside the menu
-					// is itself gated to the Document view.
+					// Output menu: Print the current view (Document prints the live
+					// page; Analyze prints its raster capture) and/or Export the
+					// visual Analyze view (the .analyze-content) to an image/PDF
+					// file. Only meaningful on a study route, where the view page is
+					// mounted to receive the print/export request.
 					type: 'menu',
 					iconId: 'export',
 					menuId: 'MenuExport',

@@ -2,12 +2,19 @@
  * Analyze View Export Utility
  *
  * Exports the visual content of the Analyze view (everything inside
- * `.analyze-content-inner`) to a downloadable file in one of two formats:
+ * `.analyze-content-inner`) to a downloadable file — or the printer — in one of
+ * three formats:
  *
- *   - 'png' — high-resolution raster image (2× pixel density). Best for pasting
- *             into docs/slides/messages and other Bible software.
- *   - 'pdf' — single page sized to the study's natural dimensions. Best for
- *             printing or emailing a clean handout.
+ *   - 'png'   — high-resolution raster image (2× pixel density). Best for pasting
+ *               into docs/slides/messages and other Bible software.
+ *   - 'pdf'   — single page sized to the study's natural dimensions. Best for
+ *               printing or emailing a clean handout.
+ *   - 'print' — the SAME raster capture, handed to the browser's print dialog via
+ *               a hidden iframe. The image is scaled to the page width and flows
+ *               across as many pages as needed (matching what users get when they
+ *               print the exported PDF from a viewer). Because studies rarely
+ *               match paper proportions, page breaks can land mid-segment — the
+ *               print dialog's scale control is the user's escape hatch.
  *
  * ## Why there is no SVG option
  * We previously offered an SVG export via html-to-image's `toSvg()`. That does NOT
@@ -423,14 +430,125 @@ async function exportPdf(innerEl, fileBase) {
 }
 
 /**
+ * Print the analyze content: run the same raster capture as PNG/PDF, then hand
+ * the image to the browser's native print dialog via a hidden same-origin
+ * iframe.
+ *
+ * ## Why an iframe (and not window.print() on the live page)
+ * The Analyze page has no `@media print` stylesheet — printing the live DOM
+ * would emit the zoom-transformed, scroll-clipped on-screen chrome. Instead we
+ * reuse the battle-tested capture pipeline (curtain, zoom neutralization,
+ * overlay recompute at scale = 1, restore) and print a minimal document that
+ * contains ONLY the captured image.
+ *
+ * ## Page behavior
+ * The image is laid out at 100% of the printable page width and allowed to
+ * flow across multiple pages (via the iframe document's simple print CSS).
+ * Fit-to-one-page was rejected: long studies would print unreadably small,
+ * and users can still scale down in the print dialog if they want fewer pages.
+ *
+ * ## Cleanup
+ * The iframe is removed on `afterprint`, with a generous timeout fallback for
+ * browsers/situations where the event never fires (e.g. some Safari versions).
+ * We deliberately do NOT remove it immediately after `print()` returns —
+ * in some browsers `print()` is non-blocking and tearing the iframe down too
+ * early yields a blank printout.
+ *
+ * @param {HTMLElement} innerEl
+ * @param {string} title - study title, used for the print document title
+ *        (which most browsers use as the default "Save as PDF" file name).
+ * @returns {Promise<void>} resolves once the print dialog has been requested.
+ */
+async function printAnalyze(innerEl, title) {
+	const { width, height, restore } = prepareForCapture(innerEl);
+	let dataUrl;
+	try {
+		// Let the connections overlay flush its scale = 1 recompute into the DOM
+		// before we snapshot, so its lines/anchors/notes are correctly placed.
+		await nextFrames(2);
+		dataUrl = await toPng(innerEl, buildOptions(width, height, PIXEL_RATIO));
+	} finally {
+		restore();
+	}
+
+	const iframe = document.createElement('iframe');
+	iframe.setAttribute('data-export-print-frame', '');
+	iframe.setAttribute('aria-hidden', 'true');
+	// Keep it rendered (display:none frames won't print in some browsers) but
+	// visually and interactively out of the way.
+	Object.assign(iframe.style, {
+		position: 'fixed',
+		right: '0',
+		bottom: '0',
+		width: '0',
+		height: '0',
+		border: '0',
+		visibility: 'hidden'
+	});
+	document.body.appendChild(iframe);
+
+	let removed = false;
+	const removeFrame = () => {
+		if (removed) return;
+		removed = true;
+		iframe.remove();
+	};
+
+	try {
+		const doc = iframe.contentDocument;
+		const win = iframe.contentWindow;
+		if (!doc || !win) {
+			throw new Error('Print failed: could not create the print frame.');
+		}
+
+		doc.open();
+		doc.write(
+			'<!DOCTYPE html><html><head>' +
+				`<title>${(title || 'Study').replace(/</g, '&lt;')}</title>` +
+				'<style>' +
+				'@page { margin: 0.5in; }' +
+				'html, body { margin: 0; padding: 0; }' +
+				// Scale the capture to the printable page width; height follows
+				// the aspect ratio and flows across pages.
+				'img { display: block; width: 100%; height: auto; }' +
+				'</style>' +
+				'</head><body>' +
+				'<img alt="" />' +
+				'</body></html>'
+		);
+		doc.close();
+
+		// Wait for the image to fully decode BEFORE calling print() — otherwise
+		// Safari (and occasionally others) prints a blank page.
+		const img = /** @type {HTMLImageElement} */ (doc.querySelector('img'));
+		await new Promise((resolve, reject) => {
+			img.onload = () => resolve(undefined);
+			img.onerror = () => reject(new Error('Print failed: could not load the captured image.'));
+			img.src = dataUrl;
+		});
+
+		// Clean up once printing is done (or canceled). Timeout backstops
+		// browsers where afterprint never fires on iframe windows.
+		win.addEventListener('afterprint', removeFrame, { once: true });
+		setTimeout(removeFrame, 60_000);
+
+		win.focus();
+		win.print();
+	} catch (error) {
+		removeFrame();
+		throw error;
+	}
+}
+
+/**
  * Export the analyze view's visual content in the requested format.
  *
  * @param {Object} params
  * @param {HTMLElement | null | undefined} params.element - the
  *        `.analyze-content-inner` element (contentInnerRef) to capture.
  * @param {string | undefined | null} params.title - study title, used for the
- *        downloaded file name.
- * @param {'png' | 'pdf'} params.format - output format.
+ *        downloaded file name (or the print document title for 'print').
+ * @param {'png' | 'pdf' | 'print'} params.format - output format.
 
  * @returns {Promise<void>}
  * @throws {Error} when the element is missing or the format is unsupported.
@@ -458,6 +576,9 @@ export async function exportAnalyzeView({ element, title, format }) {
 				break;
 			case 'pdf':
 				await exportPdf(element, fileBase);
+				break;
+			case 'print':
+				await printAnalyze(element, fileBase);
 				break;
 			default:
 				throw new Error(`Export failed: unsupported format "${format}".`);
