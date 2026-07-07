@@ -25,11 +25,27 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
     import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
-	import { toolbarState, showPassageNotes, showHeadings } from '$lib/stores/toolbar.js';
+	import { toolbarState, showPassageNotes, showDocumentPassageNotes, showHeadings } from '$lib/stores/toolbar.js';
 
 
 
-	let { menuId = 'MenuOutline' } = $props();
+	// `view` tells this menu which study view it is rendered for ('analyze' |
+	// 'document'). Text Quick Notes work on BOTH views but each keeps its OWN
+	// visibility flag (passageNotesVisible vs documentPassageNotesVisible), so the
+	// auto-reveal below must target the active view's helper: showPassageNotes for
+	// Analyze, showDocumentPassageNotes for Document.
+	let { menuId = 'MenuOutline', view = 'analyze' } = $props();
+
+	// Reveal the active view's passage (text) quick notes so a freshly-inserted note
+	// is immediately visible even if that view's notes were toggled off.
+	function revealPassageNotesForView() {
+		if (view === 'document') {
+			showDocumentPassageNotes();
+		} else {
+			showPassageNotes();
+		}
+	}
+
 
 	function closeMenu() {
 		const menuElement = document.getElementById(menuId);
@@ -96,12 +112,13 @@
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			// Auto-show passage notes if hidden, so the new note is visible.
-			// Recomputes the master notesVisible toggle and persists the preference.
-			showPassageNotes();
+			// Auto-show the active view's passage notes if hidden, so the new note is
+			// visible. Recomputes that view's master notes toggle and persists it.
+			revealPassageNotesForView();
 			// Trigger insert segment note event via custom event
 			window.dispatchEvent(new CustomEvent('insert-note-from-menu'));
 		}}
+
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasNote}
 	/>
 

@@ -948,6 +948,50 @@ export function showConnectionNotes() {
 }
 
 /**
+ * Ensure Document-view passage (segment) quick notes are visible. The Document view
+ * keeps its OWN visibility flags (document*), independent of the Analyze view's, so
+ * this mirrors showPassageNotes() but targets documentPassageNotesVisible. Used when
+ * the user adds a quick note in the Document view so the new note is immediately
+ * visible even if Document notes were toggled off. No-op if already shown. Recomputes
+ * the master documentNotesVisible (true only when both document passage and connection
+ * notes are on) and persists.
+ */
+export function showDocumentPassageNotes() {
+	const state = get(toolbarStateStore);
+	if (state.documentPassageNotesVisible) return;
+	const newNotesVisible = state.documentConnectionNotesVisible; // passage now true
+	toolbarStateStore.update(s => ({
+		...s,
+		documentPassageNotesVisible: true,
+		documentNotesVisible: newNotesVisible
+	}));
+	persistPreference({ documentPassageNotesVisible: true, documentNotesVisible: newNotesVisible });
+}
+
+
+/**
+ * Ensure Document-view CONNECTION quick notes are visible. Mirrors
+ * showDocumentPassageNotes() but targets documentConnectionNotesVisible. Used when
+ * the user adds a connection quick note in the Document view so the new note is
+ * immediately visible even if Document connection notes were toggled off. No-op if
+ * already shown. Recomputes the master documentNotesVisible (true only when both
+ * document passage and connection notes are on) and persists.
+ */
+export function showDocumentConnectionNotes() {
+	const state = get(toolbarStateStore);
+	if (state.documentConnectionNotesVisible) return;
+	const newNotesVisible = state.documentPassageNotesVisible; // connection now true
+	toolbarStateStore.update(s => ({
+		...s,
+		documentConnectionNotesVisible: true,
+		documentNotesVisible: newNotesVisible
+	}));
+	persistPreference({ documentConnectionNotesVisible: true, documentNotesVisible: newNotesVisible });
+}
+
+
+
+/**
  * Ensure the connection-visibility toggle for a connection of the given from/to
  * types is on. Used when the user adds a connection (or a connection quick note)
  * so the new connection is immediately visible. Mirrors the type→toggle mapping

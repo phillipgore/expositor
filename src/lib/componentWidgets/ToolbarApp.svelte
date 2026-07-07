@@ -479,13 +479,14 @@
 						underLabelClasses={button.underLabelClasses}
 						isDisabled={
 							button.disabledCheck
-								? button.disabledCheck($toolbarState)
+								? button.disabledCheck($toolbarState, activeModeButton)
 								: button.disabledStateProp
 									? !$toolbarState[button.disabledStateProp]
 									: false
 						}
 					/>
 				{:else if button.type === 'toggle'}
+
 					<ToggleButton
 						iconId={button.iconId}
 						underLabel={button.underLabel}
@@ -560,9 +561,11 @@
 
 <MenuStructure menuId="MenuStructure" view={activeModeButton} />
 
-<MenuLayout menuId="MenuLayout" />
-<MenuConnect menuId="MenuConnect" />
-<MenuOutline menuId="MenuOutline" />
+<MenuLayout menuId="MenuLayout" view={activeModeButton} />
+
+<MenuConnect menuId="MenuConnect" view={activeModeButton} />
+<MenuOutline menuId="MenuOutline" view={activeModeButton} />
+
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
 <MenuView menuId="MenuView" view={activeModeButton} />
 

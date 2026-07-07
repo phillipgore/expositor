@@ -175,8 +175,16 @@ export function getAppToolbarConfig() {
 					underLabel: 'Color',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledCheck: (state) => !state.canColor || state.overviewMode
+					// On the read-only Document view a selected SECTION or SEGMENT can't be
+					// recolored, so disable Color when either is active there. (Analyze is
+					// unaffected, and column selections on Document still allow coloring.)
+					disabledCheck: (state, view) =>
+						!state.canColor ||
+						state.overviewMode ||
+						(view === 'document' && (state.hasActiveSection || state.hasActiveSegment))
+
 				}
+
 			]
 		},
 		{

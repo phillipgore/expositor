@@ -30,12 +30,26 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
-	import { toolbarState, showConnectionNotes } from '$lib/stores/toolbar.js';
+	import { toolbarState, showConnectionNotes, showDocumentConnectionNotes } from '$lib/stores/toolbar.js';
 	import { showPopover } from '$lib/stores/popover.js';
 	import messages from '$lib/data/messages.json';
 
 
-	let { menuId = 'MenuConnect' } = $props();
+	// `view` tells this menu which study view it is rendered for ('analyze' |
+	// 'document'). Connection Quick Notes are wired for BOTH views but each keeps its
+	// OWN visibility flag (connectionNotesVisible vs documentConnectionNotesVisible)
+	// and its own "insert" listener, so the auto-reveal + hidden-note detection below
+	// must target the active view's flag/helper.
+	let { menuId = 'MenuConnect', view = 'analyze' } = $props();
+
+	// The active view's connection-notes visibility flag. Reads the document* copy on
+	// the Document view so auto-reveal / hidden-note logic tracks the right toggle.
+	let connectionNotesVisibleForView = $derived(
+		view === 'document'
+			? $toolbarState.documentConnectionNotesVisible
+			: $toolbarState.connectionNotesVisible
+	);
+
 
 	function closeMenu() {
 		const menuElement = document.getElementById(menuId);
@@ -78,8 +92,9 @@
 	let noteExistsButHidden = $derived(
 		singleConnectionSelected &&
 		$toolbarState.activeConnectionHasNote &&
-		!$toolbarState.connectionNotesVisible
+		!connectionNotesVisibleForView
 	);
+
 
 	// Enabled when a single connection is selected AND either it has no note yet (normal
 	// add) OR it has a note that is currently hidden by the toggle (click → popover).
@@ -124,10 +139,15 @@
 				showPopover(messages.notices.connectionNoteExistsHidden);
 				return;
 			}
-			// Auto-show connection notes if hidden, so the new note is visible.
-			// Recomputes the master notesVisible toggle and persists the preference.
-			showConnectionNotes();
+			// Auto-show the active view's connection notes if hidden, so the new note is
+			// visible. Recomputes that view's master notes toggle and persists it.
+			if (view === 'document') {
+				showDocumentConnectionNotes();
+			} else {
+				showConnectionNotes();
+			}
 			window.dispatchEvent(new CustomEvent('connection-insert-note'));
+
 		}}
 		isDisabled={quickNoteDisabled}
 	/>

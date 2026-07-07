@@ -24,6 +24,11 @@
 	 *
 	 * Props:
 	 * - menuId (string, default: 'MenuLayout') - Unique identifier for the menu
+	 * - view ('analyze'|'document', default: 'analyze') - Which view this menu serves.
+	 *   Column Spacing / Column Width tune the interactive Analyze canvas's per-column
+	 *   layout, which the read-only Document view (paginated onto fixed Letter sheets)
+	 *   has no mechanic for — so those items are DISABLED (not hidden) on the Document
+	 *   view, keeping the menu's shape stable across mode switches.
 	 */
 
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
@@ -31,7 +36,10 @@
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
-	let { menuId = 'MenuLayout' } = $props();
+	let { menuId = 'MenuLayout', view = 'analyze' } = $props();
+
+	let isDocument = $derived(view === 'document');
+
 
 	function closeMenu() {
 		const menuElement = document.getElementById(menuId);
@@ -51,7 +59,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-column-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+
 	/>
 
 	<IconButton
@@ -63,7 +72,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('reset-column-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+
 	/>
 
 	<DividerHorizontal />
@@ -77,7 +87,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-column-width'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+
 	/>
 
 	<IconButton
@@ -89,7 +100,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('reset-column-width'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+
 	/>
 
 	<DividerHorizontal />
@@ -103,7 +115,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-section-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+
 	/>
 
 	<IconButton
@@ -115,7 +128,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('reset-section-spacing'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+
 	/>
 
 	<DividerHorizontal />
@@ -129,7 +143,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-segment-height'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+
 	/>
 
 	<IconButton
@@ -141,7 +156,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('restore-segment-height'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+
 	/>
 
 	<DividerHorizontal />

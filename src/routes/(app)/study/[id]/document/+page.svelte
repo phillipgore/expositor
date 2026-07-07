@@ -19,8 +19,15 @@
 		setActiveColumn,
 		setActiveHeading,
 		setActiveConnection,
-		setDocumentCommentaryEditorOpen
+		setDocumentCommentaryEditorOpen,
+		setHeadingOrNoteEditorActive,
+		clearHeadingOrNoteEditorActiveKey,
+		showDocumentPassageNotes,
+		showDocumentConnectionNotes
 	} from '$lib/stores/toolbar.js';
+
+	import { QUICK_NOTE_MAX_CHARS } from '$lib/constants/notes.js';
+
 
 
 
@@ -1473,8 +1480,25 @@
 
 	const pendingKey = (segmentId, type) => `${segmentId}|${type}`;
 
+	// Per-segment "quick note newly inserted, awaiting first input" flags. When a text
+	// quick note is inserted from the Markup menu the segment has no stored note yet, so
+	// the template renders an empty editable note element for it; this set tells the
+	// template which segment ids to render a note editor for even though block.note is
+	// null. Mirrors pendingHeadings but keyed by bare segment id (a segment has at most
+	// one quick note).
+	let pendingNotes = $state(/** @type {Set<string>} */ (new Set()));
+
+	// Per-connection "quick note newly inserted, awaiting first input" flags. When a
+	// Connection Quick Note is inserted from the Connect menu the connection has no
+	// stored note yet, so the template renders an empty editable note element for it;
+	// this set tells the template which connection ids to render a note editor for even
+	// though conn.note is null. Mirrors pendingNotes but keyed by segment_connection id.
+	let pendingConnectionNotes = $state(/** @type {Set<string>} */ (new Set()));
+
+
 	/**
 	 * Look up the raw (un-nulled) segment record for a given id across all passages,
+
 	 * so we can read its true heading presence even when a toggle has hidden them in
 	 * the rendered blocks. Returns null when not found / not yet streamed.
 	 * @param {string} segmentId
@@ -1632,7 +1656,10 @@
 			hasHeadingOne: !!seg?.headingOne || pendingHeadings.has(pendingKey(segmentId, 'one')),
 			hasHeadingTwo: !!seg?.headingTwo || pendingHeadings.has(pendingKey(segmentId, 'two')),
 			hasHeadingThree: !!seg?.headingThree || pendingHeadings.has(pendingKey(segmentId, 'three')),
-			hasNote: !!seg?.note,
+			// A freshly-inserted (pending) note counts as present so the Markup menu's
+			// "Text Quick Note" can't insert a duplicate on the same segment.
+			hasNote: !!seg?.note || pendingNotes.has(segmentId),
+
 			// The first segment of a passage has nothing before it to join to, so Join
 			// Segment must disable for it (matches the Analyze view's isFirst handling).
 			isFirst: isFirstSegmentInPassage(segmentId)
@@ -1729,9 +1756,34 @@
 		activeDocSegmentId = null;
 		activeDocHeadingId = null;
 		activeDocConnectionKey = connectionKey;
-		// Pushes hasActiveConnection + clears segment/heading in the store.
-		setActiveConnection(true, [connectionKey]);
+		// Pushes hasActiveConnection + clears segment/heading in the store, carrying
+		// this connection's quick-note presence so the Connect menu's "Connection Quick
+		// Note" item can't add a duplicate (and its placement items enable correctly).
+		syncActiveConnection(connectionKey);
 	}
+
+	/**
+	 * Whether a connection currently carries a quick note — either a stored note on
+	 * its segment_connection row, or a freshly-inserted (pending) one awaiting first
+	 * input. Mirrors the segment-note presence test used by syncActiveSegment.
+	 * @param {string} connectionKey
+	 * @returns {boolean}
+	 */
+	function connectionHasNote(connectionKey) {
+		return !!findRawConnection(connectionKey)?.note || pendingConnectionNotes.has(connectionKey);
+	}
+
+	/**
+	 * Push the active connection (and its quick-note presence) into the shared toolbar
+	 * store so the Connect menu gates "Connection Quick Note" and its placement items
+	 * correctly. Mirrors syncActiveSegment for connections.
+	 * @param {string} connectionKey
+	 */
+	function syncActiveConnection(connectionKey) {
+		const hasNote = connectionHasNote(connectionKey);
+		setActiveConnection(true, [connectionKey], hasNote, hasNote ? 1 : 0);
+	}
+
 
 
 	/**
@@ -1781,6 +1833,20 @@
 		}
 		return null;
 	}
+
+	/**
+	 * Look up the raw segment_connection row (by its id) so we can read its stored
+	 * quick note. Returns null when not found / not yet streamed.
+	 * @param {string} connectionKey
+	 * @returns {any}
+	 */
+	function findRawConnection(connectionKey) {
+		for (const conn of data.connections ?? []) {
+			if (conn.id === connectionKey) return conn;
+		}
+		return null;
+	}
+
 
 
 
@@ -2004,15 +2070,43 @@
 	}
 
 	/**
+	 * Focus handler for an editable heading: mark this heading editor active in the
+	 * shared toolbar store so the Delete button enables (and knows a Heading One/Two/
+	 * Three is being edited, so its Priority-4 path dispatches `remove-heading-${type}`).
+	 * Also records the segment id + type locally so the remove-heading listeners can
+	 * target this heading even after setActiveHeading nulls the store's activeSegmentId.
+	 * @param {FocusEvent} event
+	 * @param {string} segmentId
+	 * @param {'one'|'two'|'three'} headingType
+	 */
+	function handleHeadingFocus(event, segmentId, headingType) {
+		editingHeadingSegmentId = segmentId;
+		editingHeadingType = headingType;
+		setHeadingOrNoteEditorActive(true, headingType, headingEditorKey(segmentId, headingType));
+	}
+
+	/**
 	 * Blur handler for an editable heading: read the element's text and persist it.
+	 * Like the note blur, if the blur was caused by pressing a toolbar button (e.g.
+	 * Delete), leave the editor-active flag LIVE and do NOT save — so Delete's click
+	 * handler reads the flag and dispatches `remove-heading-${type}` (deleting it).
+	 * Otherwise commit the save and clear the editor-active flag immediately.
 	 * @param {FocusEvent} event
 	 * @param {string} segmentId
 	 * @param {'one'|'two'|'three'} headingType
 	 */
 	function handleHeadingBlur(event, segmentId, headingType) {
 		const el = /** @type {HTMLElement} */ (event.currentTarget);
-		saveHeading(segmentId, headingType, el.textContent ?? '');
+		const text = el.textContent ?? '';
+		if (focusMovingToToolbar(event)) return;
+		if (editingHeadingSegmentId === segmentId && editingHeadingType === headingType) {
+			editingHeadingSegmentId = null;
+			editingHeadingType = null;
+		}
+		clearHeadingOrNoteEditorActiveKey(headingEditorKey(segmentId, headingType));
+		saveHeading(segmentId, headingType, text);
 	}
+
 
 	/**
 	 * Keydown handler for an editable heading: Enter commits (blur), Escape cancels
@@ -2033,6 +2127,438 @@
 	}
 
 
+	/* ============================================================
+	   IN-PLACE QUICK NOTE EDITING — a segment's Text Quick Note is editable directly
+	   in the document, mirroring the heading editing above. Selecting a segment and
+	   clicking the Markup menu's "Text Quick Note" inserts an empty, focused note; the
+	   note is contenteditable and saves on blur. While a note is focused the shared
+	   toolbar's Delete button enables (setHeadingOrNoteEditorActive) and its `remove-note`
+	   event deletes the note. All edits persist via POST /api/passages/segments/note,
+	   then re-load via invalidate('app:studies') so the document re-paginates. The note
+	   text is capped at QUICK_NOTE_MAX_CHARS, matching the Analyze view's NoteEditor.
+	   ============================================================ */
+
+	// Unique editor key for a segment's note, shared with the toolbar store so the
+	// Delete button (and its scoped clear) can target exactly this note editor.
+	const noteEditorKey = (segmentId) => `${segmentId}-note`;
+
+	// Pending blur commit. Clicking the toolbar's Delete button blurs the note BEFORE
+	// its click handler runs (native order: mousedown → blur → mouseup → click), so a
+	// SYNCHRONOUS clear of the editor-active flag on blur would disable Delete before it
+	// could read the flag. We therefore DEFER the blur's save+clear to a macrotask
+	// (setTimeout 0), which runs AFTER the click — keeping the flag live so Delete works
+	// — and let a `remove-note` cancel that pending commit so a delete doesn't race the
+	// blur's save. Tracks the timer id and which segment it belongs to.
+	let noteBlurTimer = /** @type {ReturnType<typeof setTimeout> | null} */ (null);
+	let noteBlurSegmentId = /** @type {string | null} */ (null);
+
+	// The most recent pointerdown target anywhere in the document (stamped by the
+	// capture-phase handler in the click-outside onMount below). Editors read this in
+	// their blur handlers to reliably tell "the user is clicking a toolbar button" from
+	// "the user clicked away", WITHOUT depending on `relatedTarget` — which is null when
+	// clicking a <button> on macOS Safari/Firefox (buttons don't take focus there). We
+	// prefer relatedTarget when present (Chrome) and fall back to this tracked element
+	// (Safari/Firefox), so the check works cross-browser.
+	let lastPointerDownEl = /** @type {HTMLElement | null} */ (null);
+
+	/**
+	 * Whether the blur that just fired was caused by the user pressing a TOOLBAR button
+	 * (e.g. Delete). When true, an editor's blur handler should KEEP its active-editor
+	 * flag live and NOT commit a save, so the toolbar button's click handler can read
+	 * the still-live flag and dispatch the matching remove event. Uses `relatedTarget`
+	 * when the browser provides it, else the last pointerdown target (see above).
+	 * @param {FocusEvent} [event]
+	 * @returns {boolean}
+	 */
+	function focusMovingToToolbar(event) {
+		const related =
+			event && event.relatedTarget instanceof HTMLElement ? event.relatedTarget : lastPointerDownEl;
+		return !!(related && related.closest && related.closest('[class*="toolbar"]'));
+	}
+
+	// In-place HEADING editing: the segment id + heading type whose contenteditable is
+	// currently focused (null when none). Tracked locally because activating a heading as
+	// the commentary subject (setActiveHeading) NULLS the shared store's activeSegmentId,
+	// so the Delete button's `remove-heading-*` dispatch can't carry the segment id — the
+	// page's remove-heading listeners read these instead. Mirrors editingNoteId/Count.
+	let editingHeadingSegmentId = /** @type {string | null} */ (null);
+	let editingHeadingType = /** @type {'one'|'two'|'three'|null} */ (null);
+
+	// Unique editor key for a heading, shared with the toolbar store so the Delete
+	// button (and its scoped clear) can target exactly this heading editor.
+	const headingEditorKey = (segmentId, type) => `${segmentId}-heading-${type}`;
+
+
+	// Live character-count readout for the note currently being edited. `editingNoteId`
+	// is the segment id whose note editor is focused (null when none), and `editingNoteCount`
+	// is that note's current length — both drive the small "N / MAX" counter shown over the
+	// active note, mirroring the Analyze view's NoteEditor. Reactive ($state) so the counter
+	// updates as the user types.
+	let editingNoteId = $state(/** @type {string | null} */ (null));
+	let editingNoteCount = $state(0);
+
+
+
+	/**
+	 * Persist a quick-note edit for a segment. Empty text removes the note. Re-loads
+	 * the study afterward so the rendered document reflects the new note and the
+	 * pagination is recomputed against it.
+	 * @param {string} segmentId
+	 * @param {string} text
+	 */
+	async function saveNote(segmentId, text) {
+		// Enforce the shared Quick Note cap on save as a final guard (the editor also
+		// caps live on input); empty text clears the note.
+		const noteText = (text ?? '').trim().slice(0, QUICK_NOTE_MAX_CHARS);
+		try {
+			await fetch('/api/passages/segments/note', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ segmentId, noteText: noteText || null })
+			});
+			// Clear the pending flag now that the row is persisted (or removed).
+			pendingNotes.delete(segmentId);
+			pendingNotes = new Set(pendingNotes);
+			await invalidate('app:studies');
+			// Refresh the toolbar's view of this segment after the reload.
+			if (activeDocSegmentId === segmentId) syncActiveSegment(segmentId);
+		} catch (error) {
+			console.error('Error saving note:', error);
+		}
+	}
+
+	/**
+	 * Focus handler for an editable note: mark this note editor active in the shared
+	 * toolbar store so the Delete button enables (and knows it's a 'note' being edited).
+	 * @param {string} segmentId
+	 */
+	function handleNoteFocus(event, segmentId) {
+		// A re-focus supersedes any pending (deferred) blur-commit from a prior blur.
+		cancelPendingNoteBlur();
+		activeDocSegmentId = segmentId;
+		setHeadingOrNoteEditorActive(true, 'note', noteEditorKey(segmentId));
+		// Light up the live character counter for THIS note, seeded with its current length.
+		editingNoteId = segmentId;
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		editingNoteCount = (el.textContent ?? '').length;
+	}
+
+
+
+	/**
+	 * Live input cap for an editable note: keep the contenteditable text within
+	 * QUICK_NOTE_MAX_CHARS, mirroring the NoteEditor's maxlength. When the text
+	 * overflows, trim it back to the cap and restore the caret to the end so typing
+	 * simply stops accepting characters rather than jumping.
+	 * @param {Event} event
+	 */
+	function handleNoteInput(event) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		const text = el.textContent ?? '';
+		if (text.length > QUICK_NOTE_MAX_CHARS) {
+			el.textContent = text.slice(0, QUICK_NOTE_MAX_CHARS);
+			// Put the caret back at the end of the (now-trimmed) content.
+			const range = document.createRange();
+			range.selectNodeContents(el);
+			range.collapse(false);
+			const sel = window.getSelection();
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+		}
+		// Keep the live counter in step with the (possibly-capped) text length.
+		editingNoteCount = Math.min((el.textContent ?? '').length, QUICK_NOTE_MAX_CHARS);
+	}
+
+
+	/**
+	 * Blur handler for an editable note. The save + editor-active clear are DEFERRED
+	 * to a macrotask (see the noteBlurTimer note above) so that when the blur was
+	 * caused by clicking the toolbar's Delete button, the editor-active flag is still
+	 * live when Delete's click handler reads it — letting Delete dispatch `remove-note`.
+	 * A `remove-note` (or a re-focus) cancels this pending commit so the two don't race.
+	 * @param {FocusEvent} event
+	 * @param {string} segmentId
+	 */
+	function handleNoteBlur(event, segmentId) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		const text = el.textContent ?? '';
+		// DETERMINISTIC delete-vs-save: if the blur was caused by pressing a toolbar
+		// button (e.g. Delete), leave the editor-active flag LIVE and do NOT save — so
+		// the Delete button's click handler reliably reads the flag and dispatches
+		// `remove-note` (which then clears the flag + deletes). This replaces the old
+		// setTimeout(0) race, which could clear the flag before Delete's click ran.
+		if (focusMovingToToolbar(event)) return;
+		// Normal blur (clicked away): commit immediately — no deferral needed.
+		if (noteBlurTimer !== null) clearTimeout(noteBlurTimer);
+		noteBlurTimer = null;
+		noteBlurSegmentId = null;
+		// Hide this note's live counter now that its editor has committed.
+		if (editingNoteId === segmentId) editingNoteId = null;
+		clearHeadingOrNoteEditorActiveKey(noteEditorKey(segmentId));
+		saveNote(segmentId, text);
+	}
+
+
+
+	/**
+	 * Cancel a pending deferred blur-commit (if any). Called when a `remove-note`
+	 * arrives so the blur's save doesn't race the delete, and when a note re-focuses.
+	 */
+	function cancelPendingNoteBlur() {
+		if (noteBlurTimer !== null) {
+			clearTimeout(noteBlurTimer);
+			noteBlurTimer = null;
+			noteBlurSegmentId = null;
+		}
+	}
+
+
+	/**
+	 * Keydown handler for an editable note: Enter commits (blur), Escape cancels
+	 * (restore original text, blur without saving), and any keystroke that would push
+	 * past the cap on an already-full note is blocked (allowing navigation / editing
+	 * keys through), mirroring the NoteEditor's maxlength behavior.
+	 * @param {KeyboardEvent} event
+	 * @param {string} original
+	 */
+	function handleNoteKeydown(event, original) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			el.blur();
+			return;
+		}
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			el.textContent = original ?? '';
+			el.blur();
+			return;
+		}
+		// Block additional printable characters once the note is at the cap (but always
+		// allow modifier combos, navigation, and deletion so the user can still edit).
+		const isPrintable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
+		const hasSelection = !!window.getSelection()?.toString();
+		if (isPrintable && !hasSelection && (el.textContent ?? '').length >= QUICK_NOTE_MAX_CHARS) {
+			event.preventDefault();
+		}
+	}
+
+
+
+
+
+	/* ============================================================
+	   IN-PLACE CONNECTION QUICK NOTE EDITING — a connection's Quick Note is editable
+	   directly on its appendix card, mirroring the segment quick note above. Selecting
+	   a connection card and clicking the Connect menu's "Connection Quick Note" inserts
+	   an empty, focused note; the note is contenteditable and saves on blur. While a
+	   note is focused the shared toolbar's Delete button enables (via
+	   setHeadingOrNoteEditorActive with the 'connection-note' type, matching the Analyze
+	   view) and its `connection-remove-note` event deletes the note. Edits persist via
+	   PATCH /api/segments/connections/:id { note }, then re-load via
+	   invalidate('app:studies'). Capped at QUICK_NOTE_MAX_CHARS.
+	   ============================================================ */
+
+	// Unique editor key for a connection's note, shared with the toolbar store so the
+	// Delete button (and its scoped clear) can target exactly this note editor. Matches
+	// the Analyze view's 'connection-note' type so the Delete button's dispatch of
+	// `connection-remove-note` (rather than `remove-note`) is routed here.
+	const connectionNoteEditorKey = (connectionKey) => `${connectionKey}-connection-note`;
+
+	// Deferred blur commit for connection notes (same rationale as the segment note's
+	// noteBlurTimer): clicking Delete blurs the note BEFORE its click handler runs, so
+	// we defer the blur's save+clear to a macrotask and let a `connection-remove-note`
+	// cancel it, keeping the editor-active flag live long enough for Delete to fire.
+	let connNoteBlurTimer = /** @type {ReturnType<typeof setTimeout> | null} */ (null);
+
+	// Live character-count readout for the connection note currently being edited.
+	let editingConnectionNoteKey = $state(/** @type {string | null} */ (null));
+	let editingConnectionNoteCount = $state(0);
+
+	/**
+	 * Persist a connection quick-note edit. Empty text removes the note. Re-loads the
+	 * study afterward so the rendered document reflects the new note and re-paginates.
+	 * @param {string} connectionKey - segment_connection id
+	 * @param {string} text
+	 */
+	async function saveConnectionNote(connectionKey, text) {
+		const noteText = (text ?? '').trim().slice(0, QUICK_NOTE_MAX_CHARS);
+		try {
+			await fetch(`/api/segments/connections/${connectionKey}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ note: noteText || null })
+			});
+			// Clear the pending flag now that the row is persisted (or the note removed).
+			pendingConnectionNotes.delete(connectionKey);
+			pendingConnectionNotes = new Set(pendingConnectionNotes);
+			await invalidate('app:studies');
+			// Refresh the toolbar's view of this connection after the reload.
+			if (activeDocConnectionKey === connectionKey) syncActiveConnection(connectionKey);
+		} catch (error) {
+			console.error('Error saving connection note:', error);
+		}
+	}
+
+	/**
+	 * Cancel a pending deferred connection-note blur-commit (if any). Called when a
+	 * `connection-remove-note` arrives so the blur's save doesn't race the delete, and
+	 * when a connection note re-focuses.
+	 */
+	function cancelPendingConnectionNoteBlur() {
+		if (connNoteBlurTimer !== null) {
+			clearTimeout(connNoteBlurTimer);
+			connNoteBlurTimer = null;
+		}
+	}
+
+	/**
+	 * Focus handler for an editable connection note: mark this note editor active in
+	 * the shared toolbar store so the Delete button enables. Uses the 'connection-note'
+	 * type so Delete dispatches `connection-remove-note` (routed to onRemoveConnectionNote).
+	 * @param {FocusEvent} event
+	 * @param {string} connectionKey
+	 */
+	function handleConnectionNoteFocus(event, connectionKey) {
+		cancelPendingConnectionNoteBlur();
+		activateConnectionCommentary(connectionKey);
+		setHeadingOrNoteEditorActive(true, 'connection-note', connectionNoteEditorKey(connectionKey));
+		editingConnectionNoteKey = connectionKey;
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		editingConnectionNoteCount = (el.textContent ?? '').length;
+	}
+
+	/**
+	 * Live input cap for an editable connection note (mirrors handleNoteInput).
+	 * @param {Event} event
+	 */
+	function handleConnectionNoteInput(event) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		const text = el.textContent ?? '';
+		if (text.length > QUICK_NOTE_MAX_CHARS) {
+			el.textContent = text.slice(0, QUICK_NOTE_MAX_CHARS);
+			const range = document.createRange();
+			range.selectNodeContents(el);
+			range.collapse(false);
+			const sel = window.getSelection();
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+		}
+		editingConnectionNoteCount = Math.min((el.textContent ?? '').length, QUICK_NOTE_MAX_CHARS);
+	}
+
+	/**
+	 * Blur handler for an editable connection note. The save + editor-active clear are
+	 * DEFERRED to a macrotask (see connNoteBlurTimer) so Delete's click handler can read
+	 * the still-live editor-active flag. A `connection-remove-note` (or a re-focus)
+	 * cancels this pending commit so the two don't race.
+	 * @param {FocusEvent} event
+	 * @param {string} connectionKey
+	 */
+	function handleConnectionNoteBlur(event, connectionKey) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		const text = el.textContent ?? '';
+		// DETERMINISTIC delete-vs-save (see handleNoteBlur): if the blur was caused by
+		// pressing a toolbar button (e.g. Delete), keep the editor-active flag LIVE and
+		// do NOT save, so Delete's click handler reads the flag and dispatches
+		// `connection-remove-note`. Otherwise commit immediately.
+		if (focusMovingToToolbar(event)) return;
+		if (connNoteBlurTimer !== null) clearTimeout(connNoteBlurTimer);
+		connNoteBlurTimer = null;
+		if (editingConnectionNoteKey === connectionKey) editingConnectionNoteKey = null;
+		clearHeadingOrNoteEditorActiveKey(connectionNoteEditorKey(connectionKey));
+		saveConnectionNote(connectionKey, text);
+	}
+
+
+	/**
+	 * Keydown handler for an editable connection note (mirrors handleNoteKeydown):
+	 * Enter commits (blur), Escape cancels (restore original, blur without saving),
+	 * and printable keys past the cap on a full note are blocked.
+	 * @param {KeyboardEvent} event
+	 * @param {string} original
+	 */
+	function handleConnectionNoteKeydown(event, original) {
+		const el = /** @type {HTMLElement} */ (event.currentTarget);
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			el.blur();
+			return;
+		}
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			el.textContent = original ?? '';
+			el.blur();
+			return;
+		}
+		const isPrintable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
+		const hasSelection = !!window.getSelection()?.toString();
+		if (isPrintable && !hasSelection && (el.textContent ?? '').length >= QUICK_NOTE_MAX_CHARS) {
+			event.preventDefault();
+		}
+	}
+
+	// Listen for the Connect menu's "Connection Quick Note" insert event and the
+	// toolbar's Delete `connection-remove-note` event. Insert adds an empty, pending
+	// note on the active connection and focuses it for typing (ensuring Document
+	// connection notes are visible first); connection-remove-note (fired by the Delete
+	// button while a connection note editor is active) clears the note. Mirrors the
+	// segment-note handler, tailored to the connection note editor on the appendix card.
+	onMount(() => {
+		if (typeof window === 'undefined') return;
+
+		const onInsertConnectionNote = () => {
+			const connectionKey = activeDocConnectionKey;
+			if (!connectionKey) return;
+			// A connection already carrying a note (stored or pending) can't take a second.
+			if (pendingConnectionNotes.has(connectionKey) || !!findRawConnection(connectionKey)?.note)
+				return;
+			// Guarantee the new note is visible even if Connection notes were toggled off.
+			showDocumentConnectionNotes();
+			// Mark this note pending so the template renders an empty editable for it.
+			pendingConnectionNotes.add(connectionKey);
+			pendingConnectionNotes = new Set(pendingConnectionNotes);
+			syncActiveConnection(connectionKey);
+			// Focus the new editable note once it renders.
+			tick().then(() => {
+				// Scope to the VISIBLE pages so we never focus the off-screen,
+				// pointer-events:none measure-layer copy of the same note.
+				const el = document.querySelector(
+					`.pages-inner [data-doc-connection-note="${connectionKey}"]`
+				);
+				if (el instanceof HTMLElement) {
+					el.focus();
+					const range = document.createRange();
+					range.selectNodeContents(el);
+					range.collapse(false);
+					const sel = window.getSelection();
+					sel?.removeAllRanges();
+					sel?.addRange(range);
+				}
+			});
+		};
+
+		const onRemoveConnectionNote = (event) => {
+			// The Delete toolbar button targets the active connection; fall back to the
+			// currently-active connection so a keyboard Delete works too.
+			const connectionKey = event?.detail?.connectionKey ?? activeDocConnectionKey;
+			if (!connectionKey) return;
+			// Cancel the deferred blur-commit first so it doesn't re-create the note.
+			cancelPendingConnectionNoteBlur();
+			pendingConnectionNotes.delete(connectionKey);
+			pendingConnectionNotes = new Set(pendingConnectionNotes);
+			clearHeadingOrNoteEditorActiveKey(connectionNoteEditorKey(connectionKey));
+			saveConnectionNote(connectionKey, '');
+		};
+
+		window.addEventListener('connection-insert-note', onInsertConnectionNote);
+		window.addEventListener('connection-remove-note', onRemoveConnectionNote);
+
+		return () => {
+			window.removeEventListener('connection-insert-note', onInsertConnectionNote);
+			window.removeEventListener('connection-remove-note', onRemoveConnectionNote);
+		};
+	});
 
 
 	// Listen for the Markup menu's "insert heading" events. Each inserts an empty,
@@ -2040,6 +2566,7 @@
 	// Analyze page's handleInsertHeading*FromMenuEvent handlers, but tailored to the
 	// document's inline editing.
 	onMount(() => {
+
 		if (typeof window === 'undefined') return;
 
 		const insert = (type) => {
@@ -2073,16 +2600,109 @@
 		const onTwo = () => insert('two');
 		const onThree = () => insert('three');
 
+		// Delete a heading from the toolbar's Delete button. When a heading editor is
+		// focused, the Delete button dispatches `remove-heading-${type}`; delete THIS
+		// heading by persisting empty text (which removes the passage_heading row). The
+		// segment id comes from the event detail, falling back to the locally-tracked
+		// editing heading (setActiveHeading nulls the store's activeSegmentId, so the
+		// dispatch can't carry it — we resolve it here). Clears the pending flag + the
+		// editor-active flag so nothing lingers or races the save.
+		const removeHeading = (type) => (event) => {
+			const segmentId = event?.detail?.segmentId ?? editingHeadingSegmentId;
+			if (!segmentId) return;
+			pendingHeadings.delete(pendingKey(segmentId, type));
+			pendingHeadings = new Set(pendingHeadings);
+			if (editingHeadingSegmentId === segmentId && editingHeadingType === type) {
+				editingHeadingSegmentId = null;
+				editingHeadingType = null;
+			}
+			clearHeadingOrNoteEditorActiveKey(headingEditorKey(segmentId, type));
+			saveHeading(segmentId, type, '');
+		};
+		const onRemoveOne = removeHeading('one');
+		const onRemoveTwo = removeHeading('two');
+		const onRemoveThree = removeHeading('three');
+
 		window.addEventListener('insert-heading-one-from-menu', onOne);
 		window.addEventListener('insert-heading-two-from-menu', onTwo);
 		window.addEventListener('insert-heading-three-from-menu', onThree);
+		window.addEventListener('remove-heading-one', onRemoveOne);
+		window.addEventListener('remove-heading-two', onRemoveTwo);
+		window.addEventListener('remove-heading-three', onRemoveThree);
 
 		return () => {
 			window.removeEventListener('insert-heading-one-from-menu', onOne);
 			window.removeEventListener('insert-heading-two-from-menu', onTwo);
 			window.removeEventListener('insert-heading-three-from-menu', onThree);
+			window.removeEventListener('remove-heading-one', onRemoveOne);
+			window.removeEventListener('remove-heading-two', onRemoveTwo);
+			window.removeEventListener('remove-heading-three', onRemoveThree);
 		};
 	});
+
+
+	// Listen for the Markup menu's "Text Quick Note" insert event and the toolbar's
+	// Delete `remove-note` event. Insert adds an empty, pending note on the active
+	// segment and focuses it for typing (ensuring Document notes are visible first);
+	// remove-note (fired by the Delete button while a note editor is active) clears the
+	// note. Mirrors the heading insert handler above, tailored to the note editor.
+	onMount(() => {
+		if (typeof window === 'undefined') return;
+
+		const onInsertNote = () => {
+			const segmentId = activeDocSegmentId;
+			if (!segmentId) return;
+			// A segment already carrying a note (stored or pending) can't take a second.
+			if (pendingNotes.has(segmentId) || !!findRawSegment(segmentId)?.note) return;
+			// Guarantee the new note is visible even if Document notes were toggled off.
+			showDocumentPassageNotes();
+			// Mark this note pending so the template renders an empty editable for it.
+			pendingNotes.add(segmentId);
+			pendingNotes = new Set(pendingNotes);
+			syncActiveSegment(segmentId);
+			// Focus the new editable note once it renders.
+			tick().then(() => {
+				// Scope to the VISIBLE pages so we never focus the off-screen,
+				// pointer-events:none measure-layer copy of the same note.
+				const el = document.querySelector(`.pages-inner [data-doc-note="${segmentId}"]`);
+				if (el instanceof HTMLElement) {
+					el.focus();
+					const range = document.createRange();
+					range.selectNodeContents(el);
+					range.collapse(false);
+					const sel = window.getSelection();
+					sel?.removeAllRanges();
+					sel?.addRange(range);
+				}
+			});
+		};
+
+		const onRemoveNote = (event) => {
+			// The Delete toolbar button targets the active note's segment; fall back to
+			// the currently-active segment so a keyboard Delete works too.
+			const segmentId = event?.detail?.segmentId ?? activeDocSegmentId;
+			if (!segmentId) return;
+			// Cancel the deferred blur-commit first: clicking Delete blurred the note and
+			// scheduled a save of its (possibly non-empty) text, which would otherwise
+			// fire AFTER this handler and re-create the note we're deleting.
+			cancelPendingNoteBlur();
+			// Drop any pending flag and persist an empty note (which deletes the row).
+			pendingNotes.delete(segmentId);
+			pendingNotes = new Set(pendingNotes);
+			clearHeadingOrNoteEditorActiveKey(noteEditorKey(segmentId));
+			saveNote(segmentId, '');
+		};
+
+
+		window.addEventListener('insert-note-from-menu', onInsertNote);
+		window.addEventListener('remove-note', onRemoveNote);
+
+		return () => {
+			window.removeEventListener('insert-note-from-menu', onInsertNote);
+			window.removeEventListener('remove-note', onRemoveNote);
+		};
+	});
+
 
 	// Click-outside to deselect: a pointerdown anywhere that ISN'T on an editable
 	// segment text / heading (and isn't in the toolbar, whose Markup menu acts on the
@@ -2096,7 +2716,14 @@
 		const onDocPointerDown = (event) => {
 			const target = /** @type {Element | null} */ (event.target);
 
+			// Remember what was pressed so an editor's blur handler (which fires right
+			// after this, as focus leaves the editor) can tell a toolbar-button press
+			// (e.g. Delete) from a click-away — without relying on `relatedTarget`, which
+			// is null for <button> presses on Safari/Firefox. See focusMovingToToolbar.
+			lastPointerDownEl = target instanceof HTMLElement ? target : null;
+
 			// COMMENTARY: a pointerdown outside the active commentary section AND outside
+
 			// the universal commentary toolbar (and its popovers) deactivates the editor,
 			// flushing/saving its edits. Clicks INSIDE the editable section or the toolbar
 			// keep it active so the user can type and run toolbar commands.
@@ -2128,11 +2755,12 @@
 			if (!activeDocSegmentId && !activeDocColumnId && !activeDocSectionId) return;
 			if (
 				target?.closest?.(
-					'.passage-text-editable, .doc-heading-editable, .doc-selector, .toolbar, [class*="toolbar"], [class*="menu"]'
+					'.passage-text-editable, .doc-heading-editable, .doc-note-editable, .doc-selector, .toolbar, [class*="toolbar"], [class*="menu"]'
 				)
 			) {
 				return;
 			}
+
 			clearActiveSegment();
 			clearStructuralSelection();
 		};
@@ -2178,8 +2806,12 @@
 			setCanInsertColumn(false);
 			setActiveSection(false);
 			setActiveColumn(false);
+			// Drop any lingering note-editor active state so the shared toolbar's Delete
+			// button doesn't stay enabled against a note editor that's no longer mounted.
+			setHeadingOrNoteEditorActive(false);
 		};
 	});
+
 
 
 </script>
@@ -2323,10 +2955,44 @@
 			</p>
 		{/if}
 
-		{#if conn.note}
+		<!-- Connection quick note. EDITABLE IN PLACE (visible pages only): the note is
+		     contenteditable so the author can retype it; edits persist on blur, and the
+		     text is capped at QUICK_NOTE_MAX_CHARS. While focused the shared toolbar's
+		     Delete button enables to remove the note. A note is rendered when it has
+		     stored text OR when it's a freshly-inserted "pending" note (from the Connect
+		     menu) for this connection. The off-screen measure layer passes
+		     interactive=false and renders the static read-only branch. -->
+		{#if interactive}
+			{#if conn.note || pendingConnectionNotes.has(conn.key)}
+				<span class="doc-note-edit-wrap">
+					<span
+						class="doc-connection-note doc-note-editable"
+						data-doc-connection-note={conn.key}
+						contenteditable="true"
+						role="textbox"
+						tabindex="0"
+						spellcheck="false"
+						onclick={(e) => e.stopPropagation()}
+						onfocus={(e) => handleConnectionNoteFocus(e, conn.key)}
+						oninput={handleConnectionNoteInput}
+						onblur={(e) => handleConnectionNoteBlur(e, conn.key)}
+						onkeydown={(e) => handleConnectionNoteKeydown(e, conn.note ?? '')}
+					>{conn.note ?? ''}</span>
+					{#if editingConnectionNoteKey === conn.key}
+						<span
+							class="doc-note-counter"
+							class:at-limit={editingConnectionNoteCount >= QUICK_NOTE_MAX_CHARS}
+						>
+							{editingConnectionNoteCount} / {QUICK_NOTE_MAX_CHARS}
+						</span>
+					{/if}
+				</span>
+			{/if}
+		{:else if conn.note}
 			<p class="doc-connection-note">{conn.note}</p>
 		{/if}
 		{#if interactive && (commentaryHasContent(conn.commentary) || revealedCommentaryConnectionKeys.has(conn.key))}
+
 			<!-- Connection commentary editor (visible pages only). Mounted only when the
 			     connection HAS commentary or the user has revealed an empty slot for it
 			     (selected the card + clicked Comment) — mirroring the segment/heading
@@ -2537,7 +3203,9 @@
 				tabindex="0"
 				spellcheck="false"
 				onpointerdown={() => focusHeadingAtPoint(block.headingOneId)}
+				onfocus={(e) => handleHeadingFocus(e, block.id, 'one')}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'one')}
+
 
 
 
@@ -2563,7 +3231,9 @@
 				tabindex="0"
 				spellcheck="false"
 				onpointerdown={() => focusHeadingAtPoint(block.headingTwoId)}
+				onfocus={(e) => handleHeadingFocus(e, block.id, 'two')}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'two')}
+
 
 
 
@@ -2589,7 +3259,9 @@
 				tabindex="0"
 				spellcheck="false"
 				onpointerdown={() => focusHeadingAtPoint(block.headingThreeId)}
+				onfocus={(e) => handleHeadingFocus(e, block.id, 'three')}
 				onblur={(e) => handleHeadingBlur(e, block.id, 'three')}
+
 
 
 
@@ -2622,11 +3294,50 @@
 
 		<!-- Quick note: a brief plain-text margin note authored on the segment.
 		     Rendered right after the segment's text (and before any segment
-		     commentary that follows). Plain text — NOT {@html} — to mirror
-		     the editor and avoid interpreting note content as markup. -->
-		{#if block.note}
+		     commentary that follows). Plain text — NOT {@html} — to mirror the editor
+		     and avoid interpreting note content as markup.
+
+		     EDITABLE IN PLACE (visible pages only): the note is contenteditable so the
+		     author can retype it; a hover affordance signals editability, edits persist
+		     on blur, and the text is capped at QUICK_NOTE_MAX_CHARS. While focused the
+		     shared toolbar's Delete button enables to remove the note. A note is
+		     rendered when it has stored text OR when it's a freshly-inserted "pending"
+		     note (from the Markup menu) for this segment. The off-screen measure layer
+		     passes interactive=false and renders the static read-only branch so it never
+		     grabs focus (it's pointer-events:none) and pagination still measures it. -->
+		{#if interactive}
+			{#if block.note || pendingNotes.has(block.id)}
+				<!-- The editable note + its live character counter. The counter sits
+				     directly beneath the note and only shows while THIS note is the one
+				     being edited (editingNoteId === block.id), mirroring the Analyze view's
+				     NoteEditor readout. It turns bold at the cap so the author sees they've
+				     hit the limit. Both live inside one wrapper so the counter tucks against
+				     its note rather than floating in the segment flow. -->
+				<span class="doc-note-edit-wrap">
+					<span
+						class="doc-note doc-note-editable"
+						data-doc-note={block.id}
+						contenteditable="true"
+						role="textbox"
+						tabindex="0"
+						spellcheck="false"
+						onfocus={(e) => handleNoteFocus(e, block.id)}
+						oninput={handleNoteInput}
+						onblur={(e) => handleNoteBlur(e, block.id)}
+						onkeydown={(e) => handleNoteKeydown(e, block.note ?? '')}
+					>{block.note ?? ''}</span>
+					{#if editingNoteId === block.id}
+						<span class="doc-note-counter" class:at-limit={editingNoteCount >= QUICK_NOTE_MAX_CHARS}>
+							{editingNoteCount} / {QUICK_NOTE_MAX_CHARS}
+						</span>
+					{/if}
+				</span>
+			{/if}
+		{:else if block.note}
 			<p class="doc-note">{block.note}</p>
 		{/if}
+
+
 	{/if}
 {/snippet}
 
@@ -3624,27 +4335,89 @@
 	.doc-note {
 		font-size: 1.2rem;
 		font-style: italic;
-		/* Medium-bold so the quick note reads as an emphasized authoring mark. */
-		font-weight: 500;
+		/* Bold to match the Analyze view's quick-note styling. */
+		font-weight: 700;
 		line-height: 1.6;
 
-		color: var(--gray-300);
+		color: var(--gray-dark);
 		white-space: pre-wrap;
 		word-wrap: break-word;
 		margin: 0.9rem 0 0;
-		/* Highlighter look: the note sits on a light --gray-800 band. display:inline so
-
-		   the highlight hugs the text (like a marker stroke) rather than filling the line. */
+		/* Mirror the Analyze view's quick note: light background, thin section-dark
+		   border, rounded corners. display:inline-block so the card hugs its text
+		   rather than filling the line. */
 		display: inline-block;
-		background-color: var(--gray-800);
-		padding: 0.1rem 0.4rem;
+		background-color: var(--gray-light);
+		border: 0.1rem solid var(--section-dark);
+		padding: 0.6rem;
 		border-radius: 0.3rem;
 	}
+
+	/* ============================================
+	   EDITABLE QUICK NOTE — the segment quick note is contenteditable in the document.
+	   --------------------------------------------
+	   The affordance mirrors the editable headings / segment text: a quiet light-blue
+	   border on hover signals "click to type here", and a solid-blue border marks the
+	   note while it's focused (being edited). The note already reserves a 0.1rem
+	   border (see .doc-note above), so swapping its color never shifts the layout.
+	   An empty (just-inserted) note shows a faint placeholder so the caret has
+	   something to anchor against. Screen-only — stripped in print below.
+	   ============================================ */
+	.doc-note-editable {
+		cursor: text;
+		outline: none;
+		transition: border-color 0.15s ease;
+	}
+
+	.doc-note-editable:hover {
+		border-color: var(--blue-light);
+	}
+
+	.doc-note-editable:focus,
+	.doc-note-editable.active {
+		border-color: var(--blue);
+	}
+
+	.doc-note-editable:empty::before {
+		content: 'Quick note';
+		color: var(--gray-500);
+		font-style: italic;
+		font-weight: 700;
+		pointer-events: none;
+	}
+
+	/* Live character counter shown while a note is being edited. The wrapper is an
+	   inline-block so it hugs the note (itself an inline-block card) and lets the
+	   counter tuck directly beneath it rather than stretching across the segment. The
+	   counter is a small, muted "N / MAX" readout mirroring the Analyze view's
+	   NoteEditor; it turns bold at the cap so the author sees they've run out of room.
+	   Screen-only authoring UI — it only exists while an editor is focused, and print
+	   hides the interactive layer, so it never appears on paper. */
+	.doc-note-edit-wrap {
+		display: inline-block;
+	}
+
+	.doc-note-counter {
+		display: block;
+		margin-top: 0.2rem;
+		font-size: 1rem;
+		line-height: 1;
+		color: var(--gray-500);
+		text-align: right;
+	}
+
+	.doc-note-counter.at-limit {
+		font-weight: 700;
+		color: var(--gray-dark);
+	}
+
 
 
 
 	/* ============================================
 	   CONNECTIONS — links an item (column/section/segment) makes to others.
+
+
 	   --------------------------------------------
 	   Shown once at the FROM end, grouped at the end of that item's block. Per the
 	   mockup each connection sits inside its own SUBTLE ROUNDED RECTANGLE — a quiet
@@ -3736,23 +4509,25 @@
 	}
 
 
-	/* Connection quick note — brief plain text, mirrors the segment quick note look:
-	   medium-bold on a light --gray-800 highlight band. */
+	/* Connection quick note — brief plain text, mirrors the Analyze view's quick
+	   note look: bold on a light background with a thin section-dark border. */
 	.doc-connection-note {
 		font-size: 1.2rem;
 		font-style: italic;
-		font-weight: 500;
+		font-weight: 700;
 		line-height: 1.6;
 
-		color: var(--gray-300);
+		color: var(--gray-dark);
 		white-space: pre-wrap;
 		word-wrap: break-word;
 		margin: 0.4rem 0 0;
 		display: inline-block;
-		background-color: var(--gray-800);
-		padding: 0.1rem 0.4rem;
+		background-color: var(--gray-light);
+		border: 0.1rem solid var(--section-dark);
+		padding: 0.6rem;
 		border-radius: 0.3rem;
 	}
+
 
 
 
@@ -3914,6 +4689,21 @@
 		.doc-heading-editable:empty::before {
 			content: none;
 		}
+
+		/* The editable quick-note hover/focus border + empty placeholder are
+		   screen-only authoring affordances — strip them so the printed / exported
+		   note reads as the same clean card as a non-editable one. */
+		.doc-note-editable,
+		.doc-note-editable:hover,
+		.doc-note-editable:focus,
+		.doc-note-editable.active {
+			border-color: var(--section-dark);
+		}
+
+		.doc-note-editable:empty::before {
+			content: none;
+		}
+
 
 
 		/* The left-margin Column / Section selector buttons are screen-only authoring
