@@ -59,6 +59,88 @@ npm run db:migrate
 
 4. Deploy.
 
+## Staging / Test Pipeline
+
+Vercel automatically builds a **Preview Deployment** for every push to any branch
+other than `main`. Production only updates when `main` is pushed/merged. This project
+uses a dedicated `staging` branch as a stable test environment on top of that.
+
+### Workflow
+
+```
+feature branch ──merge──▶ staging ──(auto deploy)──▶ https://staging URL  ← test here
+                             │
+                             └─(looks good?)─▶ merge into main ──▶ production
+```
+
+### One-time setup (dashboards)
+
+**Neon — create a staging database branch:**
+
+1. Neon console → your project → **Branches** → **Create branch** (parent: `main`/production).
+   Neon branches are copy-on-write clones — instant, free, and resettable from
+   production at any time.
+2. Copy the staging branch's **pooled** connection string (host contains `-pooler`,
+   ends `?sslmode=require`).
+
+**Vercel — give `staging` a fixed domain:**
+
+1. Vercel project → **Settings → Domains** → Add (e.g. `staging.expositor.app`, or use
+   the free `<project>-staging.vercel.app` style) → assign it to the **`staging`** git branch.
+
+**Vercel — scope environment variables:**
+
+1. **Settings → Environment Variables.** Audit existing vars: production values must be
+   scoped to **Production only** (⚠️ if `DATABASE_URL` is also checked for *Preview*,
+   preview builds write to the production database).
+2. Add **Preview**-scoped values:
+
+| Variable | Preview value |
+|---|---|
+| `DATABASE_URL` | Neon **staging branch** pooled connection string |
+| `BETTER_AUTH_SECRET` | A separate secret (`openssl rand -base64 32`) |
+| `BETTER_AUTH_URL` | The staging domain, e.g. `https://staging.expositor.app` |
+| `MANDRILL_KEY` | Same key, or a Mandrill test key to avoid sending real email |
+| `ESV_API_TOKEN`, `ESV_API_BASE_URL`, `NET_API_BASE_URL` | Same as production |
+
+> Because env vars are baked in at build time, changing them requires a redeploy of
+> the affected environment.
+
+### Day-to-day usage
+
+```sh
+git checkout staging
+git merge my-feature        # or commit directly for small changes
+git push                    # Vercel auto-deploys to the staging domain
+# ...test at the staging URL...
+git checkout main
+git merge staging
+git push                    # Vercel deploys to production
+```
+
+### Migrations with staging
+
+Apply new migrations to the **Neon staging branch first**, verify the app against it,
+then apply to production before merging to `main`:
+
+```sh
+# staging
+psql "$STAGING_DATABASE_URL" -f drizzle/00XX_your_migration.sql
+# after verification, production
+set -a; source .env.production; set +a
+psql "$DATABASE_URL" -f drizzle/00XX_your_migration.sql
+```
+
+To refresh staging data, use Neon's **Reset from parent** on the staging branch.
+
+### Notes on ad-hoc preview URLs
+
+Feature branches other than `staging` also get preview deployments at random URLs.
+They share the *Preview* env vars (staging database). Auth on those random URLs is
+tolerated via `trustedOrigins` in `src/lib/server/auth.ts` (uses `VERCEL_URL`), but
+email verification/reset links will still point at `BETTER_AUTH_URL` (the staging
+domain) — full auth testing should happen on the `staging` branch.
+
 ### Important notes
 
 - `DATABASE_URL` is imported via `$env/static/private`, so it is **baked in at build
