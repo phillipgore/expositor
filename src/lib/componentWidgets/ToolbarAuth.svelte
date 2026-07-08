@@ -31,9 +31,21 @@
 	import SpacerFlex from '$lib/componentElements/SpacerFlex.svelte';
 	import Toolbar from '$lib/componentElements/Toolbar.svelte';
 	import { getAuthToolbarConfig } from '$lib/utils/toolbarConfig.js';
+	import { page } from '$app/stores';
 
-	// Get toolbar configuration
-	const toolbarConfig = getAuthToolbarConfig();
+	// Get toolbar configuration. When the Back Office "New User Sign Ups"
+	// setting is off (exposed via the root layout's `signupsEnabled` page data),
+	// the Sign Up button is filtered out of the toolbar.
+	$: toolbarConfig = getAuthToolbarConfig().map((item) => {
+		if (item.type === 'section' && $page.data.signupsEnabled === false) {
+			return {
+				...item,
+				items: item.items.filter((button) => button.href !== '/signup')
+			};
+		}
+		return item;
+	});
+
 </script>
 
 <Toolbar classes="dark">

@@ -344,10 +344,6 @@ export function getAuthToolbarConfig() {
 			]
 		},
 		{
-			type: 'spacer',
-			variant: 'fixed'
-		},
-		{
 			type: 'section',
 			id: 'auth',
 			items: [

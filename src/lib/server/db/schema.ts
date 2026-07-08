@@ -1,7 +1,23 @@
 import { pgTable, text, timestamp, boolean, integer, real, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
+/**
+ * Application-wide settings. This is a single-row table (id = 'app') that
+ * holds global flags the Back Office can flip at runtime — e.g. whether new
+ * user sign-ups are currently allowed. Reads are self-healing: server code
+ * inserts the default row if it is missing.
+ */
+export const appSettings = pgTable('app_settings', {
+	id: text('id').primaryKey(),
+	/** When false, new user sign-ups are blocked (except seeded admin/dev accounts). */
+	signupsEnabled: boolean('signups_enabled').notNull().default(true),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+});
+
 export const user = pgTable('user', {
+
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
 	firstName: text('first_name').notNull(),
