@@ -1,0 +1,11 @@
+ID,Feature,Test Case,Expected Result,Pass/Fail,Comment
+GLOS-001,Glossary Page,Click the Glossary toolbar button,Glossary page opens at /glossary,,
+GLOS-002,Glossary Page,Browse the list of glossary terms,Terms display with definitions correctly formatted,,
+GLOS-003,Glossary Page,Search or navigate to a specific term (if supported),Correct term entry is located,,
+GLOS-004,Glossary Picker,Open the glossary picker from a commentary editor,Picker lists available terms and supports selection,,
+GLOS-005,Glossary Picker,Search within the glossary picker,Results filter to matching terms,,
+GLOS-006,Glossary Terms,Insert a glossary term into commentary and save,Term renders with glossary styling/badge,,
+GLOS-007,Glossary Terms,Interact with a glossary term in rendered commentary (hover/click),Definition or badge is shown as designed,,
+GLOS-008,Glossary Terms,Remove a glossary term tag from commentary text,Text remains but glossary tagging is removed,,
+GLOS-009,Navigation,Navigate from the glossary page back to a study,Previous study/view is reachable without data loss,,
+GLOS-010,Toolbar State,While on the glossary page check toolbar menus,Study-specific menus/items are disabled appropriately,,

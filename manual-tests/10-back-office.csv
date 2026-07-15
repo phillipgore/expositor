@@ -1,0 +1,13 @@
+ID,Feature,Test Case,Expected Result,Pass/Fail,Comment
+BO-001,Access Control,As an admin open Account menu,Back Office menu item is visible,,
+BO-002,Access Control,As a non-admin user open Account menu,Back Office menu item is hidden,,
+BO-003,Access Control,As a non-admin navigate directly to /back-office,Access is denied or user is redirected,,
+BO-004,Access Control,While signed out navigate directly to /back-office,User is redirected to signin,,
+BO-005,Dashboard,Open the back-office landing page as admin,Page loads with the back-office toolbar and expected overview content,,
+BO-006,Users,Open the back-office Users page,User list loads with correct account data,,
+BO-007,Users,Verify user details shown (name/email/verification status),Data matches actual accounts,,
+BO-008,Users,Perform available user management actions (e.g. role changes/deactivation),Actions apply correctly and persist,,
+BO-009,Settings,Open the back-office Settings page,Current app settings load correctly,,
+BO-010,Settings,Change an application setting and save,Setting persists and takes effect in the app,,
+BO-011,Settings,Enter an invalid setting value,Validation prevents saving with a clear message,,
+BO-012,Navigation,Navigate between back-office pages and back to the main app,Navigation works; no state corruption in either area,,
