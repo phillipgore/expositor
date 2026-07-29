@@ -428,11 +428,36 @@
 			}
 		}
 
-		// Success - close modal, refresh data, and navigate to dashboard
+		// Success — close the modal, then leave the (now deleted) route BEFORE any
+		// data invalidation. Re-running the current route's load after its study/
+		// group has been deleted throws a 404, which kicks SvelteKit out to a full
+		// server-rendered error page (a hard reload). Navigating away first (with
+		// invalidateAll) keeps everything client-side and shows the existing
+		// navigation loader while data refreshes.
 		showDeleteModal = false;
-		await invalidate('app:studies');
-		goto('/dashboard');
+		pendingDeleteItem = null;
+
+		const pathname = $page.url.pathname;
+		const studyMatch = pathname.match(/^\/study\/([^/]+)/);
+		const groupMatch = pathname.match(/^\/study-group\/([^/]+)/);
+
+		// A group deletion cascades to unknown descendant groups/studies, so if any
+		// group was deleted while viewing a study or study-group page, be
+		// conservative and assume the current page may have been deleted.
+		const mightBeViewingDeleted =
+			(studyMatch && (selectedStudyIds.includes(studyMatch[1]) || selectedGroupIds.length > 0)) ||
+			(groupMatch && selectedGroupIds.length > 0);
+
+		if (mightBeViewingDeleted) {
+			// Navigate away first, refreshing all data as part of the (client-side)
+			// navigation so the deleted route's load never re-runs.
+			await goto('/dashboard', { invalidateAll: true });
+		} else {
+			// Current page is unaffected — just refresh the studies data in place.
+			await invalidate('app:studies');
+		}
 	}
+
 
 	/**
 	 * Handle delete modal close

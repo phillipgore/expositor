@@ -1,5 +1,6 @@
 <script>
 	import { v4 as uuidv4 } from 'uuid';
+	import { goto } from '$app/navigation';
 	import { tooltip } from '$lib/composables/useTooltip.svelte.js';
 
 	/**
@@ -191,9 +192,9 @@
 			handleClick(event);
 		}
 
-		// Navigate to URL if provided
+		// Navigate to URL if provided (client-side — avoids a full page reload)
 		if (url) {
-			window.location.href = url;
+			goto(url);
 		}
 	};
 
