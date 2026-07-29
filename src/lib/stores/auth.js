@@ -104,6 +104,11 @@ export async function signUp(firstName, lastName, email, password) {
 		console.log('Starting signup process...');
 		const result = await authClient.signUp.email({
 			name: `${firstName.trim()} ${lastName.trim()}`,
+			// firstName/lastName are declared as required additionalFields in the
+			// server auth config, so better-auth includes them in the user INSERT
+			// (the columns are NOT NULL in the database).
+			firstName: firstName.trim(),
+			lastName: lastName.trim(),
 			email,
 			password
 		});
@@ -111,30 +116,6 @@ export async function signUp(firstName, lastName, email, password) {
 		console.log('Signup result:', JSON.stringify(result, null, 2));
 		
 		if (result.data?.user) {
-			console.log('User created successfully, updating names...');
-			// Update the user with firstName and lastName via a separate API call
-			try {
-				const updateResponse = await fetch('/api/auth/update-names', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({
-						userId: result.data.user.id,
-						firstName: firstName.trim(),
-						lastName: lastName.trim()
-					})
-				});
-				
-				if (!updateResponse.ok) {
-					console.warn('Failed to update firstName/lastName:', await updateResponse.text());
-				} else {
-					console.log('Names updated successfully');
-				}
-			} catch (updateError) {
-				console.warn('Failed to update firstName/lastName:', updateError);
-			}
-
 			// Send verification email
 			try {
 				console.log('Sending verification email...');
