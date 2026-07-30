@@ -4486,9 +4486,9 @@
 																			note={segment.note}
 																			text={segmentHtml}
 																			{passageIndex}
-																			isActive={activeSegments.some(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)}
+																			isActive={activeSegments.some(s => s.segmentId === segment.id)}
 																			segmentId={segment.id}
-																			generation={activeSegments.find(s => s.passageIndex === passageIndex && s.segmentIndex === domSegmentIndex)?.generation || 0}
+																			generation={activeSegments.find(s => s.segmentId === segment.id)?.generation || 0}
 																			isCompareHidden={isHideMode && !visibleSegmentIds.has(segment.id)}
 																			{isVerseSubdivided}
 																			prevSegmentHasHeading={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree)}

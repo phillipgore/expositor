@@ -48,11 +48,12 @@
 	 */
 
 	/** @type {InputProps} */
-	let { id, name, type = 'text', classes = '', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable(''), ...restProps } = $props();
+	let { id, name, type = 'text', classes = '', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable(''), inputElement = $bindable(null), ...restProps } = $props();
 
 </script>
 
 <input
+	bind:this={inputElement}
 	{id}
 	{name}
 	{type}

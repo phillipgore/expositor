@@ -457,7 +457,7 @@
 	<div class="panel-content" style:width="{panelWidth}px">
 		<div class="panel-header">
 			<Input 
-				bind:this={searchInputRef}
+				bind:inputElement={searchInputRef}
 				id="search-studies" 
 				name="search" 
 				type="search" 

@@ -30,7 +30,12 @@
 	let inputValue = $state('');
 	let originalValue = $state(''); // Track original value for Escape key
 	let optimisticValue = $state(undefined); // undefined = use headingValue, null = deleted, string = optimistic value
-	let saveTimeout = $state(null);
+	// Timer handle for the debounced auto-save. Intentionally NOT $state: it's never
+	// rendered, and the auto-save $effect calls handleInputChange() which both reads
+	// and reassigns it — if tracked, that self-dependency re-triggers the effect on
+	// every keystroke and spirals into effect_update_depth_exceeded, wedging all
+	// reactivity (toolbar menu clicks stop working) until reload.
+	let saveTimeout = null;
 	let hasInitialized = $state(false); // Track if input has been initialized for this edit session
 	
 	// Track previous prop values to detect real changes

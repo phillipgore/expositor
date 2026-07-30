@@ -2181,7 +2181,16 @@
 	function focusMovingToToolbar(event) {
 		const related =
 			event && event.relatedTarget instanceof HTMLElement ? event.relatedTarget : lastPointerDownEl;
-		return !!(related && related.closest && related.closest('[class*="toolbar"]'));
+		// Menu items and popovers count as "toolbar" here: choosing a Markup/Connect
+		// menu item (e.g. right after inserting a pending heading/note) closes the
+		// popover, whose focus-restore blurs the just-focused editor. That blur must
+		// NOT commit — an immediate empty-save would delete the freshly-inserted
+		// pending editor. The insert handlers refocus the editor right after.
+		return !!(
+			related &&
+			related.closest &&
+			related.closest('[class*="toolbar"], [class*="menu"], [popover]')
+		);
 	}
 
 	// In-place HEADING editing: the segment id + heading type whose contenteditable is

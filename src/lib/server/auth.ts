@@ -41,7 +41,16 @@ export const auth = betterAuth({
   // differ from BETTER_AUTH_URL. Trust the deployment's own origin so auth
   // requests from preview URLs are not rejected. VERCEL_URL is provided
   // automatically by Vercel at runtime (host only, no protocol).
-  trustedOrigins: env.VERCEL_URL ? [`https://${env.VERCEL_URL}`] : [],
+  //
+  // Locally (no VERCEL env), also trust the Vite dev server and `vite preview`
+  // origins so sign-in works when testing the production build via
+  // `npm run build && npm run preview`. These are never added on Vercel.
+  trustedOrigins: [
+    ...(env.VERCEL_URL ? [`https://${env.VERCEL_URL}`] : []),
+    ...(!env.VERCEL
+      ? ['http://localhost:4173', 'http://localhost:5173']
+      : []),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session.session;
