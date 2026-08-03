@@ -279,15 +279,65 @@ function showExportCurtain() {
 
 
 /**
+ * Temporarily clone the on-screen Scripture attribution INTO the captured
+ * subtree, and return a cleanup that removes it again.
+ *
+ * ## Why this is necessary (compliance)
+ * The publishers require their copyright notice wherever their text appears, and
+ * that obligation is at its strongest in an exported artifact — a PNG/PDF/print
+ * is exactly the sort of reproduction the licence contemplates, and unlike the
+ * live page it can be shared with no surrounding context.
+ *
+ * On screen the notice deliberately lives OUTSIDE `.analyze-content-inner`: it
+ * sits in the scroll container so it stays a constant, readable size at any zoom
+ * level rather than scaling with the zoom transform. But the export captures
+ * `.analyze-content-inner` only — so every PNG, PDF and printout was silently
+ * produced with NO attribution at all.
+ *
+ * Rather than duplicate the legal text here (two copies would inevitably drift),
+ * we clone the live node, so the exported wording always matches what is on
+ * screen and there is a single source of truth in the markup.
+ *
+ * @param {HTMLElement} innerEl - the `.analyze-content-inner` element
+ * @returns {() => void} cleanup that removes the injected clone
+ */
+function attachExportAttribution(innerEl) {
+	const source = /** @type {HTMLElement | null} */ (
+		document.querySelector('.copyright-notice')
+	);
+	// No notice on screen (e.g. text still streaming) — nothing to clone.
+	if (!source) return () => {};
+
+	const clone = /** @type {HTMLElement} */ (source.cloneNode(true));
+	clone.setAttribute('data-export-attribution', '');
+
+	// Append inside the PADDED child so the notice picks up the study's own
+	// horizontal spacing and sits within the content column — not against the
+	// image edge. Falling back to the inner keeps this safe if the markup changes.
+	const host = /** @type {HTMLElement | null} */ (
+		innerEl.querySelector('.analyze-content-padded')
+	);
+	(host || innerEl).appendChild(clone);
+
+	return () => clone.remove();
+}
+
+/**
  * Temporarily neutralize the zoom transform on the inner element and pin the
  * scroll-area wrapper to the natural (unscaled) size so html-to-image captures
- * the FULL study at 100%. Returns a restore() to undo all changes.
+ * the FULL study at 100%. Also injects the Scripture attribution into the
+ * captured subtree (see attachExportAttribution). Returns a restore() to undo
+ * all changes.
  *
  * @param {HTMLElement} innerEl - the `.analyze-content-inner` element
  * @returns {{ width: number, height: number, restore: () => void }}
  */
 function prepareForCapture(innerEl) {
 	const wrapperEl = /** @type {HTMLElement | null} */ (innerEl.parentElement);
+
+	// Inject attribution BEFORE measuring, so the natural height below includes
+	// the notice and the capture is sized to fit it.
+	const detachAttribution = attachExportAttribution(innerEl);
 
 	// Save the inline styles we are about to change.
 	const savedInner = {
@@ -322,6 +372,7 @@ function prepareForCapture(innerEl) {
 	window.dispatchEvent(new CustomEvent('analyze-export-prepare'));
 
 	const restore = () => {
+		detachAttribution();
 		innerEl.style.transform = savedInner.transform;
 		innerEl.style.transformOrigin = savedInner.transformOrigin;
 		if (wrapperEl && savedWrapper) {

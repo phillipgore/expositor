@@ -27,8 +27,7 @@
       },
       "requestLimits": {
         "maxVerses": 500,
-        "maxBookPortion": 0.5,
-        "description": "Maximum 500 verses or half a book, whichever is less"
+        "description": "ESV API technical ceiling: 500 verses per request. The 'half a book' / '50% of the work' limits are NOT request limits — they come from Crossway's quotation permission and are enforced at export time via restrictions.distribution. See COMPLIANCE.md."
       },
       "queryParameters": {
         "passage": "q",
@@ -63,9 +62,13 @@
         "recommendation": "Periodically clear cache to ensure latest version"
       },
       "distribution": {
-        "maxVerses": 500,
+        "appliesTo": "export",
+        "enforcement": "warn",
+        "maxVerses": 1000,
         "maxBookPortion": 0.5,
-        "cannotExceed": "50% of total work in which quoted"
+        "allowCompleteBook": false,
+        "cannotExceed": "50% of total work in which quoted",
+        "description": "Crossway standard quotation permission: up to 1,000 verses, not amounting to a complete book, and not more than 50% of the work in which quoted. Applies when ESV text leaves the app as a distributable artifact (PNG/PDF/print), not to on-screen study."
       },
       "modification": {
         "textChanges": false,
@@ -116,8 +119,7 @@
       "rateLimits": null,
       "requestLimits": {
         "maxVerses": 500,
-        "maxBookPortion": 0.5,
-        "description": "No explicit limits published by the NET API; we apply the same 500-verse / half-book cap as the ESV so a single passage request stays a reasonable size"
+        "description": "No explicit limits published by the NET API; we cap a single request at 500 verses so one passage fetch stays a reasonable size. The half-book cap that used to live here was self-imposed and has been removed — NET's license places no verse limit on distribution. See COMPLIANCE.md."
       },
       "queryParameters": {
         "passage": "passage",
@@ -164,9 +166,14 @@
         "recommendation": "No specific caching limits"
       },
       "distribution": {
+        "appliesTo": "export",
+        "enforcement": "warn",
         "maxVerses": null,
+        "maxBookPortion": null,
+        "allowCompleteBook": true,
         "translationAllowed": false,
-        "requiresAttribution": true
+        "requiresAttribution": true,
+        "description": "NET is free to use with attribution and sets no verse or book-portion limit on distribution. Attribution is mandatory wherever the text appears, including exports."
       },
       "modification": {
         "textChanges": false,
