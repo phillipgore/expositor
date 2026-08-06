@@ -1,215 +1,231 @@
 [
-  {
-    "id": "esv",
-    "name": "English Standard Version",
-    "abbreviation": "ESV",
-    "language": "en",
-    "publisher": "Crossway",
-    "yearPublished": 2001,
-    "api": {
-      "baseUrl": null,
-      "baseUrlEnvVar": "ESV_API_BASE_URL",
-      "requiresAuth": true,
-      "authType": "token",
-      "authTokenEnvVar": "ESV_API_TOKEN",
-      "authHeader": "Authorization",
-      "authPrefix": "Token",
-      "endpoints": {
-        "text": "/text/",
-        "html": "/html/",
-        "audio": "/audio/",
-        "search": "/search/"
-      },
-      "rateLimits": {
-        "perDay": 5000,
-        "perHour": 1000,
-        "perMinute": 60
-      },
-      "requestLimits": {
-        "maxVerses": 500,
-        "description": "ESV API technical ceiling: 500 verses per request. The 'half a book' / '50% of the work' limits are NOT request limits — they come from Crossway's quotation permission and are enforced at export time via restrictions.distribution. See COMPLIANCE.md."
-      },
-      "queryParameters": {
-        "passage": "q",
-        "includePassageReferences": "include-passage-references",
-        "includeVerseNumbers": "include-verse-numbers",
-        "includeFootnotes": "include-footnotes",
-        "includeHeadings": "include-headings",
-        "includeShortCopyright": "include-short-copyright"
-      }
-    },
-    "copyright": {
-      "short": "ESV",
-      "full": "Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved. The ESV text may not be quoted in any publication made available to the public by a Creative Commons license. The ESV may not be translated into any other language.",
-      "displayRequired": true,
-      "linkRequired": "https://www.esv.org",
-      "linkText": "www.esv.org"
-    },
-    "features": {
-      "includeVerseNumbers": true,
-      "includeFootnotes": true,
-      "includeHeadings": true,
-      "includeCrossReferences": true,
-      "includePassageReferences": true,
-      "audioAvailable": true,
-      "searchAvailable": true
-    },
-    "restrictions": {
-      "license": "non-commercial",
-      "caching": {
-        "allowed": true,
-        "maxVerses": 500,
-        "recommendation": "Periodically clear cache to ensure latest version"
-      },
-      "distribution": {
-        "appliesTo": "export",
-        "enforcement": "warn",
-        "maxVerses": 1000,
-        "maxBookPortion": 0.5,
-        "allowCompleteBook": false,
-        "cannotExceed": "50% of total work in which quoted",
-        "description": "Crossway standard quotation permission: up to 1,000 verses, not amounting to a complete book, and not more than 50% of the work in which quoted. Applies when ESV text leaves the app as a distributable artifact (PNG/PDF/print), not to on-screen study."
-      },
-      "modification": {
-        "textChanges": false,
-        "omissionsAllowed": true,
-        "omissionMarker": "…"
-      }
-    },
-    "description": "The ESV Bible is an essentially literal translation that seeks to reproduce the precise wording of the original text and the personal style of each Bible writer.",
-    "translationPhilosophy": {
-      "approach": "essentially-literal",
-      "methodology": "word-for-word",
-      "equivalence": "formal-equivalence",
-      "summary": "An 'essentially literal' translation emphasizing word-for-word correspondence while taking full account of differences in grammar, syntax, and idiom between current literary English and the original languages.",
-      "characteristics": [
-        "Seeks to reproduce the precise wording of the original text",
-        "Maintains the personal style of each Bible writer",
-        "Transparent to the original text structure and force",
-        "Captures echoes and overtones of meaning in original texts",
-        "Uses same English word for important recurring words in original",
-        "Renders Old Testament passages cited in New Testament to show correspondence",
-        "Balances literal precision with readability and literary excellence"
-      ],
-      "strengths": [
-        "Ideal for in-depth Bible study",
-        "Suitable for public reading and preaching",
-        "Excellent for Scripture memorization",
-        "Maintains nuances of original meaning",
-        "Literary excellence in expression"
-      ],
-      "team": "More than 100 leading evangelical scholars and pastors"
-    }
-  },
-  {
-    "id": "net",
-    "name": "New English Translation",
-    "abbreviation": "NET",
-    "language": "en",
-    "publisher": "Biblical Studies Press",
-    "yearPublished": 1996,
-    "api": {
-      "baseUrl": null,
-      "baseUrlEnvVar": "NET_API_BASE_URL",
-      "requiresAuth": false,
-      "authType": null,
-      "endpoints": {
-        "passage": ""
-      },
-      "rateLimits": null,
-      "requestLimits": {
-        "maxVerses": 500,
-        "description": "No explicit limits published by the NET API; we cap a single request at 500 verses so one passage fetch stays a reasonable size. The half-book cap that used to live here was self-imposed and has been removed — NET's license places no verse limit on distribution. See COMPLIANCE.md."
-      },
-      "queryParameters": {
-        "passage": "passage",
-        "type": "type",
-        "formatting": "formatting",
-        "callback": "callback"
-      },
-      "outputFormats": ["text", "json", "xml"],
-      "formattingOptions": {
-        "full": "All paragraph, bold, italics, and note tags",
-        "para": "Just paragraph and bold tags",
-        "plain": "Just text, no html or html entities",
-        "default": "Just bold tags"
-      },
-      "specialPassages": {
-        "votd": "Verse of the Day",
-        "random": "Random verse"
-      }
-    },
-    "copyright": {
-      "short": "NET",
-      "full": "Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved.",
-      "displayRequired": true,
-      "linkRequired": "https://netbible.org",
-      "linkText": "netbible.org",
-      "additionalInfo": "See https://netbible.com/copyright/ for full copyright details"
-    },
-    "features": {
-      "includeVerseNumbers": true,
-      "includeFootnotes": true,
-      "includeHeadings": true,
-      "includeCrossReferences": false,
-      "includePassageReferences": true,
-      "translatorNotes": true,
-      "translatorNotesCount": 60000,
-      "audioAvailable": false,
-      "searchAvailable": false
-    },
-    "restrictions": {
-      "license": "free-with-attribution",
-      "caching": {
-        "allowed": true,
-        "maxVerses": null,
-        "recommendation": "No specific caching limits"
-      },
-      "distribution": {
-        "appliesTo": "export",
-        "enforcement": "warn",
-        "maxVerses": null,
-        "maxBookPortion": null,
-        "allowCompleteBook": true,
-        "translationAllowed": false,
-        "requiresAttribution": true,
-        "description": "NET is free to use with attribution and sets no verse or book-portion limit on distribution. Attribution is mandatory wherever the text appears, including exports."
-      },
-      "modification": {
-        "textChanges": false,
-        "omissionsAllowed": true
-      }
-    },
-    "description": "The NET Bible is a completely new translation with 60,000+ translator's notes, completed by 25+ scholars working directly from the best available Hebrew, Aramaic, and Greek texts.",
-    "translationPhilosophy": {
-      "approach": "balanced",
-      "methodology": "optimal-equivalence",
-      "equivalence": "balanced-equivalence",
-      "summary": "A balanced translation that overcomes the tension between accuracy and readability, combining faithful rendering of original languages with clear, contemporary English.",
-      "characteristics": [
-        "Balances accuracy with readability",
-        "Faithful to the original biblical languages",
-        "Clear, easy-to-understand English text",
-        "Transparent and accountable translation process",
-        "Nearly 60,000 translators' notes document decisions",
-        "Notes explain difficult or nontraditional renderings",
-        "Ongoing revisions based on scholarly and user feedback",
-        "Multi-denominational scholarly approach"
-      ],
-      "strengths": [
-        "Unprecedented transparency through extensive notes",
-        "Balances scholarly integrity with readability",
-        "Explains translation decisions and alternatives",
-        "Accessible to both academic and general readers",
-        "Shows complex linguistic details without sacrificing clarity",
-        "Invites readers into the translation process"
-      ],
-      "team": "Multi-denominational team of 25+ leading biblical scholars",
-      "revisionHistory": {
-        "firstEdition": 2001,
-        "majorRevisions": [2003, 2005, 2019],
-        "ongoing": true
-      }
-    }
-  }
+	{
+		"id": "esv",
+		"name": "English Standard Version",
+		"abbreviation": "ESV",
+		"language": "en",
+		"publisher": "Crossway",
+		"yearPublished": 2001,
+		"api": {
+			"baseUrl": null,
+			"baseUrlEnvVar": "ESV_API_BASE_URL",
+			"requiresAuth": true,
+			"authType": "token",
+			"authTokenEnvVar": "ESV_API_TOKEN",
+			"authHeader": "Authorization",
+			"authPrefix": "Token",
+			"endpoints": {
+				"text": "/text/",
+				"html": "/html/",
+				"audio": "/audio/",
+				"search": "/search/"
+			},
+			"rateLimits": {
+				"perDay": 5000,
+				"perHour": 1000,
+				"perMinute": 60
+			},
+			"requestLimits": {
+				"maxVerses": 500,
+				"source": "provider",
+				"description": "ESV API technical ceiling: 500 verses per request, published by Crossway. The 'half a book' / '50% of the work' limits are NOT request limits — they come from Crossway's quotation permission and are enforced at export time via restrictions.distribution. See COMPLIANCE.md."
+			},
+			"retrieval": {
+				"chunking": false,
+				"servesCompleteBook": "partial",
+				"description": "NO INTERNAL CHUNKING for ESV. One passage = exactly one request, capped at maxVerses. Crossway enforces their quotation permission SERVER-SIDE and silently: a request for a complete book returns HTTP 200 with roughly 50% of the verses and a truncated `canonical` field, with no error (probed 2026-08-03: Revelation 202/404, Romans 216/433, Galatians 74/149, Ephesians 77/155). The trigger is COMPLETENESS, not size — Romans 1:18-8:39 returns all 208 verses, while the whole book returns 216 of 433. Splitting a whole-book request into sub-whole chunks would return complete text and defeat that control, so we do not do it: every chunk would succeed and fetchESVPassage()'s truncation detector would never fire. Instead ESV whole-book studies are only possible for books Crossway serves whole (Philemon and Jude at 25 verses do; the floor is somewhere below Galatians' 149 and is not yet pinned down). Crossway's server arbitrates, so we never have to interpret the licence ourselves. `servesCompleteBook: 'partial'` records that some books work and some do not."
+			},
+
+			"queryParameters": {
+				"passage": "q",
+				"includePassageReferences": "include-passage-references",
+				"includeVerseNumbers": "include-verse-numbers",
+				"includeFootnotes": "include-footnotes",
+				"includeHeadings": "include-headings",
+				"includeShortCopyright": "include-short-copyright"
+			}
+		},
+		"copyright": {
+			"short": "ESV",
+			"full": "Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved. The ESV text may not be quoted in any publication made available to the public by a Creative Commons license. The ESV may not be translated into any other language.",
+			"displayRequired": true,
+			"linkRequired": "https://www.esv.org",
+			"linkText": "www.esv.org"
+		},
+		"features": {
+			"includeVerseNumbers": true,
+			"includeFootnotes": true,
+			"includeHeadings": true,
+			"includeCrossReferences": true,
+			"includePassageReferences": true,
+			"audioAvailable": true,
+			"searchAvailable": true
+		},
+		"restrictions": {
+			"license": "non-commercial",
+			"caching": {
+				"allowed": true,
+				"maxVerses": 500,
+				"recommendation": "Periodically clear cache to ensure latest version"
+			},
+			"distribution": {
+				"appliesTo": "export",
+				"enforcement": "warn",
+				"maxVerses": 1000,
+				"maxBookPortion": null,
+				"allowCompleteBook": false,
+				"cannotExceed": "50% of total work in which quoted",
+				"description": "Crossway standard quotation permission: up to 1,000 verses, not amounting to a complete book, and not more than 50% of the work in which quoted. Applies when ESV text leaves the app as a distributable artifact (PNG/PDF/print), not to on-screen study.",
+				"maxBookPortionNote": "DELIBERATELY null. `maxBookPortion` means 'fraction OF THE BOOK quoted', and Crossway's permission contains no such rule. The 50% figure in `cannotExceed` is a different measurement entirely: 50% of the WORK IN WHICH THE TEXT IS QUOTED — i.e. the ESV must not make up more than half of the user's own document. Reading it as 'half the book' is the error that caused the original bug: as `api.requestLimits.maxBookPortion` it silently made every complete book of the Bible unstudyable (Philemon capped at 12 of 25 verses). Moving it to the export boundary fixed WHERE it applied but preserved the misreading, so it would have reappeared as a false 'you have exceeded 50% of Romans' warning on an export that the licence permits. The genuine 50%-of-work clause is not machine-checkable here — an Expositor study is mostly Scripture by design, so a mechanical check would fire on virtually every export and teach users to ignore it. It is covered in COMPLIANCE.md as a documented obligation instead."
+			},
+
+			"modification": {
+				"textChanges": false,
+				"omissionsAllowed": true,
+				"omissionMarker": "…"
+			}
+		},
+		"description": "The ESV Bible is an essentially literal translation that seeks to reproduce the precise wording of the original text and the personal style of each Bible writer.",
+		"translationPhilosophy": {
+			"approach": "essentially-literal",
+			"methodology": "word-for-word",
+			"equivalence": "formal-equivalence",
+			"summary": "An 'essentially literal' translation emphasizing word-for-word correspondence while taking full account of differences in grammar, syntax, and idiom between current literary English and the original languages.",
+			"characteristics": [
+				"Seeks to reproduce the precise wording of the original text",
+				"Maintains the personal style of each Bible writer",
+				"Transparent to the original text structure and force",
+				"Captures echoes and overtones of meaning in original texts",
+				"Uses same English word for important recurring words in original",
+				"Renders Old Testament passages cited in New Testament to show correspondence",
+				"Balances literal precision with readability and literary excellence"
+			],
+			"strengths": [
+				"Ideal for in-depth Bible study",
+				"Suitable for public reading and preaching",
+				"Excellent for Scripture memorization",
+				"Maintains nuances of original meaning",
+				"Literary excellence in expression"
+			],
+			"team": "More than 100 leading evangelical scholars and pastors"
+		}
+	},
+	{
+		"id": "net",
+		"name": "New English Translation",
+		"abbreviation": "NET",
+		"language": "en",
+		"publisher": "Biblical Studies Press",
+		"yearPublished": 1996,
+		"api": {
+			"baseUrl": null,
+			"baseUrlEnvVar": "NET_API_BASE_URL",
+			"requiresAuth": false,
+			"authType": null,
+			"endpoints": {
+				"passage": ""
+			},
+			"rateLimits": null,
+			"requestLimits": {
+				"maxVerses": 500,
+				"source": "self-imposed",
+				"description": "SELF-IMPOSED, not a NET API limit. NET publishes no per-request verse ceiling. We cap a single HTTP request at 500 verses as an engineering guardrail so one request stays fast and its response stays a reasonable size. Because `retrieval.chunking` is true, this is NOT a limit on passage size: a passage larger than this is fetched as several sequential requests and stitched back together, so one passage can span a whole book (Psalms = 2,461 verses in 6 requests). It is purely a transport parameter. Because `source` is 'self-imposed', user-facing messages must not attribute this number to the provider. The half-book cap that used to live here was also self-imposed and has been removed — NET's license places no verse limit on distribution. See COMPLIANCE.md."
+			},
+			"retrieval": {
+				"chunking": true,
+				"servesCompleteBook": "always",
+				"description": "INTERNAL CHUNKING ALLOWED for NET. A passage of any size is fetched as however many requests of maxVerses it takes, then concatenated, so passage size is not bounded by request size. This is safe and legitimate here for three reasons: (1) NET's licence explicitly permits complete books (restrictions.distribution.allowCompleteBook = true) and sets no verse limit; (2) the 500-verse request cap is our own engineering guardrail, not a provider rule, so chunking around it routes around nothing; (3) there is no server-side control to circumvent — unlike ESV, the NET API serves whatever range is asked for. Attribution is still mandatory wherever the text appears. Concatenation is safe because wrapWords() derives every data-word-id from absolute book/chapter/verse, so a word's id is identical no matter which chunk delivered it."
+			},
+
+			"queryParameters": {
+				"passage": "passage",
+				"type": "type",
+				"formatting": "formatting",
+				"callback": "callback"
+			},
+			"outputFormats": ["text", "json", "xml"],
+			"formattingOptions": {
+				"full": "All paragraph, bold, italics, and note tags",
+				"para": "Just paragraph and bold tags",
+				"plain": "Just text, no html or html entities",
+				"default": "Just bold tags"
+			},
+			"specialPassages": {
+				"votd": "Verse of the Day",
+				"random": "Random verse"
+			}
+		},
+		"copyright": {
+			"short": "NET",
+			"full": "Scripture quoted by permission. Quotations designated (NET) are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C. All rights reserved.",
+			"displayRequired": true,
+			"linkRequired": "https://netbible.org",
+			"linkText": "netbible.org",
+			"additionalInfo": "See https://netbible.com/copyright/ for full copyright details"
+		},
+		"features": {
+			"includeVerseNumbers": true,
+			"includeFootnotes": true,
+			"includeHeadings": true,
+			"includeCrossReferences": false,
+			"includePassageReferences": true,
+			"translatorNotes": true,
+			"translatorNotesCount": 60000,
+			"audioAvailable": false,
+			"searchAvailable": false
+		},
+		"restrictions": {
+			"license": "free-with-attribution",
+			"caching": {
+				"allowed": true,
+				"maxVerses": null,
+				"recommendation": "No specific caching limits"
+			},
+			"distribution": {
+				"appliesTo": "export",
+				"enforcement": "warn",
+				"maxVerses": null,
+				"maxBookPortion": null,
+				"allowCompleteBook": true,
+				"translationAllowed": false,
+				"requiresAttribution": true,
+				"description": "NET is free to use with attribution and sets no verse or book-portion limit on distribution. Attribution is mandatory wherever the text appears, including exports."
+			},
+			"modification": {
+				"textChanges": false,
+				"omissionsAllowed": true
+			}
+		},
+		"description": "The NET Bible is a completely new translation with 60,000+ translator's notes, completed by 25+ scholars working directly from the best available Hebrew, Aramaic, and Greek texts.",
+		"translationPhilosophy": {
+			"approach": "balanced",
+			"methodology": "optimal-equivalence",
+			"equivalence": "balanced-equivalence",
+			"summary": "A balanced translation that overcomes the tension between accuracy and readability, combining faithful rendering of original languages with clear, contemporary English.",
+			"characteristics": [
+				"Balances accuracy with readability",
+				"Faithful to the original biblical languages",
+				"Clear, easy-to-understand English text",
+				"Transparent and accountable translation process",
+				"Nearly 60,000 translators' notes document decisions",
+				"Notes explain difficult or nontraditional renderings",
+				"Ongoing revisions based on scholarly and user feedback",
+				"Multi-denominational scholarly approach"
+			],
+			"strengths": [
+				"Unprecedented transparency through extensive notes",
+				"Balances scholarly integrity with readability",
+				"Explains translation decisions and alternatives",
+				"Accessible to both academic and general readers",
+				"Shows complex linguistic details without sacrificing clarity",
+				"Invites readers into the translation process"
+			],
+			"team": "Multi-denominational team of 25+ leading biblical scholars",
+			"revisionHistory": {
+				"firstEdition": 2001,
+				"majorRevisions": [2003, 2005, 2019],
+				"ongoing": true
+			}
+		}
+	}
 ]

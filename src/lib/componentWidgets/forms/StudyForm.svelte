@@ -31,7 +31,10 @@
 	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
 	import messages from '$lib/data/messages.json';
 	import { getAllTranslationsMetadata } from '$lib/utils/translationConfig';
+	import { checkSinglePassageSupport } from '$lib/utils/translationLimits.js';
+	import { assessStudySize } from '$lib/config/studyLimits.js';
 	import { pendingEditKey, armedKey } from '$lib/utils/pendingEdit.js';
+
 	import { setStudyEditDirty, clearStudyEditDirty } from '$lib/stores/studyEditDirty.js';
 
 
@@ -88,6 +91,50 @@
 	let duplicateTitleMessage = $derived(getDuplicateTitleMessage(studyTitle));
 	let hasDuplicateTitle = $derived(duplicateTitleMessage.length > 0);
 
+	// --- Passage retrieval + size feedback ---------------------------------
+	//
+	// The point of doing this here rather than server-side is TIMING: the user
+	// finds out that a range won't work, or that a study will be very large,
+	// while they are still choosing it — not after they have committed and been
+	// bounced back by an error. The server still validates (see the New Study
+	// action); this is the part that arrives early enough to be useful.
+	//
+	// In edit mode the translation is fixed by the study and not part of this
+	// form, so fall back to the study's own translation.
+	let selectedTranslation = $state(mode === 'edit' ? initialData?.translation || 'esv' : 'esv');
+
+	/**
+	 * Per-passage retrieval problems for the chosen translation.
+	 *
+	 * Empty for a translation that can chunk (a passage may span a whole book).
+	 * For ESV this reports ranges too large for one request, and complete books
+	 * Crossway will not serve whole.
+	 */
+	let passageIssues = $derived(
+		passages
+			.map((p, index) => ({ index, ...checkSinglePassageSupport(p, selectedTranslation) }))
+			.filter((r) => !r.canBeSinglePassage)
+	);
+
+	let hasPassageIssues = $derived(passageIssues.length > 0);
+
+	/**
+	 * Rendering-performance assessment for the study as a whole.
+	 *
+	 * Deliberately advisory: total verses is summed across passages because DOM
+	 * cost is a property of the whole study, not of any one passage. Never blocks
+	 * — see src/lib/config/studyLimits.js for why there is no hard cap.
+	 */
+	let studySizeAssessment = $derived(
+		assessStudySize(
+			passages.reduce(
+				(total, p) => total + checkSinglePassageSupport(p, selectedTranslation).verseCount,
+				0
+			)
+		)
+	);
+
+
 	// --- Unsaved-changes (dirty) tracking, edit mode only ------------------
 	// Baseline snapshot of the last-saved values. The edit-flow layout watches
 	// the shared `studyEditDirty` store (set below) to decide whether to prompt
@@ -133,6 +180,22 @@
 	const handlePassagesChange = (updatedPassages) => {
 		passages = updatedPassages;
 	};
+
+	/**
+	 * Track the chosen translation so the retrieval checks re-run when it changes.
+	 *
+	 * This matters because the SAME set of passages can be valid in one
+	 * translation and not another: switching from NET to ESV can turn a working
+	 * whole-book passage into a blocked one, and the user needs to see that at the
+	 * moment they switch rather than at save time.
+	 *
+	 * @param {Event} event
+	 */
+	function handleTranslationChange(event) {
+		const target = /** @type {HTMLInputElement} */ (event.currentTarget);
+		selectedTranslation = target.value;
+	}
+
 
 	/**
 	 * Discard any in-progress review hand-off payload. Called when the user
@@ -366,8 +429,33 @@
 			RadioButtonProperties={translationOptions}
 			name="translation"
 			isInline
+			handleChange={handleTranslationChange}
 		/>
 	{/if}
+
+	<!--
+		Retrieval problems BLOCK submission: the fetch would fail (or silently
+		truncate), so letting the user proceed only defers the same error to a point
+		where they've already lost the form. Each message names the remedy.
+	-->
+	{#each passageIssues as issue (issue.index)}
+		<Alert color="red" look="subtle" message={`Passage ${issue.index + 1}: ${issue.message}`} />
+	{/each}
+
+	<!--
+		Size feedback NEVER blocks. It's our own rendering-performance guess, not a
+		correctness or licensing matter, and the underlying cause is unconfirmed —
+		so we inform and let the user decide. See src/lib/config/studyLimits.js.
+	-->
+	{#if studySizeAssessment.message}
+		<Alert
+			color={studySizeAssessment.level === 'warning' ? 'yellow' : 'blue'}
+			look="subtle"
+			message={studySizeAssessment.message}
+		/>
+	{/if}
+
+
 
 	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
 	{#if groupId}
@@ -385,7 +473,12 @@
 	<FormButtonBar>
 		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting || isAnalyzing} handleClick={clearPendingEdit}></Button>
 
-		<Button type="submit" classes="blue" isDisabled={isSubmitting || isAnalyzing || hasDuplicateTitle}>
+		<Button
+			type="submit"
+			classes="blue"
+			isDisabled={isSubmitting || isAnalyzing || hasDuplicateTitle || hasPassageIssues}
+		>
+
 			{#if isAnalyzing}
 				<Spinner size="sm" inline color="var(--white)" label="Checking…" showLabel />
 			{:else if isSubmitting}

@@ -7,6 +7,7 @@ import { eq, and } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
 import { expandGroupAncestors, createDefaultPassageStructure } from '$lib/server/db/utils.js';
 import { validatePassagesLimits } from '$lib/utils/translationLimits.js';
+
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 
 /**
@@ -150,10 +151,25 @@ export const actions = {
 				}
 			}
 
-			// Guard against the translation API's per-request limits (e.g. ESV's
-			// 500-verse / half-a-book cap). Each passage maps to one API request,
-			// so an over-limit range would be rejected by the provider. Reject it
-			// here with a clear message before anything is written or fetched.
+			// Validate each passage against the translation's retrieval policy.
+			//
+			// Passages are NEVER auto-split any more. Silently turning one requested
+			// Psalms passage into six was surprising, and passage shape is a
+			// document-structure decision that belongs to the user: it determines the
+			// structure trees, the dividers, and how the study reads. So an oversized
+			// selection is refused with an explanation naming both remedies (add
+			// several passages, or pick a translation that can serve the range whole)
+			// rather than quietly reshaped.
+			//
+			// For a translation whose `retrieval.chunking` is enabled this rarely
+			// triggers: the fetch layer assembles a large passage from several
+			// requests, so one passage can span a whole book. It is ESV — where one
+			// passage is one request, and Crossway polices completeness server-side —
+			// that still has a real per-passage ceiling.
+			//
+			// Note the client blocks these cases during selection so the user finds
+			// out while choosing rather than after committing; this is the server-side
+			// backstop for a direct POST.
 			const limitCheck = validatePassagesLimits(passagesData, translation.toString());
 			if (!limitCheck.valid) {
 				return fail(400, {
@@ -161,6 +177,7 @@ export const actions = {
 					title: title.toString()
 				});
 			}
+
 
 			// Create study and passages in a transaction
 			const studyId = uuidv4();

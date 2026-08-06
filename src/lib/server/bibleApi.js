@@ -3,8 +3,13 @@
  */
 
 import { ESV_API_TOKEN, ESV_API_BASE_URL, NET_API_BASE_URL } from '$env/static/private';
-import { getBookAbbreviation } from '$lib/utils/bibleData.js';
-import { getRateLimits } from '$lib/utils/translationLimits.js';
+import { getBookAbbreviation, countVersesInRange } from '$lib/utils/bibleData.js';
+import {
+	getRateLimits,
+	getRetrievalPolicy,
+	splitRangeIntoPassages
+} from '$lib/utils/translationLimits.js';
+
 
 /**
  * Run an array of async task factories with a bounded concurrency so we never
@@ -136,16 +141,29 @@ function buildPassageReference(passage) {
 
 /**
  * Normalize ESV text formatting to match NET Bible format
+ *
+ * ⚠️ `range.fromChapter` MUST be the first chapter of the text actually passed in,
+ * not of the passage it belongs to. Chapter numbers are inferred by counting `[1]`
+ * verse markers forward from this value — the ESV text format gives no other
+ * chapter signal — so if a passage is fetched in several requests, each response
+ * must be normalized against ITS OWN starting chapter.
+ *
+ * Getting this wrong is silent and severe: every `data-word-id` after the first
+ * chunk would carry the wrong chapter, and since all structure (columns,
+ * sections, segments, connections) is keyed on those ids, the corruption would
+ * surface much later as misplaced structure with no obvious cause.
+ *
  * @param {string} text - Raw ESV text with brackets and formatting
- * @param {Object} passage - Passage object to determine chapter ranges
+ * @param {{fromChapter: number}} range - The range THIS text covers
  * @param {string} bookAbbr - Book abbreviation (e.g., "MT", "GE")
  * @returns {string} - Normalized text matching NET format
  */
-function normalizeESVFormatting(text, passage, bookAbbr) {
+function normalizeESVFormatting(text, range, bookAbbr) {
 	if (!text) return text;
 
-	// Get the range of chapters in this passage
-	const fromChapter = passage.fromChapter;
+	// First chapter of THIS text — see the warning above.
+	const fromChapter = range.fromChapter;
+
 
 	// Detect which verse numbers start new paragraphs BEFORE stripping whitespace.
 	// The ESV API uses double newlines (\n\n) before the first verse of a new paragraph.
@@ -246,6 +264,82 @@ async function fetchESVPassage(reference, passage) {
 		const data = await response.json();
 		let text = data.passages?.[0] || '';
 
+		// Detect SILENT TRUNCATION.
+		//
+		// Crossway enforces their quotation permission server-side, and they do it
+		// without an error: requesting Revelation 1:1–22:21 returns HTTP 200 with
+		// `canonical: "Revelation 1–12:8"` — exactly 202 of 404 verses, 50.0% of the
+		// book. Nothing in the status or body signals a problem; the text simply
+		// stops. Verified by probe on 2026-08-03.
+		//
+		// This is why a study could show half of Revelation with no warning at all,
+		// which in turn was misread as an app bug and nearly became the justification
+		// for a whole feature.
+		//
+		// Do NOT "fix" this by splitting the request into chunks and stitching the
+		// halves together.
+		//
+		// Be precise about why, because the obvious reason is wrong. It is NOT that
+		// chunking reproduces more text than we are otherwise allowed: a study can
+		// already display a complete book as several passages, which puts exactly the
+		// same words on screen via exactly the same number of requests. On copyright
+		// grounds the two are indistinguishable, so "chunking reproduces too much"
+		// does not hold.
+		//
+		// The actual reason is that Crossway applied a deliberate server-side control
+		// and chunking would defeat it. Each sub-whole chunk returns complete text, so
+		// every chunk would succeed and this detector would never fire — we would have
+		// silently switched off a limit its owner chose to enforce. Declining to do
+		// that is a choice about respecting their control, not a copyright deduction.
+		//
+		// This is why `api.retrieval.chunking` is false for ESV and true for NET:
+		// NET's cap is our own guardrail with no control behind it. See COMPLIANCE.md.
+
+		//
+		// Count the verse markers we actually received and compare with what the
+		// range should contain. Comparing `canonical` as a STRING was tried first and
+		// produced false positives on four of nine probed passages: the API echoes
+		// "Philemon" for a whole short book and "John 3:16–17" with an en-dash, so a
+		// tail comparison flags perfectly good responses. Counting verses is robust
+		// to all of those spellings.
+		const canonical = data.canonical || '';
+		if (text) {
+			const expectedVerses = countVersesInRange(
+				passage.testament,
+				passage.bookId,
+				passage.fromChapter,
+				passage.fromVerse,
+				passage.toChapter,
+				passage.toVerse
+			);
+			const actualVerses = (text.match(/\[\d+\]/g) || []).length;
+			const shortfall = expectedVerses - actualVerses;
+
+			// TWO conditions, because a small shortfall is legitimate: the ESV omits
+			// verses attested only in later manuscripts (John 5:4, Mark 9:44/46,
+			// Acts 8:37 …), so a complete chapter can arrive one or two verses light.
+			// Probed: Mark 9 returns 48/50 and John 5 returns 46/47 — both correct.
+			// Truncation, by contrast, always removes about half the request
+			// (Galatians 74/149, Romans 216/433). Requiring a proportional AND an
+			// absolute gap separates the two cleanly, with a wide margin either side.
+			const proportionallyShort = actualVerses < expectedVerses * 0.9;
+			const substantiallyShort = shortfall > 15;
+
+			if (expectedVerses > 0 && proportionallyShort && substantiallyShort) {
+				console.error(
+					`ESV API truncated the response: requested ${expectedVerses} verses, received ${actualVerses}` +
+						(canonical ? ` (canonical: "${canonical}")` : '')
+				);
+				return {
+					text: '',
+					error:
+						`The ESV licence does not allow a complete book to be retrieved at once, so this passage came back incomplete` +
+						`${canonical ? ` (only ${canonical})` : ''} — ${actualVerses} of ${expectedVerses} verses. ` +
+						`Request part of the book instead, or use the NET translation, which has no such restriction.`
+				};
+			}
+		}
+
 		// Get book abbreviation
 		const bookAbbr = getBookAbbreviation(passage.bookName);
 		if (!bookAbbr) {
@@ -345,28 +439,126 @@ async function fetchNETPassage(reference) {
 }
 
 /**
- * Fetch passage text for any translation
+ * Fetch one contiguous range in a single API request.
+ *
+ * @param {Object} range - Passage-shaped object: { testament, bookId, bookName, fromChapter, fromVerse, toChapter, toVerse }
+ * @param {string} translation - Translation ID (e.g., 'esv', 'net')
+ * @returns {Promise<{text: string, error?: string}>}
+ */
+async function fetchRange(range, translation) {
+	const reference = buildPassageReference(range);
+
+	if (translation === 'esv') {
+		return fetchESVPassage(reference, range);
+	}
+	if (translation === 'net') {
+		return fetchNETPassage(reference);
+	}
+	return { text: '', error: `Unknown translation: ${translation}` };
+}
+
+/**
+ * Fetch passage text for any translation.
+ *
+ * ## A passage is no longer limited to one request
+ *
+ * For translations whose `retrieval.chunking` is enabled, a passage larger than
+ * the per-request ceiling is fetched as several sequential requests and the
+ * results concatenated. This is what lets one passage span a whole book — Psalms
+ * is a single passage assembled from 6 requests — instead of forcing the user to
+ * break a long book into several passages just because of a transport limit.
+ *
+ * Concatenation is sound because `wrapWords()` derives every `data-word-id` from
+ * absolute book/chapter/verse. A word's identity does not depend on which chunk
+ * carried it, so the assembled HTML is byte-identical to what a single
+ * hypothetical request would have produced.
+ *
+ * Chunks are fetched SEQUENTIALLY on purpose. `fetchPassagesText` already runs
+ * several passages concurrently, so fetching chunks concurrently as well would
+ * multiply the two bounds together (5 passages × 6 chunks = 30 simultaneous
+ * requests) and defeat the rate-limit guard. Sequential chunks keep the ceiling
+ * exactly where `getFetchConcurrency` set it.
+ *
+ * If ANY chunk fails the whole passage fails. Returning a partial passage would
+ * be worse than an error: the text would look complete but silently omit a
+ * stretch of verses, which is precisely the failure mode the ESV truncation
+ * detector exists to prevent.
+ *
  * @param {Object} passage - Passage object from database
  * @param {string} translation - Translation ID (e.g., 'esv', 'net')
  * @returns {Promise<{reference: string, text: string, error?: string}>}
  */
 export async function fetchPassageText(passage, translation) {
+	// The reference always describes the WHOLE passage, whatever the chunking, so
+	// callers and cached rows keep a stable human-readable label.
 	const reference = buildPassageReference(passage);
 
-	let result;
-	if (translation === 'esv') {
-		result = await fetchESVPassage(reference, passage);
-	} else if (translation === 'net') {
-		result = await fetchNETPassage(reference);
-	} else {
-		result = { text: '', error: `Unknown translation: ${translation}` };
+	const { chunking } = getRetrievalPolicy(translation);
+
+	// Single-request path: no chunking configured, or the passage already fits.
+	const chunks = chunking
+		? splitRangeIntoPassages(
+				{
+					testament: passage.testament,
+					book: passage.bookId,
+					fromChapter: passage.fromChapter,
+					fromVerse: passage.fromVerse,
+					toChapter: passage.toChapter,
+					toVerse: passage.toVerse
+				},
+				translation
+			)
+		: [passage];
+
+	if (chunks.length <= 1) {
+		const result = await fetchRange(passage, translation);
+		return { reference, ...result };
 	}
 
-	return {
-		reference,
-		...result
-	};
+	console.log(
+		`Fetching ${reference} as ${chunks.length} requests (${translation.toUpperCase()} chunking enabled).`
+	);
+
+	/** @type {string[]} */
+	const parts = [];
+
+	for (const chunk of chunks) {
+		// splitRangeIntoPassages speaks `book`; the fetchers and the DB row speak
+		// `bookId`/`bookName`. Translate here so each chunk is a complete
+		// passage-shaped object — in particular `fromChapter` must be the chunk's
+		// own first chapter, since ESV chapter inference counts forward from it.
+		const chunkRange = {
+			testament: chunk.testament,
+			bookId: chunk.book,
+			bookName: passage.bookName,
+			fromChapter: chunk.fromChapter,
+			fromVerse: chunk.fromVerse,
+			toChapter: chunk.toChapter,
+			toVerse: chunk.toVerse
+		};
+
+		const result = await fetchRange(chunkRange, translation);
+
+		if (result.error || !result.text) {
+			const chunkReference = buildPassageReference(chunkRange);
+			return {
+				reference,
+				text: '',
+				error:
+					result.error ||
+					`Part of this passage (${chunkReference}) came back empty, so it was not loaded.`
+			};
+		}
+
+		parts.push(result.text);
+	}
+
+	// Join with a space: each part is a run of complete `<span class="verse">`
+	// elements, so a separator keeps the boundary consistent with how verses are
+	// joined inside a single response.
+	return { reference, text: parts.join(' ') };
 }
+
 
 /**
  * Determine how many passage requests may run concurrently for a translation.

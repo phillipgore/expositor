@@ -163,10 +163,18 @@ export const actions = {
 				}
 			}
 
-			// Guard against the translation API's per-request limits (e.g. ESV's
-			// 500-verse / half-a-book cap). The study's translation can't change
-			// once created, so validate the edited ranges against it before we
-			// reconcile and re-fetch text. Reject over-limit ranges up front.
+			// Guard against the per-request verse limit. The study's translation
+			// can't change once created, so validate the edited ranges against it
+			// before we reconcile and re-fetch text.
+			//
+			// NOTE: unlike the New Study flow, edit deliberately does NOT auto-split
+			// oversized ranges. Edits are diffed against existing passages by `id`
+			// (see diffPassages below) so that untouched passages keep their columns,
+			// sections, segments and connections. Split parts have no id, so they
+			// would look like an unrelated add plus a remove — and the remove
+			// cascades, silently destroying the user's structural work on that
+			// passage. Rejecting with a clear message is the safe behaviour here;
+			// the user can add a second passage explicitly, which preserves the diff.
 			const studyTranslation = studyResult[0].translation || 'esv';
 			const limitCheck = validatePassagesLimits(passagesData, studyTranslation);
 			if (!limitCheck.valid) {

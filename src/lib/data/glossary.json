@@ -165,7 +165,7 @@
         "_id": "fos-metaphor",
         "term": "Metaphor",
         "definition": "Direct comparison without 'like' or 'as'.",
-        "examples": "'The LORD is my shepherd' (Psalm 23:1), 'You are the salt of the earth' (Matthew 5:13)"
+        "examples": "'The LORD is my shepherd' (Psalms 23:1), 'You are the salt of the earth' (Matthew 5:13)"
       },
       {
         "_id": "fos-metonymy",
@@ -182,7 +182,7 @@
         "_id": "fos-personification",
         "term": "Personification",
         "definition": "Giving human qualities to non-human things.",
-        "examples": "'Wisdom calls out in the streets' (Proverbs 1:20), 'Let the mountains sing' (Psalm 98:8)"
+        "examples": "'Wisdom calls out in the streets' (Proverbs 1:20), 'Let the mountains sing' (Psalms 98:8)"
       },
       {
         "_id": "fos-proverb",
@@ -193,7 +193,7 @@
         "_id": "fos-simile",
         "term": "Simile",
         "definition": "Comparison using 'like' or 'as'.",
-        "example": "'He will be like a tree planted by streams of water' (Psalm 1:3)"
+        "example": "'He will be like a tree planted by streams of water' (Psalms 1:3)"
       },
       {
         "_id": "fos-symbolism",
@@ -247,7 +247,7 @@
         "_id": "rd-rhetorical-question",
         "term": "Rhetorical Question",
         "definition": "Question asked for effect rather than information.",
-        "examples": "'How long, O LORD?' (Psalm 13:1), 'Shall we continue in sin?' (Romans 6:1), 'What is man that you are mindful of him?' (Psalm 8:4)"
+        "examples": "'How long, O LORD?' (Psalms 13:1), 'Shall we continue in sin?' (Romans 6:1), 'What is man that you are mindful of him?' (Psalms 8:4)"
       },
       {
         "_id": "rd-woe-oracle",
