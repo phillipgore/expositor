@@ -610,10 +610,17 @@ It clones rather than duplicating the legal text so the two copies cannot drift.
    - It does **not** make circumventing a technical control acceptable. It reduces the
      practical stakes to nearly zero; it does not change what the act is.
    - The real risk is **residue**: code added under "it's only me" is still in the
-     repository at launch, and by then it looks load-bearing. §3 and §12 of
-     `LINKED_STUDIES_PLAN.md` are both records of a workaround outliving the reasoning
-     that produced it. **Do not implement ESV chunking while awaiting a reply.** Nothing
-     is blocked meanwhile: NET serves whole books today.
+     repository at launch, and by then it looks load-bearing. The **Traps** and
+     **Decisions log** sections of `SERIES_PLAN.md` record several instances of a
+     workaround, or the reasoning for one, outliving the thing that produced it — the
+     `maxBookPortion` axis confusion and the withdrawn "chunking = circumvention" argument
+     among them. (Cited by section _name_, not number: that document has been renumbered
+     once, and an earlier version of this line pointed at a section that has since become
+     something unrelated. Its _filename_ has since changed too — it was
+     `LINKED_STUDIES_PLAN.md` — which is itself an instance of the pattern this paragraph
+     describes: the old name survived for a while purely because this line and one code
+     comment cited it.) **Do not implement ESV chunking while awaiting a reply.**
+     Nothing is blocked meanwhile: NET serves whole books today.
 
 3. **Correct the distribution verse ceiling.** `restrictions.distribution.maxVerses` is
    `1000`, from the print copyright page. The API terms say **500** for text obtained via

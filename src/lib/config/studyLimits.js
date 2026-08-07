@@ -34,7 +34,11 @@
  * node-count problem, and both of which would be fixed in CSS rather than by
  * restricting what a user may study. Until that is measured rather than guessed,
  * a hard cap would be encoding a rendering bug into the data model permanently.
- * See LINKED_STUDIES_PLAN.md §13.1.
+ * See the "Safari scroll choppiness" section of SERIES_PLAN.md (formerly
+ * LINKED_STUDIES_PLAN.md). Cited by section *name* rather than number on purpose: this
+ * reference was already stale once when that document was renumbered. Note that the filename
+ * then went stale too, which is the same lesson one level up — cite the most stable handle
+ * available, and expect even that to move.
  *
  * Warn, explain, and let the user decide. Revisit only with measurements.
  */
