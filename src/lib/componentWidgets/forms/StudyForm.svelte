@@ -1,10 +1,10 @@
 <script>
 	/**
 	 * StudyForm Component
-	 * 
+	 *
 	 * Reusable form for creating or editing a study.
 	 * Handles title input, passage selection, validation, and submission UI.
-	 * 
+	 *
 	 * @property {string} mode - 'new' or 'edit'
 	 * @property {Object} initialData - Initial form data for edit mode
 	 * @property {Array} existingStudies - List of existing studies for duplicate check
@@ -15,8 +15,6 @@
 	import { v4 as uuidv4 } from 'uuid';
 	import { enhance, applyAction, deserialize } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
-
-
 
 	import bibleData from '$lib/data/bible.json';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
@@ -31,13 +29,15 @@
 	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
 	import messages from '$lib/data/messages.json';
 	import { getAllTranslationsMetadata } from '$lib/utils/translationConfig';
-	import { checkSinglePassageSupport } from '$lib/utils/translationLimits.js';
+	import {
+		checkSinglePassageSupport,
+		validateStudyDisplayLimits
+	} from '$lib/utils/translationLimits.js';
+
 	import { assessStudySize } from '$lib/config/studyLimits.js';
 	import { pendingEditKey, armedKey } from '$lib/utils/pendingEdit.js';
 
 	import { setStudyEditDirty, clearStudyEditDirty } from '$lib/stores/studyEditDirty.js';
-
-
 
 	let {
 		mode = 'new',
@@ -56,15 +56,12 @@
 	let formElement = $state(null);
 	let isAnalyzing = $state(false);
 
-
-
-
 	const testamentData = bibleData[0].testamentData;
 	const ntBookData = testamentData[1].bookData;
 
 	// Get translation metadata for radio button options
 	const translationsMetadata = getAllTranslationsMetadata();
-	const translationOptions = translationsMetadata.map(t => ({
+	const translationOptions = translationsMetadata.map((t) => ({
 		id: `translation-${t.id}`,
 		value: t.id,
 		text: t.abbreviation,
@@ -75,17 +72,19 @@
 	// Initialize form state
 	let studyTitle = $state(initialData?.title || form?.title || '');
 	let studySubtitle = $state(initialData?.subtitle || form?.subtitle || '');
-	let passages = $state(initialData?.passages || [
-		{
-			id: uuidv4(),
-			testament: testamentData[1]._id,
-			book: ntBookData[0]._id,
-			fromChapter: 1,
-			toChapter: 1,
-			fromVerse: 1,
-			toVerse: ntBookData[0].chapterData[0]['1']
-		}
-	]);
+	let passages = $state(
+		initialData?.passages || [
+			{
+				id: uuidv4(),
+				testament: testamentData[1]._id,
+				book: ntBookData[0]._id,
+				fromChapter: 1,
+				toChapter: 1,
+				fromVerse: 1,
+				toVerse: ntBookData[0].chapterData[0]['1']
+			}
+		]
+	);
 
 	// Duplicate title validation
 	let duplicateTitleMessage = $derived(getDuplicateTitleMessage(studyTitle));
@@ -134,6 +133,25 @@
 		)
 	);
 
+	/**
+	 * Licence-compliance assessment for the study's total on-screen footprint.
+	 *
+	 * Distinct from `passageIssues` above, which asks of each passage separately
+	 * "can the API serve this?". This asks of the study as a whole "may this much
+	 * text be displayed together?" — a question no single passage can answer.
+	 *
+	 * The ESV terms limit display per PAGE, so several individually-valid passages
+	 * can still add up to a page that exceeds the limit: Galatians 1–3 plus 4–6 is
+	 * two requests Crossway will happily serve, assembling into a complete book
+	 * they do not permit displaying. Their server cannot see the assembled page,
+	 * which is why this check has to live here.
+	 *
+	 * Advisory by design — it informs and never blocks submission, matching the
+	 * translation's `enforcement: 'warn'` posture. See COMPLIANCE.md.
+	 */
+	let displayComplianceWarnings = $derived(
+		validateStudyDisplayLimits(passages, selectedTranslation).warnings
+	);
 
 	// --- Unsaved-changes (dirty) tracking, edit mode only ------------------
 	// Baseline snapshot of the last-saved values. The edit-flow layout watches
@@ -151,10 +169,7 @@
 	);
 
 	/** Dirty when editing and the current values differ from the saved baseline. */
-	let isDirty = $derived(
-		mode === 'edit' && !!initialData?.id && currentSnapshot !== savedSnapshot
-	);
-
+	let isDirty = $derived(mode === 'edit' && !!initialData?.id && currentSnapshot !== savedSnapshot);
 
 	/**
 	 * Get duplicate title message if a study with this title already exists
@@ -164,16 +179,16 @@
 	function getDuplicateTitleMessage(title) {
 		if (!title || !title.trim()) return '';
 		const trimmedTitle = title.trim().toLowerCase();
-		
+
 		// When editing, exclude the current study from duplicate check
-		const studiesToCheck = mode === 'edit' && initialData?.id
-			? existingStudies.filter(s => s.id !== initialData.id)
-			: existingStudies;
-		
-		const hasDuplicate = studiesToCheck?.some(study => 
-			study.title.toLowerCase() === trimmedTitle
-		) || false;
-		
+		const studiesToCheck =
+			mode === 'edit' && initialData?.id
+				? existingStudies.filter((s) => s.id !== initialData.id)
+				: existingStudies;
+
+		const hasDuplicate =
+			studiesToCheck?.some((study) => study.title.toLowerCase() === trimmedTitle) || false;
+
 		return hasDuplicate ? messages.validation.duplicateStudyTitle : '';
 	}
 
@@ -196,7 +211,6 @@
 		selectedTranslation = target.value;
 	}
 
-
 	/**
 	 * Discard any in-progress review hand-off payload. Called when the user
 	 * cancels the edit so a later fresh edit session starts from saved data
@@ -214,8 +228,6 @@
 			// sessionStorage unavailable — nothing to clear.
 		}
 	}
-
-
 
 	/**
 	 * Restore in-progress edits when the user returns from the full-page review
@@ -247,7 +259,6 @@
 		}
 	});
 
-
 	// Notify parent of submitting state changes
 	$effect(() => {
 		onSubmittingChange?.(isSubmitting);
@@ -263,7 +274,6 @@
 	onMount(() => {
 		return () => clearStudyEditDirty();
 	});
-
 
 	/**
 	 * In edit mode, the first submit must be intercepted so we can analyze the
@@ -355,7 +365,6 @@
 				return;
 			}
 
-
 			if (result.type === 'error') {
 				console.error('Save failed:', result.error);
 				await applyAction(result);
@@ -373,16 +382,14 @@
 	}
 </script>
 
-
-<form 
+<form
 	bind:this={formElement}
-	method="POST" 
+	method="POST"
 	use:enhance={({ cancel }) => {
 		// In edit mode, gate EVERY submit on analysis/review. The analysis step
 		// decides whether to navigate to the full-page review or submit straight
 		// through. New studies post normally below.
 		if (mode === 'edit' && initialData?.id) {
-
 			runAnalysisGate({ cancel });
 			return;
 		}
@@ -394,10 +401,9 @@
 		};
 	}}
 >
-
-
-
-	<Heading heading="h1" hasSub={groupName? true : false}>{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading>
+	<Heading heading="h1" hasSub={groupName ? true : false}
+		>{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading
+	>
 	{#if groupName}
 		<Heading heading="h2" isMuted notBold>{`To be created in "${groupName}".`}</Heading>
 	{/if}
@@ -416,12 +422,7 @@
 		infoMessage={duplicateTitleMessage}
 	/>
 
-	<InputField
-		label="Subtitle"
-		id="subtitle"
-		name="subtitle"
-		bind:value={studySubtitle}
-	/>
+	<InputField label="Subtitle" id="subtitle" name="subtitle" bind:value={studySubtitle} />
 
 	{#if mode === 'new'}
 		<Label text="Translation"></Label>
@@ -446,8 +447,13 @@
 		Size feedback NEVER blocks. It's our own rendering-performance guess, not a
 		correctness or licensing matter, and the underlying cause is unconfirmed —
 		so we inform and let the user decide. See src/lib/config/studyLimits.js.
+
+		Suppressed while a retrieval error blocks submission: it describes how a
+		study would PERFORM once saved, which is premature advice about a study
+		that cannot be saved yet. A whole-book ESV selection otherwise stacked four
+		alerts at once, and this was the least actionable of them.
 	-->
-	{#if studySizeAssessment.message}
+	{#if studySizeAssessment.message && !hasPassageIssues}
 		<Alert
 			color={studySizeAssessment.level === 'warning' ? 'yellow' : 'blue'}
 			look="subtle"
@@ -455,14 +461,31 @@
 		/>
 	{/if}
 
+	<!--
+		Licence-compliance notices also NEVER block, but for a different reason than
+		the size warning above: this one is a real published restriction rather than
+		a performance guess, yet it is the STUDY OWNER's obligation and not something
+		we can decide for them. Blocking would also be the wrong shape — a study
+		assembled over weeks could become non-compliant on the passage that tips it
+		over, and refusing to save at that moment would strand work already done.
+		So we state the position plainly and let the user act on it.
 
+		Also suppressed while a retrieval error blocks submission. The blocking
+		message already explains that the selection exceeds both what one request
+		may return and what one page may display, so repeating the page half as a
+		separate advisory says the same thing twice about a study that cannot be
+		saved. Once the blocker is resolved these reappear if they still apply.
+	-->
+	{#if !hasPassageIssues}
+		{#each displayComplianceWarnings as warning (warning)}
+			<Alert color="yellow" look="subtle" message={warning} />
+		{/each}
+	{/if}
 
 	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
 	{#if groupId}
-
 		<input type="hidden" name="groupId" value={groupId} />
 	{/if}
-
 
 	<Label text="Passages"></Label>
 
@@ -471,14 +494,19 @@
 	<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 
 	<FormButtonBar>
-		<Button href={cancelHref} label="Cancel" classes="gray" isDisabled={isSubmitting || isAnalyzing} handleClick={clearPendingEdit}></Button>
+		<Button
+			href={cancelHref}
+			label="Cancel"
+			classes="gray"
+			isDisabled={isSubmitting || isAnalyzing}
+			handleClick={clearPendingEdit}
+		></Button>
 
 		<Button
 			type="submit"
 			classes="blue"
 			isDisabled={isSubmitting || isAnalyzing || hasDuplicateTitle || hasPassageIssues}
 		>
-
 			{#if isAnalyzing}
 				<Spinner size="sm" inline color="var(--white)" label="Checking…" showLabel />
 			{:else if isSubmitting}
@@ -490,11 +518,9 @@
 	</FormButtonBar>
 </form>
 
-
 <style>
-
 	form {
 		width: 41.4rem;
-		min-width: 36.0rem;
+		min-width: 36rem;
 	}
 </style>

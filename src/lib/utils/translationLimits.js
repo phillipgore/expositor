@@ -68,7 +68,7 @@
  */
 
 import translationsData from '$lib/data/translations.json';
-import { countVersesInRange, getBookVerseTotal, getVerseCount } from './bibleData.js';
+import { countVersesInRange, getBook, getBookVerseTotal, getVerseCount } from './bibleData.js';
 
 /**
  * Get the raw API config block for a translation.
@@ -295,7 +295,6 @@ export function validatePassageLimits(passage, translationId) {
 	return { valid: true, verseCount, error: null };
 }
 
-
 /**
  * Split a verse range into as few sub-ranges as possible, each within the
  * translation's per-request limit.
@@ -438,6 +437,10 @@ export function checkSinglePassageSupport(range, translationId) {
 	const { chunking, servesCompleteBook } = getRetrievalPolicy(translationId);
 	const label = translationId ? translationId.toUpperCase() : 'this translation';
 
+	// Use the readable title, never the internal id: this message previously said
+	// "the complete book of JN".
+	const bookLabel = getBook(testament, book)?.title || book;
+
 	// Is the selection the entire book? Compared on verse totals rather than
 	// chapter numbers so a range that merely starts at 1:1 isn't misjudged.
 	const bookTotal = getBookVerseTotal(testament, book);
@@ -451,11 +454,24 @@ export function checkSinglePassageSupport(range, translationId) {
 	// still fail at fetch time, where the truncation detector reports honestly.
 	if (isCompleteBook && servesCompleteBook === 'partial' && maxVerses !== null) {
 		if (verseCount > maxVerses) {
+			// ## Why this message must NOT suggest splitting
+			//
+			// It used to read "Add it as several smaller passages, or choose a
+			// translation that allows whole books." The first half is advice that
+			// cannot work: splitting fixes RETRIEVAL and does nothing about the
+			// DISPLAY limit, which is written per page and so counts the assembled
+			// study however many passages built it. A user who followed it would
+			// split the book, clear this error, and be met by the display warning
+			// for the same underlying reason. See COMPLIANCE.md §1.6.
+			//
+			// Under these terms a whole book of this size is simply not available in
+			// this translation by any route, so the only honest remedies are a
+			// shorter range or a different translation.
 			return {
 				canBeSinglePassage: false,
 				reason: 'complete-book',
 				verseCount,
-				message: `${label} cannot load the complete book of ${book} (${verseCount} verses) as one passage. Add it as several smaller passages, or choose a translation that allows whole books.`
+				message: `${label} does not serve the complete book of ${bookLabel} (${verseCount} verses) — its licence limits both what one request may return and what one page may display, so splitting it into smaller passages would not help. Study a portion of ${bookLabel}, or choose a translation that allows whole books.`
 			};
 		}
 	}
@@ -472,6 +488,228 @@ export function checkSinglePassageSupport(range, translationId) {
 	return { canBeSinglePassage: true, reason: 'ok', verseCount, message: null };
 }
 
+/**
+ * Read a translation's DISPLAY limits — how much text may be on screen at once.
+ *
+ * ## Why this is not the same as `getRequestLimits()`
+ *
+ * The ESV terms state the display rule per PAGE, not per query:
+ *
+ *   "You may not display more than 500 verses or one-half of any book
+ *    (whichever is less) on any page."
+ *
+ * Crossway enforces the per-query half of that server-side by silently
+ * truncating whole-book requests, which is sufficient while one passage is one
+ * query. It stops being sufficient the moment a study holds several passages:
+ * Galatians 1-3 plus Galatians 4-6 is two individually-compliant queries that
+ * together put a complete book on one page. Their server cannot see the
+ * assembled page; only we can. Hence a separate axis, enforced by us.
+ *
+ * `shortBookChapterThreshold` carries the licence's own carve-out for
+ * "single-chapter and double-chapter books". Six books qualify (Obadiah,
+ * Haggai, Philemon, 2 John, 3 John, Jude) and they are the only books the ESV
+ * permits displaying whole. It is a CHAPTER-count rule, not a verse-count one —
+ * Philemon's 25 verses are irrelevant; its single chapter is the reason.
+ *
+ * @param {string} translationId - Translation ID
+ * @returns {{ maxVersesPerPage: number|null, maxBookPortion: number|null, shortBookChapterThreshold: number|null, enforcement: 'warn'|'block' }}
+ */
+export function getDisplayLimits(translationId) {
+	const restrictions = getRestrictions(translationId);
+	const display = restrictions?.display || {};
+
+	return {
+		maxVersesPerPage: display.maxVersesPerPage ?? null,
+		maxBookPortion: display.maxBookPortion ?? null,
+		shortBookChapterThreshold: display.shortBookChapterThreshold ?? null,
+		enforcement: display.enforcement === 'block' ? 'block' : 'warn'
+	};
+}
+
+/**
+ * Describe a portion fraction the way the licence words it.
+ *
+ * The clause says "one-half of any book", so a warning about John should read
+ * "half of John" rather than "50% of John" — quoting the rule back in its own
+ * terms is easier to check against the source. Falls back to a percentage for
+ * any fraction without a common name.
+ *
+ * @param {number|null} portion - Fraction of a book, e.g. 0.5
+ * @returns {string} Human-readable description, e.g. 'half'
+ */
+function describePortion(portion) {
+	if (portion === null) return '';
+	if (portion === 0.5) return 'half';
+	if (portion === 0.25) return 'a quarter';
+	if (portion === 0.75) return 'three quarters';
+	if (portion === 1 / 3) return 'a third';
+	return `${Math.round(portion * 100)}%`;
+}
+
+/**
+ * Validate a study's passages against the translation's DISPLAY limits.
+
+ *
+ * ## The gap this closes
+ *
+ * `checkSinglePassageSupport()` answers "can this ONE range be one passage?" and
+ * leans on Crossway's server for the half-book rule. That leaves a hole: several
+ * compliant passages can assemble a non-compliant page. This function measures
+ * the page, which is what the licence actually talks about.
+ *
+ * Verse identities are collected in a Set (rather than counts summed) so
+ * overlapping or adjacent passages are not double-counted — Galatians 1-3 plus
+ * Galatians 3-6 covers chapter 3 once, not twice. Same technique as
+ * `validateExportLimits()`, for the same reason.
+ *
+ * Warn-only by default: `enforcement` comes from the JSON, so tightening to
+ * 'block' is a data edit. Never throws and never blocks by itself — the caller
+ * decides what to do with `blocked`.
+ *
+ * @param {Array<Object>} passages - All passages in the study
+ * @param {string} translationId - Translation ID
+ * @returns {{ compliant: boolean, blocked: boolean, warnings: string[], totalVerses: number }}
+ */
+export function validateStudyDisplayLimits(passages, translationId) {
+	const limits = getDisplayLimits(translationId);
+	/** @type {string[]} */
+	const warnings = [];
+
+	// No display limits configured (NET) — nothing to check.
+	if (limits.maxVersesPerPage === null && limits.maxBookPortion === null) {
+		return { compliant: true, blocked: false, warnings, totalVerses: 0 };
+	}
+
+	/** @type {Map<string, { testament: 'OT'|'NT', book: string, verses: Set<string> }>} */
+	const byBook = new Map();
+	let totalVerses = 0;
+
+	for (const passage of passages || []) {
+		const { testament, book, fromChapter, fromVerse, toChapter, toVerse } = passage || {};
+		if (!testament || !book) continue;
+
+		const key = `${testament}:${book}`;
+		if (!byBook.has(key)) {
+			byBook.set(key, { testament, book, verses: new Set() });
+		}
+		const entry = byBook.get(key);
+		if (!entry) continue;
+
+		for (let ch = fromChapter; ch <= toChapter; ch += 1) {
+			const chapterVerses = getVerseCount(testament, book, ch);
+			if (chapterVerses <= 0) continue;
+			const start = ch === fromChapter ? fromVerse : 1;
+			const end = ch === toChapter ? Math.min(toVerse, chapterVerses) : chapterVerses;
+			for (let v = start; v <= end; v += 1) {
+				entry.verses.add(`${ch}:${v}`);
+			}
+		}
+	}
+
+	// Deduplicated total across the whole study.
+	for (const { verses } of byBook.values()) {
+		totalVerses += verses.size;
+	}
+
+	const label = translationId ? translationId.toUpperCase() : 'this translation';
+
+	// ## "Whichever is less" is ONE limit, not two
+	//
+	// The clause reads "500 verses or one-half of any book (whichever is less)".
+	// This was first implemented as two independent checks that both fired, so a
+	// single-book study over the line produced two warnings stating the same
+	// problem at different thresholds — for John, "at most 500" alongside "at most
+	// 50%", when the only number that binds is half of John (439). Transcribing
+	// the numbers while dropping the sentence's logic; see COMPLIANCE.md §0.
+	//
+	// So resolve the per-book limit first, then report the one that actually binds.
+	//
+	// `reducedTotal` accumulates what the study would display if every over-limit
+	// book were trimmed to its limit. That is what makes the study-wide check
+	// meaningful rather than duplicative: it fires only when the page would STILL
+	// be over after fixing every book — i.e. when the total is independently
+	// binding. Matthew 1-10 plus Luke 1-8 clears 500 with neither book past half,
+	// and only the total catches it.
+	let reducedTotal = 0;
+
+	for (const { testament, book, verses } of byBook.values()) {
+		const bookTotal = getBookVerseTotal(testament, book);
+		const covered = verses.size;
+		if (bookTotal <= 0) {
+			reducedTotal += covered;
+			continue;
+		}
+
+		const bookMeta = getBook(testament, book);
+		// Prefer the readable title: `book` is an internal id ('JN'), and a warning
+		// about "JN" would be worse than no warning at all.
+		const bookLabel = bookMeta?.title || book;
+
+		// The licence's own exception: single- and double-chapter books may be
+		// displayed whole, so the portion limit does not apply to them. It is a
+		// CHAPTER-count test, which is how the clause is written.
+		const chapterCount = bookMeta?.chapterCount ?? 0;
+		const isShortBook =
+			limits.shortBookChapterThreshold !== null &&
+			chapterCount > 0 &&
+			chapterCount <= limits.shortBookChapterThreshold;
+
+		// Resolve "whichever is less" into a single number, and remember which
+		// input won so the message can explain itself.
+		const portionCap =
+			isShortBook || limits.maxBookPortion === null ? null : bookTotal * limits.maxBookPortion;
+		const pageCap = limits.maxVersesPerPage;
+
+		let effectiveLimit = null;
+		let boundByPortion = false;
+		if (portionCap !== null && pageCap !== null) {
+			boundByPortion = portionCap <= pageCap;
+			effectiveLimit = Math.min(portionCap, pageCap);
+		} else if (portionCap !== null) {
+			boundByPortion = true;
+			effectiveLimit = portionCap;
+		} else if (pageCap !== null) {
+			effectiveLimit = pageCap;
+		}
+
+		if (effectiveLimit === null) {
+			reducedTotal += covered;
+			continue;
+		}
+
+		const allowed = Math.floor(effectiveLimit);
+		reducedTotal += Math.min(covered, allowed);
+
+		if (covered <= effectiveLimit) continue;
+
+		const cap = boundByPortion
+			? `at most ${allowed} — ${describePortion(limits.maxBookPortion)} of ${bookLabel} — on one page`
+			: `at most ${allowed} verses of a single book on one page`;
+
+		warnings.push(
+			covered >= bookTotal
+				? `This study displays the complete book of ${bookLabel} (${covered} verses). ${label} allows ${cap}.`
+				: `This study displays ${covered} of ${bookTotal} verses of ${bookLabel}. ${label} allows ${cap}.`
+		);
+	}
+
+	// Study-wide ceiling, reported only when trimming every over-limit book would
+	// not bring the page under it. Without this guard the check restated what the
+	// per-book warnings had already said.
+	if (limits.maxVersesPerPage !== null && reducedTotal > limits.maxVersesPerPage) {
+		warnings.push(
+			`This study displays ${totalVerses} verses across ${byBook.size} books. ${label} allows at most ${limits.maxVersesPerPage} verses on one page.`
+		);
+	}
+
+	const compliant = warnings.length === 0;
+	return {
+		compliant,
+		blocked: !compliant && limits.enforcement === 'block',
+		warnings,
+		totalVerses
+	};
+}
 
 /**
  * Validate an array of passages against a translation's per-request limits.
@@ -481,6 +719,7 @@ export function checkSinglePassageSupport(range, translationId) {
  * @param {string} translationId - Translation ID
  * @returns {{ valid: boolean, error: string|null, totalVerses: number }}
  */
+
 export function validatePassagesLimits(passages, translationId) {
 	let totalVerses = 0;
 

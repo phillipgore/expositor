@@ -28,12 +28,12 @@
 			"requestLimits": {
 				"maxVerses": 500,
 				"source": "provider",
-				"description": "ESV API technical ceiling: 500 verses per request, published by Crossway. The 'half a book' / '50% of the work' limits are NOT request limits — they come from Crossway's quotation permission and are enforced at export time via restrictions.distribution. See COMPLIANCE.md."
+				"description": "ESV API request ceiling, published by Crossway: 'You may request up to 500 verses per query, or half a book, whichever is less (excepting single-chapter and double-chapter books).' (https://api.esv.org/, retrieved 2026-08-07). ⚠️ CORRECTED 2026-08-07: an earlier version of this note claimed the 'half a book' limit was NOT a request limit and belonged only to the quotation permission. That was wrong — it is stated here, in the API terms, as a per-query limit, and Crossway enforces it server-side. `maxVerses: 500` is therefore only half the rule. The half-book half is not repeated as a value in this block because we do not enforce it here: Crossway's server already truncates a whole-book query, and duplicating the check would produce two error paths for one rule. What their server CANNOT see is a multi-passage study assembling a whole book from individually-compliant queries, so the half-book rule is enforced at study level via restrictions.display instead. The separate '50% of the work in which quoted' clause is a distribution rule and is a genuinely different measurement — see restrictions.distribution. All three axes are laid out in COMPLIANCE.md."
 			},
 			"retrieval": {
 				"chunking": false,
 				"servesCompleteBook": "partial",
-				"description": "NO INTERNAL CHUNKING for ESV. One passage = exactly one request, capped at maxVerses. Crossway enforces their quotation permission SERVER-SIDE and silently: a request for a complete book returns HTTP 200 with roughly 50% of the verses and a truncated `canonical` field, with no error (probed 2026-08-03: Revelation 202/404, Romans 216/433, Galatians 74/149, Ephesians 77/155). The trigger is COMPLETENESS, not size — Romans 1:18-8:39 returns all 208 verses, while the whole book returns 216 of 433. Splitting a whole-book request into sub-whole chunks would return complete text and defeat that control, so we do not do it: every chunk would succeed and fetchESVPassage()'s truncation detector would never fire. Instead ESV whole-book studies are only possible for books Crossway serves whole (Philemon and Jude at 25 verses do; the floor is somewhere below Galatians' 149 and is not yet pinned down). Crossway's server arbitrates, so we never have to interpret the licence ourselves. `servesCompleteBook: 'partial'` records that some books work and some do not."
+				"description": "NO INTERNAL CHUNKING for ESV. One passage = exactly one request, capped at maxVerses. Crossway enforces a PUBLISHED term server-side and silently: 'You may request up to 500 verses per query, or half a book, whichever is less (excepting single-chapter and double-chapter books).' (https://api.esv.org/, retrieved 2026-08-07). A whole-book request returns HTTP 200 with roughly 50% of the verses and a truncated `canonical` field, no error (probed 2026-08-03: Revelation 202/404, Romans 216/433, Galatians 74/149, Ephesians 77/155). The trigger is COMPLETENESS, not size — Romans 1:18-8:39 returns all 208 verses, while the whole book returns 216 of 433. Splitting a whole-book request into sub-whole chunks would return complete text and circumvent a published licence term, so we do not do it: every chunk would succeed and fetchESVPassage()'s truncation detector would never fire. ⚠️ CORRECTED 2026-08-07: this note used to claim there was an unmeasured 'floor somewhere below Galatians' 149'. There is NO floor. Philemon and Jude come back whole because they are SINGLE-CHAPTER books, which the clause above explicitly excepts — not because 25 verses is under some threshold. The six exempt books are Obadiah, Haggai (2 ch), Philemon, 2 John, 3 John and Jude; every other book is capped at half. That exception is now data (`restrictions.display.shortBookChapterThreshold`) and is checked at study-creation time, so the rule no longer relies on Crossway's server to arbitrate — which matters because their server cannot see a MULTI-PASSAGE study that assembles a whole book from compliant queries. `servesCompleteBook: 'partial'` records that some books work and some do not."
 			},
 
 			"queryParameters": {
@@ -68,6 +68,18 @@
 				"maxVerses": 500,
 				"recommendation": "Periodically clear cache to ensure latest version"
 			},
+			"display": {
+				"appliesTo": "study",
+				"enforcement": "warn",
+				"maxVersesPerPage": 500,
+				"maxBookPortion": 0.5,
+				"shortBookChapterThreshold": 2,
+				"source": "provider",
+				"sourceUrl": "https://api.esv.org/",
+				"retrieved": "2026-08-07",
+				"quote": "You may not display more than 500 verses or one-half of any book (whichever is less) on any page.",
+				"description": "PUBLISHED ESV API TERM governing DISPLAY, not distribution. Read the quote above carefully: the limit is per PAGE, not per query. That is the whole reason this block has to exist separately from `api.requestLimits`. Crossway enforces the per-query half-book rule server-side by silently truncating (see api.retrieval.description), and for a single passage that enforcement is sufficient — ask for whole Galatians, get 74 of 149 verses. But a study may hold SEVERAL passages, and Galatians 1-3 plus Galatians 4-6 is two individually-compliant queries that together put a complete book on one page. Their server cannot see that; only we can. `validateStudyDisplayLimits()` therefore aggregates coverage per book across all of a study's passages, exactly as `validateExportLimits()` does for exports. `shortBookChapterThreshold: 2` implements the licence's own carve-out — '(excepting single-chapter and double-chapter books)' — which is why Obadiah, Haggai, Philemon, 2 John, 3 John and Jude may be displayed whole while Galatians may not. Those six are the ONLY books the ESV permits displaying in their entirety, and it is also why Crossway's server returns them intact: the exception is in the same clause as the cap. Enforcement is 'warn' by decision, not by licence — see COMPLIANCE.md 'Current posture'."
+			},
 			"distribution": {
 				"appliesTo": "export",
 				"enforcement": "warn",
@@ -75,8 +87,10 @@
 				"maxBookPortion": null,
 				"allowCompleteBook": false,
 				"cannotExceed": "50% of total work in which quoted",
+				"maxVersesNote": "⚠️ 1000 is the PRINT copyright-page permission. The ESV API terms state a lower ceiling for text obtained via the API: 'You may distribute up to 500 verses, as long as the verses quoted do not amount to 50% of a complete book of the Bible and do not make up 50% or more of the total text of the work in which they are quoted.' (https://api.esv.org/, retrieved 2026-08-07). Since our text comes from the API, 500 is the figure that binds us and 1000 is too generous. The value is left at 1000 pending a deliberate decision because `validateExportLimits()` currently has no caller, so the number has no observable effect either way — changing it silently would create the appearance of an enforcement change that has not actually happened. Tracked in COMPLIANCE.md open items.",
+
 				"description": "Crossway standard quotation permission: up to 1,000 verses, not amounting to a complete book, and not more than 50% of the work in which quoted. Applies when ESV text leaves the app as a distributable artifact (PNG/PDF/print), not to on-screen study.",
-				"maxBookPortionNote": "DELIBERATELY null. `maxBookPortion` means 'fraction OF THE BOOK quoted', and Crossway's permission contains no such rule. The 50% figure in `cannotExceed` is a different measurement entirely: 50% of the WORK IN WHICH THE TEXT IS QUOTED — i.e. the ESV must not make up more than half of the user's own document. Reading it as 'half the book' is the error that caused the original bug: as `api.requestLimits.maxBookPortion` it silently made every complete book of the Bible unstudyable (Philemon capped at 12 of 25 verses). Moving it to the export boundary fixed WHERE it applied but preserved the misreading, so it would have reappeared as a false 'you have exceeded 50% of Romans' warning on an export that the licence permits. The genuine 50%-of-work clause is not machine-checkable here — an Expositor study is mostly Scripture by design, so a mechanical check would fire on virtually every export and teach users to ignore it. It is covered in COMPLIANCE.md as a documented obligation instead."
+				"maxBookPortionNote": "⚠️ SUBSTANTIALLY CORRECTED 2026-08-07. The previous note asserted that 'Crossway's permission contains no such rule' as a fraction-of-the-book limit. That is false. The API terms state BOTH measurements in one sentence: 'You may distribute up to 500 verses, as long as the verses quoted do not amount to 50% of a complete book of the Bible AND do not make up 50% or more of the total text of the work in which they are quoted.' (https://api.esv.org/, retrieved 2026-08-07). So there is a real 50%-of-the-BOOK rule and a real 50%-of-the-WORK rule, and the old note argued the first one out of existence by mistaking it for a misreading of the second. The distinction it drew between the two measurements was correct and worth keeping; the conclusion that only one exists was not. This field nevertheless stays null, for a different and narrower reason: `allowCompleteBook: false` already blocks the 100% case, and the 50%-of-book case is caught earlier and more usefully at study level by restrictions.display (an export can only contain what a study displays, so the display check is strictly tighter). Setting it here too would double-report one violation. Revisit if exports ever become possible from a source other than a study. The 50%-of-work clause remains genuinely non-machine-checkable — an Expositor study is mostly Scripture by design — and is carried as a documented obligation in COMPLIANCE.md."
 			},
 
 			"modification": {
@@ -181,6 +195,15 @@
 				"maxVerses": null,
 				"recommendation": "No specific caching limits"
 			},
+			"display": {
+				"appliesTo": "study",
+				"enforcement": "warn",
+				"maxVersesPerPage": null,
+				"maxBookPortion": null,
+				"shortBookChapterThreshold": null,
+				"source": "provider",
+				"description": "NET places NO limit on how much text may be displayed at once, so every field here is null and `validateStudyDisplayLimits()` returns compliant unconditionally. The block is present rather than omitted so the absence of a limit is explicit and auditable: a missing block would be indistinguishable from an unresearched one. Attribution remains mandatory wherever the text appears. This is why NET is the right choice for whole-book study — Psalms as a single passage is fine here and impossible in ESV."
+			},
 			"distribution": {
 				"appliesTo": "export",
 				"enforcement": "warn",
@@ -189,6 +212,7 @@
 				"allowCompleteBook": true,
 				"translationAllowed": false,
 				"requiresAttribution": true,
+
 				"description": "NET is free to use with attribution and sets no verse or book-portion limit on distribution. Attribution is mandatory wherever the text appears, including exports."
 			},
 			"modification": {

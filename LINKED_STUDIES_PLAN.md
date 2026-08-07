@@ -3,7 +3,17 @@
 Living document. Updated as we decide things.
 
 **Status:** ON HOLD — parked 2026-08-03. Not scheduled; no code written.
-**Last updated:** 2026-08-03 (revised after the limits/compliance fix, then parked)
+**Last updated:** 2026-08-07, second pass (reviewed against the **display-limit** finding;
+still parked)
+
+> ⚠️ **Second pass, 2026-08-07 — one assumption running through this document was false.**
+> It repeatedly asserted that **on-screen display is unrestricted**, and built several
+> recommendations on it. The ESV API terms cap display explicitly — "not more than 500
+> verses or one-half of any book (whichever is less) on any page" — so every such claim has
+> been withdrawn in place. Affected: **§0**, **§8** ("the only place a limit should
+> constrain the feature"), **§12.3**, **§12.4**, **Q33** and **Q39**. See `COMPLIANCE.md`
+> §1.6–1.7. The feature stays parked and no recommendation reverses, but the _grounds_ for
+> several of them changed.
 
 > **Why it's parked:** the limits investigation removed the urgency. The original
 > trigger — "studies over 500 verses must be split" — turned out not to hold (no
@@ -15,6 +25,28 @@ Living document. Updated as we decide things.
 > complete-book behaviour in §12 are worth not rediscovering. **Before resuming,
 > start at Q1 (§0) — the reframing is unresolved and everything below assumes an
 > answer to it.**
+
+### 2026-08-07 review — what changed since parking
+
+Chunked retrieval shipped, and it **strengthens the case for staying parked** rather
+than weakening it. Three things in this document were made wrong by it, and are
+corrected in place below:
+
+1. **Auto-split no longer exists.** `splitPassagesToFitLimits()` was removed. An
+   oversized selection is no longer silently expanded into several stored passages;
+   passage shape is a document-structure decision belonging to the user. The
+   chapter-boundary split rule survives, but as a **fetch-layer** concern
+   (`splitRangeIntoPassages`) that the user never sees.
+2. **For NET, the 500-verse cap has no passage-level expression at all.**
+   `api.retrieval.chunking` is `true` for NET, so `validatePassageLimits()` returns
+   valid unconditionally and one passage is fetched as however many requests it
+   takes. Psalms is **one** passage in **six** requests. §0's arithmetic is revised
+   accordingly.
+3. **The "chunking = circumvention" argument was wrong and has been withdrawn.**
+   The conclusion (don't chunk ESV) stands; the reason is different. See §12.3.
+
+The net effect: the feature's justification is now **translation-dependent**, and
+neither translation makes it necessary. See §12.4.
 
 ---
 
@@ -31,13 +63,24 @@ numbers, measured from `bible.json`:
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | Is any single chapter over 500 verses?                       | **No.** Longest is Psalm 119 at 176.                                                                   |
 | How many books exceed 500 verses in total?                   | **24 of 66.**                                                                                          |
-| Can a >500-verse book be one study today?                    | **Yes** — as multiple passages. Genesis = 4 passages, one study.                                       |
-| How many books fit in a single passage _by verse count_?     | **42 of 66** (Romans, Galatians, Philemon, all of them).                                               |
+| Can a >500-verse book be one study today?                    | **Yes.** In NET it is one _passage_; in ESV it is several passages in one study.                       |
+| How many books fit in a single passage _by verse count_?     | **NET: 66 of 66** (chunked retrieval). **ESV: 42 of 66** (one passage = one request).                  |
 | How many of those the **ESV API will actually serve** whole? | **Far fewer** — see §12.3. ESV silently returns ~50% of _any_ complete book, even 149-verse Galatians. |
 
-The 500-verse cap is a **per-API-request** ceiling, and `passage` is already the unit
-that maps to one request. A study holds many passages. So **the 500-verse limit almost
-never forces a split** — the existing multi-passage mechanism absorbs it.
+The 500-verse cap is a **per-API-request** ceiling. As of 2026-08-07 it is no longer
+also a per-_passage_ ceiling for every translation:
+
+- **NET** (`retrieval.chunking: true`) — a passage of any size is fetched as however
+  many sequential requests it takes and concatenated. `validatePassageLimits()`
+  returns valid unconditionally. Psalms is **one passage in six requests**. The
+  500-verse number is now purely a transport parameter with no user-visible effect.
+- **ESV** (`retrieval.chunking: false`) — one passage is exactly one request, so the
+  request ceiling is also the passage ceiling and an oversized selection is refused
+  at validation. See §12.3 for why ESV is deliberately unchunked.
+
+So **the 500-verse limit almost never forces a split**, and for NET it cannot force
+one at all. Where a split _is_ needed (ESV), the existing multi-passage mechanism
+absorbs it.
 
 **This is good news, but it means the feature needs a new justification.** If we keep
 "over 500 verses" as the trigger, Linked Studies fires for 24 books, is redundant with
@@ -62,9 +105,20 @@ return a _complete book_ in one request — confirmed by probe, silently, at ~50
 short books as well as long ones (§12.3). This does **not** resurrect the 500-verse
 premise (it isn't a verse limit; Romans 1:18–8:39 returns all 208 verses while whole
 Romans returns 216 of 433). But it does mean a whole-book ESV study must always comprise
-at least two sub-whole passages, and that **we must not design Linked Studies as a way to
-reassemble a complete book from parts** — that would be circumventing a licence control
-rather than working within it.
+at least two sub-whole passages.
+
+It does **not**, however, mean a series would be "circumventing" anything by holding a
+whole book between its parts — an earlier draft of this document said so, and that
+argument has been withdrawn (§12.3). A study can already display a whole book as several
+passages, so a series reproduces no more text than multi-passage does today.
+
+⚠️ **Revised 2026-08-07 (second pass).** The sentence above once ended "…than what is
+permitted on screen today," and the paragraph concluded "the real boundary is
+**distribution**." Both overstated it: **display is capped per page** by the API terms, so
+multi-passage does not make a whole book _permitted_ — it only makes it _possible_
+(`COMPLIANCE.md` §1.6–1.7). Distribution is no longer the only boundary; display is one
+too. The narrow claim survives — a series is no worse than multi-passage — but neither is
+licensed for a whole ESV book.
 
 ⚠️ **This reframing is the biggest open question in the document. Everything below
 assumes it. See Q1.**
@@ -211,6 +265,14 @@ equal verse counts are not — with (b) available as "Balance by length"._
 
 **Q9. Default 1 chapter per part?** _Rec: yes._
 **Q10. Cap the number of parts?** _Rec: soft-warn above ~30, hard-block above 150._
+⚠️ _Reconcile with the no-hard-cap decision on study size (§13.1). These are different
+axes and the inconsistency is only apparent: **verse count** has no hard cap because the
+cost is a rendering issue we have not yet measured, and capping it would encode a browser
+quirk in the data model. **Part count** is a different quantity — 150 Finder rows and a
+150-entry jump dropdown is a UI problem we can see directly, and a series of 150 parts is
+almost certainly a mis-click rather than an intent. Still, prefer the softest thing that
+works: a confirmation step at 150 rather than a refusal._
+
 **Q11. Offer "balance by length"?** _Rec: yes, but phase 2._
 **Q12. Can a part contain a partial chapter (Rom 1:1–17)?** _Rec: yes — the split UI
 should allow moving the boundary mid-chapter, since pericopes don't respect chapters._
@@ -326,19 +388,30 @@ undo mechanism — worth scoping before committing._
 ### Split Part / Join Parts
 
 - **Split Part** — divide the current part at the selected boundary into two parts;
-  renumber the rest. Must validate each result against `validatePassageLimits`.
-- **Join Parts** — merge with the next (or previous) part. Must validate the _combined_
-  range against the per-request limit; if the merged part would exceed 500 verses it needs
-  multiple passages, which is fine — but the UI should say so.
+  renumber the rest. Validate each result with `checkSinglePassageSupport(range,
+translationId)`, which reports whether the translation can serve that range as one
+  passage and why not (`'exceeds-request'` / `'complete-book'`).
+- **Join Parts** — merge with the next (or previous) part, and validate the _combined_
+  range the same way.
 
 ⚠️ **Correction to the original spec:** _"so long as the new linked study is not longer
-than 500 verses"_ — the real rule is **≤500 verses per passage**, not per study. A merged
-part over 500 verses is legal; it just needs to be split into multiple passages internally.
-Recommend the guard be "the merged part will contain N passages — continue?" rather than
-a hard block. See Q26.
+than 500 verses"_ — the real rule was never per study. It is now not even per passage for
+every translation:
 
-**Q26. Hard-block a join over 500 verses, or auto-split into multiple passages and inform?**
-_Rec: auto-split and inform._
+| Translation | Merged part over 500 verses                                        |
+| ----------- | ------------------------------------------------------------------ |
+| **NET**     | Fine, unconditionally. One passage, fetched as several requests.   |
+| **ESV**     | Needs several passages, each ≤500 verses and none a complete book. |
+
+**Q26 (revised). What should a join do when the merged range exceeds what one passage
+can hold?** The original recommendation — "auto-split into multiple passages and inform" —
+is **withdrawn**: `splitPassagesToFitLimits()` no longer exists, and auto-splitting was
+deliberately abandoned because passage shape belongs to the user (see the 2026-08-07
+review at the top).
+_Rec: ask `checkSinglePassageSupport` and branch. For NET, join silently — there is
+nothing to warn about. For ESV, tell the user how many passages the merged part will
+need and let them confirm, rather than either blocking or silently restructuring._
+
 **Q27. Join with previous, next, or arbitrary selection?** _Rec: next, plus previous; not arbitrary._
 **Q28. What happens to the two parts' titles/subtitles/commentary on join?** _Rec: keep the
 first part's title, concatenate commentary under sub-headings, warn before discarding anything._
@@ -372,22 +445,64 @@ the `arrow-` icons — carets read as "step through a sequence," arrows as "move
 
 ## 8. Export & compliance interaction
 
-Now directly relevant, given the limits work:
+Now directly relevant, given the limits work.
 
-- A series covering a whole book will trip the **complete-book** check in
-  `validateExportLimits()` for ESV. Currently `enforcement: 'warn'`.
+> ⚠️ **Corrected 2026-08-07 (second pass).** This section opened "**This is the only
+> place a limit should constrain the feature**." That is now **false**: reading the ESV
+> API terms established that _display_ is capped per page as well, so a limit constrains
+> **study creation** too (`COMPLIANCE.md` §1.6–1.7). Export is no longer the only
+> boundary. See "Display limits" below, which changes the case for this feature.
+
+Verified against `translations.json` on 2026-08-07:
+
+| Setting                         | ESV      | NET      | Consequence for a series                             |
+| ------------------------------- | -------- | -------- | ---------------------------------------------------- |
+| `allowCompleteBook`             | `false`  | `true`   | Whole-book series warns on ESV export; NET is clean  |
+| `maxVerses` (distribution)      | `1000`   | `null`   | A long ESV series will exceed this                   |
+| `maxBookPortion` (distribution) | `null`   | `null`   | The 50%-of-book **distribution** branch never fires  |
+| `maxVersesPerPage` (display)    | `500`    | `null`   | **New** — caps what one study may show               |
+| `maxBookPortion` (display)      | `0.5`    | `null`   | **New** — half a book per page, short books excepted |
+| `enforcement`                   | `'warn'` | `'warn'` | Nothing is blocked today                             |
+
+- A series covering a whole book trips the **complete-book** check for ESV
+  (`allowCompleteBook: false`) and a long one also trips `maxVerses: 1000`. Both are
+  currently `'warn'`.
+- ⚠️ Do **not** expect a "more than 50% of Romans" warning **from the distribution
+  check**. `restrictions.distribution.maxBookPortion` is deliberately `null` for both
+  translations: Crossway's 50% clause there measures the ESV's share of the **user's own
+  document**, not the share of the biblical book. Reading it the other way is the original
+  bug in this codebase and it survived one relocation already. See the
+  `maxBookPortionNote` in `translations.json`.
+- ⚠️ **But a half-of-Romans warning now exists on a different axis.**
+  `restrictions.display.maxBookPortion` **is** `0.5`, because the API terms cap display
+  per page in those words. Two rules that read almost identically measure different
+  things; keep them apart when reasoning about a series.
+
 - **Exporting a whole series** must aggregate passages across _all parts_ — otherwise
   a 16-part Romans series exports 16 individually-compliant files that together reproduce
-  the complete book. `validateExportLimits()` already aggregates per book across passages,
-  so it needs the series' full passage set passed in, not one part's.
+  the complete book. `validateExportLimits()` already aggregates per book across passages
+  (using a verse-identity `Set`, so overlapping parts are not double-counted), so it needs
+  the series' full passage set passed in, not one part's.
 - Each exported part must carry attribution independently (fixed in `exportAnalyze.js`),
   since parts travel separately.
+- ⚠️ **`validateExportLimits()` still has no caller.** It is written and correct by
+  inspection, but `MenuExport` / `exportAnalyze.js` do not invoke it (`COMPLIANCE.md` §5
+  item 3). Any series-wide check is therefore built on a function that has never run in
+  anger. Wire it up for single studies **first**, so the series case is an extension of
+  something proven rather than its first exercise.
 
 **Q32. Offer "Export whole series" at all?** _Rec: yes, but phase 3, and it must run the
 series-wide check. This is the single most likely way to breach the ESV quotation terms,
 so it deserves the `'block'` posture even while per-part export stays `'warn'`._
-**Q33. Should a whole-book series warn at creation time, not just export?** _Rec: a quiet
-informational note, not a blocker — on-screen study is unrestricted (see `COMPLIANCE.md` §1)._
+**Q33 (revised 2026-08-07). Should a whole-book series warn at creation time, not just
+export?** _Rec: **yes, and it now does** for a single study._ The original recommendation —
+"a quiet informational note, not a blocker" — rested on "on-screen study is unrestricted,"
+which is **false**: the API terms cap display per page. `validateStudyDisplayLimits()` warns
+at study create/edit (`COMPLIANCE.md` §1.6). The remaining series-specific question is
+narrower: **should the check aggregate across parts at creation time?** A 16-part Romans
+series has no single page over half of Romans, so the per-study check stays silent. Whether
+that is correct depends on whether a series is "a page" — it isn't, so per-study is probably
+right, and the aggregate belongs at export (Q32).
 
 ---
 
@@ -442,19 +557,28 @@ Highest-stakes first:
 _(Nothing agreed yet — this section records decisions as we make them, with reasoning,
 so we don't relitigate.)_
 
-| Date       | Question                              | Decision                                               | Reasoning                                                                                          |
-| ---------- | ------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | Limits: where enforced                | Request limits at fetch; distribution limits at export | See `COMPLIANCE.md`                                                                                |
-| 2026-08-03 | 500-verse rule as the series trigger  | **Rejected** as primary driver                         | Measured: no chapter exceeds 500 verses; multi-passage already absorbs long books                  |
-| 2026-08-03 | Psalms "500-verse API limit"          | **Was our own bug**                                    | Message blamed the provider for a self-imposed cap; fixed + auto-split added                       |
-| 2026-08-03 | Auto-split rule                       | Chapter-boundary greedy fill                           | Chapters are meaningful to readers; equal verse counts are not                                     |
-| 2026-08-03 | Auto-split in the edit flow           | **Not applied**                                        | Edits diff by passage `id`; split parts have none, so a remove would cascade and destroy structure |
-| 2026-08-03 | ESV ~50%-of-book truncation           | **CONFIRMED real** by direct probe                     | HTTP 200, `canonical: "Revelation 1–12:8"`, 202/404 verses, no error field — silent                |
-| 2026-08-03 | ESV truncation trigger                | **Completeness, not size**                             | Galatians (149v) halved; Romans 1:18–8:39 (208v) returned whole                                    |
-| 2026-08-03 | Truncation detection method           | Verse-count ratio, not `canonical` string              | String comparison gave 4 false positives in 9 probes; verse counting gave 0                        |
-| 2026-08-03 | Detection thresholds                  | <90% **and** >15 verses short                          | ESV legitimately omits late-manuscript verses (Mark 9 = 48/50, John 5 = 46/47)                     |
-| 2026-08-03 | Chunking ESV to assemble a whole book | **Rejected**                                           | Would circumvent a licence control; the permission is about text reproduced, not HTTP calls        |
-| 2026-08-03 | Safari scroll choppiness              | Out of scope, tracked in §13                           | A rendering issue; must not shape the data model                                                   |
+| Date                        | Question                              | Decision                                               | Reasoning                                                                                                                                                                          |
+| --------------------------- | ------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03                  | Limits: where enforced                | Request limits at fetch; distribution limits at export | See `COMPLIANCE.md`                                                                                                                                                                |
+| 2026-08-03                  | 500-verse rule as the series trigger  | **Rejected** as primary driver                         | Measured: no chapter exceeds 500 verses; multi-passage already absorbs long books                                                                                                  |
+| 2026-08-03                  | Psalms "500-verse API limit"          | **Was our own bug**                                    | Message blamed the provider for a self-imposed cap; message fixed, and the cap no longer binds NET                                                                                 |
+| 2026-08-03                  | Split rule                            | Chapter-boundary greedy fill                           | Chapters are meaningful to readers; equal verse counts are not. _Now a fetch-layer rule only_                                                                                      |
+| 2026-08-03                  | Auto-split in the edit flow           | **Not applied**                                        | Edits diff by passage `id`; split parts have none, so a remove would cascade and destroy structure                                                                                 |
+| 2026-08-03                  | ESV ~50%-of-book truncation           | **CONFIRMED real** by direct probe                     | HTTP 200, `canonical: "Revelation 1–12:8"`, 202/404 verses, no error field — silent                                                                                                |
+| 2026-08-03                  | ESV truncation trigger                | **Completeness, not size**                             | Galatians (149v) halved; Romans 1:18–8:39 (208v) returned whole                                                                                                                    |
+| 2026-08-03                  | Truncation detection method           | Verse-count ratio, not `canonical` string              | String comparison gave 4 false positives in 9 probes; verse counting gave 0                                                                                                        |
+| 2026-08-03                  | Detection thresholds                  | <90% **and** >15 verses short                          | ESV legitimately omits late-manuscript verses (Mark 9 = 48/50, John 5 = 46/47)                                                                                                     |
+| 2026-08-03                  | Chunking ESV to assemble a whole book | **Rejected**                                           | _Reasoning superseded 2026-08-07 — see below_                                                                                                                                      |
+| 2026-08-03                  | Safari scroll choppiness              | Out of scope, tracked in §13                           | A rendering issue; must not shape the data model                                                                                                                                   |
+| **2026-08-07**              | "Chunking = circumvention" argument   | **Withdrawn**                                          | Doesn't hold: a study can already show a whole book as several passages, so chunking reproduces no extra text with no extra requests                                               |
+| **2026-08-07**              | Chunk ESV?                            | **Still no — better reason**                           | Crossway polices completeness server-side; sub-whole chunks would all succeed and defeat a control they deliberately applied                                                       |
+| **2026-08-07**              | Chunk NET?                            | **Yes**                                                | Its cap is our own guardrail and there is no server-side control, so chunking routes around nothing. Psalms = 1 passage, 6 requests                                                |
+| **2026-08-07**              | Auto-split user selections            | **Removed**                                            | Turning one requested passage into six was surprising; passage shape is a document-structure decision belonging to the user                                                        |
+| **2026-08-07**              | Hard cap on study verse count         | **Rejected**                                           | Choppiness starts ~400 verses, below any round cap — a 500 cap would permit the bad case and block legitimate ones. Advisory only, `studyLimits.js`                                |
+| **2026-08-07**              | `maxBookPortion`                      | **`null` for both**                                    | Crossway's 50% measures the ESV's share of the user's document, not of the biblical book. The misreading survived one relocation already                                           |
+| **2026-08-07** _(2nd pass)_ | "On-screen display is unrestricted"   | **WITHDRAWN — was false throughout**                   | The ESV API terms cap display per page: "not more than 500 verses or one-half of any book (whichever is less) on any page." Ran through §0, §8, §12.3, §12.4, Q33, Q39             |
+| **2026-08-07** _(2nd pass)_ | The ESV short-book "floor"            | **No floor exists — probe cancelled**                  | The exception is **structural** (single/double-chapter books), not a verse threshold. A planned bisecting probe would have found no boundary and produced a confident wrong number |
+| **2026-08-07** _(2nd pass)_ | `restrictions.display.maxBookPortion` | **`0.5` for ESV, `null` for NET**                      | Distinct from the distribution 50%, which stays `null`. Two near-identical clauses measuring different things — keep them apart                                                    |
 
 ---
 
@@ -472,8 +596,8 @@ them does constrain how it must be designed.
 | -------------------------------- | ------------------------------- | ---------------------------- | ----------------------------------------- |
 | ESV 500 verses / request         | Crossway, published             | **Yes**                      | Absorbed by multi-passage                 |
 | ESV complete-book refusal (~50%) | Crossway, server-side           | **YES — confirmed by probe** | Silent truncation; now detected. See 12.3 |
-| NET 500 verses / request         | **Us** (`source: self-imposed`) | **No**                       | Kept as a guardrail; now auto-splits      |
-| Whole-book Psalms rejected       | **Us**, pre-fetch validation    | **No**                       | **Fixed** — auto-splits into 6 passages   |
+| NET 500 verses / request         | **Us** (`source: self-imposed`) | **No**                       | Kept, but per _request_ only — chunked    |
+| Whole-book Psalms rejected       | **Us**, pre-fetch validation    | **No**                       | **Fixed** — 1 passage, 6 requests         |
 
 `api.requestLimits.source` in `translations.json` now records `provider` or
 `self-imposed` for every cap, and `getRequestLimits()` surfaces it. User-facing copy
@@ -492,12 +616,26 @@ runs _before_ any fetch, so neither API was ever contacted.
 
 The deeper error was treating a per-_passage_ cap as a per-_study_ cap. Validation was
 already per-passage, so a 2,461-verse study had always been legal **as six passages** —
-the New Study flow simply refused to create them. Now `splitPassagesToFitLimits()`
-divides oversized selections on chapter boundaries instead of rejecting them.
+the New Study flow simply refused to create them.
 
-Verified against `bible.json`: Psalms → 6 passages, Genesis → 4, Isaiah 40–66 → 2,
-Revelation and Romans → 1 each (both already fit). No gaps, no overlaps, endpoints
-preserved.
+**The fix landed in two stages, and the second replaced the first.** Stage one added
+`splitPassagesToFitLimits()`, which divided oversized selections into several stored
+passages on chapter boundaries. That was **withdrawn on 2026-08-07**: silently turning
+one requested passage into six was surprising, and passage shape determines structure
+trees, dividers and how a study reads — a decision belonging to the user, not to a
+validator. Stage two moved the division **into the fetch layer**
+(`splitRangeIntoPassages`), where it is invisible: Psalms is **one passage** fetched as
+**six sequential requests** and concatenated.
+
+Concatenation is exact rather than approximately right, because `wrapWords()` derives
+every `data-word-id` from absolute book/chapter/verse. A word's identity does not depend
+on which chunk delivered it, so six stitched responses are byte-identical to one
+hypothetical whole response.
+
+Verified against the live NET API on 2026-08-07: Genesis 1,533 verses in 4 requests,
+Psalms 2,461 in 6, Philemon 25 in 1 (previously capped at 12 by the misfiled copyright
+rule). Local arithmetic and API-returned counts both matched each book's total exactly —
+no gaps, no overlaps, endpoints preserved.
 
 **This is the second instance of the same mistake in two days** — a limit applied at the
 wrong boundary, producing a symptom that looked external and invited a workaround. It is
@@ -543,15 +681,55 @@ returns only 216 of 433: the same API, similar sizes, different outcomes. The tr
 **completeness, not size.**
 
 Philemon and Jude come back whole, so there is a floor — probably the "less than 50% of a
-book" clause reading differently for very short books, or a minimum-verse allowance. Not
-worth pinning down precisely; the practical rule is clear.
+book" clause reading differently for very short books, or a minimum-verse allowance.
 
-⚠️ **Implication for §0.** Under ESV, "one study = one whole book" is **impossible for at
-least 42 of 66 books** — including short ones we assumed were safe. §0 says 42 books fit
-in a single passage; that is true of the _verse count_ and false of the _ESV API_. Any
-whole-book ESV study needs at least two passages that are each less than the whole. This
-is a genuine constraint on the Linked Studies design, and the **first** one we've found
-that is real, external, and confirmed.
+> ⚠️ **RESOLVED 2026-08-07 (second pass) — there is no "floor," and no probe is needed.**
+> Both the earlier note ("not worth pinning down") and its revision ("worth a bisecting
+> probe over books between 25 and 149 verses") were **answered in the published API terms
+> the whole time**:
+>
+> > "You may request up to 500 verses per query, or half a book, whichever is less
+> > **(excepting single-chapter and double-chapter books)**."
+>
+> The exception is **structural, not size-based.** Philemon and Jude return whole because
+> they are **single-chapter books**, not because 25 verses is under some threshold.
+>
+> Enumerated from `bible.json` — exactly **six** books qualify, and note the ids, which are
+> not the obvious abbreviations:
+>
+> | Book     | id    | Chapters | Verses |
+> | -------- | ----- | -------- | ------ |
+> | Obadiah  | `OB`  | 1        | 21     |
+> | Philemon | `PN`  | 1        | 25     |
+> | 2 John   | `2JN` | 1        | 13     |
+> | 3 John   | `3JN` | 1        | 14     |
+> | Jude     | `JD`  | 1        | 25     |
+> | Haggai   | `HG`  | 2        | 38     |
+>
+> `chapterCount` was cross-checked against `Object.keys(chapterData[0])` for all 66 books —
+> zero mismatches — so the count is not resting on one field being right.
+>
+> ⚠️ **Getting this list took three wrong attempts, all the same mistake.** `chapterData` is
+> a **one-element array wrapping a chapter→verse-count map**, not an array of chapters. Read
+> naively it reports **every** book as having 1 chapter, which my first pass duly printed as
+> "66 of 66 books have ≤2 chapters" — a result absurd enough to catch, but only because
+> Genesis was in the list. A subtler query would have passed. The same shape misread
+> the verification harness for §1.6 (`COMPLIANCE.md` §1.7) and produced "John has 51 verses."
+> **Anything reading `chapterData` must index `[0]` first**; assume a future reader will
+> forget this, because three readers already did.
+>
+> A verse-count bisection would have found **no** boundary and produced a confidently wrong
+> number, because it was searching the wrong axis. Recording this because the plan for it
+> was specific, actionable, and would have wasted a run confirming a false model —
+> **reading the terms cost less than the probe.** `COMPLIANCE.md` §0 is the same lesson.
+
+⚠️ **Implication for §0, revised.** Under ESV, "one study = one whole book" is impossible
+for **60 of 66 books** — not "at least 42," and the six exceptions are known exactly rather
+than guessed. §0 says 42 books fit in a single passage; that is true of the _verse count_
+and false of the _ESV API_. Any whole-book ESV study outside those six needs at least two
+passages each less than the whole — and per §1.7 of `COMPLIANCE.md`, **splitting does not
+make it displayable either**, since the display cap applies to the assembled page. The
+honest statement is: whole-book ESV study is unavailable for 60 of 66 books by any route.
 
 #### Detection now implemented
 
@@ -566,12 +744,40 @@ of nine** (the API echoes `"Philemon"` for a whole short book, and `"John 3:16�
 en-dash). Counting verses is immune to all of that spelling variation. Worth remembering:
 the naive check looked obviously right and was wrong on 44% of cases.
 
-**Principle: never chunk requests to circumvent a licence control.** If 22 chapters of
-Revelation arrive as 22 linked parts, the complete book has been reproduced and the
-requests merely distributed. Building that into the schema is worse than an ad-hoc
-workaround, because it looks legitimate. Splitting for _engineering_ reasons (request
-size, DOM weight) is fine; splitting to extract text a publisher declined to serve is
-not.
+#### ⚠️ The principle, corrected 2026-08-07
+
+An earlier version of this section argued: _"If 22 chapters of Revelation arrive as 22
+linked parts, the complete book has been reproduced and the requests merely
+distributed."_ **That argument does not hold, and has been withdrawn.**
+
+It fails because a study can **already** display a complete book as several passages —
+reproducing exactly the same text, via exactly the same number of requests, today,
+without any new feature. So chunking (or a series) reproduces nothing extra. The
+argument proves too much: taken seriously it would forbid multi-passage studies, which
+are the existing and intended mechanism.
+
+**The correct principle is narrower and factual: do not route around a control a
+provider deliberately applied.** Crossway enforces completeness **server-side**. A
+whole-book request returns ~50%; sub-whole chunks would each succeed, and stitching them
+would produce text their server declined to serve in one piece. The objection is not
+"too much text was reproduced" but "a deliberate server-side control was defeated."
+
+⚠️ **This paragraph previously read "(on-screen display is unrestricted — `COMPLIANCE.md`
+§1)." That parenthesis is now false** and has been struck: the API terms cap display per
+page. The surrounding argument survives intact, because it never depended on display being
+unrestricted — only on the distinction between _reproducing text_ and _defeating a control_.
+
+Consequences of the corrected reading:
+
+- **ESV stays unchunked** — same conclusion, sound reason. Crossway's server arbitrates,
+  so we never interpret the licence ourselves.
+- **NET chunks freely** — no server-side control exists to defeat, and its 500-verse cap
+  is our own guardrail.
+- **A series is not itself a circumvention.** It reproduces no more than multi-passage
+  already does. The boundaries that matter are **display** (per part, at creation) and
+  **distribution** (aggregated, at export) — not retrieval. ⚠️ This bullet previously said
+  "the boundary that matters is **distribution**," singular; the display finding added the
+  second one.
 
 **Q36 — Accept the ESV cap, or seek a broader Crossway licence?**
 _Rec: accept it now, surface it honestly, and open a licence conversation before any
@@ -582,33 +788,64 @@ _Rec: yes._ A single 2,461-verse fetch is slow, caches a huge blob, and lands ~5
 spans in the DOM — squarely where the Safari issue in §13 lives. Keep the guardrail;
 just describe it accurately.
 
-**Q38 — Auto-split large selections?** **Done** for New Study. Deliberately _not_ done
-for edit (see the decisions log).
+**Q38 — Auto-split large selections?** **No — reversed 2026-08-07.** It was briefly done
+for New Study and has been removed. The division now happens invisibly in the fetch layer
+for chunkable translations, and where a range genuinely cannot be one passage (ESV) the UI
+says so at selection time via `checkSinglePassageSupport()` and lets the user decide.
 
 ### 12.4 What this leaves as the justification
 
-None of the four limits _require_ Linked Studies. The case rests on the three workflow
-reasons in §0 — **teaching cadence, Analyze ergonomics, Finder navigability** — plus one
-addition: for translations that permit whole books (NET), a 2,461-verse study in six
-passages is _legal but unwieldy_, and a series is genuinely nicer to work in.
+None of the four limits _require_ Linked Studies. The case rests entirely on the three
+workflow reasons in §0 — **teaching cadence, Analyze ergonomics, Finder navigability**.
+
+**As of 2026-08-07 the situation is translation-dependent, and neither case forces the
+feature:**
+
+| Translation | Whole book as one passage?  | What a series would add                                |
+| ----------- | --------------------------- | ------------------------------------------------------ |
+| **NET**     | **Yes** — chunked retrieval | Nothing technical. Purely the three workflow reasons.  |
+| **ESV**     | **No** — never, at any size | Nothing either: multi-passage already covers it today. |
+
+The NET column is the interesting one, and it is _newly_ true. Before chunking, a
+2,461-verse Psalms study needed six passages, so "a series would be tidier" had some
+technical force. Now it is one passage, and the argument is purely about workflow — which
+is the honest version of the case anyway.
 
 That is a feature built because it is better, not because something is broken.
 
-**But one limit must now shape the design, in a specific and narrow way.** The confirmed
-ESV complete-book refusal (§12.3) means:
+**Two limits touch the design, at two points.** ⚠️ _This sentence read "One limit still
+touches the design, but at one point only" until the display finding; see the closing note
+below._ The confirmed ESV complete-book refusal (§12.3) means:
 
-1. **A series must never be presented as a way to obtain a whole book in ESV.** If a user
-   builds a 22-part Revelation series in ESV, each part fetches fine on its own and the
-   complete book ends up reproduced across the series. That is the circumvention risk, and
-   it arrives _by accident_ rather than by intent — which makes it more likely, not less.
-2. Therefore the **series-wide export check (Q32) is no longer a nice-to-have.** It is the
-   only place that can catch aggregate reproduction, and it should `block` for ESV.
-3. **Q39 (new) — should we also warn at series _creation_ time** when an ESV series would
-   span a complete book? _Rec: yes, informational at creation, blocking at export. On-screen
-   study is unrestricted (`COMPLIANCE.md` §1); distribution is the boundary that matters._
+1. **A whole-book ESV series is a _display_ and distribution question.** If a user builds a
+   22-part Revelation series in ESV, each part fetches fine and the complete book is
+   displayed across the series.
+   ⚠️ **Revised 2026-08-07 (second pass).** This item previously said "On screen that is
+   **fine** — display is unrestricted (`COMPLIANCE.md` §1)." **Withdrawn**: display is
+   capped per page. What remains true is narrower — each _part_ is its own page, and a
+   22-part series has no single page over half of Revelation, so the per-study check
+   (§1.6–1.7) passes on every part. Whether a series is "a page" for licence purposes is
+   genuinely unresolved; the text reads as per-page, and a series is not a page.
+   _(Note: an earlier draft called this "the circumvention risk." That framing was wrong —
+   see the corrected principle in §12.3.)_
 
-So: build it because it is better, and let exactly one limit constrain one part of it —
-the export path — rather than the data model.
+2. Therefore the **series-wide export check (Q32) is the one place this genuinely bites.**
+   It is the only place that can see aggregate reproduction across parts, and it should
+   `block` for ESV. ⚠️ But `validateExportLimits()` has no caller yet (§8) — wire it up for
+   single studies first.
+3. **Q39 (revised 2026-08-07, second pass) — should we also note it at series _creation_
+   time** when an ESV series would span a complete book? The original reasoning — "Creation
+   is not distribution, and a scary message at creation for something permitted on screen
+   would be the same category error this document keeps correcting" — **had the category
+   error backwards.** Whole-book display is _not_ permitted, so a creation-time note is not
+   a false alarm. _Rec: still an informational note rather than a blocker, but on the honest
+   ground that per-part display is compliant and `enforcement` is `'warn'` everywhere —
+   **not** on the false ground that display is unrestricted._
+
+So: build it because it is better. ⚠️ **But not "exactly one limit at exactly one point"** —
+that framing (previously the closing line here) died with the display finding. Two limits
+touch it: **display**, per part at creation, and **distribution**, aggregated at export.
+Neither shapes the data model, which was the point worth keeping.
 
 ---
 
@@ -634,6 +871,35 @@ earlier revision, so this is a recurring weakness rather than a new one.
 **This must not influence the Linked Studies data model.** Splitting studies to dodge a
 rendering issue would bake a browser quirk into the schema permanently, and Safari will
 improve.
+
+#### 2026-08-07: DOM weight is now concentrated, not spread
+
+Chunked retrieval changed the shape of this problem without changing its cause. A
+2,461-verse NET Psalms study used to be six passages; it is now **one**. The ~55,000 word
+spans that were previously distributed across six `passage` elements now land inside a
+single one. Total node count is unchanged, but it is concentrated — which matters if the
+cause turns out to be per-element (a large scaled layer, or containment boundaries) rather
+than per-document. This makes suspects 1 and 2 above **more** likely, not less, and gives
+a sharper test: compare one 2,461-verse passage against the same range as six passages.
+
+#### A hard cap was considered and rejected
+
+`src/lib/config/studyLimits.js` now exists and is **advisory only** — `assessStudySize()`
+returns `'ok' | 'notice' | 'warning'` at 600 / 1,200 verses and nothing is ever blocked.
+The reasoning, recorded so it is not relitigated:
+
+- Choppiness begins around **400** verses, which is _below_ any round number one would
+  pick as a cap. A 500-verse cap would therefore permit the bad experience it was meant
+  to prevent while blocking legitimate multi-passage studies — the worst of both.
+- The thresholds deliberately avoid 1,000, because Crossway's quotation permission is
+  also 1,000 verses and two unrelated limits sharing a value is exactly how the earlier
+  confusion in this codebase started.
+- These numbers are **ours**, which is why they live in `src/lib/config/` rather than in
+  `translations.json`. Filing them next to publisher limits would repeat the misfiling
+  mistake described in §12.2 and §13.2.
+
+⚠️ **Still unmeasured.** Every suspect above remains a hypothesis. Measure before changing
+anything, and before revisiting the cap question at all.
 
 ### 13.2 Limit messages (fixed 2026-08-03)
 
