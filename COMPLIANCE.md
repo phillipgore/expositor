@@ -95,6 +95,49 @@ also explains why Crossway's server returns them intact — the carve-out is in 
 sentence as the cap. The user's own heuristic turned out to be exactly right: _if they
 return the whole book, I may display the whole book._
 
+### The probe evidence: completeness, not size
+
+Direct requests against the ESV API, 2026-08-07. Every response was **HTTP 200 with no
+error field** — `canonical` is the only signal that anything was withheld:
+
+| Requested                  | Verses | Returned | canonical           |
+| -------------------------- | ------ | -------- | ------------------- |
+| Revelation (whole)         | 404    | 202      | `Revelation 1–12:8` |
+| Romans (whole)             | 433    | 216      | `Romans 1–8:30`     |
+| Galatians (whole)          | 149    | 74       | `Galatians 1–3`     |
+| Romans 1:18–8:39 (partial) | 208    | **208**  | `Romans 1:18–8:39`  |
+
+The last two rows are the ones that matter. Galatians is **149 verses and still halved**;
+Romans 1:18–8:39 is **208 verses and returns whole**. So the trigger is not a verse count —
+it is whether the request names a **complete book**.
+
+⚠️ **This retires the "verse floor" theory.** Because Philemon and Jude return intact, it
+is natural to infer some size threshold below which whole books are served, and to go
+looking for it by bisecting book sizes. There is no such threshold: those books are exempt
+because they have **one chapter**, per the parenthesis quoted above. A bisecting probe over
+book sizes would have found no boundary and produced a confident wrong number. One such
+probe was planned and cancelled on reading the terms.
+
+### Detecting the truncation — why two thresholds, not one
+
+`fetchESVPassage()` compares verses received against `countVersesInRange()` and flags
+truncation only when **both** conditions hold:
+
+| Condition              | Value          | Why it is needed                                          |
+| ---------------------- | -------------- | --------------------------------------------------------- |
+| Proportional shortfall | received < 90% | Catches the ~50% half-book cut                            |
+| Absolute shortfall     | > 15 verses    | Prevents false positives on legitimately short deliveries |
+
+⚠️ **The ESV omits some verses on purpose, and a naive check flags them as truncation.**
+Verses attested only in later manuscripts are absent from the text: **Mark 9 returns 48 of
+50**, and **John 5 returns 46 of 47**. Neither is a licence event, and neither is flagged,
+because each falls short by fewer than 15 verses. Remove the absolute condition and both
+become spurious warnings on ordinary chapters.
+
+Detection deliberately does **not** parse `canonical`. String comparison against the
+requested range gave **4 false positives in 9 probes** — the API's own formatting of a
+reference differs harmlessly from ours. Verse counting gave none.
+
 ### Current posture — what we do, and what we knowingly do not
 
 Functionality is **unchanged by decision** (2026-08-07). Crossway enforces server-side
