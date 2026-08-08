@@ -24,14 +24,17 @@
 	 */
 
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import { describePartDeletion, describeSeriesDeletion } from '$lib/utils/seriesRuns.js';
 
 	let { 
 		isOpen = false, 
 		selectedItem = null,
+		seriesParts = null,
 		onConfirm,
 		onClose,
 		openedViaKeyboard = false
 	} = $props();
+
 
 	let deleteInProgress = $state(false);
 	let deleteError = $state('');
@@ -68,7 +71,40 @@
 		// Single item
 		if (count === 1) {
 			const item = items[0];
+
+			// A series: cascades to every part (§4). Handled before the group/study branches
+			// because a series is neither, and falling through would describe it as a study.
+			if (item.type === 'series') {
+				const partCount = item.data.parts?.length ?? item.data.partCount ?? 0;
+				const copy = describeSeriesDeletion(item.data, partCount);
+
+				return {
+					title: copy.title,
+					message: copy.message,
+					consequences: copy.consequences,
+					itemName: item.data.name,
+					itemType: 'series'
+				};
+			}
+
+			// A part of a series. The warning depends on where the part sits in its run, so the
+			// sibling parts must be supplied; without them we cannot tell a run-splitting delete
+			// from a harmless one and would have to guess. Falling back to the plain study copy is
+			// the honest failure — silence is better than a fabricated consequence.
+			if (item.type === 'study' && item.data.seriesId && Array.isArray(seriesParts)) {
+				const copy = describePartDeletion(seriesParts, item.id);
+
+				return {
+					title: copy.title,
+					message: copy.message,
+					consequences: copy.consequences,
+					itemName: item.data.title,
+					itemType: 'part'
+				};
+			}
+
 			if (item.type === 'group') {
+
 				const counts = countNestedItems(item.data);
 				const totalGroups = counts.groups;
 				const totalStudies = counts.studies;
@@ -195,8 +231,23 @@
 		<p class="modal-message">
 			{modalContent.message}{#if modalContent.warning}&nbsp;{modalContent.warning}{/if}
 		</p>
-		
+
+		<!--
+			Series and part deletions carry several distinct consequences (§4 requires the part
+			warning to name three), so they are listed rather than run together into one sentence
+			where the third would be easy to skim past. Existing study/group deletions keep their
+			single `warning` string above and render nothing here.
+		-->
+		{#if modalContent.consequences?.length}
+			<ul class="modal-consequences">
+				{#each modalContent.consequences as consequence}
+					<li>{consequence}</li>
+				{/each}
+			</ul>
+		{/if}
+
 		{#if deleteError}
+
 			<p class="modal-message error">
 				{deleteError}
 			</p>
@@ -212,7 +263,16 @@
 		color: var(--gray-400);
 	}
 
+	ul.modal-consequences {
+		margin: 0.9rem 0 0;
+		padding-left: 2.1rem;
+		font-size: 1.6rem;
+		line-height: 1.75;
+		color: var(--gray-400);
+	}
+
 	p.modal-message.error {
+
 		background-color: var(--red-lighter);
 		color: var(--red-darker);
 		border: 0.1rem solid var(--red-light);

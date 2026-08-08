@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
 import {
 	study,
+	studySeries,
 	passage,
 	passageColumn,
 	passageSection,
@@ -9,6 +10,7 @@ import {
 	passageHeading,
 	segmentConnection
 } from '$lib/server/db/schema.js';
+
 
 import { auth } from '$lib/server/auth.js';
 import { eq, asc, inArray } from 'drizzle-orm';
@@ -67,8 +69,57 @@ export async function load({ params, request, depends }) {
 			.where(eq(passage.studyId, studyId))
 			.orderBy(passage.displayOrder);
 
+		// ── Series context for the header's prev/next + "Part N of M" jump (§7) ──
+		//
+		// Kept in the LIGHT phase deliberately: the header renders with the shell, and streaming
+		// this would make the part indicator pop in after the title — the layout instability §7
+		// rules out for the arrows ("disabled at the ends, not hidden") arriving by a side door.
+		//
+		// Two small indexed queries, and only for parts: a standalone study pays nothing.
+		let seriesContext = null;
+
+		if (studyData.seriesId) {
+			const [seriesRow] = await db
+				.select()
+				.from(studySeries)
+				.where(eq(studySeries.id, studyData.seriesId))
+				.limit(1);
+
+			// Ordered by seriesOrder, not canonical passage order: §2 settled that seriesOrder is
+			// explicit and user-editable, so it is the only thing that may decide what "next" means.
+			const parts = await db
+				.select({
+					id: study.id,
+					title: study.title,
+					seriesOrder: study.seriesOrder
+				})
+				.from(study)
+				.where(eq(study.seriesId, studyData.seriesId))
+				.orderBy(asc(study.seriesOrder));
+
+			const index = parts.findIndex((part) => part.id === studyId);
+
+			// A series row that has vanished, or a part missing from its own sibling list, means
+			// something is wrong upstream; send no context rather than render "Part 0 of 3".
+			if (seriesRow && index !== -1) {
+				seriesContext = {
+					id: seriesRow.id,
+					name: seriesRow.name,
+					parts,
+					// 1-based for display ("Part 3 of 16"); the index stays available via parts.
+					position: index + 1,
+					total: parts.length,
+					// Resolved here rather than in the component so "no neighbour" is one null check
+					// instead of arithmetic the header could get wrong at the ends (Q19: no wrapping).
+					previousPart: index > 0 ? parts[index - 1] : null,
+					nextPart: index < parts.length - 1 ? parts[index + 1] : null
+				};
+			}
+		}
+
 		const translation = studyData.translation || 'esv';
 		endShell();
+
 
 		// ── Heavy work (STREAMED, not awaited) ───────────────────────────────
 
@@ -252,6 +303,9 @@ export async function load({ params, request, depends }) {
 		return {
 			study: studyData,
 			passages: passagesData,
+			// null for a standalone study — the header renders no part controls at all.
+			seriesContext,
+
 			// Nested promise → SvelteKit streams this to the client.
 			streamed: {
 				content: contentPromise

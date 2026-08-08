@@ -7,6 +7,8 @@
 	import GlossaryBadge from '$lib/componentElements/GlossaryBadge.svelte';
 	import DocumentCommentaryToolbar from '$lib/componentWidgets/DocumentCommentaryToolbar.svelte';
 	import DocumentCommentaryEditor from '$lib/componentWidgets/DocumentCommentaryEditor.svelte';
+	import SeriesPartNav from '$lib/componentWidgets/SeriesPartNav.svelte';
+
 
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
@@ -3426,6 +3428,19 @@
      commentaryToolbar bus) and is disabled when none is. -->
 <div class="document-view">
 <DocumentCommentaryToolbar />
+
+<!-- Series part navigation (§7). Deliberately placed in the view's CHROME rather than
+     inside the headerContent() snippet: that snippet is rendered TWICE (once into the
+     off-screen measure layer, once into the visible page), which would duplicate the
+     menu's DOM id and add the control's height to the paginator's measurements —
+     pushing content onto an extra sheet. Here it sits outside the paper entirely, which
+     is also where it belongs conceptually: it is interface, not part of the document. -->
+{#if data.seriesContext}
+	<div class="series-nav-bar">
+		<SeriesPartNav seriesContext={data.seriesContext} view="document" />
+	</div>
+{/if}
+
 <div
 	class="document-gutter"
 	class:hide-verses={!$toolbarState.documentVersesVisible}
@@ -3539,8 +3554,19 @@
 		overflow: hidden;
 	}
 
+	/* Series part navigation bar — chrome above the gutter, right-aligned to echo
+	   the analyze view's placement at the far right of the titling row. It is NOT on
+	   the paper, so it never prints and never enters the paginator's measurements. */
+	.series-nav-bar {
+		display: flex;
+		justify-content: flex-end;
+		flex: 0 0 auto;
+		padding: 0.6rem 2.4rem;
+	}
+
 	/* The gutter is the gray surface the pages float on (Google Docs style). It
 	   fills the scroll container and centers the page column horizontally. */
+
 	.document-gutter {
 		display: flex;
 		flex-direction: column;

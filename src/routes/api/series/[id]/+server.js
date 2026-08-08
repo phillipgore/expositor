@@ -98,3 +98,56 @@ export const PATCH = async ({ request, params }) => {
 		return json({ error: 'Failed to update series' }, { status: 500 });
 	}
 };
+
+/**
+ * Delete a series and every part in it.
+ *
+ * §4: "deleting a series deletes everything in it", reversing Q6's earlier `set null`
+ * recommendation. The delete of the `study_series` row is the whole operation — `study.series_id`
+ * carries `ON DELETE CASCADE` (migration 0046), so the parts, their passages, structure, notes and
+ * commentary all go with it, and the six `segment_connection` endpoint FKs collect the cross-part
+ * connections with no special handling. That is why series deletion "dissolves the cross-part
+ * connection problem" while boundary moves do not (§4's own warning against over-reading this).
+ *
+ * The count is returned so the caller can report what was destroyed. It is gathered BEFORE the
+ * delete, because afterwards the rows are gone and the number is unrecoverable.
+ *
+ * @type {import('./$types').RequestHandler}
+ */
+export const DELETE = async ({ request, params }) => {
+	try {
+		const session = await auth.api.getSession({ headers: request.headers });
+
+		if (!session?.user?.id) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		const { id } = params;
+
+		const existing = await db
+			.select({ id: studySeries.id, name: studySeries.name })
+			.from(studySeries)
+			.where(and(
+				eq(studySeries.id, id),
+				eq(studySeries.userId, session.user.id)
+			))
+			.limit(1);
+
+		if (existing.length === 0) {
+			return json({ error: 'Series not found' }, { status: 404 });
+		}
+
+		const parts = await db
+			.select({ id: study.id })
+			.from(study)
+			.where(eq(study.seriesId, id));
+
+		await db.delete(studySeries).where(eq(studySeries.id, id));
+
+		return json({ success: true, deletedParts: parts.length, name: existing[0].name });
+	} catch (error) {
+		console.error('Error deleting series:', error);
+		return json({ error: 'Failed to delete series' }, { status: 500 });
+	}
+};
+

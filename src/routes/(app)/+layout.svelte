@@ -165,7 +165,8 @@
 
 {#if $isAuthenticated}
 	<NavigationIndicator delay={120} />
-	<ToolbarApp groups={data.groups || []} isAdmin={data.isAdmin || false}></ToolbarApp>
+	<ToolbarApp groups={data.groups || []} series={data.series || []} isAdmin={data.isAdmin || false}></ToolbarApp>
+
 	<div class="app-container">
 		<StudiesPanel 
 			isOpen={$toolbarState.studiesPanelOpen} 

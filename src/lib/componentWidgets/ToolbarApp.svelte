@@ -78,7 +78,26 @@
 	import { invalidate } from '$app/navigation';
 
 	// Props to receive data from layout
-	let { groups = [], isAdmin = false } = $props();
+	let { groups = [], series = [], isAdmin = false } = $props();
+
+	/**
+	 * The sibling parts of the series a to-be-deleted part belongs to.
+	 *
+	 * The part-delete warning depends on where the part sits in its run (§4), which cannot be
+	 * determined from the part alone — deleting Romans 8 out of the middle kills a seam, deleting
+	 * Romans 16 off the end does not. Resolved here from the layout's series data and handed to the
+	 * modal, which otherwise falls back to the plain study copy rather than guess.
+	 */
+	let pendingDeleteSeriesParts = $derived.by(() => {
+		const items = pendingDeleteItem?.items;
+		if (!items || items.length !== 1) return null;
+
+		const seriesId = items[0]?.data?.seriesId;
+		if (!seriesId) return null;
+
+		return series.find((candidate) => candidate.id === seriesId)?.parts ?? null;
+	});
+
 
 	/**
 	 * Which view's zoom the toolbar currently controls. Analyze and Document keep
@@ -401,10 +420,26 @@
 		// Collect all selected IDs by type
 		const selectedGroupIds = items.filter(i => i.type === 'group').map(i => i.id);
 		const selectedStudyIds = items.filter(i => i.type === 'study').map(i => i.id);
-		
+		const selectedSeriesIds = items.filter(i => i.type === 'series').map(i => i.id);
+
+		// A single series goes to the series endpoint, which cascades to every part (§4).
+		// Checked before the bulk path because /api/bulk-delete knows nothing about series and
+		// would drop the request silently, leaving the series on screen with no error.
+		if (count === 1 && selectedSeriesIds.length === 1) {
+			const response = await fetch(`/api/series/${selectedSeriesIds[0]}`, {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' }
+			});
+
+			if (!response.ok) {
+				const error = await response.json().catch(() => ({}));
+				throw new Error(error.error || 'Failed to delete series');
+			}
+		}
 		// Use bulk delete for multiple items OR when groups are involved
 		// (to ensure proper handling of unselected descendants)
-		if (count > 1 || selectedGroupIds.length > 0) {
+		else if (count > 1 || selectedGroupIds.length > 0) {
+
 			const response = await fetch('/api/bulk-delete', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -441,12 +476,24 @@
 		const studyMatch = pathname.match(/^\/study\/([^/]+)/);
 		const groupMatch = pathname.match(/^\/study-group\/([^/]+)/);
 
+		// A series deletion cascades to every part, so viewing any part of a deleted series is
+		// viewing a route that no longer exists. Without this the user is left on a dead
+		// /study/[partId] URL and the invalidate below 404s into a full error page — the exact
+		// failure the comment above describes, reached by a different door.
+		const deletedSeriesPartIds = selectedSeriesIds.flatMap(
+			(seriesId) => series.find((s) => s.id === seriesId)?.parts?.map((p) => p.id) ?? []
+		);
+
 		// A group deletion cascades to unknown descendant groups/studies, so if any
 		// group was deleted while viewing a study or study-group page, be
 		// conservative and assume the current page may have been deleted.
 		const mightBeViewingDeleted =
-			(studyMatch && (selectedStudyIds.includes(studyMatch[1]) || selectedGroupIds.length > 0)) ||
+			(studyMatch &&
+				(selectedStudyIds.includes(studyMatch[1]) ||
+					deletedSeriesPartIds.includes(studyMatch[1]) ||
+					selectedGroupIds.length > 0)) ||
 			(groupMatch && selectedGroupIds.length > 0);
+
 
 		if (mightBeViewingDeleted) {
 			// Navigate away first, refreshing all data as part of the (client-side)
@@ -608,7 +655,9 @@
 <DeleteConfirmationModal
 	isOpen={showDeleteModal}
 	selectedItem={pendingDeleteItem}
+	seriesParts={pendingDeleteSeriesParts}
 	onConfirm={handleDeleteConfirm}
 	onClose={handleDeleteModalClose}
 	openedViaKeyboard={deleteOpenedViaKeyboard}
 />
+

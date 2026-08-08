@@ -10,6 +10,8 @@
 
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
+	import SeriesPartNav from '$lib/componentWidgets/SeriesPartNav.svelte';
+
 	import ConnectionsOverlay from '$lib/componentWidgets/ConnectionsOverlay.svelte';
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
@@ -4352,12 +4354,21 @@
 					     the next real heading is the passage reference (<h2>) below. The
 					     header lives INSIDE the zoom-transformed content, so it scales down
 					     with the rest of the study at every zoom level (it is never hidden). -->
-					<hgroup class="study-header">
-						<Heading heading="h1" classes="h3 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
-						{#if data.study.subtitle}
-							<p class="subheading">{data.study.subtitle}</p>
-						{/if}
-					</hgroup>
+					<!-- Titling block and, for a part of a series, the part navigation (§7).
+					     The nav sits OUTSIDE the <hgroup> because an <hgroup> may only contain
+					     the heading and its taglines — putting a <nav> in it would corrupt the
+					     accessible outline this comment block exists to protect. -->
+					<div class="study-header-row">
+						<hgroup class="study-header">
+							<Heading heading="h1" classes="h3 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
+							{#if data.study.subtitle}
+								<p class="subheading">{data.study.subtitle}</p>
+							{/if}
+						</hgroup>
+
+						<SeriesPartNav seriesContext={data.seriesContext} view="analyze" />
+					</div>
+
 
 
 				<!-- While the streamed content resolves, the single global
@@ -4876,12 +4887,24 @@
 		height: 100%;
 	}
 
+	/* Title on the left, part navigation pushed to the far right (§7). align-items:end
+	   keeps the arrows on the title's baseline-ish line rather than floating beside a
+	   two-line title's centre. */
+	.study-header-row {
+		display: flex;
+		flex-direction: row;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 2.6rem;
+	}
+
 	.study-header {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
 		align-items: left;
 	}
+
 
 	.study-header :global(.heading) {
 		margin: 0.0rem;
