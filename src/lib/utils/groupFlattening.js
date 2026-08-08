@@ -133,6 +133,13 @@ export function flattenGroupRecursive(group, items, index) {
 			}
 		}
 		
+		// Add series filed in this group, before its loose studies
+		if (group.series && group.series.length > 0) {
+			for (const series of group.series) {
+				index = flattenSeriesRecursive(series, items, index, (group.depth || 0) + 1);
+			}
+		}
+
 		// Add studies
 		if (group.studies && group.studies.length > 0) {
 			for (const study of group.studies) {
@@ -151,6 +158,46 @@ export function flattenGroupRecursive(group, items, index) {
 }
 
 /**
+ * Flatten a series and, when expanded, its parts.
+ *
+ * The series row is emitted with type 'series' rather than being folded into 'study'.
+ * Keyboard navigation and multi-select key off this type, and mislabelling the row would
+ * make arrowing onto a series behave as if a study were selected — the Delete action would
+ * then target a study that isn't there. Parts keep type 'study' because that is exactly
+ * what they are; only their container is new.
+ *
+ * @param {Object} series - The series to flatten
+ * @param {Array} items - Array to accumulate flattened items
+ * @param {number} index - Current index in flattened list
+ * @param {number} depth - Display depth of the series row
+ * @returns {number} The next available index
+ */
+export function flattenSeriesRecursive(series, items, index, depth = 0) {
+	items.push({
+		type: 'series',
+		id: series.id,
+		data: series,
+		index: index++,
+		depth
+	});
+
+	// Collapsed parts are not on screen, so they must not be reachable by arrow keys.
+	if (!series.isCollapsed && series.parts && series.parts.length > 0) {
+		for (const part of series.parts) {
+			items.push({
+				type: 'study',
+				id: part.id,
+				data: part,
+				index: index++,
+				depth: depth + 1
+			});
+		}
+	}
+
+	return index;
+}
+
+/**
  * Get a completely flattened list of all groups and studies in display order
  * (Used for keyboard navigation and selection management)
  * 
@@ -164,6 +211,8 @@ export function getFlattenedItemsList(sortedGroupsAndStudies) {
 	sortedGroupsAndStudies.forEach(item => {
 		if (item.type === 'group') {
 			index = flattenGroupRecursive(item.data, items, index);
+		} else if (item.type === 'series') {
+			index = flattenSeriesRecursive(item.data, items, index, 0);
 		} else {
 			items.push({
 				type: 'study',

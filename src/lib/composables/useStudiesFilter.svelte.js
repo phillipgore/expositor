@@ -14,9 +14,10 @@ import { formatPassageReference } from '$lib/utils/passageFormatting.js';
  * @param {Function} getGroups - Function that returns all groups
  * @param {Function} getUngroupedStudies - Function that returns ungrouped studies
  * @param {Function} getSearchQuery - Function that returns current search query
+ * @param {Function} [getUngroupedSeries] - Function that returns top-level series
  * @returns {Object} Filter state and computed values
  */
-export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, getSearchQuery) {
+export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, getSearchQuery, getUngroupedSeries = () => []) {
 	/**
 	 * Check if a study matches the search query
 	 */
@@ -72,6 +73,51 @@ export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, get
 			subgroups: filteredSubgroups,
 			matchedByName: false
 		};
+	}
+
+	/**
+	 * Check if a series matches the search query.
+	 *
+	 * A series matches on its own name OR on any part, so searching "Romans 8" finds the
+	 * series through the part that covers it. When the series name itself matches, all parts
+	 * are kept — mirroring the group rule above, where matching a folder shows its contents
+	 * rather than an arbitrarily pruned subset.
+	 *
+	 * A series is never returned with zero parts: an empty series row can be neither read
+	 * nor expanded, so it is dropped instead (same rule the server load applies).
+	 */
+	function filterSeries(series, query) {
+		const nameMatches = series.name.toLowerCase().includes(query);
+
+		if (nameMatches) {
+			return { ...series, matchedByName: true };
+		}
+
+		const parts = (series.parts || []).filter((part) => studyMatchesQuery(part, query));
+		if (parts.length === 0) return null;
+
+		// Parts keep their stored seriesOrder — filtering must not reorder a sequence.
+		return { ...series, parts, matchedByName: false };
+	}
+
+	/**
+	 * Get filtered top-level series
+	 */
+	function getFilteredUngroupedSeries() {
+		const seriesList = getUngroupedSeries();
+		if (!seriesList || seriesList.length === 0) return [];
+
+		const searchQuery = getSearchQuery();
+
+		if (searchQuery.trim() === '') {
+			return [...seriesList].sort((a, b) => a.name.localeCompare(b.name));
+		}
+
+		const query = searchQuery.toLowerCase();
+		return seriesList
+			.map((series) => filterSeries(series, query))
+			.filter((series) => series !== null)
+			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	/**
@@ -144,6 +190,7 @@ export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, get
 	function getSortedGroupsAndStudies() {
 		const filteredGroups = getFilteredGroups();
 		const filteredUngroupedStudies = getFilteredUngroupedStudies();
+		const filteredUngroupedSeries = getFilteredUngroupedSeries();
 		const items = [];
 		
 		filteredGroups.forEach(group => {
@@ -151,6 +198,16 @@ export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, get
 				type: 'group',
 				name: group.name,
 				data: group
+			});
+		});
+
+		// Series sort by name alongside groups and studies, so the Finder stays a single
+		// alphabetical list rather than growing a third visually-segregated band.
+		filteredUngroupedSeries.forEach(series => {
+			items.push({
+				type: 'series',
+				name: series.name,
+				data: series
 			});
 		});
 		
@@ -170,6 +227,7 @@ export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, get
 		getSortedStudies,
 		getFilteredGroups,
 		getFilteredUngroupedStudies,
+		getFilteredUngroupedSeries,
 		getSortedGroupsAndStudies
 	};
 }

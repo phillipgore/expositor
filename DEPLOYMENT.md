@@ -18,10 +18,37 @@
 
 > **Vercel never reads these files.** Production values live in the Vercel dashboard.
 
-## Database Setup (already completed)
+## Database Setup
 
-The Neon database schema is fully migrated (through `0044_add_app_settings.sql`)
-and the `app_settings` row is seeded (`signups_enabled = true`).
+The `app_settings` row is seeded in production (`signups_enabled = true`).
+
+### Checking what production has applied
+
+Because the hand-written migrations are not journaled (see the note below), nothing
+records which of them have run. **Do not trust a written-down version number here —
+it decays silently.** Probe for the objects the recent migrations create instead:
+
+```sh
+set -a; source .env.production; set +a
+psql "$DATABASE_URL" -At -c "
+  select 'auth_case:    ' || coalesce(string_agg(column_name, ','), 'NONE')
+    from information_schema.columns
+   where table_name='user' and column_name in ('email_verified','emailVerified')
+  union all
+  select 'app_settings: ' || count(*)::text
+    from information_schema.tables where table_name='app_settings'
+  union all
+  select 'study_series: ' || count(*)::text
+    from information_schema.tables where table_name='study_series';"
+```
+
+| Result | Means |
+|---|---|
+| `auth_case: email_verified` | `0045_fix_auth_column_case.sql` applied (camelCase ⇒ it is **not**, and login is broken) |
+| `app_settings: 1` | `0044_add_app_settings.sql` applied |
+| `study_series: 1` | `0046_add_study_series.sql` applied |
+
+Extend the query with a new probe line as later migrations land.
 
 ### Running future migrations against Neon
 

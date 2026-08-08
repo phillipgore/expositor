@@ -7,6 +7,7 @@
 	 */
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import StudyItem from './StudyItem.svelte';
+	import StudySeries from './StudySeries.svelte';
 	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 
@@ -34,6 +35,12 @@
 		isGroupSelected,
 		getGroupSelectionPosition,
 		isGroupActive,
+		// For series filed inside this group
+		isSeriesSelected,
+		getSeriesSelectionPosition,
+		isSeriesActive,
+		onToggleSeriesCollapse,
+		onSeriesHeaderClick,
 		// For search - force expand groups during search
 		forceExpanded = false
 	} = $props();
@@ -126,6 +133,39 @@
 							{isGroupSelected}
 							{getGroupSelectionPosition}
 							{isGroupActive}
+							{isSeriesSelected}
+							{getSeriesSelectionPosition}
+							{isSeriesActive}
+							{onToggleSeriesCollapse}
+							{onSeriesHeaderClick}
+							{forceExpanded}
+						/>
+					</div>
+				{/each}
+			{/if}
+
+			<!-- Then series, which occupy a group slot exactly as a study does -->
+			{#if group.series && group.series.length > 0}
+				{#each group.series as series (series.id)}
+					<div animate:flip={{ duration: 300 }}>
+						<StudySeries
+							{series}
+							depth={depth + 1}
+							tabindex={-1}
+							isSelected={isSeriesSelected?.(series.id) || false}
+							selectionPosition={getSeriesSelectionPosition?.(series.id)}
+							isActive={isSeriesActive?.(series.id) || false}
+							onToggleCollapse={onToggleSeriesCollapse}
+							{onSeriesHeaderClick}
+							onSeriesMouseDown={null}
+							{onStudyMouseDown}
+							{onStudyClick}
+							{isStudySelected}
+							{getStudySelectionPosition}
+							{isStudyActive}
+							{isStudyBeingDragged}
+							{isDragging}
+							{formatPassageReference}
 							{forceExpanded}
 						/>
 					</div>

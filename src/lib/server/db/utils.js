@@ -1,5 +1,5 @@
 import { db, client } from '$lib/server/db/index.js';
-import { studyGroup, passage, passageColumn, passageSection, passageSegment, passageHeading } from '$lib/server/db/schema.js';
+import { studyGroup, studySeries, passage, passageColumn, passageSection, passageSegment, passageHeading } from '$lib/server/db/schema.js';
 import { eq, and, inArray, asc } from 'drizzle-orm';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -57,6 +57,48 @@ export async function expandGroupAncestors(groupId, userId) {
 		// Move to parent
 		currentGroupId = group.parentGroupId;
 	}
+}
+
+/**
+ * Expand a series and all its ancestor groups by setting isCollapsed to false.
+ *
+ * Deep-linking to part 7 of a series that sits inside two collapsed groups must reveal the
+ * part, so both axes have to be expanded: the series row itself, and then the group chain
+ * above it (SERIES_PLAN §6). This delegates the group half to expandGroupAncestors rather
+ * than re-walking parentGroupId, so there is one implementation of that walk.
+ *
+ * @param {string} seriesId - The ID of the series to expand
+ * @param {string} userId - The user ID for verification
+ * @returns {Promise<void>}
+ */
+export async function expandSeriesAncestors(seriesId, userId) {
+	if (!seriesId) return;
+
+	const rows = await db
+		.select()
+		.from(studySeries)
+		.where(and(
+			eq(studySeries.id, seriesId),
+			eq(studySeries.userId, userId)
+		))
+		.limit(1);
+
+	if (rows.length === 0) return;
+
+	const series = rows[0];
+
+	if (series.isCollapsed) {
+		await db
+			.update(studySeries)
+			.set({
+				isCollapsed: false,
+				updatedAt: new Date()
+			})
+			.where(eq(studySeries.id, seriesId));
+	}
+
+	// A series may be filed inside a group, which may itself be nested.
+	await expandGroupAncestors(series.groupId, userId);
 }
 
 /**

@@ -147,6 +147,67 @@ export const studyGroup = pgTable('study_group', {
 		.notNull()
 });
 
+/**
+ * A Series is an ordered run of studies ("parts") covering one continuous stretch
+ * of Scripture that was too large to serve as a single study. It sits BESIDE
+ * study_group in the hierarchy rather than inside it: a group is a folder the user
+ * arranges freely, a series is a sequence whose order carries meaning (part 2
+ * follows part 1 in the text). Hence `displayOrder`/`isCollapsed` mirror
+ * study_group — the Finder treats both as expandable rows — while part ordering
+ * lives on study.seriesOrder, not here.
+ *
+ * A series may live inside a group (`groupId`), but a series never nests in
+ * another series: there is no parentSeriesId, deliberately. Splitting an already
+ * split passage produces more parts of the SAME run, not a tree.
+ */
+export const studySeries = pgTable('study_series', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	subtitle: text('subtitle'),
+	description: text('description'),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	groupId: text('group_id').references(() => studyGroup.id, { onDelete: 'cascade' }),
+	/**
+	 * Authoritative for the same-translation invariant (§4): every part's
+	 * `study.translation` must match this one. A series mixing ESV and NET parts
+	 * would break the export attribution story, so the series owns the answer and
+	 * the parts conform — not the other way round.
+	 *
+	 * Written at creation (phase 1c) from the source study, so it is never a
+	 * dormant column: an authoritative value with no writer is worse than no
+	 * column, because parts could silently disagree with it. Enforcement arrives
+	 * with Join Parts / Split Part (phase 2), and Q26's ESV/NET branching reads
+	 * it rather than any individual part.
+	 */
+	translation: text('translation').notNull().default('esv'),
+	displayOrder: integer('display_order').notNull().default(0),
+	isCollapsed: boolean('is_collapsed').notNull().default(false),
+	/**
+	 * The part the user last had open, so clicking the series title in the Finder
+	 * resumes where they left off instead of always reopening part 1.
+
+	 *
+	 * Note this is NOT the same kind of thing as `user.lastStudyView`, which stores
+	 * a view MODE ('analyze' | 'document') and therefore cannot answer "which part";
+	 * that confusion is recorded in SERIES_PLAN.md §4 Q18.
+	 *
+	 * `onDelete: 'set null'` rather than 'cascade': deleting the remembered part
+	 * must not delete the series. A null here simply falls back to part 1.
+	 */
+	lastPartId: text('last_part_id').references((): any => study.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	updatedAt: timestamp('updated_at')
+		.$defaultFn(() => /* @__PURE__ */ new Date())
+		.notNull()
+}, (table) => ({
+	userIdIdx: index('study_series_user_id_idx').on(table.userId)
+}));
+
+
 export const study = pgTable('study', {
 	id: text('id').primaryKey(),
 	title: text('title').notNull(),
@@ -156,13 +217,33 @@ export const study = pgTable('study', {
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),
 	groupId: text('group_id').references(() => studyGroup.id, { onDelete: 'cascade' }),
+	/**
+	 * NULL for a standalone study — which is the overwhelming majority, and stays
+	 * the default. Non-null means this study is one part of a series.
+	 *
+	 * `seriesId` and `seriesOrder` are set and cleared together: either both are
+	 * null (standalone) or both are set (a part). Nothing enforces that pairing at
+	 * the DB level; it is the writer's job, and worth asserting in any code that
+	 * dissolves a series back into loose studies.
+	 */
+	seriesId: text('series_id').references(() => studySeries.id, { onDelete: 'cascade' }),
+	/**
+	 * 1-based position within the series. Deliberately NOT unique and not gap-free:
+	 * deleting a middle part leaves a hole (1, 2, 4), and the run is read by sorting
+	 * on this column, not by trusting it to be contiguous. Renumbering on every
+	 * delete would rewrite every sibling row to fix a display concern.
+	 */
+	seriesOrder: integer('series_order'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
 	updatedAt: timestamp('updated_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()
-});
+}, (table) => ({
+	seriesIdIdx: index('study_series_id_idx').on(table.seriesId)
+}));
+
 
 export const passage = pgTable('passage', {
 	id: text('id').primaryKey(),
@@ -317,10 +398,38 @@ export const passageHeading = pgTable('passage_heading', {
 export const segmentConnection = pgTable('segment_connection', {
 
 	id: text('id').primaryKey(),
+	/**
+	 * The study this connection belongs to. STILL `.notNull()`, deliberately.
+	 *
+	 * A connection whose two endpoints sit in different parts of a series has no
+	 * single correct `studyId`, so it is tempting to relax this now. Phase 1 does
+	 * not, because phase 1 cannot produce such a row: it ships no Split Part, no
+	 * Join Parts and no boundary moves, and connections are authored over a single
+	 * study's canvas (ConnectionsOverlay resolves endpoint geometry from the
+	 * currently mounted elements — two parts are never on screen together). Dropping
+	 * `.notNull()` before anything can violate it would force every existing reader
+	 * to handle a null that cannot occur.
+	 *
+	 * Note where cross-part rows will actually come FROM, when they come: not from a
+	 * user drawing across parts, but from a boundary MOVE sliding under a connection
+	 * that was legitimately drawn inside one part. That is why no constraint forbids
+	 * the shape outright — "cannot be drawn" is not the same claim as "must not
+	 * exist", and the second would decide the fate of already-valid user work.
+	 * See SERIES_PLAN.md §4 Q42.
+	 */
 	studyId: text('study_id')
 		.notNull()
 		.references(() => study.id, { onDelete: 'cascade' }),
+	/**
+	 * Set when this connection belongs to a study that is part of a series; NULL for
+	 * connections in standalone studies. Purely additive in phase 1 — nothing writes
+	 * or reads it yet. It exists now so the column is in place before the commands
+	 * that need it, and so the ownership question above has somewhere to land without
+	 * a second migration.
+	 */
+	seriesId: text('series_id').references(() => studySeries.id, { onDelete: 'cascade' }),
 	/** Per-end type: 'segment' | 'section' | 'column' — independent so cross-type connections are possible */
+
 	fromType: text('from_type').notNull().default('segment'),
 	toType:   text('to_type').notNull().default('segment'),
 	// Segment connection fields (nullable — only set when fromType/toType = 'segment')
@@ -373,7 +482,9 @@ export const segmentConnection = pgTable('segment_connection', {
 		.notNull()
 }, (table) => ({
 	studyIdIdx: index('segment_connection_study_id_idx').on(table.studyId),
+	seriesIdIdx: index('segment_connection_series_id_idx').on(table.seriesId),
 	fromSegmentIdIdx: index('segment_connection_from_segment_id_idx').on(table.fromSegmentId),
+
 	toSegmentIdIdx: index('segment_connection_to_segment_id_idx').on(table.toSegmentId),
 	fromSectionIdIdx: index('segment_connection_from_section_id_idx').on(table.fromSectionId),
 	toSectionIdIdx: index('segment_connection_to_section_id_idx').on(table.toSectionId),

@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db/index.js';
-import { study, passage, studyGroup, user } from '$lib/server/db/schema.js';
+import { study, passage, studyGroup, studySeries, user } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, asc } from 'drizzle-orm';
 
@@ -121,13 +121,22 @@ export async function load({ request, depends }) {
 			.where(eq(studyGroup.userId, session.user.id))
 			.orderBy(asc(studyGroup.displayOrder));
 
+		// Query all series for the logged-in user
+		const seriesData = await db
+			.select()
+			.from(studySeries)
+			.where(eq(studySeries.userId, session.user.id))
+			.orderBy(asc(studySeries.displayOrder));
+
 		// Query all studies for the logged-in user
 		const studiesData = await db
 			.select({
 				id: study.id,
 				title: study.title,
 				groupId: study.groupId,
-				translation: study.translation
+				translation: study.translation,
+				seriesId: study.seriesId,
+				seriesOrder: study.seriesOrder
 			})
 			.from(study)
 			.where(eq(study.userId, session.user.id))
@@ -151,6 +160,29 @@ export async function load({ request, depends }) {
 			})
 		);
 		
+		// Attach parts to their series.
+		//
+		// A part belongs to exactly one place in the Finder: inside its series row. The series
+		// is what occupies a slot in a group (SERIES_PLAN §4), so a part must be filtered out of
+		// the group and ungrouped lists below — otherwise a 16-part Romans series renders as one
+		// series row *and* 16 loose studies.
+		//
+		// Parts sort by seriesOrder, which is explicit and user-editable: canonical order only
+		// seeds it at creation and must never be re-derived here (§4, trap 11).
+		const seriesWithParts = seriesData
+			.map((series) => {
+				const parts = studiesWithPassages
+					.filter((s) => s.seriesId === series.id)
+					.sort((a, b) => (a.seriesOrder ?? 0) - (b.seriesOrder ?? 0));
+				return { ...series, parts, partCount: parts.length };
+			})
+			// A series whose parts have all been deleted has nothing to show and no way to be
+			// navigated into; hide it rather than render an empty expandable row.
+			.filter((series) => series.parts.length > 0);
+
+		// Studies that are not parts of a series. Everything below treats these as before.
+		const standaloneStudies = studiesWithPassages.filter((s) => !s.seriesId);
+
 		// Build hierarchical group tree
 		function buildGroupTree(groups, parentId = null, depth = 0) {
 			return groups
@@ -160,23 +192,33 @@ export async function load({ request, depends }) {
 					...group,
 					depth,
 					subgroups: buildGroupTree(groups, group.id, depth + 1),
-					studies: studiesWithPassages
+					studies: standaloneStudies
 						.filter(s => s.groupId === group.id)
-						.sort((a, b) => a.title.localeCompare(b.title))
+						.sort((a, b) => a.title.localeCompare(b.title)),
+					series: seriesWithParts
+						.filter(sr => sr.groupId === group.id)
+						.sort((a, b) => a.name.localeCompare(b.name))
 				}));
 		}
 		
 		const groupsWithStudies = buildGroupTree(groupsData);
 
-		// Get ungrouped studies
-		const ungroupedStudies = studiesWithPassages
+		// Get ungrouped studies (standalone only — parts live under their series row)
+		const ungroupedStudies = standaloneStudies
 			.filter(s => !s.groupId)
 			.sort((a, b) => a.title.localeCompare(b.title));
+
+		// Series not filed inside any group, rendered at the top level of the Finder
+		const ungroupedSeries = seriesWithParts
+			.filter(sr => !sr.groupId)
+			.sort((a, b) => a.name.localeCompare(b.name));
 		
 		return {
 			isAdmin,
 			groups: groupsWithStudies,
 			ungroupedStudies,
+			ungroupedSeries,
+			series: seriesWithParts,
 			studies: studiesWithPassages, // Keep for backwards compatibility
 			studiesPanelWidth,
 			studiesPanelOpen,
@@ -226,6 +268,8 @@ export async function load({ request, depends }) {
 			isAdmin,
 			groups: [],
 			ungroupedStudies: [],
+			ungroupedSeries: [],
+			series: [],
 			studies: []
 		};
 	}

@@ -172,6 +172,7 @@
 			studies={data.studies}
 			groups={data.groups || []}
 			ungroupedStudies={data.ungroupedStudies || []}
+			ungroupedSeries={data.ungroupedSeries || []}
 			initialWidth={data.studiesPanelWidth || 300}
 		/>
 		<div class="content-wrapper">

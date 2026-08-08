@@ -4,34 +4,59 @@
 > here for one reason only: commit messages and people's memory still use it, so a search for
 > it should land somewhere useful. It is not an alternative name for the feature — see §3.
 
-**Status:** ON HOLD. Not scheduled; no code written.
-**Last updated:** 2026-08-07
+**Status:** IN PROGRESS — phase 1 underway. Migration `0046` and the four new `icons.json` entries
+have landed in the repo. `0046` is **applied to dev only** — not staging, not production. Verified
+on dev: applies in one transaction, is idempotent on re-run, all five FKs carry the intended
+`ON DELETE`, and the 8 existing studies are untouched. Do not record a "migrated through" number
+for production here; probe it (`DEPLOYMENT.md`, "Checking what production has applied").
 
-**Why it's parked:** the original trigger — that a study over 500 verses must be broken into
-several studies — does not hold. No chapter exceeds 500 verses, and long books are already legal
+**Step 1b (read path) is complete and builds clean.** A series now renders in the Finder at the
+top level and inside groups, expands to its parts, survives search, and is reachable by keyboard.
+What landed: the `+layout.server.js` query and part-attachment, `expandSeriesAncestors`,
+`StudySeries.svelte`, the `StudyGroup`/`StudiesPanel` wiring, `useStudiesFilter`, and
+`PATCH /api/series/[id]` (which accepts **only** `isCollapsed`, `name`, and `lastPartId` — membership
+and ordering belong to their own endpoints, so a generic patcher cannot leave a gap in `seriesOrder`).
+
+Two invariants were enforced rather than assumed, and both are load-bearing for later phases:
+a part appears **exactly once** in the Finder (inside its series, never also as a loose study —
+verified against real dev data, 3 parts + 3 standalone = 6 total), and a series row carries
+`type: 'series'` through `groupFlattening.js`. The second was a real bug: the flattener's `else`
+branch labelled every non-group row a `study`, so arrowing onto a series would have told the toolbar
+a study was selected and pointed Delete at a study that does not exist.
+
+**Next: step 1c (creation) — and it must write `translation`.** Trap 16: `study.translation` is
+`NOT NULL` with no default, so any INSERT omitting it fails at runtime, not at build.
+**Last updated:** 2026-08-08
+
+⚠️ **This read "ON HOLD. Not scheduled; no code written" — all three clauses are now false.** Left
+visible because the next reader's first question is "has anything shipped?", and a status line that
+was wrong once should be seen to have been wrong. Nothing about the **rationale** for parking it
+changed; the work resumed by decision, not because the reasoning below expired.
+
+
+**Why it was parked, and why that reasoning still stands:** the original trigger — that a study
+over 500 verses must be broken into several studies — does not hold. No chapter exceeds 500
+verses, and long books are already legal
 today as multiple passages in one study. Nothing is broken, so this is a
 build-it-because-it's-better feature rather than a fix.
 
 **The reframing is settled** (§1, Q1): this is _a series of studies that belong together_, not a
 workaround for long ones.
 
-**Before resuming, read §8, then Q23 and Q42 together.** §8 carries the feature's biggest
-commitment — five existing structural commands (Join Column, Join Section, Join Segment, Move Text
-Up, Move Text Down) must work across a part boundary — and that commitment is what makes the
-connection questions urgent: `segmentConnection.studyId` becomes actively wrong once a segment can
-change part. Phase 1's migration must therefore add `segmentConnection.seriesId`, and the
-**semantics** of `studyId` — which is `.notNull()` today — must be settled before that migration
-is written (Q42). The new column alone fixes nothing.
+**Before continuing, read §8 — then Q23.** §8 carries the feature's biggest commitment: five
+existing structural commands (Join Column, Join Section, Join Segment, Move Text Up, Move Text
+Down) must work across a part boundary. That is what makes the connection questions urgent —
+`segmentConnection.studyId` becomes actively wrong once a segment can change part.
 
-⚠️ **"Settled" is not the same as "migrated," and an earlier version of this note ran the two
-together** ("resolve what happens to `studyId`", implying the nullability change ships in phase 1).
-It should not. Phase 1 excludes Split Part, Join Parts and boundary moves (§11), which are the only
-operations that can put a connection's two endpoints in different parts — so in phase 1 as scoped
-**no cross-part connection can exist and `studyId` cannot yet be wrong.** Adding a nullable
-`seriesId` is cheap, additive and worth doing in phase 1 to avoid a second migration; dropping
-`.notNull()` from `studyId` forces every existing reader to handle `null` for a state phase 1
-cannot produce. Decide the meaning now, execute the nullability change in the phase that needs it
-(§4, Q42).
+⚠️ **This read "read §8, then Q23 and Q42 together", and the paragraph below it gated the phase-1
+migration on deciding Q42 first. Q42 is answered and `0046` is written, so the gate is discharged.**
+The reasoning is preserved in §4 and §13 rather than repeated here, but the conclusion is: `studyId`
+stays `.notNull()`, `seriesId` is nullable and additive, and no `CHECK` was added. What survives as
+live guidance is the distinction the old note drew — **"settled" is not "migrated."** Phase 1
+excludes Split Part, Join Parts and boundary moves (§11), so it cannot produce a connection whose
+endpoints sit in different parts; dropping `.notNull()` belongs to the phase that ships those moves,
+not to this one. **Q23 is now the open one**, and it carries the whole question, because cross-part
+rows arrive from boundary moves rather than from authoring (§4).
 
 
 > **Note on this revision.** This document previously carried an inline record of its own
@@ -336,13 +361,42 @@ Not re-derived after mutations.
 **Q6 — answered: cascade.** See "Deletion" above.
 
 **Q42. Which `studyId` strategy for `segmentConnection` — nullable, or redefined as the owning
-part?** The **semantics** must be settled before the phase-1 migration is written, since they fix
-what `seriesId` means. The **nullability change** belongs to the phase that ships cross-part moves:
+part?** _(Asked in the present tense below because that is how it stood; the answer follows
+immediately.)_ The **semantics** had to be settled before the phase-1 migration was written, since
+they fix what `seriesId` means. The **nullability change** belongs to the phase that ships cross-part moves:
 phase 1 excludes Split Part, Join Parts and boundary moves, so it cannot produce a connection whose
 endpoints are in different parts, and therefore cannot produce a wrong `studyId`. See the schema
 note above and the header note. ⚠️ This previously read simply "Blocks the phase-1 migration",
 which conflated deciding with migrating and would have made every existing reader handle `null` to
 guard a state phase 1 cannot reach.
+
+**Q42 — answered (phase 1 shipped): `studyId` stays `.notNull()`; `seriesId` added nullable and
+additive; no constraint either way.** Two findings settled it.
+
+_First, cross-part connections cannot be authored._ Connections are drawn over a single study's
+canvas: `ConnectionsOverlay.svelte` resolves endpoint geometry from the elements currently mounted
+(`:1048` reads `connection.fromType`/`toType` off the live row, `:1153` derives edges from mounted
+node positions). Two parts are never on screen together, so there is no gesture that can express a
+cross-part link and no geometry to draw it with. Cross-part connection **authoring** is therefore
+out of scope indefinitely — not just phase 1 — until some view shows two parts at once.
+
+_Second, and the reason no constraint was added:_ cross-part rows will not arrive by authoring.
+They arrive when a **boundary move** slides under a connection the user legitimately drew inside
+one part — Part 2's internal link becomes cross-part because the Part 2/3 boundary moved above one
+endpoint. The user never linked across parts. So a `CHECK` forbidding the shape would not block an
+impossible gesture; it would silently decide the fate of **already-valid user work** at boundary-
+move time, and the available outcomes (delete their connection, refuse the move, corrupt the row)
+are all worse than leaving room. ⚠️ Note the shape of that near-miss: "cannot be drawn" was one
+step from being promoted into "must not exist". That is trap 10 and trap 15 a third time; see
+trap 16.
+
+Verified against a scratch clone of the dev schema before landing: migration `0046` applies
+cleanly, is idempotent on re-run, and all five FKs carry the intended `ON DELETE`
+(`study.series_id`→CASCADE, `segment_connection.series_id`→CASCADE,
+`study_series.last_part_id`→SET NULL). Deleting the remembered part leaves the series standing
+with `last_part_id` nulled; deleting the series cascades its parts and leaves standalone studies
+untouched.
+
 
 **Q43. Can a part be deleted while `enforcement` is `'block'` and the resulting series is
 non-compliant?** A part delete only ever _reduces_ coverage, so it cannot create a display or
@@ -568,6 +622,19 @@ the last-viewed part" needs a new column — `studySeries.lastPartId` or a per-u
 which phase 1's migration list does not include. So either add it to phase 1 deliberately, or keep
 "opens part 1". _Rec: part 1 for phase 1; revisit given evidence that users want resume-where-I-
 left-off._
+
+**Q18 — answered: option B, resume the last-viewed part.** The recommendation above (part 1, defer
+the column) is **not** what shipped; the column was added to phase 1 deliberately, which is the
+first branch this question offered. `studySeries.lastPartId` is nullable, references `study.id`, and
+uses `onDelete: 'set null'` — **not** cascade, because deleting the remembered part must not delete
+the series; a null simply falls back to part 1, so the fallback in the original recommendation
+remains the behaviour whenever nothing is remembered.
+
+Verified on the scratch clone: deleting the remembered part leaves the series row intact with
+`last_part_id` nulled. Note that this is a genuinely new column and not a reuse of
+`user.lastStudyView` — the confusion this question exists to record. The chevron still expands and
+the title still navigates; only the destination changed.
+
 
 ---
 
@@ -836,11 +903,27 @@ title, concatenate commentary under sub-headings, warn before discarding anythin
 ## 9. Icons
 
 ⚠️ **`src/lib/data/icons.json` is the source of truth, not `public/*.svg`.** `Icon.svelte`
-renders from a registry of 136 entries, each a single `d` path plus a `viewBox`; the 142 files in
+renders from a registry of **140 entries** (an **array** of `{ _id, viewBox, d }` objects — not a
+keyed map; see the note below), each a single `d` path plus a `viewBox`; the **145 files** in
 `public/` are **not** what gets rendered and the two sets do not match. An earlier version of this
 section listed icons by reading the directory, which is how it came to recommend one that cannot
-be rendered. See trap 13 — the mismatch is a live source of silent bugs, **three** of them shipped
+be rendered. See trap 13 — the mismatch is a live source of silent bugs, **two** of them shipped
 today.
+
+⚠️ **Counts corrected: this previously read "136 entries", "142 files" and "**three**" live bugs.**
+All three numbers moved when phase 1 registered `books`, `part-split`, `part-join` and `warning`.
+Registering `warning` fixed `StudyGroup.svelte:94`, so the live-bug count dropped from three to
+two. **`split` and `join` are still absent and still live** (`toolbarConfig.js:402`/`:407`) — the
+trap is reduced, not closed. Re-count before quoting these figures; they move whenever the
+registry does.
+
+⚠️ **`icons.json` is an array, not an object — checking membership with `in` silently lies.**
+While verifying this section I probed the registry with `'warning' in icons`, which tests *array
+indices*, so it reported every real id absent and every integer 0–139 present. The reading was
+confidently wrong in both directions and would have "confirmed" that `books` still needed
+creating. Look up by `_id` (`icons.some(e => e._id === id)`), and treat any icon audit that did
+not go through `_id` as unperformed.
+
 
 **Reusable today** — all verified present in `icons.json`:
 
@@ -854,7 +937,8 @@ today.
 | Delete series/part | `trashcan`                       | §4                                            |
 | Series/part export | `export`                         | Q32                                           |
 | Reorder runs       | `draggable`                      | §11 phase 3                                   |
-| Compliance warning | ⚠️ `warning` — **unregistered**  | See trap 13; must be added before §5 uses it  |
+| Compliance warning | `warning`                        | ⚠️ Was "**unregistered**"; registered in phase 1 |
+
 
 ⚠️ **`book-open` does not exist and was the previous recommendation.** This section used to list
 it as reusable and then propose it for standalone studies — the section's main visual decision,
@@ -872,7 +956,10 @@ look available. Two consequences worth keeping:
   existing element this feature has no reason to touch. **Withdrawn** — a standalone study keeps
   `book`.
 
-**Three new icons, and that is the whole cost.**
+**Three new icons, and that is the whole cost.** ⚠️ **All three are now registered** (phase 1),
+along with `warning`. The table stays as the design record for what they depict and why the ids
+read as they do.
+
 
 | New id       | Purpose                | Design                                                                                |
 | ------------ | ---------------------- | ------------------------------------------------------------------------------------- |
@@ -1053,11 +1140,16 @@ a pre-move confirmation that can be declined, never a mid-gesture failure._
 **Phase 1 — structure and navigation, no boundary editing**
 
 - `study_series` table; `study.seriesId` / `seriesOrder`; `segmentConnection.seriesId` as a
-  **nullable, additive** column, with Q42's semantics settled first — but **not** the `studyId`
-  nullability change, which belongs to the phase that ships cross-part moves (§4, and the header
-  note). Phase 1 cannot produce a cross-part connection, so it cannot produce a wrong `studyId`
-- **Decide Q18 before writing this migration.** If the series title is to open the last-viewed
-  part, that needs a column of its own; `user.lastStudyView` cannot carry it (§6)
+  **nullable, additive** column — but **not** the `studyId` nullability change, which belongs to
+  the phase that ships cross-part moves (§4, and the header note). Phase 1 cannot produce a
+  cross-part connection, so it cannot produce a wrong `studyId`. ✅ Shipped as `0046`; Q42 settled
+  the semantics before it was written, as this line required
+- ✅ **Q18 decided, and the column shipped in `0046`:** `studySeries.lastPartId`, nullable,
+  `onDelete: 'set null'`. This read "Decide Q18 before writing this migration. If the series title
+  is to open the last-viewed part, that needs a column of its own; `user.lastStudyView` cannot
+  carry it (§6)" — the decision was made (resume the last-viewed part) and the column written, so
+  the gate is discharged. Why it needed a column of its own is still worth knowing:
+  `user.lastStudyView` holds a **view mode**, not a part identity (§6)
 - Series delete (cascade) and part delete (warn, split the run, dissolve at one part) — §4
 - The derived **run** helper: one function, used by reorder legality, the delete warning and
   boundary-move eligibility (§4)
@@ -1065,8 +1157,11 @@ a pre-move confirmation that can be declined, never a mid-gesture failure._
   single-book ranges, part-per-passage for multi-passage studies (§5)
 - Finder series row: chevron, collapse state, expand-on-deep-link
 - Header prev/next and "Part N of M" jump dropdown
-- The `books` icon — **as an `icons.json` entry, not a `public/` file** (§9, trap 13). Register
-  `warning` at the same time; §5's preview needs it and it is missing today
+- ✅ The `books` icon — **as an `icons.json` entry, not a `public/` file** (§9, trap 13). ⚠️ This
+  continued "Register `warning` at the same time; §5's preview needs it and **it is missing
+  today**" — no longer true. `books`, `part-split`, `part-join` and `warning` are all registered.
+  `split` / `join` remain absent and remain live (trap 13); they are not this feature's to fix
+
 - _Excluded deliberately: Split Part, Join Parts, boundary moves._
 
 ⚠️ **"Independently useful" needs qualifying, and Q34 needs re-reading in that light.** The
@@ -1249,19 +1344,32 @@ the code states what it does, not why the obvious alternative fails.
     instead. If you find yourself adding a `run` table, re-read this.
 
 13. **An SVG in `public/` is not an available icon, and asking for a missing one fails silently.**
-    `Icon.svelte` renders from `src/lib/data/icons.json` (136 entries) and falls back to an empty
+    `Icon.svelte` renders from `src/lib/data/icons.json` (140 entries) and falls back to an empty
+
     path for missing icons, so a wrong `iconId` yields blank space **on screen** — though it does
     `console.warn('Icon not found: …')`, so the failure is visible in the console. (This trap
-    previously said "no console error", which was wrong; see §9.) `public/` holds 142 files and the
-    sets do not match: **12 files are unregistered** (including `book-open`, `warning`,
-    `text-append`, `text-prepend`, `segment-title`) and **6 registered ids have no file**. §9
-    recommended `book-open` purely because the file existed.
+    previously said "no console error", which was wrong; see §9.) `public/` holds 145 files and the
+    sets do not match: **11 files are unregistered** (including `book-open`, `text-append`,
+    `text-prepend`, `segment-title`) and **6 registered ids have no file** — the latter are all
+    typos: `minus-circle` vs the file `minu-circle`, and `note-positon`/`note-offset` vs the files
+    `note-position`/`note-offest`. §9 recommended `book-open` purely because the file existed.
 
-    **Three ids are referenced in executing code today and are absent from the registry** —
-    `warning` (`StudyGroup.svelte:94`, the deep-nesting indicator) and `split` / `join`
-    (`toolbarConfig.js:402` and `:407`). Those last two are the §3 collision in its worst form:
-    bare, unqualified, **and** broken. Verify against `icons.json` before specifying any icon; do
-    not trust a directory listing, and do not trust that an existing call site works.
+    ⚠️ **Counts corrected: "136 entries", "142 files", "12 unregistered" and "**three** live ids"
+    were all true when written and none are now.** Phase 1 registered `books`, `part-split`,
+    `part-join` and `warning`; `warning` is no longer in either list. Re-count before quoting.
+
+    **Two ids are referenced in executing code today and are absent from the registry** — `split`
+    and `join` (`toolbarConfig.js:402` and `:407`, verified still absent). These are the §3
+    collision in its worst form: bare, unqualified, **and** broken. Not this feature's to fix, but
+    do not read "phase 1 registered its icons" as closing this trap. ⚠️ The third was `warning`
+    (`StudyGroup.svelte:94`, the deep-nesting indicator), **now registered and rendering**. Verify
+    against `icons.json` before specifying any icon; do not trust a directory listing, and do not
+    trust that an existing call site works.
+
+    ⚠️ **And do not trust an audit that checked membership the wrong way.** `icons.json` is an
+    **array** of `{ _id, ... }` objects, so `'warning' in icons` tests array indices and returns
+    nonsense — it reported every real id absent and `0`–`139` present. Match on `_id`. See §9.
+
 
     ⚠️ **This trap previously said "six ids", adding `menu`, `back` and `forward`. Those three are
     not live and the count is corrected.** All three appear only inside the JSDoc usage-example
@@ -1291,9 +1399,76 @@ the code states what it does, not why the obvious alternative fails.
     something cannot be divided, ask whether the _strategy_ or the _feature_ is the thing that
     does not apply. See §5.
 
+16. **`drizzle-kit generate` is not safe to run in this repo, and its prompt is not a question you
+    can answer.** The `drizzle/meta` snapshots stop at `0009_snapshot.json` while migrations
+    `0010`–`0045` were written by hand, so drizzle-kit diffs `schema.ts` against a snapshot ~36
+    migrations stale. Running it during phase 1 asked _"Is app_settings table created or renamed
+    from another table? ❯ + app_settings / ~ passage_split › app_settings"_ — it had no record of
+    `app_settings` (added in `0044`) and offered to interpret it as a **rename of `passage_split`**,
+    a table dropped by `0016`. Answering the wrong branch emits `ALTER TABLE … RENAME` against live
+    data. It was aborted before writing anything and `0046` was hand-written instead.
+
+    Note the shape: the tool asked a confident question about a state it could not see, and the
+    only safe response was to distrust the premise.
+
+    ⚠️ **This was first recorded as repo drift needing repair. It is not — it is a documented
+    convention, and `DEPLOYMENT.md:33-40` says so explicitly:** _"Only migrations `0000`–`0009` are
+    tracked in `drizzle/meta/_journal.json`. The hand-written migrations … are not journaled, so
+    `drizzle-kit migrate` won't run them automatically. Apply new hand-written SQL files with
+    psql."_ Confirmed in the data: `drizzle.__drizzle_migrations` in the dev database holds 7 rows,
+    the newest dated 2025-10-13, while objects from `0035`, `0040`, `0042`, `0043` and `0044` are
+    all present — applied by hand, exactly as documented.
+
+    So **`0046` needs no journal entry, and the journal must not be "repaired."** Rebaselining
+    means reconciling 36 hand-written migrations against a snapshot chain that stops at `0009`,
+    against a live production database, to gain automation nobody needs at this cadence: all of the
+    risk sits on the repair side. The correct operational rule is `psql -f`, staging first
+    (`DEPLOYMENT.md:121-129`), and verification on a throwaway clone (`pg_dump --schema-only` into
+    a scratch database) before touching anything real.
+
+    Recorded because the missing journal entry *looks* exactly like an oversight, and the obvious
+    "fix" is the dangerous act.
+
+    ⚠️ **The `DEPLOYMENT.md:23` discrepancy noted here is now resolved: `0045` was applied and the
+    line was stale.** This read "either it is applied and the line is not; worth checking before the
+    next deploy." Checked, by read-only probe against production: `information_schema` reports
+    `user.email_verified`, so `0045_fix_auth_column_case.sql` has run. In hindsight it could not
+    have been otherwise — `auth.ts` wires Better Auth through `drizzleAdapter(db, { schema })` and
+    `schema.ts` is snake_case throughout, so an unapplied `0045` would break **every login in
+    production**, not go unnoticed in a doc line.
+
+    The line has been replaced with a probe rather than a corrected number. A hand-maintained
+    "migrated through `00NN`" watermark has no writer in the workflow, so it decays silently and
+    costs someone this same investigation later — the identical failure shape as trap 17's
+    authoritative-column-with-no-writer. When a fact about live state is worth recording, prefer
+    recording **how to ask** over recording the answer.
+
+
+
+17. **The §4 schema sketch is a sketch, and `0046` diverges from it deliberately.**
+    §4 shows `title` on `study_series`; the shipped column is **`name`**, matching `studyGroup.name`
+    so the Finder's expandable-row code treats both the same way.
+
+    ⚠️ **This trap previously recorded a second divergence — a missing `translation` column — and
+    that gap is now closed.** `0046` adds `"translation" text DEFAULT 'esv' NOT NULL`, and the
+    reasoning for closing it is worth keeping, because the first argument for adding it was the
+    weaker one. "It is free now and a migration later" is a convenience claim. The real argument is
+    that **an authoritative column with no writer is worse than no column**: §4's invariants table
+    calls this column authoritative for the same-translation rule and for Q26's ESV/NET branching,
+    so if nothing wrote it, parts could silently disagree with the value that supposedly governs
+    them. That objection dissolves only because **phase 1c writes it at creation** from the source
+    study. Enforcement still arrives with Join Parts / Split Part in phase 2.
+
+    The general form, which is the reason this stays in the traps list: adding a dormant column
+    "so it is ready" is not obviously safe. A column that is *authoritative but unwritten* is a
+    latent inconsistency, and the decision to add it early is only sound when the same phase gives
+    it a writer.
+
+
 ---
 
 ## 13. Open questions
+
 
 Highest-stakes first — the first two are hard to reverse once code exists, because both are
 migration shape. Q23, Q40, Q41 and Q42 all follow from the five-command decision in §8; none of
@@ -1304,9 +1479,14 @@ them existed in this form before it.
    `studyId` becomes actively wrong and `countTouchingConnections()` silently under-reports. It
    decides whether phase 1's migration adds `segmentConnection.seriesId`, and that migration is
    no longer speculative.
-2. **Q42** — the `segmentConnection.studyId` strategy: nullable, or redefined as the owning part.
-   **Blocks the phase-1 migration**, and pairs with Q23 — adding `seriesId` beside a `.notNull()`
-   `studyId` fixes nothing, so these two must be decided together.
+2. ⚠️ **Q42 is answered and no longer open** — this read "**Blocks the phase-1 migration**, and
+   pairs with Q23 — adding `seriesId` beside a `.notNull()` `studyId` fixes nothing, so these two
+   must be decided together." Migration `0046` has shipped: `studyId` stays `.notNull()`, `seriesId`
+   is nullable and additive, no `CHECK` (§4). The pairing with Q23 was real, but resolves the other
+   way round — cross-part rows arrive from **boundary moves**, so Q23 above now carries it whole.
+   Kept in place rather than deleted because "blocks the migration" is what made it #2, and the
+   migration shipping is precisely what a future reader needs to see.
+
 3. **Q40** — what the five commands do at an **overlapping** part boundary. Newly opened by the
    adjacency decision (§8). Contiguity and gaps are settled; overlap is a third case with no
    answer, and Q7 says overlap is _normal_. Now blocks **two** features, not one: boundary-move
@@ -1332,8 +1512,12 @@ Closed: **Q1** (the reframing), **Q2/Q3** (terminology and the Split/Join collis
 **Q9** (the user picks chapters-per-part, default 1), **Q24** (boundary-move granularity — settled
 by the existing command set, not a design choice), **Q29** (`books`, on the `folder`/`folders`
 precedent), **Q31** (no `series-part` icon — numbering is text), **Q33** (aggregate reported at
-creation, informationally; binding at export), **Q43** (a part delete cannot create a compliance
-breach — recorded so no check is written for it). See §14.
+creation, informationally; binding at export), **Q42** (`studyId` stays `.notNull()`; `seriesId`
+nullable and additive; no `CHECK` — cross-part rows arrive from boundary moves, not authoring),
+**Q18** (the title resumes the last-viewed part via `studySeries.lastPartId`, `set null`, falling
+back to part 1), **Q43** (a part delete cannot create a compliance breach — recorded so no check is
+written for it). See §14.
+
 
 ---
 
@@ -1385,9 +1569,10 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | Runs: stored or derived?                                  | **Derived, never stored**                                                            | Part delete, Split Part, Join Parts and boundary moves all change run membership — four chances for a stored `runId` to go stale. One helper folding the adjacency predicate over parts in canonical order; three callers                                                                                                                                                                                                  |
 | On series delete                                          | **Cascade — everything goes**                                                        | Reverses the earlier `set null` recommendation (Q6). Matches `0009_cascade_delete_studies.sql`, and dissolves the cross-part-connection problem via the FK. Cost: one action destroys every part's structure, notes and commentary, so the confirmation must state the part count and irreversibility                                                                                                                      |
 | Deleting a single part                                    | **Allowed, warned; the run splits in two**                                           | The part's verses leave the series entirely — handing them to a neighbour would be Join Parts under the wrong name. Three consequences the warning must name: that seam is permanently dead for all five structural commands, previously-rigid parts become reorderable, and the series is now non-contiguous (Q7). Deleting to one part dissolves the series into a standalone study                                      |
-| `segmentConnection.studyId`                               | **Must change; strategy open (Q42)**                                                 | It is `.notNull()` with `onDelete: 'cascade'` and an index today, and `countTouchingConnections()` filters on it — so adding `seriesId` beside it leaves the silent under-reporting in §8 fully intact. Either make it nullable or redefine it as the owning part; either way the index needs a `seriesId` sibling                                                                                                         |
+| `segmentConnection.studyId`                               | **Stays `.notNull()`; `seriesId` added nullable (Q42, shipped in `0046`)**            | ⚠️ This read "**Must change; strategy open (Q42)**". Neither branch was taken: cross-part connections cannot be *authored* (two parts are never on screen together), so they arrive only when a **boundary move** slides under a link drawn inside one part. A `CHECK` would therefore not block a bad gesture — it would decide the fate of already-valid user work mid-move. Under-reporting in `countTouchingConnections()` is real but belongs to the phase shipping boundary moves; the index still needs a `seriesId` sibling. See §4 |
 | Icon for a standalone study                               | **`book` — unchanged**                                                               | Reverses the earlier recommendation of `book-open`, which is **not in `icons.json`** and would have rendered as blank space via the documented missing-icon fallback. `StudyItem.svelte` already uses `book` at three call sites, so the old advice was churn dressed as reuse (trap 13)                                                                                                                                   |
 | Icon for a series                                         | **`books`**                                                                          | Not "several, in order" but the `folder` → `folders` precedent: the registry already expresses this distinction as a singular/plural pair, and `folders` already means "a group among groups" in `MenuActions.svelte`. The Finder then reads `book` = study, `books` = series, `folder` = container (Q29)                                                                                                                  |
 | Split/Join Part icon names                                | **`part-split` / `part-join`**                                                       | Was `study-split` / `study-join`, which contradicts §3's decided "Split Part" / "Join Parts". The registry is uniformly object-then-verb (`column-split`, `section-join`, `segment-split`), so the object is `part`                                                                                                                                                                                                        |
 | Split/Join Part icon design                               | **The book metaphor, not a divided page**                                            | Icons are a single fill-only `d` path in a 32×32 viewBox, so the old "vertical dashed rule" needs hand-placed rects that merge at menu size. And it would be a fourth variation on "a divided rectangle" beside the three page-level split icons. The geometry cannot carry the level distinction, so the metaphor must                                                                                                    |
-| Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — three new entries total for the whole feature (`books`, `part-split`, `part-join`), plus registering `warning`, which is already broken                                                                                                                                                 |
+| Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — three new entries total for the whole feature (`books`, `part-split`, `part-join`), plus `warning`. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` remain broken and are not ours (trap 13)                                                     |
+

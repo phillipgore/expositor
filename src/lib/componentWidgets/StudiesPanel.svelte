@@ -12,6 +12,7 @@
 	import Input from "$lib/componentElements/Input.svelte";
 	import Icon from "$lib/componentElements/Icon.svelte";
 	import StudyGroup from "./studies/StudyGroup.svelte";
+	import StudySeries from "./studies/StudySeries.svelte";
 	import StudyItem from "./studies/StudyItem.svelte";
 	import { useMultiSelect } from "$lib/composables/useMultiSelect.svelte.js";
 	import { useDragAndDrop } from "$lib/composables/useDragAndDrop.svelte.js";
@@ -25,7 +26,7 @@
 	import { page } from '$app/stores';
 	import { flip } from 'svelte/animate';
 
-	let { isOpen = false, studies = [], groups = [], ungroupedStudies = [], initialWidth = 300 } = $props();
+	let { isOpen = false, studies = [], groups = [], ungroupedStudies = [], ungroupedSeries = [], initialWidth = 300 } = $props();
 
 	// Search state
 	let searchQuery = $state('');
@@ -40,7 +41,8 @@
 		() => studies,
 		() => groups,
 		() => ungroupedStudies,
-		() => searchQuery
+		() => searchQuery,
+		() => ungroupedSeries
 	);
 	
 	// Derived filtered/sorted data
@@ -132,6 +134,48 @@
 			}
 		} catch (error) {
 			console.error('Error toggling group:', error);
+		}
+	}
+
+	/**
+	 * Toggle series collapsed state.
+	 *
+	 * Separate endpoint from groups because a series is a separate table (SERIES_PLAN §4);
+	 * the persisted flag is studySeries.isCollapsed, mirroring studyGroup.isCollapsed.
+	 */
+	async function toggleSeriesCollapse(seriesId, currentState) {
+		try {
+			const response = await fetch(`/api/series/${seriesId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ isCollapsed: !currentState })
+			});
+
+			if (response.ok) {
+				await invalidate('app:studies');
+			}
+		} catch (error) {
+			console.error('Error toggling series:', error);
+		}
+	}
+
+	/**
+	 * Handle series header click.
+	 *
+	 * Q18: the title navigates to the last-viewed part, falling back to part 1 when nothing
+	 * is remembered (studySeries.lastPartId is nullable and SET NULL on part delete). The
+	 * chevron is a separate control and handles expand/collapse on its own.
+	 */
+	function handleSeriesHeaderClick(event, series) {
+		event.preventDefault();
+
+		const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey;
+		if (hasModifier) return;
+
+		const remembered = series.parts?.find((p) => p.id === series.lastPartId);
+		const target = remembered ?? series.parts?.[0];
+		if (target) {
+			goto(`/study/${target.id}/${currentStudyView}`);
 		}
 	}
 
@@ -488,7 +532,7 @@
 				</ul>
 			{:else}
 				<div class="studies-container" onkeydown={keyboardNav.handleListKeyDown}>
-					{#each sortedGroupsAndStudies as item, index (item.type === 'group' ? 'group-' + item.data.id : 'study-' + item.data.id)}
+					{#each sortedGroupsAndStudies as item, index (item.type + '-' + item.data.id)}
 						<div role="presentation" animate:flip={{ duration: 300 }}>
 							{#if item.type === 'group'}
 								<StudyGroup
@@ -512,12 +556,40 @@
 									isGroupSelected={(groupId) => multiSelect.isItemSelected('group', groupId)}
 									getGroupSelectionPosition={(groupId) => multiSelect.getSelectionPosition('group', groupId)}
 									isGroupActive={(groupId) => groupId === activeGroupId}
+									isSeriesSelected={(seriesId) => multiSelect.isItemSelected('series', seriesId)}
+									getSeriesSelectionPosition={(seriesId) => multiSelect.getSelectionPosition('series', seriesId)}
+									isSeriesActive={(seriesId) => {
+										const s = item.data.series?.find((x) => x.id === seriesId);
+										return s?.parts?.some((p) => p.id === activeStudyId) || false;
+									}}
+									onToggleSeriesCollapse={toggleSeriesCollapse}
+									onSeriesHeaderClick={handleSeriesHeaderClick}
 									forceExpanded={searchQuery.trim() !== ''}
 									onfocus={() => {
 										const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
 										const itemIndex = flatList.findIndex(i => i.type === 'group' && i.id === item.data.id);
 										if (itemIndex !== -1) keyboardNav.updateFocusedIndex(itemIndex);
 									}}
+								/>
+							{:else if item.type === 'series'}
+								<StudySeries
+									series={item.data}
+									tabindex={index === 0 ? 0 : -1}
+									isSelected={multiSelect.isItemSelected('series', item.data.id)}
+									selectionPosition={multiSelect.getSelectionPosition('series', item.data.id)}
+									isActive={item.data.parts?.some((p) => p.id === activeStudyId) || false}
+									onToggleCollapse={toggleSeriesCollapse}
+									onSeriesHeaderClick={handleSeriesHeaderClick}
+									onSeriesMouseDown={null}
+									onStudyMouseDown={handleStudyMouseDown}
+									onStudyClick={handleStudyClick}
+									isStudySelected={(studyId) => multiSelect.isItemSelected('study', studyId)}
+									getStudySelectionPosition={(studyId) => multiSelect.getSelectionPosition('study', studyId)}
+									isStudyActive={(studyId) => studyId === activeStudyId}
+									isStudyBeingDragged={dragDrop.isStudyBeingDragged}
+									isDragging={dragDrop.isDragging}
+									{formatPassageReference}
+									forceExpanded={searchQuery.trim() !== ''}
 								/>
 							{:else}
 								<div class="study-wrapper">
