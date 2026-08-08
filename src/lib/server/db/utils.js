@@ -130,20 +130,28 @@ function getFirstWordId(testamentId, bookId, chapter, verse) {
 
 /**
  * Create default column, section, and segment for a passage
+ *
+ * Accepts an optional executor so this can run INSIDE a caller's transaction. Series creation
+ * inserts a passage and its structure together, and if the structure writes went to the pooled
+ * `db` while the passage insert sat uncommitted in a transaction, they would fail the
+ * `passage_column.passage_id` foreign key — the passage is not visible outside its transaction
+ * yet. Defaulting to `db` keeps every existing caller unchanged.
+ *
  * @param {string} passageId - The passage ID
  * @param {string} testamentId - The testament ID
  * @param {string} bookId - The book ID
  * @param {number} fromChapter - The starting chapter
  * @param {number} fromVerse - The starting verse
+ * @param {any} [dbx] - Transaction or db instance (defaults to `db`)
  * @returns {Promise<void>}
  */
-export async function createDefaultPassageStructure(passageId, testamentId, bookId, fromChapter, fromVerse) {
+export async function createDefaultPassageStructure(passageId, testamentId, bookId, fromChapter, fromVerse, dbx = db) {
 	const now = new Date();
 	const firstWordId = getFirstWordId(testamentId, bookId, fromChapter, fromVerse);
 	
 	// Create default column
 	const columnId = uuidv4();
-	await db.insert(passageColumn).values({
+	await dbx.insert(passageColumn).values({
 		id: columnId,
 		passageId: passageId,
 		startingWordId: firstWordId,
@@ -153,7 +161,7 @@ export async function createDefaultPassageStructure(passageId, testamentId, book
 	
 	// Create default section (blue color)
 	const sectionId = uuidv4();
-	await db.insert(passageSection).values({
+	await dbx.insert(passageSection).values({
 		id: sectionId,
 		passageColumnId: columnId,
 		startingWordId: firstWordId,
@@ -163,7 +171,7 @@ export async function createDefaultPassageStructure(passageId, testamentId, book
 	});
 	
 	// Create default segment (no headings)
-	await db.insert(passageSegment).values({
+	await dbx.insert(passageSegment).values({
 		id: uuidv4(),
 		passageSectionId: sectionId,
 		startingWordId: firstWordId,
