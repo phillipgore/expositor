@@ -135,10 +135,35 @@ export async function load({ params, request, depends }) {
 
 			const index = parts.findIndex((part) => part.id === studyId);
 
+			// Q18: remember THIS part as the series' resume target.
+			//
+			// This is the only writer that matters. Creation seeds `lastPartId` to part 1, but a
+			// seed is not a memory: without this the series title in the Finder would resume part 1
+			// forever, permanently serving the fallback and making the column decorative. Writing
+			// it here rather than in the nav component covers every way into a part — the prev/next
+			// arrows, the "Part N of M" jump menu, a Finder click, a deep link, `⌥←`/`⌥→`, and a
+			// plain reload — because they all come through this load. A writer per entry point
+			// would be five chances to forget one (trap 17: an authoritative column whose writer
+			// misses the case it exists for).
+			//
+			// Guarded on inequality so a reload or an `invalidate('app:studies')` is not a write,
+			// and deliberately NOT awaited: the resume target is a convenience, so it must not add
+			// latency to the shell or fail the page if it fails. `updatedAt` is left alone — merely
+			// looking at a part is not editing the series.
+			if (seriesRow && index !== -1 && seriesRow.lastPartId !== studyId) {
+				db
+					.update(studySeries)
+					.set({ lastPartId: studyId })
+					.where(eq(studySeries.id, studyData.seriesId))
+					.catch((err) => {
+						console.error('Failed to record last-viewed part:', err);
+					});
+			}
 
 			// A series row that has vanished, or a part missing from its own sibling list, means
 			// something is wrong upstream; send no context rather than render "Part 0 of 3".
 			if (seriesRow && index !== -1) {
+
 				seriesContext = {
 					id: seriesRow.id,
 					name: seriesRow.name,

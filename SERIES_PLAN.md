@@ -4,7 +4,8 @@
 > here for one reason only: commit messages and people's memory still use it, so a search for
 > it should land somewhere useful. It is not an alternative name for the feature — see §3.
 
-**Status:** IN PROGRESS — phase 1 underway. Migration `0046` and the four new `icons.json` entries
+**Status:** IN PROGRESS — **phase 1 complete**; phase 2 not started. Migration `0046` and the four new `icons.json` entries
+
 have landed in the repo. `0046` is **applied to dev only** — not staging, not production. Verified
 on dev: applies in one transaction, is idempotent on re-run, all five FKs carry the intended
 `ON DELETE`, and the 8 existing studies are untouched. Do not record a "migrated through" number
@@ -24,8 +25,22 @@ verified against real dev data, 3 parts + 3 standalone = 6 total), and a series 
 branch labelled every non-group row a `study`, so arrowing onto a series would have told the toolbar
 a study was selected and pointed Delete at a study that does not exist.
 
-**Next: step 1c (creation) — and it must write `translation`.** Trap 16: `study.translation` is
-`NOT NULL` with no default, so any INSERT omitting it fails at runtime, not at build.
+**Step 1c (creation) is complete**, and it did write `translation` — trap 16's warning
+(`study.translation` is `NOT NULL` with no default, so an INSERT omitting it fails at runtime, not
+at build) was heeded rather than rediscovered. What landed: `seriesPlanning.js` (`isSeriesEligible`,
+`getPartingStrategy`, `planSeriesParts`), `POST /api/series`, `SplitIntoSeriesModal`, and the New
+Study form's create-as-series choice. Both entry points go through the same planner and the same
+endpoint, so the preview a user approves is the parting they get.
+
+**Phase 1 is now feature-complete**: creation, the Finder row, prev/next navigation, delete
+(series and part), the derived run helper, and the disabled-with-a-reason boundary states. Two
+verifier scripts pin the behaviour to this document — `verify-series-runs.mjs` and
+`verify-boundary-reasons.mjs` (24 checks) — and both run against real `bible.json` via
+`node --import ./scripts/alias-loader.mjs`.
+
+**Next: phase 2**, which is blocked on Q40 (overlapping boundaries) and Q23 (cross-part
+connections). Neither is a coding task; both are decisions.
+
 **Last updated:** 2026-08-08
 
 ⚠️ **This read "ON HOLD. Not scheduled; no code written" — all three clauses are now false.** Left
@@ -448,7 +463,8 @@ capability rather than noise, so they are now kept apart deliberately:
 | Question                                             | Answer                                                   |
 | ---------------------------------------------------- | -------------------------------------------------------- |
 | **Eligibility** — when is a series _possible_?       | **Any range spanning 2+ chapters.** Never restricted.    |
-| **Solicitation** — when does the app _volunteer_ it? | Only when the range is plausibly multi-session. Tunable. |
+| **Solicitation** — when does the app _volunteer_ it? | **As shipped: whenever eligible.** Tunable. |
+
 
 **Eligibility is 2+ chapters and that is not negotiable.** Two sessions on Haggai is a real
 teaching plan; three on Habakkuk likewise. There is no principle by which the app knows better
@@ -501,9 +517,20 @@ absence of arithmetic is not the absence of a decision.**
 
 ### Where series get created
 
-1. **New Study flow** — when the range is plausibly multi-session, offer _"This spans 16
-   chapters. Create as: **(•) One study** ( ) A series of studies"_ with a chapters-per-part
-   stepper. Note which option is pre-selected.
+1. **New Study flow** — offer _"Create as: **(•) One study** ( ) A series of studies"_ with a
+   chapters-per-part stepper. **One study is pre-selected**, per rule 2. ✅ Shipped in
+   `StudyForm.svelte` (the choice, stepper, live preview and compliance notices) and the
+   `new-study` action (which converts via `POST /api/series` after creating the study, so the
+   parts come from the same `planSeriesParts()` the preview showed).
+
+   ⚠️ **One deviation, recorded rather than hidden: the offer is shown whenever the study is
+   eligible (2+ chapters), not only "when the range is plausibly multi-session."** Two reasons.
+   A "plausibly multi-session" threshold is a second eligibility rule living beside
+   `isSeriesEligible()`, and trap 10 is precisely about eligibility rules drifting apart. And it
+   would have the app judging which studies are _worth_ splitting — a soft version of the
+   deciding rule 1 forbids. The offer is inert until chosen, so showing it costs a user nothing;
+   guessing wrong about their intent costs them the capability.
+
 2. **From an existing study — "Split into a series…" in the study menu. Always available for any
    2+ chapter study, whether or not the flow ever offered it.** This is what makes the choice
    genuinely the user's: it never depends on the app having volunteered the question, so tuning
@@ -1153,8 +1180,10 @@ a pre-move confirmation that can be declined, never a mid-gesture failure._
 - Series delete (cascade) and part delete (warn, split the run, dissolve at one part) — §4
 - The derived **run** helper: one function, used by reorder legality, the delete warning and
   boundary-move eligibility (§4)
-- Create-as-series in the New Study flow: chapters-per-part stepper with preview for contiguous
-  single-book ranges, part-per-passage for multi-passage studies (§5)
+- ✅ Create-as-series in the New Study flow: chapters-per-part stepper with preview for contiguous
+  single-book ranges, part-per-passage for multi-passage studies (§5). Both entry points share
+  `planSeriesParts()` and `POST /api/series`, so the New Study form and "Split into a series…"
+  cannot produce differently-shaped parts from the same input
 - Finder series row: chevron, collapse state, expand-on-deep-link
 - Header prev/next and "Part N of M" jump dropdown
 - ✅ The `books` icon — **as an `icons.json` entry, not a `public/` file** (§9, trap 13). ⚠️ This

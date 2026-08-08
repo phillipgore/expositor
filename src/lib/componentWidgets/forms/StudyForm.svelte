@@ -34,7 +34,14 @@
 		validateStudyDisplayLimits
 	} from '$lib/utils/translationLimits.js';
 
+	import {
+		isSeriesEligible,
+		getPartingStrategy,
+		planSeriesParts
+	} from '$lib/utils/seriesPlanning.js';
+
 	import { assessStudySize } from '$lib/config/studyLimits.js';
+
 	import { pendingEditKey, armedKey } from '$lib/utils/pendingEdit.js';
 
 	import { setStudyEditDirty, clearStudyEditDirty } from '$lib/stores/studyEditDirty.js';
@@ -152,6 +159,110 @@
 	let displayComplianceWarnings = $derived(
 		validateStudyDisplayLimits(passages, selectedTranslation).warnings
 	);
+
+	// --- One study, or a series? (SERIES_PLAN §5, entry point 1) ------------
+	//
+	// §5's three rules, in the order they constrain this code:
+	//
+	//   1. A series is never imposed. This is a choice the user makes; nothing below reacts to
+	//      passage length by switching it on.
+	//   2. The default is always one study. `createAsSeries` starts false and the radio pair
+	//      renders with "One study" selected, so a user who ignores this section entirely gets
+	//      exactly what they got before the section existed.
+	//   3. The preview matters more than the control. Hence the live part list rather than a
+	//      bare number — "Psalms at one chapter per part means 150 parts" has to be visible
+	//      BEFORE committing, not discovered in the Finder afterwards.
+	//
+	// Offered only in `new` mode: converting an existing study is the study menu's job, and an
+	// edit-mode radio here would collide with the passage-reconciliation review flow.
+	let createAsSeries = $state(false);
+	let chaptersInput = $state('1');
+
+	// Eligibility is the SHARED rule, not a local re-derivation: 2+ chapters, never tightened
+	// (§5, trap 10). A single-chapter study simply has no seam to cut on.
+	let seriesEligible = $derived(mode === 'new' && isSeriesEligible(passages));
+
+	let seriesStrategy = $derived(getPartingStrategy(passages));
+
+	// Only chapters-per-part has anything to steer. For a multi-passage study the user already
+	// drew the seams, so a stepper would imply a choice that isn't theirs to make here.
+	let showChaptersStepper = $derived(seriesStrategy === 'chapters-per-part');
+
+	let totalChapters = $derived(
+		seriesStrategy === 'chapters-per-part' && passages[0]
+			? passages[0].toChapter - passages[0].fromChapter + 1
+			: 0
+	);
+
+	// Half the span is the largest setting that still yields the 2 parts a series requires (§4).
+	let maxChaptersPerPart = $derived(totalChapters > 1 ? Math.floor(totalChapters / 2) : 1);
+
+	// Parsed and clamped. Falls back to 1 mid-edit so a half-typed field cannot reach the
+	// planner as NaN and blank the preview.
+	let chaptersPerPart = $derived.by(() => {
+		const parsed = parseInt(chaptersInput, 10);
+		if (!Number.isFinite(parsed) || parsed < 1) return 1;
+		return Math.min(parsed, Math.max(1, maxChaptersPerPart));
+	});
+
+	// The SAME planner the server action's endpoint runs, so this preview cannot promise a shape
+	// the creation produces differently.
+	let seriesPlan = $derived(
+		createAsSeries && seriesEligible
+			? planSeriesParts({
+					passages,
+					chaptersPerPart,
+					translationId: selectedTranslation,
+					baseTitle: studyTitle
+				})
+			: null
+	);
+
+	let seriesParts = $derived(seriesPlan?.parts ?? []);
+
+	// Compliance is SHOWN, never enforced (§5, COMPLIANCE §1.6): a user may knowingly create a
+	// series that will warn at export. Note these are the planner's series-aware warnings, which
+	// include the series-level aggregate the per-part checks would otherwise silence (trap 8).
+	let seriesWarnings = $derived(seriesPlan?.warnings ?? []);
+
+	let seriesAverageVerses = $derived(
+		seriesParts.length > 0 ? Math.round(seriesPlan.totalVerses / seriesParts.length) : 0
+	);
+
+	// Q10: soft-warn past ~30 parts, require confirmation at 150. Never a refusal — 150 parts is
+	// probably a mis-click, but it is also exactly what a Psalms series legitimately is.
+	let isLargePartCount = $derived(seriesParts.length > 30);
+	let needsSeriesConfirmation = $derived(seriesParts.length >= 150);
+	let hasConfirmedLargeSeries = $state(false);
+
+	$effect(() => {
+		// Re-arm whenever the count falls back under the threshold, so the checkbox cannot stay
+		// silently ticked from a previous stepper position.
+		if (!needsSeriesConfirmation) hasConfirmedLargeSeries = false;
+	});
+
+	// A series needs 2+ parts (§4): a one-part series is a study wearing a costume. Blocks submit
+	// only while the user is actually asking for a series.
+	let seriesBlocksSubmit = $derived(
+		createAsSeries &&
+			seriesEligible &&
+			(seriesParts.length < 2 || (needsSeriesConfirmation && !hasConfirmedLargeSeries))
+	);
+
+	// Passage edits can make a chosen series impossible (down to one chapter) or move the
+	// stepper out of range. Reset rather than submit a stale setting.
+	$effect(() => {
+		if (!seriesEligible && createAsSeries) createAsSeries = false;
+	});
+
+	function stepChaptersDown() {
+		if (chaptersPerPart > 1) chaptersInput = String(chaptersPerPart - 1);
+	}
+
+	function stepChaptersUp() {
+		if (chaptersPerPart < maxChaptersPerPart) chaptersInput = String(chaptersPerPart + 1);
+	}
+
 
 	// --- Unsaved-changes (dirty) tracking, edit mode only ------------------
 	// Baseline snapshot of the last-saved values. The edit-flow layout watches
@@ -493,7 +604,132 @@
 	<PassageSelector bind:passages onPassagesChange={handlePassagesChange} />
 	<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 
+	<!--
+		§5 entry point 1: "One study" or "A series of studies".
+
+		Placed AFTER the passage selector because the choice is only meaningful once there is a
+		range to divide, and eligibility (2+ chapters) is a property of that range. Shown only
+		when eligible: offering a disabled radio pair on a single-chapter study would advertise
+		a capability and refuse it in the same breath.
+
+		Plain radios rather than the RadioButtons component: that component owns its own checked
+		state and re-derives it from its props, which fights a boolean this form needs to control
+		directly. The `name` doubles as the field the server action reads, so no hidden mirror of
+		the choice is needed — one less thing to get out of step.
+	-->
+	{#if seriesEligible}
+		<Label text="Create as"></Label>
+		<div class="series-choice">
+			<div class="series-option">
+				<input
+					type="radio"
+					id="create-one-study"
+					name="createAsSeries"
+					value="false"
+					checked={!createAsSeries}
+					onchange={() => (createAsSeries = false)}
+				/>
+				<label for="create-one-study">One study</label>
+			</div>
+			<div class="series-option">
+				<input
+					type="radio"
+					id="create-as-series"
+					name="createAsSeries"
+					value="true"
+					checked={createAsSeries}
+					onchange={() => (createAsSeries = true)}
+				/>
+				<label for="create-as-series">A series of studies</label>
+			</div>
+		</div>
+
+		{#if createAsSeries}
+			<!-- The setting the preview below was computed from, sent so the server plans the
+			     same parts the user is looking at. -->
+			<input type="hidden" name="chaptersPerPart" value={chaptersPerPart} />
+
+			{#if showChaptersStepper}
+				<div class="stepper-row">
+					<label class="stepper-label" for="chapters-per-part">Chapters per part:</label>
+					<div class="stepper">
+						<button
+							type="button"
+							class="step"
+							onclick={stepChaptersDown}
+							disabled={chaptersPerPart <= 1}
+							aria-label="Fewer chapters per part"
+						>−</button>
+						<input
+							id="chapters-per-part"
+							type="number"
+							min="1"
+							max={maxChaptersPerPart}
+							bind:value={chaptersInput}
+						/>
+						<button
+							type="button"
+							class="step"
+							onclick={stepChaptersUp}
+							disabled={chaptersPerPart >= maxChaptersPerPart}
+							aria-label="More chapters per part"
+						>+</button>
+					</div>
+					<span class="stepper-summary" aria-live="polite">
+						{seriesParts.length} parts · avg {seriesAverageVerses} verses each
+					</span>
+				</div>
+			{:else}
+				<!-- §5: "the absence of arithmetic is not the absence of a decision" — a
+				     multi-passage study has no stepper, but the user is still told what the
+				     parting will be before committing. -->
+				<p class="series-explain">
+					This study has {passages.length} passages, so it will be created as
+					{passages.length} parts — one per passage, keeping the divisions you made above.
+				</p>
+			{/if}
+
+			<!-- The preview §5 cares about more than the control: seeing the list run to 150 IS
+			     the information the user needs before committing. Scrolls, never truncates. -->
+			<ul class="series-parts" aria-live="polite">
+				{#each seriesParts as part (part.seriesOrder)}
+					<li>
+						<span class="part-order">Part {part.seriesOrder}</span>
+						<span class="part-title">{part.title}</span>
+						<span class="part-verses">{part.verseCount} verses</span>
+					</li>
+				{/each}
+			</ul>
+
+			<!-- Shown, never enforced (§5, COMPLIANCE §1.6). Includes the series-level aggregate
+			     that per-part parting would otherwise silence. -->
+			{#each seriesWarnings as warning (warning.message)}
+				<Alert
+					color={warning.level === 'notice' ? 'blue' : 'yellow'}
+					look="subtle"
+					message={warning.message}
+				/>
+			{/each}
+
+			{#if needsSeriesConfirmation}
+				<label class="series-confirm">
+					<input type="checkbox" bind:checked={hasConfirmedLargeSeries} />
+					Yes, create {seriesParts.length} parts.
+				</label>
+			{:else if isLargePartCount}
+				<Alert
+					color="blue"
+					look="subtle"
+					message={`${seriesParts.length} parts is a lot to navigate. Consider more chapters per part.`}
+				/>
+			{/if}
+		{/if}
+
+		<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
+	{/if}
+
 	<FormButtonBar>
+
 		<Button
 			href={cancelHref}
 			label="Cancel"
@@ -505,8 +741,13 @@
 		<Button
 			type="submit"
 			classes="blue"
-			isDisabled={isSubmitting || isAnalyzing || hasDuplicateTitle || hasPassageIssues}
+			isDisabled={isSubmitting ||
+				isAnalyzing ||
+				hasDuplicateTitle ||
+				hasPassageIssues ||
+				seriesBlocksSubmit}
 		>
+
 			{#if isAnalyzing}
 				<Spinner size="sm" inline color="var(--white)" label="Checking…" showLabel />
 			{:else if isSubmitting}
@@ -523,4 +764,132 @@
 		width: 41.4rem;
 		min-width: 36rem;
 	}
+
+	/* --- Series choice + preview (§5 entry point 1) ----------------------- */
+
+	.series-choice {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		margin-bottom: 1.8rem;
+	}
+
+	.series-option {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+
+	.series-option input {
+		accent-color: var(--blue);
+	}
+
+	.series-option label {
+		font-size: 1.4rem;
+		color: var(--black);
+	}
+
+	.stepper-row {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		margin-bottom: 1.2rem;
+	}
+
+	.stepper-label {
+		font-size: 1.4rem;
+		color: var(--black);
+	}
+
+	.stepper {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.stepper input {
+		width: 6rem;
+		padding: 0.4rem 0.6rem;
+		border: 1px solid var(--gray-200);
+		border-radius: 0.4rem;
+		font-size: 1.4rem;
+	}
+
+	.step {
+		width: 2.8rem;
+		height: 2.8rem;
+		border: 1px solid var(--gray-200);
+		border-radius: 0.4rem;
+		background: var(--white);
+		font-size: 1.6rem;
+		line-height: 1;
+		cursor: pointer;
+	}
+
+	.step:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	.stepper-summary {
+		font-size: 1.3rem;
+		color: var(--gray-300);
+	}
+
+	.series-explain {
+		margin: 0 0 1.2rem;
+		font-size: 1.4rem;
+		color: var(--black);
+	}
+
+	/* Scrolls rather than truncating: seeing that the list runs to 150 IS the
+	   information §5 wants visible before committing. */
+	.series-parts {
+		list-style: none;
+		margin: 0 0 1.2rem;
+		padding: 0;
+		max-height: 24rem;
+		overflow-y: auto;
+		border: 1px solid var(--gray-100);
+		border-radius: 0.4rem;
+	}
+
+	.series-parts li {
+		display: flex;
+		align-items: baseline;
+		gap: 0.8rem;
+		padding: 0.6rem 0.8rem;
+		font-size: 1.3rem;
+		border-bottom: 1px solid var(--gray-100);
+	}
+
+	.series-parts li:last-child {
+		border-bottom: none;
+	}
+
+	.part-order {
+		color: var(--gray-300);
+		min-width: 5rem;
+	}
+
+	.part-title {
+		flex: 1;
+		color: var(--black);
+	}
+
+	.part-verses {
+		color: var(--gray-300);
+		white-space: nowrap;
+	}
+
+	.series-confirm {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin-bottom: 1.2rem;
+		font-size: 1.3rem;
+		color: var(--black);
+	}
 </style>
+

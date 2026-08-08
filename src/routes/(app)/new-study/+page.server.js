@@ -68,7 +68,8 @@ export async function load({ url, request }) {
 
 /** @type {import('./$types').Actions} */
 export const actions = {
-	default: async ({ request }) => {
+	default: async ({ request, fetch }) => {
+
 		// Get the current user from session using better-auth
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user?.id) {
@@ -82,6 +83,14 @@ export const actions = {
 			const translation = formData.get('translation') || 'esv';
 			const passagesJson = formData.get('passages');
 			const groupId = formData.get('groupId');
+
+			// §5 route 1: the New Study form's "A series of studies" choice, plus the
+			// chapters-per-part setting the preview was computed from. Absent on every existing
+			// caller, which is the point — rule 2, "the default is always one study", must hold
+			// for a form that says nothing about series at all.
+			const createAsSeries = formData.get('createAsSeries') === 'true';
+			const chaptersPerPart = Number(formData.get('chaptersPerPart')) || 1;
+
 
 			// Validate title
 			if (!title || typeof title !== 'string' || title.trim() === '') {
@@ -249,8 +258,42 @@ export const actions = {
 				console.error('Failed to warm passage text cache for new study:', cacheError);
 			}
 
+			// §5 route 1: convert the just-created study into a series.
+			//
+			// Create-then-part, rather than a separate series-creation path. The endpoint's own
+			// docs anticipate this ("The New Study flow's offer (§5, route 1) ends up here too,
+			// having created the study first"), and it matters that it is the SAME endpoint: it
+			// runs `planSeriesParts()`, so the parts a user gets from this form are identical to
+			// the ones the "Split into a Series…" preview showed them. A parallel implementation
+			// here would be a second answer to "what are the parts", free to drift from the first.
+			//
+			// The source study becomes part 1 in place, so `studyId` stays valid either way and
+			// the redirect below needs no special case.
+			//
+			// A failure here is deliberately NOT fatal: the study exists and is perfectly usable,
+			// so we land the user on it rather than discarding their work over a failed
+			// conversion they can retry from the study menu. Eligibility is not pre-checked —
+			// the endpoint owns that rule (§5: eligibility is never tightened), and re-deriving
+			// it here would be a second gate to keep in sync.
+			if (createAsSeries) {
+				try {
+					const response = await fetch('/api/series', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ studyId, chaptersPerPart })
+					});
+					if (!response.ok) {
+						const detail = await response.json().catch(() => ({}));
+						console.error('Series conversion failed for new study:', detail?.error);
+					}
+				} catch (seriesError) {
+					console.error('Series conversion failed for new study:', seriesError);
+				}
+			}
+
 			// Redirect to the study view page (adjust URL as needed)
 			throw redirect(303, `/study/${studyId}`);
+
 		} catch (error) {
 			// If it's a redirect, re-throw it
 			if (error?.status === 303) {
