@@ -51,6 +51,27 @@
 	 * Whatever is visible on screen at export/print time (notes, verses, connections,
 	 * headings, focus mode, etc.) is captured; whatever is toggled off is excluded.
 	 *
+	 * ## Licence check — why it lives here, at the menu
+	 *
+	 * Distribution (quotation) limits govern text that LEAVES the app, so they are
+	 * checked at export/print and nowhere else (COMPLIANCE.md §1). This component is
+	 * the single chokepoint for **all four** artifact paths — Analyze PNG, PDF and
+	 * print, plus Document print — so one check here covers every route by which
+	 * Scripture becomes a file or a page. Putting it in the analyze page's
+	 * `export-analyze` handler instead would have silently missed Document print,
+	 * which never dispatches that event.
+	 *
+	 * `validateExportLimits()` had no caller at all until this was wired, so the
+	 * numbers under `restrictions.distribution` had no observable effect. See §5
+	 * item 4, and §1.8 for the three defects that surfaced when it was first run.
+	 *
+	 * The passages come from `$page.data` rather than a prop because this menu is
+	 * mounted by ToolbarApp, which is not study-scoped and has no study props. Note
+	 * these are DB rows carrying `bookId` (not `book`) — the validator normalises
+	 * both, which it did NOT do before §1.8; passing these rows to the old code
+	 * would have reported every study compliant.
+	 *
+
 	 * ## Usage
 	 * ```svelte
 	 * <MenuButton menuId="MenuExport" iconId="export" underLabel="Output" classes="toolbar-dark" />
@@ -66,11 +87,85 @@
 	 * @component
 	 */
 
+	import { page } from '$app/stores';
+
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
+	import ExportComplianceModal from '$lib/componentWidgets/modals/ExportComplianceModal.svelte';
+
+	import { validateExportLimits } from '$lib/utils/translationLimits.js';
 
 	let { menuId = 'MenuExport', view = 'analyze' } = $props();
+
+	/**
+	 * Compliance modal state. `pendingAction` holds the export the user asked for so
+	 * it can run unchanged if they choose to continue — the check interposes on the
+	 * action rather than replacing it, so a warned export is byte-identical to an
+	 * unwarned one.
+	 */
+	let complianceOpen = $state(false);
+	let complianceResult = $state({ warnings: [], blocked: false, totalVerses: 0 });
+	let complianceFormat = $state('png');
+	let pendingAction = $state(null);
+
+	/**
+	 * Run the distribution check for the artifact the user just requested.
+	 *
+	 * Returns the validator's verdict unchanged. Passages come from the layout's
+	 * non-streamed `data.passages` (DB rows, so `bookId`), which is present as soon
+	 * as the study route is loaded — deliberately NOT `passagesWithText`, which is
+	 * streamed and may still be pending when the user opens this menu. The licence
+	 * question is about which verses are reproduced, and the verse RANGE is what
+	 * decides that; the fetched text is irrelevant to the count.
+	 */
+	function checkCompliance() {
+		const passages = $page.data?.passages ?? [];
+		const translation = $page.data?.study?.translation ?? 'esv';
+		return validateExportLimits(passages, translation);
+	}
+
+	/**
+	 * Gate an export/print behind the distribution check.
+	 *
+	 * Compliant artifacts run immediately — the overwhelmingly common case, and a
+	 * dialog on every export would train users to dismiss it unread, which is how a
+	 * warning stops being a warning.
+	 *
+	 * @param {'png'|'pdf'|'print'} format - What the user asked for
+	 * @param {Function} run - Performs the export; called now or after confirmation
+	 */
+	function guardExport(format, run) {
+		const result = checkCompliance();
+
+		if (result.compliant) {
+			run();
+			return;
+		}
+
+		complianceResult = result;
+		complianceFormat = format;
+		// Blocked exports must not keep a runnable action around: the modal offers no
+		// confirm button, and holding the closure would leave one keystroke between a
+		// blocked artifact and a produced one.
+		pendingAction = result.blocked ? null : run;
+		complianceOpen = true;
+	}
+
+	/** Continue with the export the user was warned about. */
+	function handleComplianceConfirm() {
+		const run = pendingAction;
+		complianceOpen = false;
+		pendingAction = null;
+		if (run) run();
+	}
+
+	function handleComplianceClose() {
+		complianceOpen = false;
+		pendingAction = null;
+	}
+
+	let translationLabel = $derived(($page.data?.study?.translation ?? 'esv').toUpperCase());
 
 	/**
 	 * Close this menu if it's currently open. Shared by every menu item so the
@@ -93,11 +188,16 @@
 	 */
 	function handlePrint() {
 		closeMenu();
-		if (view === 'analyze') {
-			window.dispatchEvent(new CustomEvent('export-analyze', { detail: { format: 'print' } }));
-		} else {
-			window.print();
-		}
+		// Both print paths are gated: a Document printout reproduces exactly the same
+		// verses as an Analyze one, so exempting it would make compliance depend on
+		// which view the user happened to be in.
+		guardExport('print', () => {
+			if (view === 'analyze') {
+				window.dispatchEvent(new CustomEvent('export-analyze', { detail: { format: 'print' } }));
+			} else {
+				window.print();
+			}
+		});
 	}
 
 	/**
@@ -107,7 +207,9 @@
 	 */
 	function handleExport(format) {
 		closeMenu();
-		window.dispatchEvent(new CustomEvent('export-analyze', { detail: { format } }));
+		guardExport(format, () => {
+			window.dispatchEvent(new CustomEvent('export-analyze', { detail: { format } }));
+		});
 	}
 </script>
 
@@ -144,3 +246,16 @@
 		handleClick={handlePrint}
 	/>
 </Menu>
+
+<!-- Rendered outside <Menu> because the popover is dismissed before the action
+     runs (closeMenu above); a dialog nested inside it would be torn down with it. -->
+<ExportComplianceModal
+	isOpen={complianceOpen}
+	warnings={complianceResult.warnings}
+	blocked={complianceResult.blocked}
+	totalVerses={complianceResult.totalVerses}
+	{translationLabel}
+	format={complianceFormat}
+	onConfirm={handleComplianceConfirm}
+	onClose={handleComplianceClose}
+/>

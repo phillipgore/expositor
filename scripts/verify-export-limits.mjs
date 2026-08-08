@@ -1,8 +1,11 @@
 /**
  * Verify `validateExportLimits()` — the distribution (copyright quotation) check.
  *
- * This function shipped with no caller and had therefore never been executed. Running it once
- * against real data surfaced two defects that inspection had missed, and both are pinned here:
+ * This function shipped with no caller and had therefore never been executed. It is now called
+ * from MenuExport, the one chokepoint all four artifact paths cross (COMPLIANCE.md §1.9).
+ * Running it once against real data surfaced two defects that inspection had missed, and both
+ * are pinned here:
+
  *
  *   1. `totalVerses` was summed from countVersesInRange() per passage, so overlapping passages
  *      were counted twice — Romans 1-8 plus Romans 8-16 reported 472 verses reproduced from a
@@ -27,8 +30,10 @@
 
 import {
 	validateExportLimits,
-	validateStudyDisplayLimits
+	validateStudyDisplayLimits,
+	getDistributionLimits
 } from '../src/lib/utils/translationLimits.js';
+
 import { getBookVerseTotal } from '../src/lib/utils/bibleData.js';
 
 let pass = 0;
@@ -134,6 +139,49 @@ check('warn-only posture: never blocks', wholeRomans.blocked, false);
 // A translation with no distribution limits configured must not invent any.
 const net = validateExportLimits([p('NT', 'RO', 1, 1, 16, 27)], 'net');
 check('NET has no distribution limits, so a whole book is compliant', net.compliant, true);
+
+// --- The distribution ceiling is 500, not the print figure of 1000 ---------------------------
+//
+// The ESV API terms: "You may distribute up to 500 verses..." Our text comes from the API, so
+// 500 binds; 1000 is the print copyright-page permission and was carried here in error until
+// 2026-08-08. It survived because `validateExportLimits()` had no caller and the value was
+// therefore judged to have "no observable effect" — an argument that expired the moment the
+// check was wired into MenuExport, since the warning copy QUOTES the ceiling at the user.
+// See COMPLIANCE.md §1.9.
+//
+// Pinned as data, not just as behaviour: the failure mode was a plausible number sitting in
+// JSON, so the assertion has to be about the number.
+check(
+	'ESV distribution ceiling is the API figure, not the print one',
+	getDistributionLimits('esv').maxVerses,
+	500
+);
+
+// And it must actually bind. This needs a range over 500 verses that is still under half its
+// book, so the total-verse rule is the ONLY one that can fire — otherwise the assertion would
+// pass on the complete-book warning and say nothing about the ceiling. Psalms 1-36 is 511
+// verses against a 2,461-verse book, so half (1,230) is far away.
+//
+// Matthew was the first choice and does not work: no chapter boundary in Matthew lands between
+// 500 verses and half the book. The range was assumed rather than measured, and the assertion
+// duly failed — the same "plausible number, unverified" mistake COMPLIANCE.md §0 is about,
+// committed while writing a test for it. Both figures below are measured from bible.json.
+const overCeiling = validateExportLimits([p('OT', 'PS', 1, 1, 36, 999)], 'esv');
+check('Psalms 1-36 is 511 verses', overCeiling.totalVerses, 511);
+assert('which is over the 500-verse ceiling', overCeiling.totalVerses > 500);
+assert(
+	'and under half of Psalms, so only the ceiling can be what fires',
+	overCeiling.totalVerses < getBookVerseTotal('OT', 'PS') / 2
+);
+
+assert(
+	'the ceiling warning fires and quotes 500',
+	overCeiling.warnings.some((w) => w.includes('500-verse'))
+);
+assert(
+	'and never quotes the withdrawn print figure',
+	!overCeiling.warnings.some((w) => w.includes('1000'))
+);
 
 // --- Degenerate input ------------------------------------------------------------------------
 

@@ -149,7 +149,7 @@ rather than closing them all is a choice, not an oversight:
 | Half a book **per query**          | ✅ Server-side truncation  | Compliant — necessarily                                 |
 | Half a book **displayed per page** | ❌ Cannot see our DOM      | **Now warned** at study level (§1.6)                    |
 | ≤500 verses **locally stored**     | ❌ Cannot see our database | ⚠️ **Not compliant.** `passage.cachedText` is unbounded |
-| ≤500 verses **distributed**        | ❌ Cannot see our exports  | Checked, but the checker has no caller (§5)             |
+| ≤500 verses **distributed**        | ❌ Cannot see our exports  | **Now warned** at export/print (§1.9)                   |
 
 | Surface                                 | Rule applied                                                                |
 | --------------------------------------- | --------------------------------------------------------------------------- |
@@ -399,7 +399,8 @@ than at each call site, so a caller cannot reintroduce it by forgetting.
 
 An unexecuted check is not a check; it is a plausible-looking claim about behaviour. All
 three defects were invisible to reading and immediate on running. The verifier
-(`scripts/verify-export-limits.mjs`, 26 assertions) pins each one, and asserts that both
+(`scripts/verify-export-limits.mjs`, 32 assertions) pins each one, and asserts that both
+
 passage shapes produce identical totals so the outcome can never again depend on which
 layer happened to construct the passage.
 
@@ -411,10 +412,80 @@ error in the opposite direction. Asserted explicitly so it is not "tidied" away.
 
 ### Still outstanding
 
-`validateExportLimits()` remains **uncalled**. These fixes mean it will be correct when
-wired to the export path, and it is no longer accurate to say the numbers in
-`restrictions.distribution` have no observable effect _because the function is broken_ — but
-the `maxVerses: 1000` vs `500` question in §5 is unchanged and still awaits a decision.
+Nothing from this pass. The check was wired to the export path the following day and the
+`maxVerses` question resolved with it — both in §1.9, which is the direct continuation of
+this section.
+
+---
+
+## 1.9 Wiring the check, and the deferral that expired
+
+_Added 2026-08-08. Closes §5 items 3 and 4._
+
+§1.8 fixed a check that had never run. This section records **running** it, and one
+instructive consequence.
+
+### Where the check goes, and why not where the plan said
+
+§5 item 4 had proposed wiring it into "`MenuExport` / `exportAnalyze.js`". Following that
+literally would have left a hole. `exportAnalyze.js` only ever sees the Analyze capture
+pipeline; **Document print never reaches it**, because that path calls `window.print()`
+directly against a page with its own `@media print` stylesheet. Checking there would have
+covered three of the four ways Scripture leaves the app and missed one — and the missed one
+produces paper, the most obviously distributable artifact of the four.
+
+The check therefore sits in `MenuExport`, which is the **only** component all four paths
+pass through:
+
+| Path               | Mechanism                           | Reaches `exportAnalyze.js`? | Gated now |
+| ------------------ | ----------------------------------- | --------------------------- | --------- |
+| Analyze PNG        | `export-analyze` → capture          | ✅                          | ✅        |
+| Analyze PDF        | `export-analyze` → capture → jsPDF  | ✅                          | ✅        |
+| Analyze print      | `export-analyze` → capture → iframe | ✅                          | ✅        |
+| **Document print** | `window.print()` on the live page   | ❌ **never**                | ✅        |
+
+This is §6 rule 4 — match the check's scope to the rule's scope — applied to code paths
+rather than to verse counts. The rule governs "text that leaves the app," so the check
+belongs at the narrowest point that **every** departure crosses.
+
+A non-compliant artifact raises `ExportComplianceModal` before anything is produced. It
+shows the validator's own messages verbatim rather than composing new copy, so the two
+descriptions of one rule cannot drift — the §1.7 failure. `enforcement` still decides
+whether Continue is offered, so §5 item 5 remains a JSON-only change.
+
+Passages come from `$page.data.passages` — the non-streamed layout data, which is **DB rows
+carrying `bookId`**. That is precisely the shape that silently returned `compliant: true`
+before §1.8's `passageBookId()` fix. Wiring this a day earlier would have produced a
+compliance check that passed on every real study, and it would have looked like it worked.
+
+### The deferral that expired without anyone touching it
+
+§5 item 3 had left `maxVerses` at `1000` — the print copyright-page figure — when the API
+terms say **500**. The justification, quoted from the JSON note:
+
+> "The value is left at 1000 pending a deliberate decision because `validateExportLimits()`
+> currently has no caller, so the number has no observable effect either way."
+
+That was true, well-reasoned, and **conditional**. Wiring the check removed the condition:
+the number acquired an observable effect immediately, and the first thing it did with it was
+tell users they had a 1000-verse allowance they do not have. The warning copy states the
+ceiling — _"exceeds the 1000-verse quotation limit for ESV"_ — so a wrong ceiling is not an
+inert value, it is a false statement about the licence, printed in the one place a user
+would look to learn the rule.
+
+Nobody re-derived the old justification and nobody removed it. It stopped holding because a
+**different** change altered the fact it rested on. Both items were in §5 together, with
+item 3 even ending "Fix it together with item 4" — and that instruction only works if
+whoever does item 4 reads item 3 as a prerequisite rather than a neighbour.
+
+**The general form, and it is worth stating as a rule:** a deferral justified by a current
+fact must name the fact, and the change that alters the fact must discharge the deferral in
+the same commit. A "no observable effect" argument is a dependency on the absence of a
+caller. Adding the caller is not an unrelated change to it — it is its expiry.
+
+Corrected in the same commit as the wiring, so the wrong figure was never live. The
+verifier pins 500 against the quoted clause, so a future edit back to 1000 fails the build
+rather than reappearing in user copy.
 
 ---
 
@@ -695,15 +766,20 @@ It clones rather than duplicating the legal text so the two copies cannot drift.
      comment cited it.) **Do not implement ESV chunking while awaiting a reply.**
      Nothing is blocked meanwhile: NET serves whole books today.
 
-3. **Correct the distribution verse ceiling.** `restrictions.distribution.maxVerses` is
-   `1000`, from the print copyright page. The API terms say **500** for text obtained via
-   the API, which is our case. Left unchanged for now only because
-   `validateExportLimits()` has no caller, so the number has no observable effect —
-   see `maxVersesNote` in `translations.json`. Fix it together with item 4.
+3. ~~**Correct the distribution verse ceiling.**~~ **Done (2026-08-08).** See §1.9.
+   `restrictions.distribution.maxVerses` was `1000`, from the print copyright page; the
+   API terms say **500** for text obtained via the API, which is our case. The deferral
+   above rested entirely on the number having "no observable effect" because
+   `validateExportLimits()` had no caller — so item 4 destroyed that justification the
+   moment it landed, and the wrong ceiling became a figure the app states to users.
 
-4. **Wire `validateExportLimits()` into the export flow.** The function exists and is
-   exercised by construction, but `MenuExport` / `exportAnalyze.js` do not call it.
-   Deferred deliberately — the warning copy should be designed alongside the export UI.
+4. ~~**Wire `validateExportLimits()` into the export flow.**~~ **Done (2026-08-08).**
+   The check runs in `MenuExport`, which is the single chokepoint for all four artifact
+   paths (Analyze PNG/PDF/print + Document print); a non-compliant artifact raises
+   `ExportComplianceModal` before anything is produced. Deliberately NOT in
+   `exportAnalyze.js` as this item originally proposed: that file never sees Document
+   print, so half the ways Scripture leaves the app would have stayed unchecked.
+   Wiring it first revealed three defects in the never-run code — see §1.8.
 
 5. **Flip `enforcement` to `'block'` at public release**, for both
    `restrictions.display` and `restrictions.distribution`. JSON-only change, no code.
