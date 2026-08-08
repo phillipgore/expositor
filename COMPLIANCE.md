@@ -345,6 +345,79 @@ those distinct.
 
 ---
 
+## 1.8 What running the never-executed check revealed
+
+`validateExportLimits()` was written, reviewed, documented in this file — and had **no
+caller**, so it had never once been executed. It read correctly on inspection. Executing it
+against real data found three defects in the first run, one of which was a silent all-clear.
+
+### 1. A count that could not exist
+
+`totalVerses` was accumulated by summing `countVersesInRange()` per passage, while the
+per-book checks below it used verse-identity `Set`s. So the two halves of the function
+disagreed: Romans 1-8 plus Romans 8-16 (overlapping at chapter 8) reported **472 verses
+reproduced from a 433-verse book**. The docblock's promise that overlapping passages are not
+double-counted was true of the per-book checks and false of the total — and the total is the
+number a user would check against the licence. Now derived from the same Sets.
+
+### 2. An internal id in user copy — the third instance
+
+"This export reproduces the complete book of **RO**." This is the same error §1.7 records
+for `checkSinglePassageSupport()` ("the complete book of **JN**"), in a function whose
+sibling already carried a comment explaining that a warning naming an id is worse than no
+warning. The comment was there; the fix had simply never been applied to this path.
+
+### 3. The silent all-clear — `bookId` vs `book`
+
+The worst of the three, and not confined to the export path.
+
+A passage row from the database has **`bookId`** (`schema.ts`). A passage built in memory by
+`StudyForm` has **`book`**. Both validators read only `book`. An unrecognised book makes
+`getBookVerseTotal()` return 0, every verse is skipped, and the result is
+`compliant: true, warnings: []`.
+
+Measured directly, same range, same translation:
+
+| Passage shape           | Verses counted | Result                   |
+| ----------------------- | -------------- | ------------------------ |
+| `{ book: 'RO', ... }`   | 433            | not compliant, 1 warning |
+| `{ bookId: 'RO', ... }` | **0**          | **compliant, silent**    |
+
+A whole-Romans study passed the ESV display check because the check could not read its own
+input. `seriesPlanning.js` had already encountered this and normalises `p.book ?? p.bookId`
+for the parts it builds — but passes **raw rows** to the series-wide display check, so that
+check was inert against production data while appearing to pass.
+
+This is the failure mode this document should treat as most dangerous: not a wrong number,
+which gets noticed, but a compliance check that reports success **because** it failed. A
+warn-only posture makes it quieter still — nothing blocks, so nothing draws attention.
+
+**The fix** normalises the field at the top of both validators (`passageBookId()`), rather
+than at each call site, so a caller cannot reintroduce it by forgetting.
+
+### The general lesson
+
+An unexecuted check is not a check; it is a plausible-looking claim about behaviour. All
+three defects were invisible to reading and immediate on running. The verifier
+(`scripts/verify-export-limits.mjs`, 26 assertions) pins each one, and asserts that both
+passage shapes produce identical totals so the outcome can never again depend on which
+layer happened to construct the passage.
+
+It also pins one thing that looks like a bug and is not: **whole Philemon warns on export**
+while the display check exempts it. `shortBookChapterThreshold` is stated in the display
+clause and has no counterpart in the distribution clause, whose `allowCompleteBook: false`
+is unqualified. Adding the carve-out to export would be inventing a licence term — the §1.7
+error in the opposite direction. Asserted explicitly so it is not "tidied" away.
+
+### Still outstanding
+
+`validateExportLimits()` remains **uncalled**. These fixes mean it will be correct when
+wired to the export path, and it is no longer accurate to say the numbers in
+`restrictions.distribution` have no observable effect _because the function is broken_ — but
+the `maxVerses: 1000` vs `500` question in §5 is unchanged and still awaits a decision.
+
+---
+
 ## 2. Where each rule lives in code
 
 Single source of truth is `src/lib/data/translations.json`. No limit is hard-coded.

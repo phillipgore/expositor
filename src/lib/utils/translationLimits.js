@@ -547,6 +547,32 @@ function describePortion(portion) {
 }
 
 /**
+ * Read a passage's book id, accepting either field name the codebase uses.
+ *
+ * ## Why this exists — the two shapes are both real
+ *
+ * A passage row from the database has `bookId` (see `passage.bookId` in schema.ts). A passage
+ * built in memory by StudyForm has `book`. Both are legitimate, both reach these validators,
+ * and the mismatch FAILS SILENTLY: an unrecognised book makes `getBookVerseTotal()` return 0,
+ * every verse is skipped, and the study reports `compliant: true` with zero warnings.
+ *
+ * That is the worst possible failure mode for a compliance check — indistinguishable from a
+ * genuine pass. Measured directly: a whole-Romans DB row returned 0 verses and compliant,
+ * while the identical range with `book` returned 433 and a warning. `seriesPlanning` had
+ * already hit this and normalised `p.book ?? p.bookId` for the parts it builds, but still
+ * handed RAW rows to the series-wide display check, so that check was inert in production.
+ *
+ * Normalising here rather than at each call site means a caller cannot reintroduce it by
+ * forgetting, and a caller that gets it wrong is not silently told everything is fine.
+ *
+ * @param {Object} passage - Passage in either shape
+ * @returns {string|undefined} The book id, or undefined if absent in both fields
+ */
+function passageBookId(passage) {
+	return passage?.book ?? passage?.bookId;
+}
+
+/**
  * Validate a study's passages against the translation's DISPLAY limits.
 
  *
@@ -585,13 +611,17 @@ export function validateStudyDisplayLimits(passages, translationId) {
 	let totalVerses = 0;
 
 	for (const passage of passages || []) {
-		const { testament, book, fromChapter, fromVerse, toChapter, toVerse } = passage || {};
+		const { testament, fromChapter, fromVerse, toChapter, toVerse } = passage || {};
+		// Accept either field name; see passageBookId(). A DB row carries `bookId`,
+		// and reading only `book` made this whole check silently pass.
+		const book = passageBookId(passage);
 		if (!testament || !book) continue;
 
 		const key = `${testament}:${book}`;
 		if (!byBook.has(key)) {
 			byBook.set(key, { testament, book, verses: new Set() });
 		}
+
 		const entry = byBook.get(key);
 		if (!entry) continue;
 
@@ -765,8 +795,13 @@ export function validateExportLimits(passages, translationId) {
 	let totalVerses = 0;
 
 	for (const passage of passages || []) {
-		const { testament, book, fromChapter, fromVerse, toChapter, toVerse } = passage || {};
-		totalVerses += countVersesInRange(testament, book, fromChapter, fromVerse, toChapter, toVerse);
+		const { testament, fromChapter, fromVerse, toChapter, toVerse } = passage || {};
+		// Accept either field name; see passageBookId(). Matches
+		// validateStudyDisplayLimits: a passage with no book cannot be aggregated,
+		// and without this guard it creates an "undefined:undefined" bucket that
+		// getBookVerseTotal() then rejects, silently.
+		const book = passageBookId(passage);
+		if (!testament || !book) continue;
 
 		const key = `${testament}:${book}`;
 		if (!byBook.has(key)) {
@@ -790,6 +825,19 @@ export function validateExportLimits(passages, translationId) {
 		}
 	}
 
+	// Deduplicated total across the whole artifact.
+	//
+	// This MUST be derived from the per-book verse Sets, not summed from
+	// countVersesInRange() as each passage is read. Summing counted overlapping
+	// passages twice: Romans 1-8 plus Romans 8-16 reported 472 verses reproduced
+	// from a 433-verse book — a figure that cannot exist, in the one number the
+	// user is most likely to check against the licence. The Sets were already
+	// being built correctly for the per-book checks below; only the total ignored
+	// them, so the docblock's promise about overlap held for half the function.
+	for (const { verses } of byBook.values()) {
+		totalVerses += verses.size;
+	}
+
 	const translationLabel = translationId ? translationId.toUpperCase() : 'this translation';
 
 	// Total-verse ceiling for the artifact as a whole.
@@ -805,15 +853,20 @@ export function validateExportLimits(passages, translationId) {
 		if (bookTotal <= 0) continue;
 
 		const covered = verses.size;
+		// Readable title, never the internal id. These messages said "the complete
+		// book of RO" and "more than 50% of RO". The display path already carries a
+		// comment that a warning naming "JN" is worse than no warning at all; the
+		// same reasoning applies verbatim here, and was simply never applied.
+		const bookLabel = getBook(testament, book)?.title || book;
 
 		if (!limits.allowCompleteBook && covered >= bookTotal) {
 			warnings.push(
-				`This export reproduces the complete book of ${book}. The ${translationLabel} quotation permission does not allow reproducing an entire book.`
+				`This export reproduces the complete book of ${bookLabel}. The ${translationLabel} quotation permission does not allow reproducing an entire book.`
 			);
 		} else if (limits.maxBookPortion !== null && covered > bookTotal * limits.maxBookPortion) {
 			const pct = Math.round(limits.maxBookPortion * 100);
 			warnings.push(
-				`This export reproduces more than ${pct}% of ${book}, which exceeds the ${translationLabel} quotation limit.`
+				`This export reproduces more than ${pct}% of ${bookLabel}, which exceeds the ${translationLabel} quotation limit.`
 			);
 		}
 	}
