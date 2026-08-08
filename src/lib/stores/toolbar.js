@@ -153,7 +153,9 @@ async function persistPreference(updates) {
  * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
  * @property {string|null} activeHeadingOrNoteEditorKey - Unique key of the active editor (e.g. `${segmentId}-${type}`); identifies the specific owning editor so a stale editor's cleanup can't clear another editor's state
 
+ * @property {number|null} activePassageIndex - Index of the passage the current selection sits in, or null when unresolved. Needed because the `is…FirstInPassage` flags are per-passage and a study/part may hold several, so "first in passage" is not "first in the study"
  * @property {boolean} isWordInFirstSegment - Whether the selected word is in the first segment of its passage
+
  * @property {boolean} isWordInLastSegment - Whether the selected word is in the last segment of its passage
  * @property {boolean} isCaretAtSegmentStart - Whether the caret is before the first word of its segment (nothing to move up)
  * @property {boolean} isCaretAtSegmentEnd - Whether the caret is after the last word of its segment (nothing to move down)
@@ -280,7 +282,16 @@ const defaultState = {
 
 	activeHeadingOrNoteType: null,
 	activeHeadingOrNoteEditorKey: null,
+	// Which passage (index into the study's ordered passages) the current selection sits in, or
+	// null when nothing is selected / it cannot be resolved.
+	//
+	// Exists because the `is…FirstInPassage` flags below are per-PASSAGE, and a study — or a series
+	// part — may hold several. "First in passage" therefore does not mean "first in the study": in a
+	// multi-passage part, passage 2's first segment is an internal seam. Anything reasoning about the
+	// part's own edges (SERIES_PLAN §11's boundary reasons) needs this to tell the two apart.
+	activePassageIndex: null,
 	isWordInFirstSegment: false,
+
 
 	isWordInLastSegment: false,
 	isCaretAtSegmentStart: false,
@@ -1646,6 +1657,27 @@ export function setWordSegmentPosition(isFirst, isLast) {
 }
 
 /**
+ * Record which passage the current selection sits in.
+
+ *
+ * Kept separate from the `setActive*` setters rather than threaded through them as another
+ * argument: all five write `is…FirstInPassage` flags, and four of them (the heading/note editors
+ * among the callers of `setActiveSegment`) have no idea which passage they are in. A dedicated
+ * always-on effect on the analyze page can resolve it once for whatever the selection shape is.
+ *
+ * Consumers use this with `study.passages.length` to tell an INTERNAL passage seam from the
+ * part's own edge — "first in passage" is only "first in the part" when the selection is in the
+ * first passage. See SERIES_PLAN §11.
+ * @param {number|null} index - Index into the study's ordered passages, or null when unresolved
+ */
+export function setActivePassageIndex(index) {
+	toolbarStateStore.update(state => ({
+		...state,
+		activePassageIndex: index
+	}));
+}
+
+/**
  * Set whether the caret is at the start or end of its segment.
  * Used to disable "Move Text Up" when the caret is before the first word of the segment
  * (nothing to move up) and "Move Text Down" when the caret is after the last word
@@ -1654,6 +1686,7 @@ export function setWordSegmentPosition(isFirst, isLast) {
  * @param {boolean} atEnd - Whether the caret is after the segment's last word
  */
 export function setCaretSegmentBoundary(atStart, atEnd) {
+
 	toolbarStateStore.update(state => ({
 		...state,
 		isCaretAtSegmentStart: atStart,

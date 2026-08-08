@@ -47,7 +47,8 @@
 		getParsedPassage,
 		extractSegmentText
 	} from '$lib/utils/passageText.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex } from '$lib/stores/toolbar.js';
+
 
 
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
@@ -1059,8 +1060,55 @@
 		setActiveSegmentSectionIds(sectionIds);
 	});
 
+	// Resolve WHICH passage the current selection sits in, and publish the index.
+	//
+	// The `is…FirstInPassage` flags are per-PASSAGE, so in a multi-passage study (or series part)
+	// "first in passage" is not "first in the part": passage 2's first segment is an internal seam.
+	// Anything reasoning about the part's own edges — SERIES_PLAN §11's boundary reasons — needs the
+	// index to tell those apart, and cannot get it from the flags alone.
+	//
+	// Deliberately one always-on effect rather than another argument on the five setActive* setters:
+	// several of those callers (the heading/note editors) have no idea which passage they are in,
+	// and a mixed multi-select writes more than one of them. Resolving it once here covers every
+	// selection shape. Column/section/segment are checked in the order the toolbar prioritises them.
+	$effect(() => {
+		const passages = data.passagesWithText;
+		if (!passages?.length) {
+			setActivePassageIndex(null);
+			return;
+		}
+
+		const columnId = activeColumns[0] ?? null;
+		const sectionId = activeSections[0] ?? null;
+		const segmentId = activeSegments[0]?.segmentId ?? null;
+		if (!columnId && !sectionId && !segmentId) {
+			setActivePassageIndex(null);
+			return;
+		}
+
+		let found = null;
+		for (let i = 0; i < passages.length; i += 1) {
+			const columns = passages[i].structure?.columns;
+			if (!columns?.length) continue;
+
+			const hit = columnId
+				? columns.some(col => col.id === columnId)
+				: sectionId
+					? columns.some(col => col.sections?.some(sec => sec.id === sectionId))
+					: columns.some(col =>
+							col.sections?.some(sec => sec.segments?.some(seg => seg.id === segmentId))
+						);
+			if (hit) {
+				found = i;
+				break;
+			}
+		}
+		setActivePassageIndex(found);
+	});
+
 	// Sync active column state to toolbar store
 	$effect(() => {
+
 		if (activeColumns.length > 0) {
 			const activeColumnId = activeColumns[0];
 

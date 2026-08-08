@@ -51,35 +51,56 @@
 	let seriesContext = $derived($page.data?.seriesContext ?? null);
 
 	// IMPORTANT — the store's flags are "first/last in PASSAGE", and a part may hold several
-	// passages (the part-per-passage strategy, §5). In a multi-passage part, the second passage's
-	// first segment is an *internal* seam, not a part boundary, and the store carries no passage
-	// identity to tell the two apart. Claiming "not available across parts yet" there would be a
-	// plain lie, so the explanation is limited to single-passage parts, where the two coincide.
-	// Generalising this needs passage identity in the toolbar store; phase 2 touches these
-	// commands anyway and should do it then.
-	let boundaryKnowable = $derived(
-		Boolean(seriesContext) && ($page.data?.passages?.length ?? 0) === 1
+	// passages (the part-per-passage strategy, §5). In a multi-passage part the second passage's
+	// first segment is an *internal* seam, not a part boundary, and claiming "not available across
+	// parts yet" there would be a plain lie.
+	//
+	// A part's own leading/trailing edge is the FIRST passage's start and the LAST passage's end.
+
+	// The `…FirstInPassage` / `isWordIn…Segment` flags are per-passage, so on their own they also
+	// fire at every internal passage seam in a multi-passage part; `activePassageIndex` (published
+	// by the analyze page) is what separates the two. A part is only at its leading edge when the
+	// selection is in passage 0, and at its trailing edge when it is in the last passage — for a
+	// single-passage part both collapse to the one passage, which is why that case needed no index.
+	let passageCount = $derived($page.data?.passages?.length ?? 0);
+	let activePassageIndex = $derived($toolbarState.activePassageIndex);
+
+	// Guard on a RESOLVED index: null means the analyze page could not place the selection (no
+	// selection, or content still streaming), and a note that guessed in that state could easily
+	// blame a part edge at an internal seam. Silence is correct until we actually know.
+	let atPartStart = $derived(
+		Boolean(seriesContext) && passageCount > 0 && activePassageIndex === 0
+	);
+	let atPartEnd = $derived(
+		Boolean(seriesContext) && passageCount > 0 && activePassageIndex === passageCount - 1
 	);
 
-	// Whether a boundary note may be shown at all. The Document view is read-only, so its items
-	// are disabled for a reason that has nothing to do with series.
-	let canExplain = $derived(boundaryKnowable && !isDocument);
+
+	// Whether a boundary note may be shown at all, per edge. The Document view is read-only, so
+	// its items are disabled for a reason that has nothing to do with series.
+	let canExplainStart = $derived(atPartStart && !isDocument);
+	let canExplainEnd = $derived(atPartEnd && !isDocument);
+
 
 	// Resolved PER COMMAND, not per edge. A blanket "leading edge" note would appear under Join
 	// Segment while a *column* is selected — where the command is disabled because there is no
 	// active segment, nothing to do with a part boundary. Each note therefore requires its own
 	// command to be the one actually blocked by the edge.
 	//
-	// Leading edge reads `boundaryBefore` (the join target sits in the previous part); Move Text
-	// Down reads `boundaryAfter`. The two can disagree, which is why the server sends both.
+	// The four leading-edge commands pair `canExplainStart` with `boundaryBefore` (the join target
+	// sits in the PREVIOUS part); Move Text Down pairs `canExplainEnd` with `boundaryAfter`. Both
+	// halves of each pair must agree about which edge is meant — mixing them (say, an end-edge
+	// guard with a `boundaryBefore` string) would put the wrong neighbour in the sentence.
 	let joinColumnReason = $derived(
-		canExplain && $toolbarState.hasActiveColumn && $toolbarState.isActiveColumnFirstInPassage
+		canExplainStart && $toolbarState.hasActiveColumn && $toolbarState.isActiveColumnFirstInPassage
+
 			? seriesContext.boundaryBefore
 			: null
 	);
 
 	let joinSectionReason = $derived(
-		canExplain &&
+		canExplainStart &&
+
 			$toolbarState.hasActiveSection &&
 			!$toolbarState.hasActiveColumn &&
 			$toolbarState.isActiveSectionFirstInPassage
@@ -88,7 +109,10 @@
 	);
 
 	let joinSegmentReason = $derived(
-		canExplain && $toolbarState.hasActiveSegment && $toolbarState.isActiveSegmentFirstInPassage
+		canExplainStart &&
+			$toolbarState.hasActiveSegment &&
+			$toolbarState.isActiveSegmentFirstInPassage
+
 			? seriesContext.boundaryBefore
 			: null
 	);
@@ -97,7 +121,8 @@
 	// them for an unrelated in-segment reason — excluded so the note only claims the boundary
 	// when the boundary is genuinely what is in the way.
 	let moveUpReason = $derived(
-		canExplain &&
+		canExplainStart &&
+
 			$toolbarState.hasWordSelection &&
 			!$toolbarState.hasActiveColumn &&
 			!$toolbarState.hasActiveSection &&
@@ -107,7 +132,8 @@
 	);
 
 	let moveDownReason = $derived(
-		canExplain &&
+		canExplainEnd &&
+
 			$toolbarState.hasWordSelection &&
 			!$toolbarState.hasActiveColumn &&
 			!$toolbarState.hasActiveSection &&

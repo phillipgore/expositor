@@ -1197,12 +1197,15 @@ each was a wrong turn first:
 - **The note is `role="none"` and the reason is ALSO in the item's `aria-label`.** A `role="menu"`
   container may only own menuitems, so a bare paragraph had to be removed from the a11y tree —
   which would have left the explanation sighted-only without the label.
-- **⚠️ It is limited to single-passage parts, deliberately.** The gate is the toolbar store's
-  `is…FirstInPassage` flags, and a multi-passage part (§5's part-per-passage strategy) has
-  *internal* passage seams that those flags cannot tell from a part boundary. Claiming "not
-  available across parts yet" at an internal seam would be false, so the note is suppressed
-  there. Lifting this needs passage identity in the toolbar store; phase 2 touches these five
-  commands anyway (§8) and should do it then.
+- **Multi-passage parts work too, via `activePassageIndex`.** The store's `is…FirstInPassage`
+  flags are per-passage, so on their own they also fire at every *internal* passage seam of a
+  multi-passage part (§5's part-per-passage strategy) — and claiming "not available across parts
+  yet" at an internal seam would be false. The analyze page therefore publishes which passage the
+  selection sits in, and a part's true edges are passage `0`'s start and the last passage's end.
+  ⚠️ The index is guarded as a *resolved* value: `null` (no selection, or content still streaming)
+  suppresses the note rather than guessing, because a guess there blames a part edge at an
+  internal seam.
+
 
 `scripts/verify-boundary-reasons.mjs` (24 checks, real `bible.json`) pins the part that matters:
 the contiguous seam says "yet", the different-books seam does not, and one part's two edges can
@@ -1233,11 +1236,15 @@ carry different reasons.
 unavailable commands are visibly disabled with a reason"; both reason strings are now wired
 through (see the ✅ note above), so the conditional is discharged rather than outstanding.
 
-⚠️ **One caveat travels with the answer:** the reason appears only on single-passage parts, because
-the store's `is…FirstInPassage` flags cannot distinguish an internal passage seam from a part
-boundary. A part-per-passage Prison Epistles series — the very case §8 says will be reported as
-broken — is therefore still silent. Phase 2 owns the fix; the honest reading of Q34 today is "yes
-for the stepper-created series, not yet for the multi-passage one."
+⚠️ **This carried a caveat — "the reason appears only on single-passage parts" — and the caveat is
+now lifted.** It was real: the store's `is…FirstInPassage` flags cannot on their own tell an
+internal passage seam from a part boundary, which left a part-per-passage Prison Epistles series
+(the very case §8 says will be reported as broken) silent. The fix did not need phase 2's scope
+generalisation, only *passage identity*: the analyze page publishes `activePassageIndex`, and a
+part's true edges are passage `0`'s start and the last passage's end. Recorded because the caveat
+deferred to phase 2 a fix that turned out to be one derived value away — "phase 2 owns it" is worth
+distrusting when the blocker is information the page already has.
+
 
 **Q35. Scope undo before phase 2?** Boundary moves are destructive and users will expect `⌘Z`.
 _Rec: decide before starting phase 2._
@@ -1526,10 +1533,12 @@ them existed in this form before it.
    Either promote it to §14 as decided, or state what evidence would reopen it — leaving it at #4
    overstates what is actually undecided.
 5. ⚠️ **Q34 is answered and no longer open** — option (1) shipped: the five commands are visibly
-   disabled with **both** reason strings, resolved server-side per edge (§11). What remains is not
-   the question but a **scoped gap**: the reason is shown only on single-passage parts, so a
-   part-per-passage series is still silently inert. Tracked under phase 2's generalisation rather
-   than here, since the same work lifts it.
+   disabled with **both** reason strings, resolved server-side per edge (§11). This entry also
+   recorded a leftover **scoped gap** (the reason showing only on single-passage parts, so a
+   part-per-passage series stayed silently inert); that gap is **closed** — `activePassageIndex`
+   distinguishes a part edge from an internal passage seam, so multi-passage parts explain
+   themselves too. Nothing here is waiting on phase 2.
+
 
 6. **Q41** — what a boundary move does once `enforcement` flips to `'block'`. Latent today
    (everything is `'warn'`), but the answer must not be "throw mid-gesture."
