@@ -15,6 +15,8 @@ import {
 import { auth } from '$lib/server/auth.js';
 import { eq, asc, inArray } from 'drizzle-orm';
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
+import { getBoundaryDisabledReason } from '$lib/utils/seriesRuns.js';
+
 
 
 /**
@@ -97,7 +99,42 @@ export async function load({ params, request, depends }) {
 				.where(eq(study.seriesId, studyData.seriesId))
 				.orderBy(asc(study.seriesOrder));
 
+			// Passage ranges for every sibling, so the seams around this part can be classified.
+			// §11 option (1) requires the five cross-part commands to be disabled *with a reason*,
+			// and `getBoundaryDisabledReason` cannot tell "not yet" from "never" without the
+			// ranges. One indexed query, and only for parts.
+			const siblingPassages =
+				parts.length > 0
+					? await db
+							.select({
+								studyId: passage.studyId,
+								testament: passage.testament,
+								bookId: passage.bookId,
+								bookName: passage.bookName,
+								fromChapter: passage.fromChapter,
+								fromVerse: passage.fromVerse,
+								toChapter: passage.toChapter,
+								toVerse: passage.toVerse
+							})
+							.from(passage)
+							.where(
+								inArray(
+									passage.studyId,
+									parts.map((part) => part.id)
+								)
+							)
+							.orderBy(passage.displayOrder)
+					: [];
+
+			// classifyBoundary reads `part.passages`, so group the rows onto their parts rather
+			// than passing bare ranges.
+			const partsWithPassages = parts.map((part) => ({
+				...part,
+				passages: siblingPassages.filter((row) => row.studyId === part.id)
+			}));
+
 			const index = parts.findIndex((part) => part.id === studyId);
+
 
 			// A series row that has vanished, or a part missing from its own sibling list, means
 			// something is wrong upstream; send no context rather than render "Part 0 of 3".
@@ -112,8 +149,31 @@ export async function load({ params, request, depends }) {
 					// Resolved here rather than in the component so "no neighbour" is one null check
 					// instead of arithmetic the header could get wrong at the ends (Q19: no wrapping).
 					previousPart: index > 0 ? parts[index - 1] : null,
-					nextPart: index < parts.length - 1 ? parts[index + 1] : null
+					nextPart: index < parts.length - 1 ? parts[index + 1] : null,
+
+					// Why the five cross-part commands are dead at each edge of THIS part, or null
+					// where there is no neighbour to be dead against (§11 option 1, §8).
+					//
+					// Two edges, not one, and they can disagree: in Prison Epistles, Ephesians →
+					// Philippians is permanently ineligible while a Romans 8 → 9 seam is merely
+					// awaiting phase 2. Resolving both here keeps the honest-vs-"yet" distinction
+					// out of the menu, which has no access to passage ranges.
+					boundaryBefore:
+						index > 0
+							? getBoundaryDisabledReason(
+									partsWithPassages[index - 1],
+									partsWithPassages[index]
+								)
+							: null,
+					boundaryAfter:
+						index < parts.length - 1
+							? getBoundaryDisabledReason(
+									partsWithPassages[index],
+									partsWithPassages[index + 1]
+								)
+							: null
 				};
+
 			}
 		}
 

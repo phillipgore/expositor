@@ -32,10 +32,91 @@
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { page } from '$app/stores';
 
 	let { menuId = 'MenuStructure', view = 'analyze' } = $props();
 
 	let isDocument = $derived(view === 'document');
+
+	// ── Why the join/move commands are dead at a part boundary (SERIES_PLAN §11 option 1) ──
+	//
+	// These five commands were already inert at a part's edges, because the join target lives in
+	// the neighbouring part and the `…FirstInPassage` flags stop them. §11 forbids leaving it at
+	// that: "do not ship it silently." So the menu explains which edge is blocking and whether
+	// phase 2 will fix it, using the reasons the server resolved from the run predicate.
+	//
+	// The note is rendered as visible text rather than a `title` tooltip on purpose: the buttons
+	// use the NATIVE `disabled` attribute, and browsers suppress hover events on disabled
+	// controls, so a tooltip there would be a reason nobody could ever read.
+	let seriesContext = $derived($page.data?.seriesContext ?? null);
+
+	// IMPORTANT — the store's flags are "first/last in PASSAGE", and a part may hold several
+	// passages (the part-per-passage strategy, §5). In a multi-passage part, the second passage's
+	// first segment is an *internal* seam, not a part boundary, and the store carries no passage
+	// identity to tell the two apart. Claiming "not available across parts yet" there would be a
+	// plain lie, so the explanation is limited to single-passage parts, where the two coincide.
+	// Generalising this needs passage identity in the toolbar store; phase 2 touches these
+	// commands anyway and should do it then.
+	let boundaryKnowable = $derived(
+		Boolean(seriesContext) && ($page.data?.passages?.length ?? 0) === 1
+	);
+
+	// Whether a boundary note may be shown at all. The Document view is read-only, so its items
+	// are disabled for a reason that has nothing to do with series.
+	let canExplain = $derived(boundaryKnowable && !isDocument);
+
+	// Resolved PER COMMAND, not per edge. A blanket "leading edge" note would appear under Join
+	// Segment while a *column* is selected — where the command is disabled because there is no
+	// active segment, nothing to do with a part boundary. Each note therefore requires its own
+	// command to be the one actually blocked by the edge.
+	//
+	// Leading edge reads `boundaryBefore` (the join target sits in the previous part); Move Text
+	// Down reads `boundaryAfter`. The two can disagree, which is why the server sends both.
+	let joinColumnReason = $derived(
+		canExplain && $toolbarState.hasActiveColumn && $toolbarState.isActiveColumnFirstInPassage
+			? seriesContext.boundaryBefore
+			: null
+	);
+
+	let joinSectionReason = $derived(
+		canExplain &&
+			$toolbarState.hasActiveSection &&
+			!$toolbarState.hasActiveColumn &&
+			$toolbarState.isActiveSectionFirstInPassage
+			? seriesContext.boundaryBefore
+			: null
+	);
+
+	let joinSegmentReason = $derived(
+		canExplain && $toolbarState.hasActiveSegment && $toolbarState.isActiveSegmentFirstInPassage
+			? seriesContext.boundaryBefore
+			: null
+	);
+
+	// The move commands are gated on a word selection, and `isCaretAtSegmentStart/End` disables
+	// them for an unrelated in-segment reason — excluded so the note only claims the boundary
+	// when the boundary is genuinely what is in the way.
+	let moveUpReason = $derived(
+		canExplain &&
+			$toolbarState.hasWordSelection &&
+			!$toolbarState.hasActiveColumn &&
+			!$toolbarState.hasActiveSection &&
+			$toolbarState.isWordInFirstSegment
+			? seriesContext.boundaryBefore
+			: null
+	);
+
+	let moveDownReason = $derived(
+		canExplain &&
+			$toolbarState.hasWordSelection &&
+			!$toolbarState.hasActiveColumn &&
+			!$toolbarState.hasActiveSection &&
+			$toolbarState.isWordInLastSegment
+			? seriesContext.boundaryAfter
+			: null
+	);
+
+
 
 	// "Select All" enters a selection mode that only applies to the interactive Analyze
 	// canvas, so it's disabled on the Document view (in addition to the usual capability
@@ -133,14 +214,18 @@
 			window.dispatchEvent(new CustomEvent('join-column'));
 		}}
 		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.isActiveColumnFirstInPassage}
-
+		ariaLabel={joinColumnReason ? `Join Column — ${joinColumnReason}` : undefined}
 	/>
+	{#if joinColumnReason}
+		<p class="boundary-reason" role="none">{joinColumnReason}</p>
+	{/if}
 
 	<DividerHorizontal />
 
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="section-split"
+
 		label="Split Section"
 		role="menuitem"
 		handleClick={() => {
@@ -162,8 +247,11 @@
 			window.dispatchEvent(new CustomEvent('join-section'));
 		}}
 		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.isActiveSectionFirstInPassage}
-
+		ariaLabel={joinSectionReason ? `Join Section — ${joinSectionReason}` : undefined}
 	/>
+	{#if joinSectionReason}
+		<p class="boundary-reason" role="none">{joinSectionReason}</p>
+	{/if}
 
 	<DividerHorizontal />
 
@@ -190,8 +278,11 @@
 			window.dispatchEvent(new CustomEvent('join-segment'));
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.isActiveSegmentFirstInPassage}
-
+		ariaLabel={joinSegmentReason ? `Join Segment — ${joinSegmentReason}` : undefined}
 	/>
+	{#if joinSegmentReason}
+		<p class="boundary-reason" role="none">{joinSegmentReason}</p>
+	{/if}
 
 	<DividerHorizontal />
 
@@ -205,7 +296,11 @@
 			window.dispatchEvent(new CustomEvent('move-text-up'));
 		}}
 		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInFirstSegment || $toolbarState.isCaretAtSegmentStart}
+		ariaLabel={moveUpReason ? `Move Text Up — ${moveUpReason}` : undefined}
 	/>
+	{#if moveUpReason}
+		<p class="boundary-reason" role="none">{moveUpReason}</p>
+	{/if}
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="arrow-down"
@@ -216,5 +311,36 @@
 			window.dispatchEvent(new CustomEvent('move-text-down'));
 		}}
 		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInLastSegment || $toolbarState.isCaretAtSegmentEnd}
+		ariaLabel={moveDownReason ? `Move Text Down — ${moveDownReason}` : undefined}
 	/>
+	{#if moveDownReason}
+		<p class="boundary-reason" role="none">{moveDownReason}</p>
+	{/if}
 </Menu>
+
+<style>
+	/*
+	 * The boundary explanation sits under the command it explains, indented to the icon's text
+	 * column so it reads as a note about that item rather than a menu entry of its own.
+	 *
+	 * It carries `role="none"` because a `role="menu"` container may only own menuitems, and a
+	 * stray paragraph in that tree confuses menu navigation. That hides it from screen readers,
+	 * so the same reason is ALSO folded into the disabled item's `aria-label` — otherwise the
+	 * explanation would be sighted-only, which is the same silent failure §11 objects to, just
+	 * for a different audience.
+	 *
+	 * `aria-live` is deliberately absent: the note appears as a consequence of selecting text,
+	 * and announcing it on every selection change would talk over the user.
+	 */
+
+	.boundary-reason {
+		margin: 0;
+		padding: 0.2rem 0.9rem 0.4rem 2.55rem;
+		max-width: 15rem;
+		font-size: 0.75rem;
+		line-height: 1.3;
+		color: var(--gray-600, #6d6d6d);
+		text-wrap: pretty;
+	}
+</style>
+
