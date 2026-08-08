@@ -151,14 +151,18 @@ are cheaper to update than a permanently misleading name is to live with. Both h
 **filename** references updated with the rename, and the episode is recorded as a trap of its own,
 since "cite it by name so it cannot go stale" is precisely what did.
 
-⚠️ **This paragraph used to claim "Both were updated with the rename" without qualification, and
-one of them still carries a dangling section reference.** `src/lib/config/studyLimits.js:18-19`
-reads "See COMPLIANCE.md §3 and **§13.2**." `COMPLIANCE.md` has §0, §1, §1.5, §1.6, §1.7, §2, §3,
-§4, §5 and §6 — **there is no §13.2**, and no obvious successor (the NET-cap material it presumably
-pointed at is now §3 and §1.5). The filename citations are correct (`studyLimits.js:37`,
-`COMPLIANCE.md:620`); the section number is not. Sharper than it looks: the stale handle sits three
-lines above the comment explaining why handles go stale. Live fix needed in code — see trap 14,
-which this is evidence _for_.
+✅ **The dangling section reference this paragraph recorded is fixed.** It read: "one of them still
+carries a dangling section reference — `studyLimits.js:18-19` reads 'See COMPLIANCE.md §3 and
+**§13.2**', and there is no §13.2." Confirmed by listing `COMPLIANCE.md`'s headings (§0, §1, §1.5,
+§1.6, §1.7, §2, §3, §4, §5, §6) and now repointed at **§3 "Translation limits"** and **§1.5 "The
+third axis: retrieval"** — the latter being where the NET cap's `source: self-imposed` actually
+lives, which is what the dead number was reaching for.
+
+The citation now gives **heading text with the number in parentheses**, so the next renumbering
+leaves something greppable behind. That is trap 14's remedy applied rather than restated: a bare
+number fails silently, a heading does not. And the sharpest part is worth keeping — the dead
+reference sat three lines above the comment explaining why references go stale.
+
 
 
 | Concept             | Term                    | Why                                                                          |
@@ -934,15 +938,18 @@ renders from a registry of **140 entries** (an **array** of `{ _id, viewBox, d }
 keyed map; see the note below), each a single `d` path plus a `viewBox`; the **145 files** in
 `public/` are **not** what gets rendered and the two sets do not match. An earlier version of this
 section listed icons by reading the directory, which is how it came to recommend one that cannot
-be rendered. See trap 13 — the mismatch is a live source of silent bugs, **two** of them shipped
-today.
+be rendered. See trap 13 — the mismatch is a **latent** source of silent bugs; the last two shipped
+instances are now fixed, so there are none live today.
 
-⚠️ **Counts corrected: this previously read "136 entries", "142 files" and "**three**" live bugs.**
-All three numbers moved when phase 1 registered `books`, `part-split`, `part-join` and `warning`.
-Registering `warning` fixed `StudyGroup.svelte:94`, so the live-bug count dropped from three to
-two. **`split` and `join` are still absent and still live** (`toolbarConfig.js:402`/`:407`) — the
-trap is reduced, not closed. Re-count before quoting these figures; they move whenever the
-registry does.
+
+⚠️ **Counts corrected twice, and the live-bug count is now zero.** This read "136 entries", "142
+files" and "**three**" live bugs; then 140/145 and two. Phase 1 registered `books`, `part-split`,
+`part-join` and `warning` (fixing `StudyGroup.svelte:94`), and the last two — `split` and `join` at
+`src/lib/utils/toolbarConfig.js:402`/`:407` — were fixed by **repointing them at the existing
+`segment-split` / `segment-join`**, not by adding entries. So the registry is still 140 entries and
+**no referenced-but-unregistered id is live today** (trap 13). Re-count before quoting these
+figures; they have moved twice in two passes.
+
 
 ⚠️ **`icons.json` is an array, not an object — checking membership with `in` silently lies.**
 While verifying this section I probed the registry with `'warning' in icons`, which tests *array
@@ -1189,7 +1196,10 @@ a pre-move confirmation that can be declined, never a mid-gesture failure._
 - ✅ The `books` icon — **as an `icons.json` entry, not a `public/` file** (§9, trap 13). ⚠️ This
   continued "Register `warning` at the same time; §5's preview needs it and **it is missing
   today**" — no longer true. `books`, `part-split`, `part-join` and `warning` are all registered.
-  `split` / `join` remain absent and remain live (trap 13); they are not this feature's to fix
+  `split` / `join` were **not** this feature's to fix and were fixed anyway, because the remedy was
+  two strings: the passage toolbar now points at the existing `segment-split` / `segment-join`
+  rather than at ids that never existed (trap 13)
+
 
 - _Excluded deliberately: Split Part, Join Parts, boundary moves._
 
@@ -1423,13 +1433,30 @@ the code states what it does, not why the obvious alternative fails.
     were all true when written and none are now.** Phase 1 registered `books`, `part-split`,
     `part-join` and `warning`; `warning` is no longer in either list. Re-count before quoting.
 
-    **Two ids are referenced in executing code today and are absent from the registry** — `split`
-    and `join` (`toolbarConfig.js:402` and `:407`, verified still absent). These are the §3
-    collision in its worst form: bare, unqualified, **and** broken. Not this feature's to fix, but
-    do not read "phase 1 registered its icons" as closing this trap. ⚠️ The third was `warning`
-    (`StudyGroup.svelte:94`, the deep-nesting indicator), **now registered and rendering**. Verify
-    against `icons.json` before specifying any icon; do not trust a directory listing, and do not
-    trust that an existing call site works.
+    ✅ **The last two live ids are fixed, and the fix was not to add them.** `split` and `join` were
+    referenced by the passage toolbar's Split Segment / Join Segment buttons
+    (`src/lib/utils/toolbarConfig.js:402`, `:407`) and absent from the registry, so **both buttons
+    rendered blank space** — `Icon.svelte`'s empty-`d` fallback, a console warning, no throw. They
+    now point at **`segment-split` / `segment-join`**, which already existed and which
+    `MenuStructure.svelte:286`/`:298` already used *for the same two commands*. So the menu drew an
+    icon and the toolbar drew nothing, from one registry, for one pair of commands.
+
+    ⚠️ **Registering `split` and `join` was the obvious fix and would have been the wrong one.** It
+    would have added two bare, unqualified verbs to a registry that is uniformly object-then-verb,
+    at the exact level where §3's collision rule applies — beside `column-split` and `section-split`
+    in the same toolbar. The missing icon was a symptom; the wrong *name* was the defect. Repointing
+    cost two string edits and no new artwork.
+
+    ⚠️ **This trap also cited the wrong path** — `toolbarConfig.js` is in `src/lib/utils/`, not
+    `src/lib/config/`, so a grep in the plausible directory finds nothing and the claim looks
+    already-fixed. Fitting, in a trap about not trusting a listing: the file reference was itself an
+    unverified handle.
+
+    ⚠️ The third live id was `warning` (`StudyGroup.svelte:94`, the deep-nesting indicator),
+    registered in phase 1. **No registered-id-with-no-file or referenced-id-with-no-entry bug is
+    known live today** — but verify against `icons.json` by `_id` before specifying any icon; do not
+    trust a directory listing, and do not trust that an existing call site works.
+
 
     ⚠️ **And do not trust an audit that checked membership the wrong way.** `icons.json` is an
     **array** of `{ _id, ... }` objects, so `'warning' in icons` tests array indices and returns
@@ -1644,5 +1671,5 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | Icon for a series                                         | **`books`**                                                                          | Not "several, in order" but the `folder` → `folders` precedent: the registry already expresses this distinction as a singular/plural pair, and `folders` already means "a group among groups" in `MenuActions.svelte`. The Finder then reads `book` = study, `books` = series, `folder` = container (Q29)                                                                                                                  |
 | Split/Join Part icon names                                | **`part-split` / `part-join`**                                                       | Was `study-split` / `study-join`, which contradicts §3's decided "Split Part" / "Join Parts". The registry is uniformly object-then-verb (`column-split`, `section-join`, `segment-split`), so the object is `part`                                                                                                                                                                                                        |
 | Split/Join Part icon design                               | **The book metaphor, not a divided page**                                            | Icons are a single fill-only `d` path in a 32×32 viewBox, so the old "vertical dashed rule" needs hand-placed rects that merge at menu size. And it would be a fourth variation on "a divided rectangle" beside the three page-level split icons. The geometry cannot carry the level distinction, so the metaphor must                                                                                                    |
-| Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — three new entries total for the whole feature (`books`, `part-split`, `part-join`), plus `warning`. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` remain broken and are not ours (trap 13)                                                     |
+| Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — three new entries total for the whole feature (`books`, `part-split`, `part-join`), plus `warning`. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` were not ours either, and are fixed by repointing at the existing `segment-split` / `segment-join` — no new artwork (trap 13)                                                     |
 

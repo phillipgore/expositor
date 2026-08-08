@@ -15,8 +15,18 @@
  * documentation that supposedly justifies it. Once was `maxBookPortion` (a
  * copyright rule enforced at fetch time, which made every book in the Bible
  * unstudyable); once was NET's 500-verse cap (our own guardrail, reported to the
- * user as the provider's rule). Both wasted real time. See COMPLIANCE.md §3 and
- * §13.2.
+ * user as the provider's rule). Both wasted real time.
+ *
+ * See COMPLIANCE.md, "Translation limits" (§3) and "The third axis: retrieval"
+ * (§1.5, which is where the NET cap's `source: self-imposed` is set out).
+ *
+ * Cited by heading TEXT with the number in parentheses, deliberately. This read
+ * "See COMPLIANCE.md §3 and §13.2" — and there is no §13.2 in that document, nor
+ * any successor with that number; it went stale when the sections were renumbered
+ * and pointed nowhere for long enough to be recorded as a trap in SERIES_PLAN.md.
+ * A heading can be grepped when it moves. A bare number cannot, and fails
+ * silently, which is the sharper half of the lesson: the dangling reference sat
+ * three lines above the comment explaining why references go stale.
  *
  * So: translation limits describe *what the publisher allows*. This file
  * describes *what our renderer handles well*. Never merge them.

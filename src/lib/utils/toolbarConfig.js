@@ -399,15 +399,28 @@ export function getPassageToolbarConfig() {
 				id: 'text-operations',
 				buttons: [
 					{
-						iconId: 'split',
+						// `segment-split` / `segment-join`, NOT the bare `split` / `join` these
+						// read as until now. Neither bare id exists in icons.json, so both
+						// buttons have been rendering blank space: Icon.svelte falls back to an
+						// empty `d` path, warning to the console but throwing nothing. Same
+						// commands as MenuStructure's "Split Segment" / "Join Segment", which
+						// already use the qualified ids — so the menu drew an icon and the
+						// toolbar drew nothing.
+						//
+						// Do not "fix" this by adding `split` / `join` to the registry. Every id
+						// there is object-then-verb (`column-split`, `section-join`), and a bare
+						// verb at segment level is ambiguous with the column- and section-level
+						// commands sitting beside it. See SERIES_PLAN.md §3 and trap 13.
+						iconId: 'segment-split',
 						title: 'Split Segment',
 						disabledCheck: (state) => !state.hasWordSelection
 					},
 					{
-						iconId: 'join',
+						iconId: 'segment-join',
 						title: 'Join Segment',
 						disabledCheck: (state) => !state.hasActiveSegment
 					}
+
 				]
 			},
 			{
