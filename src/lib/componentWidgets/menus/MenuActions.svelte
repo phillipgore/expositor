@@ -36,14 +36,20 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import MoveToGroupModal from '../modals/MoveToGroupModal.svelte';
+	import SplitIntoSeriesModal from '../modals/SplitIntoSeriesModal.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import { wouldCreateCircularNesting } from '$lib/utils/groupHierarchy.js';
 	import { flattenGroupsForMenu } from '$lib/utils/groupFlattening.js';
+	import { isSeriesEligible } from '$lib/utils/seriesPlanning.js';
+	import { invalidateAll } from '$app/navigation';
 
 	/** @type {{ menuId: string, groups: Array, onMoveToGroup: Function, onDelete: Function }} Props */
 	let { menuId, groups = [], onMoveToGroup, onDelete } = $props();
 
 	let showMoveToModal = $state(false);
+	let showSplitIntoSeriesModal = $state(false);
+	let splitError = $state(null);
+
 
 	// Check if a single group is selected
 	let selectedGroup = $derived(
@@ -71,7 +77,83 @@
 		}) || false
 	);
 
+	// ── Split into a series ───────────────────────────────────────────────────────
+	//
+	// SERIES_PLAN §5: "Always available for any 2+ chapter study, whether or not the flow ever
+	// offered it. This is what makes the choice the user's." So eligibility is decided purely by
+	// the study's own chapter span — never by how long the range looks, and never withheld
+	// because the creation flow did not happen to suggest it.
+
+	/** The single selected study, or null. Splitting is a one-study operation. */
+	let selectedStudy = $derived(
+		$toolbarState.selectedItem?.count === 1 &&
+		$toolbarState.selectedItem?.items[0]?.type === 'study'
+			? $toolbarState.selectedItem.items[0]
+			: null
+	);
+
+	let selectedStudyData = $derived(selectedStudy?.data ?? null);
+
+	/** A study already in a series cannot be split again — that is "Split Part" (§8, phase 3). */
+	let isAlreadyPart = $derived(Boolean(selectedStudyData?.seriesId));
+
+	let canSplitIntoSeries = $derived(
+		Boolean(selectedStudyData) &&
+		!isAlreadyPart &&
+		isSeriesEligible(selectedStudyData?.passages ?? [])
+	);
+
+	// §1d asks for the reason to be stated rather than left to a dead control.
+	let splitDisabledReason = $derived(
+		!selectedStudyData
+			? 'Select a single study to split into a series.'
+			: isAlreadyPart
+				? 'This study is already part of a series.'
+				: !isSeriesEligible(selectedStudyData?.passages ?? [])
+					? 'A series needs a study spanning at least two chapters.'
+					: null
+	);
+
+	function handleSplitIntoSeriesClick() {
+		const menu = document.getElementById(menuId);
+		if (menu && menu.matches(':popover-open')) {
+			menu.hidePopover();
+		}
+		splitError = null;
+		showSplitIntoSeriesModal = true;
+	}
+
+	/**
+	 * Create the series. The endpoint re-plans server-side from the same planner, so the
+	 * chapters-per-part setting is all that needs to travel.
+	 */
+	async function handleCreateSeries(chaptersPerPart) {
+		splitError = null;
+		try {
+			const response = await fetch('/api/series', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ studyId: selectedStudyData.id, chaptersPerPart })
+			});
+
+			const result = await response.json();
+
+			if (!response.ok) {
+				splitError = result.error ?? 'Could not create the series.';
+				return;
+			}
+
+			showSplitIntoSeriesModal = false;
+			// Refresh the panel so the new parts and their series appear.
+			await invalidateAll();
+		} catch (error) {
+			console.error('Failed to create series:', error);
+			splitError = 'Could not create the series.';
+		}
+	}
+
 	// Note: flattenGroupsForMenu is no longer needed here as the modal handles flattening
+
 
 	/** Navigate to new study page, optionally with groupId */
 	const handleNewStudy = (groupId = null) => {
@@ -241,8 +323,23 @@
 		handleClick={handleRemoveFromGroup}
 		isDisabled={!hasGroupedItems}
 	/>
-	
+
+	<DividerHorizontal />
+
+	<!-- §3: the verb is always qualified by its object at study level — never a bare "Split",
+	     which belongs to columns (column-split.svg). -->
+	<IconButton
+		iconId="part-split"
+		label="Split into a Series..."
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={handleSplitIntoSeriesClick}
+		isDisabled={!canSplitIntoSeries}
+		title={splitDisabledReason}
+	/>
+
 </Menu>
+
 
 <MoveToGroupModal
 	isOpen={showMoveToModal}
@@ -251,3 +348,12 @@
 	onMoveToGroup={handleMoveFromModal}
 	onClose={handleModalClose}
 />
+
+<SplitIntoSeriesModal
+	isOpen={showSplitIntoSeriesModal}
+	study={selectedStudyData}
+	error={splitError}
+	onCreate={handleCreateSeries}
+	onClose={() => (showSplitIntoSeriesModal = false)}
+/>
+
