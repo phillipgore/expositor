@@ -39,6 +39,7 @@
 	import SplitIntoSeriesModal from '../modals/SplitIntoSeriesModal.svelte';
 	import SplitPartModal from '../modals/SplitPartModal.svelte';
 	import JoinPartsModal from '../modals/JoinPartsModal.svelte';
+	import AddToSeriesModal from '../modals/AddToSeriesModal.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import { wouldCreateCircularNesting } from '$lib/utils/groupHierarchy.js';
 	import { flattenGroupsForMenu } from '$lib/utils/groupFlattening.js';
@@ -241,7 +242,35 @@
 	async function handleRestructured() {
 		showSplitPartModal = false;
 		showJoinPartsModal = false;
+		showAddToSeriesModal = false;
 		await invalidateAll();
+	}
+
+	// ── Add a standalone study to a series (Q17, phase 3) ─────────────────────
+	//
+	// The inverse of "Split into a Series...": that makes a series FROM a study, this puts a study INTO
+	// one. Offered for a standalone study only — a study already in a series would have to answer what
+	// happens to the series it leaves (§4: down to one part, that series dissolves), which the endpoint
+	// refuses rather than performs silently.
+	let showAddToSeriesModal = $state(false);
+
+	let canAddToSeries = $derived(
+		Boolean(selectedStudyData) && !selectedStudyData.seriesId && (series?.length ?? 0) > 0
+	);
+
+	let addToSeriesDisabledReason = $derived(
+		!selectedStudyData
+			? 'Select a single study to add it to a series.'
+			: selectedStudyData.seriesId
+				? 'This study is already part of a series.'
+				: (series?.length ?? 0) === 0
+					? 'There are no series to add it to yet.'
+					: null
+	);
+
+	function handleAddToSeriesClick() {
+		closeMenu();
+		showAddToSeriesModal = true;
 	}
 
 	// Note: flattenGroupsForMenu is no longer needed here as the modal handles flattening
@@ -453,6 +482,19 @@
 		title={joinPartsDisabledReason}
 	/>
 
+	<!-- The inverse of "Split into a Series...": that makes a series FROM a study, this puts a study
+	     INTO one (Q17). Uses `books` — the series icon (§9) — because the object of the verb is the
+	     series, per §3's rule that the verb is qualified by its object. -->
+	<IconButton
+		iconId="books"
+		label="Add to Series..."
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={handleAddToSeriesClick}
+		isDisabled={!canAddToSeries}
+		title={addToSeriesDisabledReason}
+	/>
+
 </Menu>
 
 
@@ -486,5 +528,13 @@
 	seriesId={selectedPartSeries?.id ?? null}
 	onDone={handleRestructured}
 	onClose={() => (showJoinPartsModal = false)}
+/>
+
+<AddToSeriesModal
+	isOpen={showAddToSeriesModal}
+	study={selectedStudyData}
+	{series}
+	onDone={handleRestructured}
+	onClose={() => (showAddToSeriesModal = false)}
 />
 

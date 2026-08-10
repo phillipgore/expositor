@@ -24,7 +24,8 @@
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
 		"db:export-seed": "tsx scripts/export-seed-data.ts",
-		"probe:stubs": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-edge-stubs.mjs"
+		"probe:stubs": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-edge-stubs.mjs",
+		"probe:add-part": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-add-to-series.mjs"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
