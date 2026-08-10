@@ -4,9 +4,10 @@
 > here for one reason only: commit messages and people's memory still use it, so a search for
 > it should land somewhere useful. It is not an alternative name for the feature — see §3.
 
-**Status:** IN PROGRESS — **phase 1 complete; phase 2 under way** (see the phase-2 note below for
-exactly which increments have landed — Split/Join is not yet reachable from the UI). Migration
-`0046` and the four new `icons.json` entries
+**Status:** IN PROGRESS — **phases 1 and 2 are complete; phase 3 has not started.** Everything phase 2
+promised is reachable from the UI and exercised against a real database; see the phase-2 note below for
+what that covers and the two limitations it carries. Migration `0046` and the four new `icons.json`
+entries
 
 have landed in the repo. `0046` is **applied to dev only** — not staging, not production. Verified
 on dev: applies in one transaction, is idempotent on re-run, all five FKs carry the intended
@@ -40,9 +41,9 @@ verifier scripts pin the behaviour to this document — `verify-series-runs.mjs`
 `verify-boundary-reasons.mjs` (24 checks) — and both run against real `bible.json` via
 `node --import ./scripts/alias-loader.mjs`.
 
-**Phase 2 is IN PROGRESS, and its two headline items are DONE: Split Part / Join Parts, and all five
-cross-boundary commands**, plus "balance by length" (Q11). **Adjacent-part prefetch is the only phase-2
-item left.** What exists:
+**Phase 2 is COMPLETE.** Split Part / Join Parts, all five cross-boundary commands, §10.1
+re-validation, cross-part connections (warn-then-delete), "balance by length" (Q11), and adjacent-part
+prefetch. What exists:
 
 - **The planning layer** (`seriesRestructure.js`, 48 assertions) — pure range arithmetic for Split
   Part / Join Parts, shared by the confirm dialog and the endpoint so the preview cannot diverge
@@ -80,6 +81,19 @@ fire".
   six parts rather than three. ⚠️ Its last five assertions read the *source* of the modal → menu →
   endpoint hand-offs, because the probe reproduces the endpoint's logic rather than invoking it; that
   gap was found by mutation and is labelled rather than hidden.
+- `npm run probe:prefetch` (17 assertions) — cache-warming: a cold part is filled, a warm one is skipped
+  with **no further provider call** (asserted on a call counter, not just on end state), the current
+  part is untouched, and a simulated outage neither throws nor half-writes a row.
+
+⚠️ **Phase 2's two standing limitations**, both deliberate and both surfaced to the user rather than
+hidden:
+
+1. **A cross-part Move Text requires the caret at the start of a verse** — segment anchors are
+   word-granular, passage ranges are verse-granular, and the mismatch cannot be represented across a
+   part boundary. Refused with a reason; fixing it properly means word-granular ranges, a schema change
+   outside §8's scope.
+2. **Cross-part connections are deleted, not preserved** — Q23 strategy (b), warn-then-delete, with the
+   count shown before the user confirms. Phase 3's edge stubs are what replace it.
 
 These are all **WRITE probes** and deliberately stay out of `npm run verify`: they mutate the database, so
 they must be run knowingly. Each builds its own prefixed fixture and removes it in a `finally`,
@@ -88,8 +102,8 @@ range move, makes them fail.
 
 **Every structural operation in phase 2 is exercised against a real database, with no path left to the
 pure layer alone** — Split Part, Join Parts, the cross-part join at all three granularities, Move Text
-in both directions, and balanced creation. **200 probe assertions across five probes**, alongside 366
-verifier assertions across eight scripts.
+in both directions, balanced creation, and prefetch cache-warming. **217 probe assertions across six
+probes**, alongside 388 verifier assertions across nine scripts.
 
 The most valuable single result: mutating the column join to delete its container *before* re-parenting
 the sections destroys two segments, both their notes and a heading, and fails 10 assertions. The
@@ -181,10 +195,17 @@ preview can show) rather than a target length. It never splits a chapter, and th
 range containing one very long chapter still yields one long part, which is an inherent limit of
 respecting chapter boundaries rather than a defect.
 
-**Still outstanding in phase 2:** **adjacent-part prefetch** only. De-duplicating
-`passageJoin`/`passageReconcile` remains an explicit **non-goal**, not an assumed prerequisite — the
-three Joins were generalised by *routing around* those functions, not through them, so the question is
-still open rather than answered.
+**✅ Adjacent-part prefetch is done**, and it is the only decision in the feature that deliberately
+does **not** consult the adjacency predicate: prefetch is about what the user will *open*, which §7 says
+is `seriesOrder`, so a Prison Epistles series prefetches its next part exactly like a Romans one. It
+warms at most **one** part, skips any part that is even partially cached, is never awaited, and re-reads
+the cache before spending a provider request.
+
+**Nothing remains in phase 2.** De-duplicating `passageJoin`/`passageReconcile` remains an explicit
+**non-goal**, not an assumed prerequisite — the three Joins were generalised by *routing around* those
+functions, not through them, so the question is still open rather than answered. **Phase 3 is next**,
+and its first item (cross-part connections preserved as edge stubs) would replace the warn-then-delete
+behaviour Q23 currently phases as (b).
 
 ⚠️ **Move Text Up/Down will not follow the same shape as Join Segment.** §8 already warns that they
 are "rewritten, not extended", and `moveSegmentTextDown` locates its next segment by walking one
@@ -1421,17 +1442,20 @@ carry different reasons.
 
 - ✅ **Split Part / Join Parts — done** (+ the `part-split` / `part-join` icons — §9's names, per
   §3's vocabulary). Planning layer, structure transfer, both endpoints with a shared `dryRun` path,
-  and both confirm modals. Not yet run against a real database.
+  and both confirm modals. **Both exercised against a real database** (`probe:split-part`,
+  `probe:join-parts`).
 - **Generalise all five commands from passage scope to sequence scope** — Join Column, Join
   Section, Join Segment, Move Text Up, Move Text Down — gated on the contiguity predicate (§8).
   ✅ **DONE — all five, both directions.** `sequenceScope.js` + `boundaryMove.js` decide scope and
   ranges; the three Joins run through `crossPartJoin.js` + `joinRouting.js`; Move Text Up/Down through
   `crossPartMove.js`. Move Text additionally requires a verse-start caret (see the ⚠️ above)
-- Boundary-move compliance re-validation for both parts (§10.1) — **done for Split/Join**, still
-  required for the five commands
-- Cross-part connections: warn-and-delete — **done for Split/Join** (Q23 strategy (b): the count is
-  in the preview, the delete needs an explicit acknowledgement)
-- ✅ **"Balance by length" — done** (Q11); **adjacent-part prefetch** is the only phase-2 item remaining
+- ✅ Boundary-move compliance re-validation for both parts (§10.1) — **done for Split/Join and for the
+  five commands**; the cross-part join reports both studies' display warnings, and export limits are
+  deliberately not re-run because §10.1 proves a boundary move is verse-conservative
+- ✅ Cross-part connections: warn-and-delete — **done** (Q23 strategy (b): the count is in the preview,
+  the delete needs an explicit acknowledgement). Superseded in phase 3 by edge stubs
+- ✅ **"Balance by length" — done** (Q11)
+- ✅ **Adjacent-part prefetch — done**, completing phase 2
 - _Q40 and Q23 are no longer blocking — both were ratified from what was already live and phased;
   see the phase-2 note at the top of this document. Q35 (undo) remains open._
 
