@@ -135,13 +135,20 @@
 	 * Create the series. The endpoint re-plans server-side from the same planner, so the
 	 * chapters-per-part setting is all that needs to travel.
 	 */
-	async function handleCreateSeries(chaptersPerPart) {
+	async function handleCreateSeries(chaptersPerPart, options = {}) {
 		splitError = null;
 		try {
 			const response = await fetch('/api/series', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ studyId: selectedStudyData.id, chaptersPerPart })
+				body: JSON.stringify({
+					studyId: selectedStudyData.id,
+					chaptersPerPart,
+					// "Balance by length" (§5 option (b)). Forwarded so the server re-plans the shape the
+					// user actually approved, not the default one.
+					balanceByLength: options.balanceByLength ?? false,
+					targetParts: options.targetParts ?? 0
+				})
 			});
 
 			const result = await response.json();

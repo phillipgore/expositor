@@ -55,7 +55,15 @@ export const POST = async ({ request }) => {
 		}
 
 		const body = await request.json();
-		const { studyId, chaptersPerPart = 1, name } = body ?? {};
+		const {
+			studyId,
+			chaptersPerPart = 1,
+			name,
+			// "Balance by length" (§5 option (b), Q11). Opt-in, so the default remains fixed
+			// chapters-per-part; the planner ignores these unless `balanceByLength` is true.
+			balanceByLength = false,
+			targetParts = 0
+		} = body ?? {};
 
 		if (!studyId || typeof studyId !== 'string') {
 			return json({ error: 'studyId is required' }, { status: 400 });
@@ -106,7 +114,12 @@ export const POST = async ({ request }) => {
 			})),
 			chaptersPerPart,
 			translationId: source.translation,
-			baseTitle: source.title
+			baseTitle: source.title,
+			// Passed through so the server re-plans the shape the user approved. The modal previews with
+			// the same function and the same options, which is what makes §5's "the preview a user
+			// approves is the parting they get" true rather than merely intended.
+			balanceByLength,
+			targetParts
 		});
 
 		if (plan.strategy === 'ineligible') {

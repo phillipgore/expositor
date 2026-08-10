@@ -25,7 +25,7 @@
 	 * @property {boolean} isOpen
 	 * @property {Object} study - The source study (with `passages` and `translation`)
 	 * @property {string|null} error - Server-side failure to surface, if any
-	 * @property {Function} onCreate - (chaptersPerPart:number) => Promise<void>
+	 * @property {Function} onCreate - (chaptersPerPart:number, options:{balanceByLength:boolean, targetParts:number}) => Promise<void>
 	 * @property {Function} onClose - () => void
 	 *
 	 * @component
@@ -81,19 +81,69 @@
 	});
 
 
-	let plan = $derived(
+	// ── "Balance by length" (§5 option (b), Q11) ──────────────────────────────────
+	//
+	// §5: fixed chapters-per-part is the default because "chapter boundaries are meaningful to readers
+	// in a way equal verse counts are not", and balancing is "an option the user may choose, never a
+	// re-balancing the app applies on their behalf". So this is off unless ticked, and the control it
+	// replaces stays visible — the user can see which of the two they are getting.
+	let balanceByLength = $state(false);
+
+	// The part count to balance into. Seeded from whatever the chapters-per-part stepper currently
+	// implies, so ticking the box does not jump to an unrelated shape: the user keeps roughly the number
+	// of parts they were already looking at, now evened out.
+	let balanceTargetInput = $state('');
+
+	$effect(() => {
+		if (isOpen) balanceByLength = false;
+	});
+
+	// Seeded when the box is ticked, and left alone afterwards so the user's own number survives a
+	// stepper nudge. Held as a string because `Input` surfaces strings.
+	$effect(() => {
+		if (balanceByLength && balanceTargetInput === '') {
+			balanceTargetInput = String(Math.max(2, fixedPartCount));
+		}
+		if (!balanceByLength) balanceTargetInput = '';
+	});
+
+	let balanceTarget = $derived.by(() => {
+		const parsed = parseInt(balanceTargetInput, 10);
+		if (!Number.isFinite(parsed) || parsed < 2) return 2;
+		return Math.min(parsed, Math.max(2, totalChapters));
+	});
+
+	/** Ranges in the shape the planner reads, normalised once. */
+	let plannerPassages = $derived(
+		passages.map((p) => ({
+			testament: p.testament,
+			book: p.bookId ?? p.book,
+			fromChapter: p.fromChapter,
+			fromVerse: p.fromVerse,
+			toChapter: p.toChapter,
+			toVerse: p.toVerse
+		}))
+	);
+
+	// How many parts the CHAPTERS-PER-PART setting yields, used only to seed the balance target above.
+	// Computed from the planner rather than by dividing, so the two cannot disagree about rounding.
+	let fixedPartCount = $derived(
 		planSeriesParts({
-			passages: passages.map((p) => ({
-				testament: p.testament,
-				book: p.bookId ?? p.book,
-				fromChapter: p.fromChapter,
-				fromVerse: p.fromVerse,
-				toChapter: p.toChapter,
-				toVerse: p.toVerse
-			})),
+			passages: plannerPassages,
 			chaptersPerPart,
 			translationId: study?.translation,
-			baseTitle: study?.title ?? ''
+			baseTitle: ''
+		}).parts.length
+	);
+
+	let plan = $derived(
+		planSeriesParts({
+			passages: plannerPassages,
+			chaptersPerPart,
+			translationId: study?.translation,
+			baseTitle: study?.title ?? '',
+			balanceByLength,
+			targetParts: balanceByLength ? balanceTarget : 0
 		})
 	);
 
@@ -138,7 +188,14 @@
 		if (!canCreate) return;
 		isSubmitting = true;
 		try {
-			await onCreate?.(chaptersPerPart);
+			// The balance options travel with the setting, because the endpoint re-plans server-side.
+			// Sending only `chaptersPerPart` would rebuild the series with the DEFAULT shape while the
+			// user had approved a balanced preview — §5's "the preview a user approves is the parting
+			// they get" broken by omission.
+			await onCreate?.(chaptersPerPart, {
+				balanceByLength,
+				targetParts: balanceByLength ? balanceTarget : 0
+			});
 		} finally {
 			isSubmitting = false;
 		}
@@ -204,6 +261,42 @@
 					{parts.length} parts · avg {averageVerses} verses each
 				</span>
 			</div>
+
+			<!-- §5 option (b), Q11. Offered beside the stepper rather than replacing it, so the user can
+			     see which of the two shapes they are choosing. Off by default: §5 keeps chapter
+			     boundaries as the default because they are meaningful to readers in a way equal verse
+			     counts are not. -->
+			<div class="balance-row">
+				<label class="balance-toggle">
+					<input type="checkbox" bind:checked={balanceByLength} />
+					Balance by length
+				</label>
+
+				{#if balanceByLength}
+					<label class="stepper-label" for="balance-parts">into</label>
+					<div class="balance-count">
+						<Input
+							id="balance-parts"
+							name="balance-parts"
+							type="number"
+							min={2}
+							max={Math.max(2, totalChapters)}
+							bind:value={balanceTargetInput}
+						/>
+					</div>
+					<span class="stepper-label">parts</span>
+				{/if}
+			</div>
+
+			{#if balanceByLength}
+				<!-- Said plainly, because the arithmetic cannot always deliver evenness: chapters are
+				     never split, so a range containing one very long chapter still yields one very long
+				     part. Better to say so here than to let the preview look like a broken promise. -->
+				<p class="hint">
+					Parts break on chapter boundaries, so they are evened out as far as whole chapters
+					allow — a single long chapter still makes one long part.
+				</p>
+			{/if}
 		{:else}
 			<p class="explain">
 				This study has {passages.length} passages, so it will divide into
@@ -307,6 +400,26 @@
 		font-size: 1.3rem;
 		color: var(--gray-300);
 		margin-left: auto;
+	}
+
+	.balance-row {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.8rem;
+	}
+
+	.balance-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		font-size: 1.4rem;
+		color: var(--black);
+	}
+
+	.balance-count {
+		max-width: 7rem;
 	}
 
 	.parts {
