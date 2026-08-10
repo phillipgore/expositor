@@ -22,11 +22,7 @@
  */
 
 import { countVersesInRange, getVerseCount } from './bibleData.js';
-import {
-	checkSinglePassageSupport,
-	validateStudyDisplayLimits
-} from './translationLimits.js';
-
+import { checkSinglePassageSupport, validateStudyDisplayLimits } from './translationLimits.js';
 
 /**
  * Which parting strategy applies to a study's passages.
@@ -69,19 +65,39 @@ export function isSeriesEligible(passages) {
  * @param {number} [options.chaptersPerPart] - Only used by the `chapters-per-part` strategy
  * @param {string} options.translationId
  * @param {string} [options.baseTitle] - Source study title, used to name parts
+ * @param {boolean} [options.balanceByLength] - Opt in to "Balance by length" (§5 option (b), Q11)
+ * @param {number} [options.targetParts] - How many parts to balance into; required by `balanceByLength`
  * @returns {{ strategy: string, parts: Array<Object>, totalVerses: number, warnings: Array<Object> }}
  */
-export function planSeriesParts({ passages, chaptersPerPart = 1, translationId, baseTitle = '' }) {
+export function planSeriesParts({
+	passages,
+	chaptersPerPart = 1,
+	translationId,
+	baseTitle = '',
+	balanceByLength = false,
+	targetParts = 0
+}) {
 	const strategy = getPartingStrategy(passages);
 
 	if (strategy === 'ineligible') {
 		return { strategy, parts: [], totalVerses: 0, warnings: [] };
 	}
 
+	// "Balance by length" (§5 option (b), Q11) is an OPT-IN alternative to fixed chapters-per-part, and
+	// only for the chapters-per-part strategy: with one part per passage the seams are already drawn by
+	// the user, so re-balancing them would be the app overriding a choice it was told to respect.
+	//
+	// §5 is explicit that (a) stays the default — "chapter boundaries are meaningful to readers in a way
+	// equal verse counts are not" — and that (b) is "an option the user may choose, never a re-balancing
+	// the app applies on their behalf". So this is reached only when the caller asks by name.
+	const useBalance = balanceByLength && strategy === 'chapters-per-part' && targetParts > 1;
+
 	const parts =
 		strategy === 'passage-per-part'
 			? planByPassage(passages, baseTitle)
-			: planByChapters(passages[0], chaptersPerPart, baseTitle);
+			: useBalance
+				? planByBalance(passages[0], targetParts, baseTitle)
+				: planByChapters(passages[0], chaptersPerPart, baseTitle);
 
 	const totalVerses = parts.reduce((sum, part) => sum + part.verseCount, 0);
 
@@ -109,6 +125,125 @@ function planByPassage(passages, baseTitle) {
 		return {
 			seriesOrder: index + 1,
 			title: baseTitle ? `${baseTitle} — Part ${index + 1}` : `Part ${index + 1}`,
+			passages: [range],
+			verseCount: verseCountOf(range)
+		};
+	});
+}
+
+/**
+ * Divide one contiguous single-book range into `targetParts` parts of similar verse length,
+ * breaking only on chapter boundaries ("Balance by length", §5 option (b), Q11).
+ *
+ * ## Why chapter boundaries are still respected
+ *
+ * §5 specifies "balance by verse count, **breaking on chapter boundaries**", and the reason is in the
+ * same paragraph: chapter boundaries are meaningful to readers in a way equal verse counts are not.
+ * So this never splits a chapter to even out the arithmetic — it chooses *where among the chapter
+ * seams* to cut. Psalms is the case that motivates it: at one chapter per part, Psalm 117 (2 verses)
+ * and Psalm 119 (176) become parts of wildly different size.
+ *
+ * ## Why it takes a part COUNT rather than a target length
+ *
+ * §5 rule 1 is that a series is never imposed and the shape is always the user's choice. A part count
+ * is a number the user can see the consequence of — the preview lists that many parts. A target verse
+ * length is not: it yields an unpredictable number of parts, so the user would be choosing an input
+ * whose output they cannot picture, which is exactly what the preview exists to prevent.
+ *
+ * ## The algorithm, and its stated limitation
+ *
+ * Greedy: walk the chapters, accumulating into the current part until adding the next chapter would
+ * take it further from the ideal average than closing it here. That is not a globally optimal
+ * partition — a dynamic-programming pass would do better on pathological inputs — and it is chosen
+ * deliberately: the result must be *explainable* in the preview ("parts of roughly N verses"), and a
+ * greedy walk in canonical order never reorders or skips a chapter, so what the user sees is what the
+ * arithmetic did. Recorded rather than left as an unexamined choice.
+ *
+ * @param {Object} passage - A single contiguous range in one book
+ * @param {number} targetParts - How many parts the user asked for
+ * @param {string} baseTitle
+ * @returns {Array<Object>}
+ */
+function planByBalance(passage, targetParts, baseTitle) {
+	const testament = passage.testament;
+	const book = passage.book ?? passage.bookId;
+
+	// Each chapter's verse count, and the portion of the first/last that the range actually covers —
+	// a range may start or end mid-chapter (Q12), and balancing on the whole chapter's length would
+	// then weight a partial chapter as if it were complete.
+	const chapters = [];
+	for (let ch = passage.fromChapter; ch <= passage.toChapter; ch += 1) {
+		const length = getVerseCount(testament, book, ch);
+		if (!length) return planByChapters(passage, 1, baseTitle);
+		const from = ch === passage.fromChapter ? passage.fromVerse : 1;
+		const to = ch === passage.toChapter ? Math.min(passage.toVerse, length) : length;
+		chapters.push({ chapter: ch, from, to, verses: Math.max(0, to - from + 1) });
+	}
+
+	const total = chapters.reduce((sum, c) => sum + c.verses, 0);
+	// Clamp to something achievable: never more parts than chapters (a part must hold at least one
+	// chapter, since chapters are not split), and never fewer than one.
+	const wanted = Math.max(1, Math.min(Math.floor(targetParts), chapters.length));
+	const ideal = total / wanted;
+
+	/** @type {Array<Array<Object>>} */
+	const groups = [];
+	let current = [];
+	let currentVerses = 0;
+
+	for (let i = 0; i < chapters.length; i += 1) {
+		const chapter = chapters[i];
+		const remainingChapters = chapters.length - i;
+		const remainingGroups = wanted - groups.length;
+
+		// Reserve one chapter per group still to be opened, so the last groups cannot be starved of
+		// chapters entirely — without this a greedy fill can consume everything and emit fewer parts
+		// than asked for.
+		const mustCloseNow = current.length > 0 && remainingChapters < remainingGroups;
+
+		if (mustCloseNow) {
+			groups.push(current);
+			current = [chapter];
+			currentVerses = chapter.verses;
+			continue;
+		}
+
+		if (current.length === 0) {
+			current = [chapter];
+			currentVerses = chapter.verses;
+			continue;
+		}
+
+		// Close here, or take this chapter too? Whichever leaves the group closer to the ideal.
+		const withoutIt = Math.abs(currentVerses - ideal);
+		const withIt = Math.abs(currentVerses + chapter.verses - ideal);
+		const roomForMore = groups.length < wanted - 1;
+
+		if (withIt <= withoutIt || !roomForMore) {
+			current.push(chapter);
+			currentVerses += chapter.verses;
+		} else {
+			groups.push(current);
+			current = [chapter];
+			currentVerses = chapter.verses;
+		}
+	}
+	if (current.length > 0) groups.push(current);
+
+	return groups.map((group, index) => {
+		const first = group[0];
+		const last = group[group.length - 1];
+		const range = {
+			testament,
+			book,
+			fromChapter: first.chapter,
+			fromVerse: first.from,
+			toChapter: last.chapter,
+			toVerse: last.to
+		};
+		return {
+			seriesOrder: index + 1,
+			title: partTitle(baseTitle, range, index + 1),
 			passages: [range],
 			verseCount: verseCountOf(range)
 		};
