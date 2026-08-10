@@ -231,7 +231,10 @@ export async function load({ params, request, depends }) {
 			prefetchTarget = selectPrefetchTarget({
 				parts: partsWithPassages,
 				currentPartId: studyId,
-				direction: 'next'
+				direction: 'next',
+				// Passed so the selector can decline to store text speculatively under a translation with a
+				// local-storage cap (COMPLIANCE.md §5 item 1). ESV has one; NET does not.
+				translationId: studyData.translation || 'esv'
 			});
 		}
 

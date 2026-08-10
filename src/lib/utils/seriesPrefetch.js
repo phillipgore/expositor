@@ -28,6 +28,8 @@
  * @module seriesPrefetch
  */
 
+import { getCachingLimits } from './translationLimits.js';
+
 /**
  * Which part's text should be warmed after landing on `currentPartId`.
  *
@@ -43,10 +45,28 @@
  * @param {Array<Object>} params.parts - Every part of the series, each with `id`, `seriesOrder` and `passages`
  * @param {string} params.currentPartId
  * @param {'next'|'previous'} [params.direction='next']
+ * @param {string} [params.translationId] - Consulted so a translation with a local-storage cap is never
+ *   prefetched for (COMPLIANCE.md §5 item 1). Omitting it prefetches, which keeps pre-existing callers working.
  * @returns {{ partId: string, passages: Array<Object> }|null}
  */
-export function selectPrefetchTarget({ parts, currentPartId, direction = 'next' }) {
+export function selectPrefetchTarget({ parts, currentPartId, direction = 'next', translationId }) {
 	if (!Array.isArray(parts) || parts.length < 2) return null;
+
+	// ⚠️ **Never store text speculatively for a translation with a local-storage cap.**
+	//
+	// COMPLIANCE.md §5 item 1 calls unbounded `passage.cachedText` "the one genuine violation": the ESV
+	// terms forbid locally storing more than 500 verses, and nothing caps, ages out or clears the column.
+	// This prefetch would make that strictly worse in the least defensible way — it writes the text of a
+	// part the user has NOT opened, so the stored verses have no user-facing purpose at all.
+	//
+	// Caching what someone is reading is service operation with a rationale; caching what they may never
+	// read is storage with none, so it is the first thing such a clause forbids. Skipped for ESV; NET
+	// declares no caching cap and is unaffected, which is the same read-the-source rule the decisions
+	// log's "limit message attribution" row demands.
+	//
+	// This does NOT fix §5 item 1 — the cap is still unenforced for text the user does open. It declines
+	// to enlarge the breach for a speculative gain.
+	if (translationId && getCachingLimits(translationId).maxVerses !== null) return null;
 
 	// `seriesOrder` is the user's arrangement and §4 forbids re-deriving it, so it is sorted by, never
 	// recomputed. A series deliberately teaching Romans 8 first prefetches whatever the user put second.

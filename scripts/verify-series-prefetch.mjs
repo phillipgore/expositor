@@ -112,6 +112,36 @@ const multi = selectPrefetchTarget({ parts: nextIsMulti, currentPartId: 'a' });
 check('an entirely cold multi-passage part is warmed', multi?.partId, 'b');
 check('with every one of its passages listed', multi?.passages.length, 3);
 
+console.log('\n── ⚠️ COMPLIANCE: never store text speculatively under a storage cap ──');
+
+// COMPLIANCE.md §5 item 1 calls unbounded `passage.cachedText` "the one genuine violation": ESV forbids
+// locally storing more than 500 verses and nothing caps or clears the column. A prefetch writes text for
+// a part the user has NOT opened, so those verses have no user-facing purpose — the least defensible
+// possible case under such a clause. It is therefore skipped for ESV entirely.
+//
+// NET declares no caching cap, so the identical series prefetches normally. Attributing the limit to the
+// licence that imposes it is the decisions log's "limit message attribution" rule.
+check(
+	'ESV declines to prefetch, because it caps local storage',
+	selectPrefetchTarget({ parts: threeCold, currentPartId: 'a', translationId: 'esv' }),
+	null
+);
+check(
+	'NET prefetches the same series, having no such cap',
+	selectPrefetchTarget({ parts: threeCold, currentPartId: 'a', translationId: 'net' })?.partId,
+	'b'
+);
+check(
+	'and an unknown translation is treated as unrestricted, not silently blocked',
+	selectPrefetchTarget({ parts: threeCold, currentPartId: 'a', translationId: 'zzz' })?.partId,
+	'b'
+);
+check(
+	'omitting the translation entirely still prefetches (callers that predate the gate)',
+	selectPrefetchTarget({ parts: threeCold, currentPartId: 'a' })?.partId,
+	'b'
+);
+
 console.log('\n── both cache spellings are honoured (rows vs. the layout’s boolean) ──');
 
 // The study layout selects `hasCachedText` as a boolean rather than the whole `cachedText` HTML, so the

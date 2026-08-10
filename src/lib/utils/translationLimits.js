@@ -214,6 +214,36 @@ export function getRateLimits(translationId) {
  * @param {string} translationId - Translation ID
  * @returns {{ maxVerses: number|null, maxBookPortion: number|null, allowCompleteBook: boolean, enforcement: 'warn'|'block', requiresAttribution: boolean }}
  */
+/**
+ * Local-storage limits for a translation (`restrictions.caching`).
+ *
+ * ⚠️ **This reads a value COMPLIANCE.md §5 item 1 records as "read by nothing".** It still does not
+ * *enforce* the cap — `passage.cachedText` remains unbounded, which §5 calls "the one genuine
+ * violation" — but it is now consulted where the app would otherwise store text **speculatively**, for
+ * a page the user has not asked for. See `seriesPrefetch.js`.
+ *
+ * The distinction that justifies wiring it there and not everywhere: caching text a user is reading is
+ * ordinary service operation with a defensible rationale; caching text they may never open is storage
+ * with no user-facing purpose at all, so a licence that forbids unbounded local storage forbids that
+ * case first and most clearly.
+ *
+ * @param {string} translationId
+ * @returns {{ maxVerses: number|null, allowed: boolean }}
+ */
+export function getCachingLimits(translationId) {
+	// `getRestrictions()` is the existing accessor every sibling here uses; I reached for a
+	// `getTranslation()` that does not exist and Node caught it immediately.
+	const restrictions = getRestrictions(translationId);
+	const caching = restrictions?.caching || {};
+
+	return {
+		maxVerses: typeof caching.maxVerses === 'number' ? caching.maxVerses : null,
+		// `allowed: false` would mean "do not persist at all". No translation says that today; the field
+		// is read rather than assumed so a licence change is a data edit, not a code change.
+		allowed: caching.allowed !== false
+	};
+}
+
 export function getDistributionLimits(translationId) {
 	const restrictions = getRestrictions(translationId);
 	const dist = restrictions?.distribution || {};
