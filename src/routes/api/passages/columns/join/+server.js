@@ -1,14 +1,19 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
 import { analyzeJoin, joinColumn } from '$lib/server/db/passageJoin.js';
+import { routeJoin } from '$lib/server/db/joinRouting.js';
 import { auth } from '$lib/server/auth.js';
 
 /**
  * Join a column into the column immediately preceding it.
  *
  * Body: { passageId, columnId, decision?, dryRun? }
- *   - dryRun: true → returns { needsDecision, summary } without mutating.
+ *   - dryRun: true → returns { needsDecision, summary, crossesBoundary } without mutating.
  *   - decision: 'merge' (default) | 'delete'.
+ *
+ * The preceding column may live in a **different passage** — an earlier passage of the same study, or
+ * the previous part of a series (SERIES_PLAN §8). `routeJoin` dispatches: within-passage joins run the
+ * original code untouched, cross-boundary ones go to `crossPartJoin.js`, which also moves the verses.
  *
  * @type {import('./$types').RequestHandler}
  */
@@ -19,19 +24,24 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { columnId, decision = 'merge', dryRun = false } = await request.json();
+		const { passageId, columnId, decision = 'merge', dryRun = false } = await request.json();
 		if (!columnId) {
 			return json({ error: 'Missing required field: columnId' }, { status: 400 });
 		}
 
-		if (dryRun) {
-			const result = await analyzeJoin(db, session.user.id, 'column', columnId);
-			return json({ success: true, ...result }, { status: 200 });
-		}
+		const { status, body } = await routeJoin({
+			db,
+			userId: session.user.id,
+			passageId,
+			itemId: columnId,
+			granularity: 'column',
+			decision,
+			dryRun,
+			analyzeWithinPassage: analyzeJoin,
+			joinWithinPassage: joinColumn
+		});
 
-		await joinColumn(db, session.user.id, columnId, decision);
-
-		return json({ success: true }, { status: 200 });
+		return json(body, { status });
 	} catch (error) {
 		console.error('Join column error:', error);
 		if (error.message === 'Unauthorized') {

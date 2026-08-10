@@ -91,59 +91,63 @@
 	// sits in the PREVIOUS part); Move Text Down pairs `canExplainEnd` with `boundaryAfter`. Both
 	// halves of each pair must agree about which edge is meant — mixing them (say, an end-edge
 	// guard with a `boundaryBefore` string) would put the wrong neighbour in the sentence.
-	let joinColumnReason = $derived(
-		canExplainStart && $toolbarState.hasActiveColumn && $toolbarState.isActiveColumnFirstInPassage
+	/**
+	 * Is a cross-boundary join available for an item that is first in its passage?
+	 *
+	 * One rule, three callers. True at an INTERNAL passage seam — always joinable, and never a series
+	 * matter — or at a part's leading edge whose previous seam is contiguous. False for the first part
+	 * of a series (nothing precedes it) and for a permanently ineligible seam.
+	 *
+	 * `boundaryBefore` is the discriminator already computed for this purpose: null when the preceding
+	 * seam is contiguous (nothing to explain), a sentence when it is ineligible.
+	 */
+	function canJoinAcross(isFirstInPassage) {
+		if (!isFirstInPassage || isDocument) return false;
+		const atInternalSeam = passageCount > 1 && activePassageIndex !== 0;
+		return atInternalSeam || (atPartStart && seriesContext?.boundaryBefore === null);
+	}
 
+	let joinColumnCrossesBoundary = $derived(
+		$toolbarState.hasActiveColumn && $toolbarState.isActiveColumnFirstInPassage
+	);
+	let canJoinColumnAcross = $derived(canJoinAcross(joinColumnCrossesBoundary));
+
+	let joinColumnReason = $derived(
+		canExplainStart && joinColumnCrossesBoundary && !canJoinColumnAcross
 			? seriesContext.boundaryBefore
 			: null
 	);
 
-	let joinSectionReason = $derived(
-		canExplainStart &&
-
-			$toolbarState.hasActiveSection &&
+	// Join Section and Join Column now cross a boundary too (§8). The availability rule is identical
+	// for all three granularities, so it is factored into `canJoinAcross()` rather than repeated —
+	// three copies of a rule about a destructive command is three chances to disagree.
+	let joinSectionCrossesBoundary = $derived(
+		$toolbarState.hasActiveSection &&
 			!$toolbarState.hasActiveColumn &&
 			$toolbarState.isActiveSectionFirstInPassage
+	);
+	let canJoinSectionAcross = $derived(canJoinAcross(joinSectionCrossesBoundary));
+
+	let joinSectionReason = $derived(
+		canExplainStart && joinSectionCrossesBoundary && !canJoinSectionAcross
 			? seriesContext.boundaryBefore
 			: null
 	);
 
-	// ── Join Segment now works across a boundary (SERIES_PLAN §8, phase 2) ──
+	// ── All three Joins now work across a boundary (SERIES_PLAN §8, phase 2) ──
 	//
-	// Two distinct situations produce `isActiveSegmentFirstInPassage`, and they now have opposite
-	// answers:
-	//
-	//   - an INTERNAL passage seam, or a part boundary whose previous part abuts, is joinable — the
-	//     server resolves the predecessor across the seam (`crossPartJoin.js`);
-	//   - the very first passage of a series with no eligible previous seam is not.
-	//
-	// `boundaryBefore` is exactly the discriminator already computed for this purpose: it is null when
-	// the preceding seam is contiguous (nothing to explain) and a sentence when it is permanently
-	// ineligible. So a non-null reason still disables the command; a null one no longer does.
+	// Two distinct situations produce `isActive…FirstInPassage`, and they now have opposite answers:
+	// an INTERNAL passage seam, or a part boundary whose previous part abuts, is joinable — the server
+	// resolves the predecessor across the seam (`crossPartJoin.js`); the very first passage of a series
+	// is not. `canJoinAcross()` above is the single rule; each granularity supplies its own flag.
 	let joinSegmentCrossesBoundary = $derived(
 		$toolbarState.hasActiveSegment && $toolbarState.isActiveSegmentFirstInPassage
 	);
+	let canJoinSegmentAcross = $derived(canJoinAcross(joinSegmentCrossesBoundary));
 
-	// An internal seam inside a multi-passage part: joinable, and never a series-boundary matter.
-	let atInternalSeam = $derived(
-		joinSegmentCrossesBoundary && passageCount > 1 && activePassageIndex !== 0
-	);
-
-	/**
-	 * Is a cross-boundary Join Segment available?
-	 *
-	 * True at an internal passage seam (always joinable), or at a part's leading edge whose previous
-	 * seam is contiguous. False for the first part of a series, and for an ineligible seam.
-	 */
-	let canJoinSegmentAcross = $derived(
-		joinSegmentCrossesBoundary &&
-			!isDocument &&
-			(atInternalSeam || (atPartStart && seriesContext?.boundaryBefore === null))
-	);
-
-	// The reason is now shown only when the command is genuinely dead: an ineligible seam. Previously
-	// it also appeared over a contiguous seam, where it read "not available across parts yet" — which
-	// is now false, and §11 is explicit that a promise of a later fix must not outlive the fix.
+	// The reason is shown only when the command is genuinely dead: an ineligible seam. Previously it
+	// also appeared over a contiguous seam, where it read "not available across parts yet" — now false,
+	// and §11 is explicit that a promise of a later fix must not outlive the fix.
 	let joinSegmentReason = $derived(
 		canExplainStart && joinSegmentCrossesBoundary && !canJoinSegmentAcross
 			? seriesContext.boundaryBefore
@@ -272,7 +276,8 @@
 			// Trigger join column event via custom event
 			window.dispatchEvent(new CustomEvent('join-column'));
 		}}
-		isDisabled={!$toolbarState.hasActiveColumn || $toolbarState.isActiveColumnFirstInPassage}
+		isDisabled={!$toolbarState.hasActiveColumn ||
+			($toolbarState.isActiveColumnFirstInPassage && !canJoinColumnAcross)}
 		ariaLabel={joinColumnReason ? `Join Column — ${joinColumnReason}` : undefined}
 	/>
 	{#if joinColumnReason}
@@ -305,7 +310,9 @@
 			// Trigger join section event via custom event
 			window.dispatchEvent(new CustomEvent('join-section'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.isActiveSectionFirstInPassage}
+		isDisabled={!$toolbarState.hasActiveSection ||
+			$toolbarState.hasActiveColumn ||
+			($toolbarState.isActiveSectionFirstInPassage && !canJoinSectionAcross)}
 		ariaLabel={joinSectionReason ? `Join Section — ${joinSectionReason}` : undefined}
 	/>
 	{#if joinSectionReason}

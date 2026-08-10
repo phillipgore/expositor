@@ -407,5 +407,106 @@ assert(
 		countVerses(shifted.before) + countVerses(shifted.after)
 );
 
+console.log('\n── §8: a SECTION or COLUMN join moves several segments, so the boundary differs ──');
+
+// ⚠️ The distinction this pins is where Join Section/Column would most plausibly go wrong.
+//
+// For Join Segment the new boundary is "the segment after the active one", because exactly one segment
+// leaves. For a section or column, SEVERAL leave at once — so the segment immediately after the first
+// of them is itself still moving, and using it would leave the boundary INSIDE the moved block. The
+// earlier part would then claim verses whose structure had also moved, and the later part would render
+// text it no longer owned.
+//
+// The rule that survives all three: the boundary is the first segment that STAYS.
+//
+// Fixture: part 2 holds one column with two sections. Joining section `sx` backwards moves its two
+// segments (3:1 and 3:5); `sy`'s segment at 3:20 stays, so 3:20 is the boundary — NOT 3:5.
+const twoSectionSequence = [
+	{
+		passageId: 'q1',
+		passage: romansOneTwo,
+		tree: [col('qc', w('RO', 1, 1), [sec('qs', w('RO', 1, 1), [seg('qg', w('RO', 1, 1))])])]
+	},
+	{
+		passageId: 'q2',
+		passage: romansThreeFour,
+		tree: [
+			col('rc', w('RO', 3, 1), [
+				sec('sx', w('RO', 3, 1), [seg('x1', w('RO', 3, 1)), seg('x2', w('RO', 3, 5))]),
+				sec('sy', w('RO', 3, 20), [seg('y1', w('RO', 3, 20))])
+			])
+		]
+	}
+];
+
+// The section-granularity resolution finds the previous SECTION across the seam.
+const sectionAcross = resolveScope({
+	sequence: twoSectionSequence,
+	granularity: 'section',
+	itemId: 'sx',
+	direction: 'previous'
+});
+assert('a section join across the seam resolves', sectionAcross.ok);
+check('to the previous passage’s section', sectionAcross.target.id, 'qs');
+assert('and is flagged as crossing', sectionAcross.crossesBoundary);
+
+// The segments that leave with `sx`, and the first that stays — the boundary rule.
+const flatQ2 = flattenSequence([twoSectionSequence[1]], 'segment');
+const movingIds = new Set(['x1', 'x2']);
+const firstStaying = flatQ2.find((e) => !movingIds.has(e.id));
+check('the first segment that STAYS is y1', firstStaying.id, 'y1');
+check('anchored at 3:20', firstStaying.startingWordId, w('RO', 3, 20));
+
+const sectionShift = planBoundaryShift({
+	before: romansOneTwo,
+	after: romansThreeFour,
+	newBoundaryWordId: firstStaying.startingWordId
+});
+assert('the shift is accepted', sectionShift.ok);
+check(
+	'part 1 absorbs everything the section covered, up to 3:19',
+	`${sectionShift.before.toChapter}:${sectionShift.before.toVerse}`,
+	'3:19'
+);
+check(
+	'and part 2 now begins at the section that stayed',
+	`${sectionShift.after.fromChapter}:${sectionShift.after.fromVerse}`,
+	'3:20'
+);
+
+// The wrong rule, asserted as wrong so the distinction cannot quietly regress: using the segment after
+// the ACTIVE one (3:5) would stop the boundary short and strand x2's verses in part 2 while its
+// structure moved to part 1.
+const wrongShift = planBoundaryShift({
+	before: romansOneTwo,
+	after: romansThreeFour,
+	newBoundaryWordId: w('RO', 3, 5)
+});
+assert(
+	'the naive per-segment boundary also "succeeds" — which is why it is dangerous',
+	wrongShift.ok
+);
+assert(
+	'but it stops short of the moved block, so the two rules genuinely differ',
+	wrongShift.before.toVerse !== sectionShift.before.toVerse
+);
+
+// A column join moves every segment of every section it holds, so nothing stays and the operation is
+// refused as a Join Parts in disguise — §8's rule that a boundary move never empties a part.
+const columnAcross = resolveScope({
+	sequence: twoSectionSequence,
+	granularity: 'column',
+	itemId: 'rc',
+	direction: 'previous'
+});
+assert('a column join across the seam resolves scope', columnAcross.ok);
+check('to the previous passage’s column', columnAcross.target.id, 'qc');
+// Every segment of q2 belongs to `rc`, so none stays — the executor refuses this, and the refusal is
+// the correct answer rather than a limitation.
+const allMoving = flattenSequence([twoSectionSequence[1]], 'segment').every((e) =>
+	['x1', 'x2', 'y1'].includes(e.id)
+);
+assert('and every segment of the passage would move, so it must be refused', allMoving);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

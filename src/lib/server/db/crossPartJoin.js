@@ -38,7 +38,7 @@ import {
 	passageSegment,
 	segmentConnection
 } from './schema.js';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, inArray } from 'drizzle-orm';
 import { resolveScope } from '$lib/utils/sequenceScope.js';
 import { planBoundaryShift } from '$lib/utils/boundaryMove.js';
 import { compareWordIds } from '$lib/utils/wordIds.js';
@@ -47,42 +47,104 @@ import { foldSegmentContent, reanchorConnectionsOnto } from './passageFold.js';
 import { getBookMeta } from './passageReconcile.js';
 import { validateStudyDisplayLimits } from '$lib/utils/translationLimits.js';
 
+/** Every segment of one passage's tree, in word order. */
+function segmentsOf(entry) {
+	const out = [];
+	for (const column of entry?.tree ?? []) {
+		for (const section of column.sections ?? []) {
+			for (const segment of section.segments ?? []) out.push(segment);
+		}
+	}
+	out.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
+	return out;
+}
+
 /**
- * Where the boundary must land for a join that pulls one segment backwards.
+ * The segments that move when `itemId` (of `granularity`) is joined backwards.
  *
- * Structure has **implicit extent**: a segment runs from its own anchor until the next segment begins
- * (`passageReconcile.js` states this). So after the join the earlier passage must extend to cover
- * exactly the joined segment's span, which means the new boundary is the anchor of the segment that
- * FOLLOWS it inside its own passage.
- *
- * If nothing follows it, the join would move every verse out of the passage — which is a Join Parts,
- * a different command with its own confirmation and its own deletion. Refused here rather than
- * silently promoted, the same rule `planBoundaryShift` enforces.
+ * A segment moves alone. A section takes its segments; a column takes every segment of every section
+ * it holds. This is what makes the three granularities one operation rather than three: the boundary
+ * question is always "which segments leave this passage?", and the answer differs only in how many.
  */
-function planBoundaryShiftForJoin(sequence, scope) {
+function movingSegmentsFor(entry, granularity, itemId) {
+	if (granularity === 'segment') {
+		return segmentsOf(entry).filter((s) => s.id === itemId);
+	}
+
+	const out = [];
+	for (const column of entry?.tree ?? []) {
+		if (granularity === 'column' && column.id !== itemId) continue;
+		for (const section of column.sections ?? []) {
+			if (granularity === 'section' && section.id !== itemId) continue;
+			for (const segment of section.segments ?? []) out.push(segment);
+		}
+	}
+	out.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
+	return out;
+}
+
+/**
+ * A segment belonging to the join target, for `reanchorConnectionsOnto`'s segment map.
+ *
+ * When a section or column is joined, a connection anchored to one of ITS segments still needs a
+ * surviving segment to remap onto. The target's first segment in word order is that survivor. Returns
+ * null when the target holds none, in which case `reanchorConnectionsOnto` falls back to deleting the
+ * affected connections rather than remapping onto nothing — its documented behaviour for a missing
+ * target.
+ */
+function firstSegmentOfTarget(targetEntry, granularity) {
+	if (granularity === 'section') {
+		const segments = (targetEntry?.item?.segments ?? []).slice();
+		segments.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
+		return segments[0] ?? null;
+	}
+	// A column: its first section's first segment.
+	const sections = (targetEntry?.item?.sections ?? []).slice();
+	sections.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
+	for (const section of sections) {
+		const segments = (section.segments ?? []).slice();
+		segments.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
+		if (segments[0]) return segments[0];
+	}
+	return null;
+}
+
+/**
+ * Where the boundary must land for a join that pulls an item backwards.
+ *
+ * Structure has **implicit extent**: an item runs from its own anchor until the next item of its kind
+ * begins (`passageReconcile.js` states this). So after the join the earlier passage must extend to
+ * cover exactly the span that left, which means the new boundary is the anchor of the first segment
+ * that **stays** — not simply the next segment after the active one.
+ *
+ * ⚠️ That distinction is why this is computed from the *set* of moving segments rather than from the
+ * active item's own successor. For Join Segment the two coincide, which is what the first version
+ * relied on; for Join Section and Join Column they do not, because several segments leave at once and
+ * the next segment after the *first* of them is still moving. Using the active item's successor there
+ * would leave the boundary inside the moved block, so the earlier part would claim verses whose
+ * structure had also moved and the later part would render text it no longer owned.
+ *
+ * If nothing stays, the join would move every verse out of the passage — that is Join Parts, a
+ * different command with its own confirmation and its own deletion. Refused rather than silently
+ * promoted, the same rule `planBoundaryShift` enforces.
+ */
+function planBoundaryShiftForJoin(sequence, scope, granularity) {
 	const activeEntry = sequence[scope.active.passageIndex];
 	const targetEntry = sequence[scope.target.passageIndex];
 
-	const own = [];
-	for (const column of activeEntry.tree) {
-		for (const section of column.sections ?? []) {
-			for (const segment of section.segments ?? []) own.push(segment);
-		}
-	}
-	own.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
+	const moving = new Set(
+		movingSegmentsFor(activeEntry, granularity, scope.active.id).map((s) => s.id)
+	);
+	const staying = segmentsOf(activeEntry).filter((s) => !moving.has(s.id));
 
-	const position = own.findIndex((s) => s.id === scope.active.id);
-	const next = position >= 0 ? own[position + 1] : null;
-
-	if (!next) {
+	if (staying.length === 0) {
 		// Returns the SAME shape as planBoundaryShift's own failure, including `before`/`after`. The
 		// first version omitted them, and svelte-check rejected every later `shift.before` read against
 		// the resulting union — a genuine inconsistency, not a typing nuisance: two failure shapes from
 		// one function is how a caller ends up reading a field that is sometimes absent.
 		return {
 			ok: false,
-			error:
-				'This is the only segment in its part, so joining it would empty the part. Use Join Parts to merge them instead.',
+			error: `Joining this ${granularity} would move every verse out of its part. Use Join Parts to merge them instead.`,
 			before: /** @type {Object|null} */ (null),
 			after: /** @type {Object|null} */ (null),
 			versesMoved: 0,
@@ -90,10 +152,11 @@ function planBoundaryShiftForJoin(sequence, scope) {
 		};
 	}
 
+	// The first segment that stays sets the new boundary. `staying` is already in word order.
 	return planBoundaryShift({
 		before: targetEntry.passage,
 		after: activeEntry.passage,
-		newBoundaryWordId: next.startingWordId
+		newBoundaryWordId: staying[0].startingWordId
 	});
 }
 
@@ -131,14 +194,20 @@ async function displayWarnings(dbx, targetEntry, activeEntry, shift, translation
  *
  * @returns {Promise<Object>}
  */
-export async function analyzeCrossPartJoin(dbx, userId, passageId, segmentId) {
+export async function analyzeCrossPartJoin(
+	dbx,
+	userId,
+	passageId,
+	itemId,
+	/** @type {'segment'|'section'|'column'} */ granularity = 'segment'
+) {
 	const loaded = await loadPassageSequence(dbx, userId, passageId);
 	if (!loaded) return { ok: false, reason: 'Passage not found.' };
 
 	const scope = resolveScope({
 		sequence: loaded.sequence,
-		granularity: 'segment',
-		itemId: segmentId,
+		granularity,
+		itemId,
 		direction: 'previous'
 	});
 
@@ -153,7 +222,7 @@ export async function analyzeCrossPartJoin(dbx, userId, passageId, segmentId) {
 	const activeEntry = loaded.sequence[scope.active.passageIndex];
 	const targetEntry = loaded.sequence[scope.target.passageIndex];
 
-	const shift = planBoundaryShiftForJoin(loaded.sequence, scope);
+	const shift = planBoundaryShiftForJoin(loaded.sequence, scope, granularity);
 	if (!shift.ok) return { ok: false, reason: shift.error };
 
 	// The receiving study's translation governs the display check: the limit belongs to the licence of
@@ -174,15 +243,22 @@ export async function analyzeCrossPartJoin(dbx, userId, passageId, segmentId) {
 		toPassageId: targetEntry.passageId,
 		fromStudyId: activeEntry.studyId,
 		toStudyId: targetEntry.studyId,
-		targetSegmentId: scope.target.id,
+		granularity,
+		targetItemId: scope.target.id,
 		versesMoved: shift.versesMoved,
 		display: await displayWarnings(dbx, targetEntry, activeEntry, shift, translationId),
-		summary: summarize(scope.active.item)
+		summary: summarize(scope.active.item, granularity)
 	};
 }
 
 /**
- * Perform a cross-boundary Join Segment.
+ * Perform a cross-boundary Join Segment / Section / Column.
+ *
+ * The three granularities differ in exactly one respect — which rows change parent — and are handled
+ * together for the reason `passageJoin.js` handles them separately: there, each has its own tree walk
+ * and its own guard string; here, the boundary arithmetic, the connection ownership fix, the range
+ * move and the cache invalidation are identical, and only the re-parent step branches. Splitting them
+ * would triple the code that has to stay in step across a destructive operation.
  *
  * ## Order of operations, and why it is this order
  *
@@ -205,20 +281,22 @@ export async function analyzeCrossPartJoin(dbx, userId, passageId, segmentId) {
  * @param {Object} dbInstance
  * @param {string} userId
  * @param {string} passageId
- * @param {string} segmentId
+ * @param {string} itemId
  * @param {'merge'|'delete'} decision
+ * @param {'segment'|'section'|'column'} granularity
  * @returns {Promise<Object>} What was done, for the response
  */
-export async function joinSegmentAcrossBoundary(
+export async function joinAcrossBoundary(
 	dbInstance,
 	userId,
 	passageId,
-	segmentId,
-	decision = 'merge'
+	itemId,
+	decision = 'merge',
+	granularity = 'segment'
 ) {
 	// Re-analysed inside the call rather than trusting a client-supplied plan: the dry run may be
 	// seconds old, and a concurrent edit must not be overwritten on the strength of a stale preview.
-	const plan = await analyzeCrossPartJoin(dbInstance, userId, passageId, segmentId);
+	const plan = await analyzeCrossPartJoin(dbInstance, userId, passageId, itemId, granularity);
 	if (!plan.ok) throw new Error(plan.reason ?? 'This join is not available.');
 	if (!plan.crossesBoundary) {
 		throw new Error('This join does not cross a boundary; use the standard join.');
@@ -229,59 +307,120 @@ export async function joinSegmentAcrossBoundary(
 
 	const scope = resolveScope({
 		sequence: loaded.sequence,
-		granularity: 'segment',
-		itemId: segmentId,
+		granularity,
+		itemId,
 		direction: 'previous'
 	});
 	if (!scope.ok || !scope.crossesBoundary) {
 		throw new Error(scope.reason ?? 'This join is not available.');
 	}
 
-	const shift = planBoundaryShiftForJoin(loaded.sequence, scope);
+	const shift = planBoundaryShiftForJoin(loaded.sequence, scope, granularity);
 	if (!shift.ok) throw new Error(shift.error);
 
+	// `resolveScope` returns the target's parents only for the granularities that have them, so the
+	// three fields are filled from whichever it did supply. `reanchorConnectionsOnto` needs all three
+	// to remap an endpoint of any type onto a survivor of the same type.
 	const target = {
-		segment: scope.target.item,
-		section: scope.target.section,
-		column: scope.target.column
+		segment:
+			granularity === 'segment'
+				? scope.target.item
+				: firstSegmentOfTarget(scope.target, granularity),
+		section: granularity === 'section' ? scope.target.item : (scope.target.section ?? null),
+		column: granularity === 'column' ? scope.target.item : (scope.target.column ?? null)
 	};
+
+	// Every segment that changes parent, and the container ids being removed. Connections may be
+	// anchored to any of the three types (§8's Q42 note), so all three lists travel.
+	const movingSegments = movingSegmentsFor(
+		loaded.sequence[scope.active.passageIndex],
+		granularity,
+		itemId
+	).map((s) => s.id);
 
 	await dbInstance.transaction(async (tx) => {
 		const now = new Date();
 
 		// 1. Fold authored content onto the target (merge only), using the SHARED helper so a
 		//    cross-part join and a within-passage join treat content identically.
-		if (decision === 'merge') {
+		//
+		//    Only segments have foldable content — `passageJoin.js` records that sections and columns
+		//    "no longer carry their own commentary" — so for those this step is correctly a no-op rather
+		//    than a missing feature.
+		if (decision === 'merge' && granularity === 'segment' && target.segment) {
 			await foldSegmentContent(tx, scope.active.item, target.segment);
 		}
 
 		// 2. Hand the connections to the receiving study BEFORE re-anchoring them — see the warning
 		//    above. Without this the re-anchor queries the wrong study and silently finds nothing.
-		await tx
-			.update(segmentConnection)
-			.set({ studyId: plan.toStudyId, seriesId: loaded.seriesId, updatedAt: now })
-			.where(eq(segmentConnection.fromSegmentId, segmentId));
-		await tx
-			.update(segmentConnection)
-			.set({ studyId: plan.toStudyId, seriesId: loaded.seriesId, updatedAt: now })
-			.where(eq(segmentConnection.toSegmentId, segmentId));
+		//
+		//    Every endpoint kind is re-owned, not only the joined item's own: a section's segments carry
+		//    their own connections, and those segments are changing study too. Missing them would leave
+		//    a connection owned by a study that no longer contains either endpoint.
+		const reown = { studyId: plan.toStudyId, seriesId: loaded.seriesId, updatedAt: now };
+		if (movingSegments.length > 0) {
+			await tx
+				.update(segmentConnection)
+				.set(reown)
+				.where(inArray(segmentConnection.fromSegmentId, movingSegments));
+			await tx
+				.update(segmentConnection)
+				.set(reown)
+				.where(inArray(segmentConnection.toSegmentId, movingSegments));
+		}
+		if (granularity !== 'segment') {
+			// The joined container's own connections, on whichever pair of endpoint columns matches its
+			// type. Named for what they are rather than reusing `column` for a section id, which is how
+			// the wrong pair gets consulted.
+			const fromColumn =
+				granularity === 'column' ? segmentConnection.fromColumnId : segmentConnection.fromSectionId;
+			const toColumn =
+				granularity === 'column' ? segmentConnection.toColumnId : segmentConnection.toSectionId;
+			await tx.update(segmentConnection).set(reown).where(eq(fromColumn, itemId));
+			await tx.update(segmentConnection).set(reown).where(eq(toColumn, itemId));
+		}
 
 		await reanchorConnectionsOnto(
 			tx,
 			plan.toStudyId,
-			[segmentId],
-			[],
-			[],
+			granularity === 'segment' ? [itemId] : [],
+			granularity === 'section' ? [itemId] : [],
+			granularity === 'column' ? [itemId] : [],
 			target,
 			decision === 'delete' ? 'delete' : 'reanchor'
 		);
 
-		// 3. Delete the joined segment. Its parents in the source passage may now be empty; they are
-		//    pruned below, after the ranges move.
-		await tx.delete(passageSegment).where(eq(passageSegment.id, segmentId));
+		// 3. Move the structure across, then remove the emptied container.
+		//
+		//    ⚠️ Children are re-parented BEFORE the container is deleted. `passage_section.column_id` and
+		//    `passage_segment.section_id` are both ON DELETE CASCADE, so deleting the joined section or
+		//    column first would take its segments — and all their notes, commentary and headings — with
+		//    it, while the join reported success. The same ordering trap as Join Parts.
+		if (granularity === 'segment') {
+			await tx.delete(passageSegment).where(eq(passageSegment.id, itemId));
+		} else if (granularity === 'section') {
+			if (movingSegments.length > 0 && target.section) {
+				await tx
+					.update(passageSegment)
+					.set({ passageSectionId: target.section.id, updatedAt: now })
+					.where(inArray(passageSegment.id, movingSegments));
+			}
+			await tx.delete(passageSection).where(eq(passageSection.id, itemId));
+		} else {
+			const activeEntry = loaded.sequence[scope.active.passageIndex];
+			const joinedColumn = (activeEntry.tree ?? []).find((c) => c.id === itemId);
+			const sectionIds = (joinedColumn?.sections ?? []).map((s) => s.id);
+			if (sectionIds.length > 0 && target.column) {
+				await tx
+					.update(passageSection)
+					.set({ passageColumnId: target.column.id, updatedAt: now })
+					.where(inArray(passageSection.id, sectionIds));
+			}
+			await tx.delete(passageColumn).where(eq(passageColumn.id, itemId));
+		}
 
-		// 4. The verses follow the structure. Without this the segment would render in the earlier part
-		//    while its words still belonged to the later one.
+		// 4. The verses follow the structure. Without this the moved rows would render in the earlier
+		//    part while their words still belonged to the later one.
 		await tx
 			.update(passage)
 			.set({
@@ -310,7 +449,9 @@ export async function joinSegmentAcrossBoundary(
 
 	return {
 		crossedBoundary: true,
+		granularity,
 		versesMoved: shift.versesMoved,
+		movedSegments: movingSegments.length,
 		fromPassageId: plan.fromPassageId,
 		toPassageId: plan.toPassageId,
 		display: plan.display
@@ -393,10 +534,17 @@ function firstWordIdOfRange(range) {
 	return `${abbr}-${pad(range.fromChapter)}-${pad(range.fromVerse)}-001`;
 }
 
-/** Short description of what the joined segment carries, for the confirm copy. */
-function summarize(segment) {
+/**
+ * Short description of what the joined item carries, for the confirm copy.
+ *
+ * Only segments carry authored content: `passageJoin.js` records that sections and columns "no longer
+ * carry their own commentary", so for those the merge-vs-delete choice affects connections only. This
+ * says nothing rather than inventing content that does not exist.
+ */
+function summarize(item, granularity) {
+	if (granularity !== 'segment') return '';
 	const parts = [];
-	if (segment?.note) parts.push('note');
-	if (segment?.commentary) parts.push('commentary');
+	if (item?.note) parts.push('note');
+	if (item?.commentary) parts.push('commentary');
 	return parts.join(', ');
 }
