@@ -40,15 +40,24 @@ verifier scripts pin the behaviour to this document — `verify-series-runs.mjs`
 `verify-boundary-reasons.mjs` (24 checks) — and both run against real `bible.json` via
 `node --import ./scripts/alias-loader.mjs`.
 
-**Phase 2 is IN PROGRESS — two of roughly ten increments have landed, and Split/Join is not yet
-reachable from the UI.** What exists:
+**Phase 2 is IN PROGRESS. Split Part and Join Parts are now reachable and complete**; the five
+cross-boundary commands are not. What exists:
 
 - **The planning layer** (`seriesRestructure.js`, 48 assertions) — pure range arithmetic for Split
   Part / Join Parts, shared by the confirm dialog and the endpoint so the preview cannot diverge
   from the outcome, exactly as §5's creation flow does with `planSeriesParts()`.
-- **The structure-transfer layer** (`seriesStructurePlan.js` + `server/db/seriesStructure.js`, 45
+- **The structure-transfer layer** (`seriesStructurePlan.js` + `server/db/seriesStructure.js`, 54
   assertions) — which column/section/segment rows change parent, and what happens to the
   connections anchored to them.
+- **The endpoints and UI** — `POST /api/series/[id]/split` and `…/join`, `SplitPartModal`,
+  `JoinPartsModal`, and the two menu items in `MenuActions`. Both endpoints accept `dryRun`, which
+  runs the *same code path* as the commit rather than describing it, so the dialog's stated counts
+  are facts about the operation.
+
+⚠️ **Not yet run against a real database.** The cascade ordering, the transactions and the
+`assertPassageEmpty()` guard are exercised only by reasoning and by the pure decision layer. The
+first split or join on dev is a genuine test, not a formality — see the traps below for what to
+watch.
 
 ⚠️ **The blocker phase 2's own \"what a boundary move must do\" step 4 warned about is now real and
 handled, and the shape of the fix is worth knowing before writing the endpoints.** Joining two
@@ -64,10 +73,19 @@ Likewise the `studyId` wrong-answer bug §8 predicted is reachable as soon as st
 and the confirm modal then states that no connections are affected. Connections are now loaded by
 their six **endpoint** columns instead, never by `studyId`.
 
-**Still outstanding in phase 2:** Split/Join API endpoints and UI; generalising the five commands
-from passage scope to sequence scope (two call graphs, per the ⚠️ in §8 — de-duplicating
-`passageJoin`/`passageReconcile` is currently an explicit **non-goal**, not an assumed
-prerequisite); §10.1 display re-validation on both parts; adjacent-part prefetch; balance by length.
+⚠️ **A part divides two ways, and they are different operations on the rows.** `getSplitPoints()`
+returns `'chapter'` (inside one passage) or `'passage'` (a seam between passages). Only the chapter
+split moves structure; a seam split re-parents whole `passage` rows, and each row owns its own
+columns, so nothing changes parent and **no connection can break**. Writing these as one path
+produced three separate defects — duplicated verses in the new part, a structure move applied to a
+passage that does not move, and a confirmation demanded for connections that would never be touched.
+`verify-series-structure.mjs` now pins the distinction.
+
+**Still outstanding in phase 2:** generalising the five commands from passage scope to sequence
+scope (two call graphs, per the ⚠️ in §8 — de-duplicating `passageJoin`/`passageReconcile` is
+currently an explicit **non-goal**, not an assumed prerequisite); adjacent-part prefetch; balance by
+length. §10.1 re-validation is **done for Split/Join** but will need doing again for the five
+commands, which is where the worked example in that section actually applies.
 
 **Blocking questions, resolved rather than guessed.** Q40 and Q23 were ratified from what is
 already live and phased: `classifyBoundary()` already returns `'overlap'` as its own excluded
@@ -1289,14 +1307,18 @@ carry different reasons.
 
 **Phase 2 — restructuring**
 
-- Split Part / Join Parts (+ the `part-split` / `part-join` icons — §9's names, per §3's
-  vocabulary)
+- ✅ **Split Part / Join Parts — done** (+ the `part-split` / `part-join` icons — §9's names, per
+  §3's vocabulary). Planning layer, structure transfer, both endpoints with a shared `dryRun` path,
+  and both confirm modals. Not yet run against a real database.
 - **Generalise all five commands from passage scope to sequence scope** — Join Column, Join
   Section, Join Segment, Move Text Up, Move Text Down — gated on the contiguity predicate (§8)
-- Boundary-move compliance re-validation for both parts (§10.1)
-- Cross-part connections: warn-and-delete
+- Boundary-move compliance re-validation for both parts (§10.1) — **done for Split/Join**, still
+  required for the five commands
+- Cross-part connections: warn-and-delete — **done for Split/Join** (Q23 strategy (b): the count is
+  in the preview, the delete needs an explicit acknowledgement)
 - Adjacent-part prefetch; "balance by length"
-- _Blocked on Q40 (overlapping boundaries) and Q23 (connections)._
+- _Q40 and Q23 are no longer blocking — both were ratified from what was already live and phased;
+  see the phase-2 note at the top of this document. Q35 (undo) remains open._
 
 **Phase 3 — polish**
 
