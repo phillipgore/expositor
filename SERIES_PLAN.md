@@ -95,11 +95,19 @@ user-visible behaviour has changed**:
   conservation is enforced rather than assumed, because §10.1's licence to skip the export re-check
   depends on it.
 
-**✅ Join Segment is the first of the five to work across a boundary**, end to end: server
-(`passageSequence.js` + `crossPartJoin.js`), the endpoint's routing, and the menu guard. Selecting
-part 2's first segment and choosing Join Segment folds it into part 1's last segment and moves the
-verses with it, with §10.1 display re-validation on both studies. The same change fixes the
-single-study multi-passage seam §8 notes is broken *today*, because the resolver takes a sequence.
+**✅ All three Joins work across a boundary** — Join Segment, Join Section and Join Column, **3 of the
+5 commands** — end to end: server (`passageSequence.js` + `crossPartJoin.js`), shared endpoint routing
+(`joinRouting.js`), and the menu guards. Selecting part 2's first item and joining folds it into part
+1's last, moving the verses with it, with §10.1 display re-validation on both studies. The same change
+fixes the single-study multi-passage seam §8 notes is broken *today*, because the resolver takes a
+sequence.
+
+⚠️ **The boundary is the first segment that STAYS — not the segment after the active one.** For Join
+Segment the two coincide, because one segment moves. A section or column moves several at once, so the
+segment after the *first* of them is still moving, and using it leaves the boundary **inside the moved
+block**: the earlier part claims verses whose structure also moved, and the later part renders text it
+no longer owns. The naive boundary produces a perfectly valid range, so nothing catches it — the
+verifier now asserts that the two rules give different answers.
 
 ⚠️ **The within-passage `joinSegment()` was deliberately NOT rewritten.** The endpoint routes on a
 server-computed fact: same passage → the original code, untouched; across a boundary →
@@ -107,12 +115,11 @@ server-computed fact: same passage → the original code, untouched; across a bo
 the risky new path out of the working old one on a command that destroys content, and it is why
 §8's "two call graphs" warning has not yet had to be resolved.
 
-**Still outstanding in phase 2:** **Join Column, Join Section, Move Text Up and Move Text Down** —
-still passage-scoped, and `passageJoin.js` still carries `'Cannot join the first section in a
-passage'` and its column equivalent; the remaining client guards §8 lists
-(`isActiveColumnFirstInPassage`, `isWordInFirstSegment`, `isCaretAtSegmentStart`); adjacent-part
-prefetch; balance by length. De-duplicating `passageJoin`/`passageReconcile` remains an explicit
-**non-goal**, not an assumed prerequisite.
+**Still outstanding in phase 2:** **Move Text Up and Move Text Down** — still passage-scoped, along
+with their client guards (`isWordInFirstSegment`, `isCaretAtSegmentStart`); adjacent-part prefetch;
+balance by length. De-duplicating `passageJoin`/`passageReconcile` remains an explicit **non-goal**,
+not an assumed prerequisite — the three Joins were generalised by *routing around* those functions,
+not through them, so the question is still open rather than answered.
 
 ⚠️ **Move Text Up/Down will not follow the same shape as Join Segment.** §8 already warns that they
 are "rewritten, not extended", and `moveSegmentTextDown` locates its next segment by walking one
@@ -836,7 +843,7 @@ The boundary in the code today is the **passage**, not the study and not the par
 | `loadTree(dbx, passageId)`                    | Loads one passage's column/section/segment tree                                  |
 | `flattenSegments()` / `flattenSections()`     | Walk that one tree                                                               |
 | `loadContext(dbx, userId, type, itemId)`      | Resolves a single `passageId` from the item and stops                            |
-| Join guards                                   | Literally `'Cannot join the first segment in a passage'` — ⚠️ **now only true of Section/Column**; Join Segment routes to `crossPartJoin.js` at a boundary |
+| Join guards                                   | Literally `'Cannot join the first segment in a passage'` — ⚠️ **no longer true of any of the three**; all three Joins route to `crossPartJoin.js` at a boundary. The strings remain in `passageJoin.js`, which is now only reached for a within-passage join, where they are correct |
 | `moveSegmentTextUp/Down(..., passageId, ...)` | Takes a `passageId` outright                                                     |
 | `reanchorAndPrune(tx, studyId, passageId)`    | Re-anchors within one passage                                                    |
 | Client guards                                 | `isActiveSegmentFirstInPassage`, `isWordInFirstSegment`, `isCaretAtSegmentStart` |
@@ -1352,8 +1359,8 @@ carry different reasons.
   and both confirm modals. Not yet run against a real database.
 - **Generalise all five commands from passage scope to sequence scope** — Join Column, Join
   Section, Join Segment, Move Text Up, Move Text Down — gated on the contiguity predicate (§8).
-  Decision layers done (`sequenceScope.js`, `boundaryMove.js`); **✅ Join Segment wired end to end**
-  (1 of 5); Join Column, Join Section, Move Text Up and Move Text Down still passage-scoped
+  Decision layers done (`sequenceScope.js`, `boundaryMove.js`); **✅ all three Joins wired end to end**
+  (3 of 5) via `crossPartJoin.js` + `joinRouting.js`; **Move Text Up / Down still passage-scoped**
 - Boundary-move compliance re-validation for both parts (§10.1) — **done for Split/Join**, still
   required for the five commands
 - Cross-part connections: warn-and-delete — **done for Split/Join** (Q23 strategy (b): the count is
