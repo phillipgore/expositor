@@ -45,7 +45,7 @@ import { compareWordIds } from '$lib/utils/wordIds.js';
 import { loadPassageSequence } from './passageSequence.js';
 import { foldSegmentContent, reanchorConnectionsOnto } from './passageFold.js';
 import { getBookMeta } from './passageReconcile.js';
-import { validateStudyDisplayLimits } from '$lib/utils/translationLimits.js';
+import { validateStudyDisplayLimits, getDisplayLimits } from '$lib/utils/translationLimits.js';
 
 /** Every segment of one passage's tree, in word order. */
 function segmentsOf(entry) {
@@ -174,11 +174,35 @@ async function displayWarnings(dbx, targetEntry, activeEntry, shift, translation
 		return validateStudyDisplayLimits(substituted, translationId).warnings;
 	};
 
+	const receiver = await forStudy(targetEntry.studyId, shift.before);
+	const donor = await forStudy(activeEntry.studyId, shift.after);
+
+	// ── Q41: what a boundary move does once `enforcement` flips to 'block' ────
+	//
+	// SETTLED as the plan's own recommendation: **a pre-move confirmation that can be declined, never a
+	// mid-gesture failure.** Today every `enforcement` is 'warn', so `blocked` is always false and this
+	// is latent — but the decision is made here rather than left for whoever flips the flag, because
+	// the wrong answer is the one that arrives by default.
+	//
+	// The wrong answer is throwing. COMPLIANCE.md §1.6 chose warn-over-block partly to avoid "stranding
+	// work already done at the worst possible moment", and a boundary move is exactly that case: the
+	// user is manipulating the page directly, not filling in a form they can abandon. A refusal
+	// discovered mid-gesture destroys the gesture and explains nothing.
+	//
+	// So a block is reported as a fact BEFORE anything is written, on the same object as the warnings,
+	// and the endpoint declines the request cleanly with the reason attached. The user is told what
+	// would happen and why, in advance, and nothing is half-done. Because `analyze*` runs the same code
+	// as the commit, the dialog cannot promise an outcome the commit would refuse.
+	const enforcement = getDisplayLimits(translationId).enforcement;
+	const blocked = enforcement === 'block' && (receiver.length > 0 || donor.length > 0);
+
 	return {
 		// §10.1: the receiver may breach; the donor's existing warning may now CLEAR, and a stale
 		// warning left on screen is its own bug.
-		receiver: await forStudy(targetEntry.studyId, shift.before),
-		donor: await forStudy(activeEntry.studyId, shift.after)
+		receiver,
+		donor,
+		enforcement,
+		blocked
 	};
 }
 

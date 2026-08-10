@@ -82,6 +82,27 @@ export async function routeJoin({
 	}
 
 	if (cross?.ok && cross.crossesBoundary) {
+		// ── Q41: refuse BEFORE writing, never mid-gesture ────────────────────
+		//
+		// `blocked` is computed by the same analysis the dry run showed the user, so a move the dialog
+		// presented as permissible cannot be refused here, and one it presented as blocked offers no
+		// confirm button to reach this line. Today `enforcement` is 'warn' everywhere, so this never
+		// fires — it exists so that flipping the flag produces a clean, explained refusal rather than a
+		// half-applied move, which is the failure COMPLIANCE.md §1.6 warns about.
+		//
+		// 409, not 400: the request is well-formed and the state is the obstacle.
+		if (cross.display?.blocked) {
+			return {
+				status: 409,
+				body: {
+					error:
+						'Moving this boundary would show more of the book than the licence allows in one part.',
+					display: cross.display,
+					blocked: true
+				}
+			};
+		}
+
 		const result = await joinAcrossBoundary(db, userId, passageId, itemId, decision, granularity);
 		return { status: 200, body: { success: true, ...result } };
 	}

@@ -54,7 +54,7 @@ prefetch. What exists:
   connections anchored to them.
 - **The endpoints and UI** — `POST /api/series/[id]/split` and `…/join`, `SplitPartModal`,
   `JoinPartsModal`, and the two menu items in `MenuActions`. Both endpoints accept `dryRun`, which
-  runs the *same code path* as the commit rather than describing it, so the dialog's stated counts
+  runs the _same code path_ as the commit rather than describing it, so the dialog's stated counts
   are facts about the operation.
 
 **✅ Five write probes now exercise the real database**, which had been the largest outstanding risk:
@@ -75,19 +75,19 @@ fire".
 - `npm run probe:move-text` (27 assertions) — Move Text Up **and** Down: the boundary lands where the
   arithmetic says in both directions, coverage is conserved, the correct anchor moves in each, no
   segment is left anchored outside its passage range, and a mid-verse caret is refused by the analyzer
-  *and* the executor with nothing written.
+  _and_ the executor with nothing written.
 
 - `npm run probe:balance` (14 assertions) — creating a **balanced** series end to end: the rows written
   are the parts the same planner previewed, with a counter-check that the default shape would have been
-  six parts rather than three. ⚠️ Its last five assertions read the *source* of the modal → menu →
+  six parts rather than three. ⚠️ Its last five assertions read the _source_ of the modal → menu →
   endpoint hand-offs, because the probe reproduces the endpoint's logic rather than invoking it; that
   gap was found by mutation and is labelled rather than hidden.
 - `npm run probe:prefetch` (17 assertions) — cache-warming: a cold part is filled, a warm one is skipped
   with **no further provider call** (asserted on a call counter, not just on end state), the current
   part is untouched, and a simulated outage neither throws nor half-writes a row.
 
-⚠️ **Phase 2's two standing limitations**, both deliberate and both surfaced to the user rather than
-hidden:
+⚠️ **Phase 2's standing limitations** — one resolved in phase 3, two still standing, all deliberate
+and all surfaced to the user rather than hidden:
 
 1. **A cross-part Move Text requires the caret at the start of a verse** — segment anchors are
    word-granular, passage ranges are verse-granular, and the mismatch cannot be represented across a
@@ -97,6 +97,12 @@ hidden:
    has been replaced by (c): the connection survives, stamped with `seriesId`, and each part draws a
    labelled edge stub. Left visible rather than deleted because a reader who remembers the old
    behaviour should be able to see that it changed, and when.
+3. **No undo.** Split Part and Join Parts are irreversible: a user who confirms and regrets it has no
+   recourse, since the app has no undo stack anywhere to hook into (Q35, now settled). Mitigated
+   rather than solved — every destructive command dry-runs through the function that commits,
+   connection loss is counted and acknowledged before it happens, and `assertPassageEmpty()` rolls
+   back rather than cascading away a part's notes. Listed here because "we chose not to build undo"
+   is a limitation of the feature, not an absence of one.
 
 These are all **WRITE probes** and deliberately stay out of `npm run verify`: they mutate the database, so
 they must be run knowingly. Each builds its own prefixed fixture and removes it in a `finally`,
@@ -108,7 +114,7 @@ pure layer alone** — Split Part, Join Parts, the cross-part join at all three 
 in both directions, balanced creation, and prefetch cache-warming. **217 probe assertions across six
 probes**, alongside 388 verifier assertions across nine scripts.
 
-The most valuable single result: mutating the column join to delete its container *before* re-parenting
+The most valuable single result: mutating the column join to delete its container _before_ re-parenting
 the sections destroys two segments, both their notes and a heading, and fails 10 assertions. The
 ordering comment had been asserting that risk since `169e773`; it is now demonstrated rather than
 argued.
@@ -153,7 +159,7 @@ user-visible behaviour has changed**:
   sequence of passages** rather than a part pair. `resolveScope()` replaces "am I the first item in
   my passage?" with "what precedes this item in the sequence, and may we reach it?", returning
   `crossesBoundary` and a refusal reason instead of throwing. Because it takes a sequence, it also
-  fixes the single-study multi-passage case §8 notes is broken *today*.
+  fixes the single-study multi-passage case §8 notes is broken _today_.
 - `boundaryMove.js` (41 assertions) — §8 step 2, "adjust both parts' passage ranges". Both ranges
   derive from **one** boundary word id, so a gap or overlap between them is unrepresentable. Verse
   conservation is enforced rather than assumed, because §10.1's licence to skip the export re-check
@@ -163,12 +169,12 @@ user-visible behaviour has changed**:
 5 commands** — end to end: server (`passageSequence.js` + `crossPartJoin.js`), shared endpoint routing
 (`joinRouting.js`), and the menu guards. Selecting part 2's first item and joining folds it into part
 1's last, moving the verses with it, with §10.1 display re-validation on both studies. The same change
-fixes the single-study multi-passage seam §8 notes is broken *today*, because the resolver takes a
+fixes the single-study multi-passage seam §8 notes is broken _today_, because the resolver takes a
 sequence.
 
 ⚠️ **The boundary is the first segment that STAYS — not the segment after the active one.** For Join
 Segment the two coincide, because one segment moves. A section or column moves several at once, so the
-segment after the *first* of them is still moving, and using it leaves the boundary **inside the moved
+segment after the _first_ of them is still moving, and using it leaves the boundary **inside the moved
 block**: the earlier part claims verses whose structure also moved, and the later part renders text it
 no longer owns. The naive boundary produces a perfectly valid range, so nothing catches it — the
 verifier now asserts that the two rules give different answers.
@@ -181,7 +187,7 @@ the risky new path out of the working old one on a command that destroys content
 
 **✅ All five commands are generalised (5 of 5).** Move Text Up/Down landed last, and unlike the Joins
 they were **rewritten rather than routed** — §8 already said so, and the reason is that a cross-part
-join is a *different* operation while a cross-part text move is the *same* operation over a wider
+join is a _different_ operation while a cross-part text move is the _same_ operation over a wider
 scope, so routing would have duplicated `moveSegmentTextDown`'s tree walk rather than widening it.
 
 ⚠️ **A cross-part Move Text requires the caret at the start of a verse.** Segment anchors are
@@ -204,13 +210,13 @@ range containing one very long chapter still yields one long part, which is an i
 respecting chapter boundaries rather than a defect.
 
 **✅ Adjacent-part prefetch is done**, and it is the only decision in the feature that deliberately
-does **not** consult the adjacency predicate: prefetch is about what the user will *open*, which §7 says
+does **not** consult the adjacency predicate: prefetch is about what the user will _open_, which §7 says
 is `seriesOrder`, so a Prison Epistles series prefetches its next part exactly like a Romans one. It
 warms at most **one** part, skips any part that is even partially cached, is never awaited, and re-reads
 the cache before spending a provider request.
 
 **Nothing remains in phase 2.** De-duplicating `passageJoin`/`passageReconcile` remains an explicit
-**non-goal**, not an assumed prerequisite — the three Joins were generalised by *routing around* those
+**non-goal**, not an assumed prerequisite — the three Joins were generalised by _routing around_ those
 functions, not through them, so the question is still open rather than answered. **Phase 3 is next**,
 and its first item (cross-part connections preserved as edge stubs) would replace the warn-then-delete
 behaviour Q23 currently phases as (b).
@@ -218,20 +224,20 @@ behaviour Q23 currently phases as (b).
 ⚠️ **Move Text Up/Down will not follow the same shape as Join Segment.** §8 already warns that they
 are "rewritten, not extended", and `moveSegmentTextDown` locates its next segment by walking one
 passage's tree — that walk is what must span two passages. Join Segment could route because a
-cross-part join is a *different operation*; a cross-part text move is the *same* operation over a
+cross-part join is a _different operation_; a cross-part text move is the _same_ operation over a
 wider scope, so routing would duplicate the walk rather than widen it.
 
 ⚠️ **`direction` means where the CONTENT moved, never where the boundary moved.** They are exact
 opposites, and §10.1 reads it to decide which part is the "receiver" whose display limit must be
-re-checked — so getting it backwards grows the wrong part. A boundary moving *later* means the
+re-checked — so getting it backwards grows the wrong part. A boundary moving _later_ means the
 earlier part received, i.e. content moved `'backward'` (the three Joins and Move Text Up); a boundary
-moving *earlier* means content moved `'forward'` (Move Text Down). This was wrong in the first draft
+moving _earlier_ means content moved `'forward'` (Move Text Down). This was wrong in the first draft
 of `boundaryMove.js` and is recorded because the naming reads plausibly either way.
 
 **Blocking questions, resolved rather than guessed.** Q40 and Q23 were ratified from what is
 already live and phased: `classifyBoundary()` already returns `'overlap'` as its own excluded
 state, and a join declines it because merging overlapping ranges would duplicate verses; §11
-already phases connections as warn-then-stubs, so the transfer layer *reports* straddling
+already phases connections as warn-then-stubs, so the transfer layer _reports_ straddling
 connections and never destroys them itself. **Q35 (undo) is deliberately left open** — the app has
 no undo anywhere, so making series the first feature to demand app-wide `⌘Z` inverts the cost.
 Split/Join ship with confirm-before-destroy, the mitigation part delete already uses.
@@ -242,7 +248,6 @@ Split/Join ship with confirm-before-destroy, the mitigation part delete already 
 visible because the next reader's first question is "has anything shipped?", and a status line that
 was wrong once should be seen to have been wrong. Nothing about the **rationale** for parking it
 changed; the work resumed by decision, not because the reasoning below expired.
-
 
 **Why it was parked, and why that reasoning still stands:** the original trigger — that a study
 over 500 verses must be broken into several studies — does not hold. No chapter exceeds 500
@@ -267,7 +272,6 @@ excludes Split Part, Join Parts and boundary moves (§11), so it cannot produce 
 endpoints sit in different parts; dropping `.notNull()` belongs to the phase that ships those moves,
 not to this one. **Q23 is now the open one**, and it carries the whole question, because cross-part
 rows arrive from boundary moves rather than from authoring (§4).
-
 
 > **Note on this revision.** This document previously carried an inline record of its own
 > corrections — which sentences had been withdrawn, and when. That has been removed in favour
@@ -357,8 +361,6 @@ The citation now gives **heading text with the number in parentheses**, so the n
 leaves something greppable behind. That is trap 14's remedy applied rather than restated: a bare
 number fails silently, a heading does not. And the sharpest part is worth keeping — the dead
 reference sat three lines above the comment explaining why references go stale.
-
-
 
 | Concept             | Term                    | Why                                                                          |
 | ------------------- | ----------------------- | ---------------------------------------------------------------------------- |
@@ -611,7 +613,6 @@ cleanly, is idempotent on re-run, and all five FKs carry the intended `ON DELETE
 with `last_part_id` nulled; deleting the series cascades its parts and leaves standalone studies
 untouched.
 
-
 **Q43. Can a part be deleted while `enforcement` is `'block'` and the resulting series is
 non-compliant?** A part delete only ever _reduces_ coverage, so it cannot create a display or
 distribution breach — it may clear one. Recorded as a non-issue so nobody adds a check that can
@@ -659,11 +660,10 @@ would otherwise erode:
 These were conflated in an earlier pass of this document, and the conflation would have removed
 capability rather than noise, so they are now kept apart deliberately:
 
-| Question                                             | Answer                                                   |
-| ---------------------------------------------------- | -------------------------------------------------------- |
-| **Eligibility** — when is a series _possible_?       | **Any range spanning 2+ chapters.** Never restricted.    |
-| **Solicitation** — when does the app _volunteer_ it? | **As shipped: whenever eligible.** Tunable. |
-
+| Question                                             | Answer                                                |
+| ---------------------------------------------------- | ----------------------------------------------------- |
+| **Eligibility** — when is a series _possible_?       | **Any range spanning 2+ chapters.** Never restricted. |
+| **Solicitation** — when does the app _volunteer_ it? | **As shipped: whenever eligible.** Tunable.           |
 
 **Eligibility is 2+ chapters and that is not negotiable.** Two sessions on Haggai is a real
 teaching plan; three on Habakkuk likewise. There is no principle by which the app knows better
@@ -779,7 +779,6 @@ Three checks, all recomputed as the stepper moves:
    the old one: 8-chapters-per-part on Romans is precisely a setting the preview must flag. See
    §10.1, where the same 216 error is unpicked in full.
 
-
 **Informational at creation, binding at export.** These are different points on purpose and it is
 not an inconsistency: Q32 wants whole-series export to `'block'` even while per-part export stays
 `'warn'`. You may build what you like and you are told, up front, what you will not be able to
@@ -861,7 +860,6 @@ Verified on the scratch clone: deleting the remembered part leaves the series ro
 `user.lastStudyView` — the confusion this question exists to record. The chevron still expands and
 the title still navigates; only the destination changed.
 
-
 ---
 
 ## 7. Navigation
@@ -920,6 +918,7 @@ which previously recommended the opposite.
   generalising only `passageJoin`'s copy leaves `analyzeEdit()` on the old passage-scoped path.
   De-duplicating first is either a prerequisite or an explicit non-goal — decide which, but do not
   assume a shared layer that does not exist.
+
 - Structure is keyed by `startingWordId`, which is **globally canonical**
   (book/chapter/verse/word), not per-study. **Moving a boundary therefore requires no
   re-keying:** a segment keyed at `ROM.3.1.1` is valid in whichever part contains Romans 3:1.
@@ -932,15 +931,15 @@ listed above is scoped to **one passage**, and that is the actual obstacle. See 
 
 The boundary in the code today is the **passage**, not the study and not the part:
 
-| Site                                          | Scoping                                                                          |
-| --------------------------------------------- | -------------------------------------------------------------------------------- |
-| `loadTree(dbx, passageId)`                    | Loads one passage's column/section/segment tree                                  |
-| `flattenSegments()` / `flattenSections()`     | Walk that one tree                                                               |
-| `loadContext(dbx, userId, type, itemId)`      | Resolves a single `passageId` from the item and stops                            |
+| Site                                          | Scoping                                                                                                                                                                                                                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `loadTree(dbx, passageId)`                    | Loads one passage's column/section/segment tree                                                                                                                                                                                                                                      |
+| `flattenSegments()` / `flattenSections()`     | Walk that one tree                                                                                                                                                                                                                                                                   |
+| `loadContext(dbx, userId, type, itemId)`      | Resolves a single `passageId` from the item and stops                                                                                                                                                                                                                                |
 | Join guards                                   | Literally `'Cannot join the first segment in a passage'` — ⚠️ **no longer true of any of the three**; all three Joins route to `crossPartJoin.js` at a boundary. The strings remain in `passageJoin.js`, which is now only reached for a within-passage join, where they are correct |
-| `moveSegmentTextUp/Down(..., passageId, ...)` | Takes a `passageId` outright — ⚠️ **still true of these two functions, but the endpoint now routes past them**: a cross-part move goes to `crossPartMove.js`, which resolves scope over the whole sequence |
-| `reanchorAndPrune(tx, studyId, passageId)`    | Re-anchors within one passage                                                    |
-| Client guards                                 | `isActiveSegmentFirstInPassage`, `isWordInFirstSegment`, `isCaretAtSegmentStart` |
+| `moveSegmentTextUp/Down(..., passageId, ...)` | Takes a `passageId` outright — ⚠️ **still true of these two functions, but the endpoint now routes past them**: a cross-part move goes to `crossPartMove.js`, which resolves scope over the whole sequence                                                                           |
+| `reanchorAndPrune(tx, studyId, passageId)`    | Re-anchors within one passage                                                                                                                                                                                                                                                        |
+| Client guards                                 | `isActiveSegmentFirstInPassage`, `isWordInFirstSegment`, `isCaretAtSegmentStart`                                                                                                                                                                                                     |
 
 **This limitation is not new and not caused by series.** A study holding Romans 1–8 and Romans
 9–16 as two passages cannot Join Segment across that boundary **today**. Cross-part is therefore
@@ -1091,15 +1090,28 @@ mechanism, worth scoping before committing._ Now firmer than when first written:
 reaching across a boundary, three of which fold content destructively, is a lot of surface with
 no `⌘Z`.
 
-**Q40. What do the five commands do at an _overlapping_ boundary?** Not answered, and not
-guessable. Q7 says overlap is normal — a pericope straddling a chapter boundary means part 3 is
-Rom 1–3 and part 4 is Rom 3–5, with Romans 3 in both. "Join backwards across the boundary" then
-has no single meaning: the previous item in canonical order may be in either part, and a move
-could silently duplicate structure or orphan it. Overlap is neither contiguity nor a gap but a
-third case. _Options: treat overlapping boundaries as ineligible (simplest, consistent with the
-adjacency rule, but disables the commands in a case Q7 calls normal); resolve against canonical
-order and accept that the receiving part is ambiguous; or forbid overlap outright and revisit
-Q7. **Needs a decision before phase 2.**_
+**Q40. What do the five commands do at an _overlapping_ boundary?** ✅ **SETTLED: overlapping
+boundaries are ineligible** — the first of the three options below. Q7 says overlap is normal — a
+pericope straddling a chapter boundary means part 3 is Rom 1–3 and part 4 is Rom 3–5, with Romans 3
+in both. "Join backwards across the boundary" then has no single meaning: the previous item in
+canonical order may be in either part, and a move could silently duplicate structure or orphan it.
+Overlap is neither contiguity nor a gap but a third case.
+
+**Why ineligible, and why that is not merely the easy answer.** The commands all rest on one
+question — "what is the last item before this boundary?" — and at an overlap that question has two
+defensible answers. The alternative was to resolve against canonical order and accept an ambiguous
+receiving part, but the ambiguity does not stay in the plumbing: it decides which part a user's note
+ends up in, and the user cannot see the rule that chose. A command that silently picks one of two
+readings of the text is worse than a command that declines and says why. Overlap remains a
+legitimate way to _divide_ a series — nothing here restricts Q7 — it simply does not support
+structural editing across the overlapping seam.
+
+**What ships.** `classifyBoundary()` returns `'overlap'` as its own excluded state, distinct from
+`'gap'`, so the disabled command can name the actual reason rather than claiming the parts are not
+adjacent. Verified in `verify-series-restructure.mjs` and `verify-sequence-scope.mjs`. The old text
+of this entry read "not answered, and not guessable" long after the behaviour was live and
+consistent — a document disagreeing with its own implementation, which is worse than an open
+question honestly marked.
 
 ### Split Part / Join Parts
 
@@ -1136,7 +1148,6 @@ section listed icons by reading the directory, which is how it came to recommend
 be rendered. See trap 13 — the mismatch is a **latent** source of silent bugs; the last two shipped
 instances are now fixed, so there are none live today.
 
-
 ⚠️ **Counts corrected twice, and the live-bug count is now zero.** This read "136 entries", "142
 files" and "**three**" live bugs; then 140/145 and two. Phase 1 registered `books`, `part-split`,
 `part-join` and `warning` (fixing `StudyGroup.svelte:94`), and the last two — `split` and `join` at
@@ -1145,29 +1156,26 @@ files" and "**three**" live bugs; then 140/145 and two. Phase 1 registered `book
 **no referenced-but-unregistered id is live today** (trap 13). Re-count before quoting these
 figures; they have moved twice in two passes.
 
-
 ⚠️ **`icons.json` is an array, not an object — checking membership with `in` silently lies.**
-While verifying this section I probed the registry with `'warning' in icons`, which tests *array
-indices*, so it reported every real id absent and every integer 0–139 present. The reading was
+While verifying this section I probed the registry with `'warning' in icons`, which tests _array
+indices_, so it reported every real id absent and every integer 0–139 present. The reading was
 confidently wrong in both directions and would have "confirmed" that `books` still needed
 creating. Look up by `_id` (`icons.some(e => e._id === id)`), and treat any icon audit that did
 not go through `_id` as unperformed.
 
-
 **Reusable today** — all verified present in `icons.json`:
 
-| Need               | Icon                             | Note                                          |
-| ------------------ | -------------------------------- | --------------------------------------------- |
-| Expand/collapse    | `chevron-right` / `chevron-down` | Exactly what `StudyGroup.svelte` uses         |
-| Prev/next part     | `caret-left` / `caret-right`     | Q30                                           |
-| A single study     | **`book`**                       | Already the Finder's study icon (`StudyItem`) |
-| A group            | `folder` / `folders`             | The precedent for `book`/`books` below        |
-| Move Text Up/Down  | `arrow-up` / `arrow-down`        | §8's five commands need **no** new icons      |
-| Delete series/part | `trashcan`                       | §4                                            |
-| Series/part export | `export`                         | Q32                                           |
-| Reorder runs       | `draggable`                      | §11 phase 3                                   |
+| Need               | Icon                             | Note                                             |
+| ------------------ | -------------------------------- | ------------------------------------------------ |
+| Expand/collapse    | `chevron-right` / `chevron-down` | Exactly what `StudyGroup.svelte` uses            |
+| Prev/next part     | `caret-left` / `caret-right`     | Q30                                              |
+| A single study     | **`book`**                       | Already the Finder's study icon (`StudyItem`)    |
+| A group            | `folder` / `folders`             | The precedent for `book`/`books` below           |
+| Move Text Up/Down  | `arrow-up` / `arrow-down`        | §8's five commands need **no** new icons         |
+| Delete series/part | `trashcan`                       | §4                                               |
+| Series/part export | `export`                         | Q32                                              |
+| Reorder runs       | `draggable`                      | §11 phase 3                                      |
 | Compliance warning | `warning`                        | ⚠️ Was "**unregistered**"; registered in phase 1 |
-
 
 ⚠️ **`book-open` does not exist and was the previous recommendation.** This section used to list
 it as reusable and then propose it for standalone studies — the section's main visual decision,
@@ -1176,8 +1184,7 @@ look available. Two consequences worth keeping:
 
 - **`Icon.svelte` falls back to an empty path, so it would have rendered nothing and thrown
   nothing.** A blank space in the Finder. ⚠️ Earlier wording added "no console error" — wrong:
-  `Icon.svelte`'s `getIcon()` does `console.warn(\`Icon not found: ${iconId}\`)` before returning
-  `{ viewBox: '0 0 16 16', d: '' }`. So the failure is silent **on screen** but not in the console.
+  `Icon.svelte`'s `getIcon()` does `console.warn(\`Icon not found: ${iconId}\`)`before returning`{ viewBox: '0 0 16 16', d: '' }`. So the failure is silent **on screen** but not in the console.
   Still a bug worth avoiding, and the fallback viewBox differs from the 32×32 norm, which would
   also mis-size a real icon; but anyone debugging a blank icon should check the console first.
 - **It was churn disguised as reuse.** `StudyItem.svelte` already renders `book` at three call
@@ -1188,7 +1195,6 @@ look available. Two consequences worth keeping:
 **Three new icons, and that is the whole cost.** ⚠️ **All three are now registered** (phase 1),
 along with `warning`. The table stays as the design record for what they depict and why the ids
 read as they do.
-
 
 | New id       | Purpose                | Design                                                                                |
 | ------------ | ---------------------- | ------------------------------------------------------------------------------------- |
@@ -1256,6 +1262,7 @@ Two limits touch this feature, at two points: **display**, per part at creation;
   Restating it here is precisely the drift §2 warns about — the copy in the design document going
   stale — so read it from `COMPLIANCE.md` §5 instead. Knock-on: at 500 the case for Q32's
   `'block'` strengthens, and §5's series-level preview line reports a different threshold.
+
 - **Export must aggregate across all parts.** Otherwise a 16-part Romans series exports 16
   individually-compliant files that together reproduce the complete book.
   `validateExportLimits()` already aggregates per book across passages, using a verse-identity
@@ -1338,7 +1345,6 @@ case)." Three faults, worth keeping because each is easy to repeat:
 §10.1's re-validation requirement. Demonstrating "a compliant part tipped over by one gesture"
 needs a partial-chapter boundary, as above. Do not reach for chapter-aligned Romans halves again.
 
-
 - **Re-run `validateStudyDisplayLimits(passages, translationId)` on _both_ parts.** The receiver
   for a new breach; the donor because its existing warning may now **clear**, and a stale warning
   left on screen is its own bug.
@@ -1354,8 +1360,14 @@ needs a partial-chapter boundary, as above. Do not reach for chapter-aligned Rom
   cache in `COMPLIANCE.md` §5 item 1 (the one genuine licence violation). Whatever bounding
   remedy lands there must cover boundary moves.
 
-**Q41. What should a boundary move do once `enforcement` is `'block'`?** Undecided, and it needs
-deciding before release rather than at it. Today everything is `'warn'`, so this is latent. When
+**Q41. What should a boundary move do once `enforcement` is `'block'`?** ✅ **SETTLED as the
+recommendation below: a declinable pre-move confirmation, never a mid-gesture failure.** Implemented
+in `crossPartJoin.js` (a `blocked` fact on the analysis, computed before any write) and
+`joinRouting.js` (a 409 with the reason attached, refused before the join runs), and pinned by
+`verify-enforcement-block.mjs`. Today everything is `'warn'`, so this is latent — which is exactly
+why it is verified: latent code that no probe reaches is the code most likely to be wrong when
+someone flips the flag. The verifier also asserts a compliant move under `'block'` still proceeds,
+since blocking on `enforcement` alone would turn a licence ceiling into a ban on the feature. When
 it flips, a boundary move becomes **refusable** — and unlike study creation, where the user is
 filling in a form and can back out, this is direct manipulation of the page. `COMPLIANCE.md` §1.6
 chose warn-over-block partly to avoid "stranding work already done at the worst possible moment";
@@ -1395,7 +1407,6 @@ a pre-move confirmation that can be declined, never a mid-gesture failure._
   two strings: the passage toolbar now points at the existing `segment-split` / `segment-join`
   rather than at ids that never existed (trap 13)
 
-
 - _Excluded deliberately: Split Part, Join Parts, boundary moves._
 
 ⚠️ **"Independently useful" needs qualifying, and Q34 needs re-reading in that light.** The
@@ -1432,19 +1443,17 @@ each was a wrong turn first:
   container may only own menuitems, so a bare paragraph had to be removed from the a11y tree —
   which would have left the explanation sighted-only without the label.
 - **Multi-passage parts work too, via `activePassageIndex`.** The store's `is…FirstInPassage`
-  flags are per-passage, so on their own they also fire at every *internal* passage seam of a
+  flags are per-passage, so on their own they also fire at every _internal_ passage seam of a
   multi-passage part (§5's part-per-passage strategy) — and claiming "not available across parts
   yet" at an internal seam would be false. The analyze page therefore publishes which passage the
   selection sits in, and a part's true edges are passage `0`'s start and the last passage's end.
-  ⚠️ The index is guarded as a *resolved* value: `null` (no selection, or content still streaming)
+  ⚠️ The index is guarded as a _resolved_ value: `null` (no selection, or content still streaming)
   suppresses the note rather than guessing, because a guess there blames a part edge at an
   internal seam.
-
 
 `scripts/verify-boundary-reasons.mjs` (24 checks, real `bible.json`) pins the part that matters:
 the contiguous seam says "yet", the different-books seam does not, and one part's two edges can
 carry different reasons.
-
 
 **Phase 2 — restructuring**
 
@@ -1477,7 +1486,7 @@ carry different reasons.
   including its unevenness: a translation mismatch refuses; a gap, an overlap or a different book
   only warn. The endpoint exists; the drag GESTURE is not wired
 - ✅ **Reorder runs — done** (not parts — §4's run rule). `describeRuns()` reports `reorderable:
-  false` for a contiguous series, so the UI has what it needs to withhold a handle that could never
+false` for a contiguous series, so the UI has what it needs to withhold a handle that could never
   do anything. The endpoint exists; the drag HANDLE is not wired
 - ✅ **Whole-series export compliance check — done** (Q32). Aggregates the series' full passage set
   through `validateExportLimits()` and **blocks**, where per-part export only warns. The export
@@ -1496,14 +1505,41 @@ through (see the ✅ note above), so the conditional is discharged rather than o
 now lifted.** It was real: the store's `is…FirstInPassage` flags cannot on their own tell an
 internal passage seam from a part boundary, which left a part-per-passage Prison Epistles series
 (the very case §8 says will be reported as broken) silent. The fix did not need phase 2's scope
-generalisation, only *passage identity*: the analyze page publishes `activePassageIndex`, and a
+generalisation, only _passage identity_: the analyze page publishes `activePassageIndex`, and a
 part's true edges are passage `0`'s start and the last passage's end. Recorded because the caveat
 deferred to phase 2 a fix that turned out to be one derived value away — "phase 2 owns it" is worth
 distrusting when the blocker is information the page already has.
 
+**Q35. Scope undo before phase 2?** ✅ **SETTLED: no undo. Prevention instead of reversal —
+recorded as an accepted limitation, not a solved problem.** Boundary moves are destructive and
+users will expect `⌘Z`.
 
-**Q35. Scope undo before phase 2?** Boundary moves are destructive and users will expect `⌘Z`.
-_Rec: decide before starting phase 2._
+**The decision, and the honest reason.** The app has no undo anywhere — not for deleting a study,
+not for clearing a note, not for any structural edit. Making series the first feature to demand
+app-wide `⌘Z` would mean building an undo stack for every structural command in the codebase, which
+is a larger project than series itself and would have blocked all of phase 2. That is the cost
+inversion this question was deferred on four separate occasions to avoid stating plainly, so it is
+stated here.
+
+**What ships instead**, and it is genuinely more than nothing:
+
+- **Every destructive command dry-runs first**, through the same function that commits. Six
+  endpoints take `dryRun`, so the counts in a confirm dialog are facts about the operation, not a
+  separate estimate that can disagree with it.
+- **Destruction is named before it happens.** Split/Join require explicit acknowledgement when
+  connections would be broken, with the count shown — `needsConnectionConfirmation`.
+- **The most destructive case was removed rather than confirmed.** Phase 3's edge stubs mean
+  cross-part connections are now _preserved_, so the commonest irreversible loss no longer occurs.
+- **Content-bearing structure is guarded, not trusted.** `assertPassageEmpty()` rolls the
+  transaction back rather than letting a cascade delete a part's notes and commentary, verified
+  against a real database in `probe:join-parts`.
+
+**What this does not do.** A user who confirms a Join Parts and then regrets it has no recourse; the
+verses are re-fetchable but the structural arrangement is gone. That is a real limitation of the
+feature and it is listed as item 3 in the standing-limitations block near the top of this document,
+where the other limitations are, rather than only buried in this answer. If undo is
+ever built app-wide, these commands are the ones to cover first — they destroy the most per
+keystroke.
 
 ### 11.1 Known issue: Safari scroll choppiness at 400+ verses
 
@@ -1655,13 +1691,13 @@ the code states what it does, not why the obvious alternative fails.
     (`src/lib/utils/toolbarConfig.js:402`, `:407`) and absent from the registry, so **both buttons
     rendered blank space** — `Icon.svelte`'s empty-`d` fallback, a console warning, no throw. They
     now point at **`segment-split` / `segment-join`**, which already existed and which
-    `MenuStructure.svelte:286`/`:298` already used *for the same two commands*. So the menu drew an
+    `MenuStructure.svelte:286`/`:298` already used _for the same two commands_. So the menu drew an
     icon and the toolbar drew nothing, from one registry, for one pair of commands.
 
     ⚠️ **Registering `split` and `join` was the obvious fix and would have been the wrong one.** It
     would have added two bare, unqualified verbs to a registry that is uniformly object-then-verb,
     at the exact level where §3's collision rule applies — beside `column-split` and `section-split`
-    in the same toolbar. The missing icon was a symptom; the wrong *name* was the defect. Repointing
+    in the same toolbar. The missing icon was a symptom; the wrong _name_ was the defect. Repointing
     cost two string edits and no new artwork.
 
     ⚠️ **This trap also cited the wrong path** — `toolbarConfig.js` is in `src/lib/utils/`, not
@@ -1674,15 +1710,13 @@ the code states what it does, not why the obvious alternative fails.
     known live today** — but verify against `icons.json` by `_id` before specifying any icon; do not
     trust a directory listing, and do not trust that an existing call site works.
 
-
     ⚠️ **And do not trust an audit that checked membership the wrong way.** `icons.json` is an
     **array** of `{ _id, ... }` objects, so `'warning' in icons` tests array indices and returns
     nonsense — it reported every real id absent and `0`–`139` present. Match on `_id`. See §9.
 
-
     ⚠️ **This trap previously said "six ids", adding `menu`, `back` and `forward`. Those three are
     not live and the count is corrected.** All three appear only inside the JSDoc usage-example
-    block at the top of `Toolbar.svelte` — lines 30, 39 and 40, every one a ` * ` comment line
+    block at the top of `Toolbar.svelte` — lines 30, 39 and 40, every one a `*` comment line
     inside `/** … */`. Nothing renders them. They remain worth fixing as **documentation** that
     would mislead anyone copying the examples, but that is a smaller problem than a broken render,
     and inflating the count invites adding three icons for call sites that do not exist. Recorded
@@ -1735,7 +1769,7 @@ the code states what it does, not why the obvious alternative fails.
     (`DEPLOYMENT.md:121-129`), and verification on a throwaway clone (`pg_dump --schema-only` into
     a scratch database) before touching anything real.
 
-    Recorded because the missing journal entry *looks* exactly like an oversight, and the obvious
+    Recorded because the missing journal entry _looks_ exactly like an oversight, and the obvious
     "fix" is the dangerous act.
 
     ⚠️ **The `DEPLOYMENT.md:23` discrepancy noted here is now resolved: `0045` was applied and the
@@ -1752,8 +1786,6 @@ the code states what it does, not why the obvious alternative fails.
     authoritative-column-with-no-writer. When a fact about live state is worth recording, prefer
     recording **how to ask** over recording the answer.
 
-
-
 17. **The §4 schema sketch is a sketch, and `0046` diverges from it deliberately.**
     §4 shows `title` on `study_series`; the shipped column is **`name`**, matching `studyGroup.name`
     so the Finder's expandable-row code treats both the same way.
@@ -1769,15 +1801,13 @@ the code states what it does, not why the obvious alternative fails.
     study. Enforcement still arrives with Join Parts / Split Part in phase 2.
 
     The general form, which is the reason this stays in the traps list: adding a dormant column
-    "so it is ready" is not obviously safe. A column that is *authoritative but unwritten* is a
+    "so it is ready" is not obviously safe. A column that is _authoritative but unwritten_ is a
     latent inconsistency, and the decision to add it early is only sound when the same phase gives
     it a writer.
-
 
 ---
 
 ## 13. Open questions
-
 
 Highest-stakes first — the first two are hard to reverse once code exists, because both are
 migration shape. Q23, Q40, Q41 and Q42 all follow from the five-command decision in §8; none of
@@ -1812,7 +1842,6 @@ them existed in this form before it.
    distinguishes a part edge from an internal passage seam, so multi-passage parts explain
    themselves too. Nothing here is waiting on phase 2.
 
-
 6. **Q41** — what a boundary move does once `enforcement` flips to `'block'`. Latent today
    (everything is `'warn'`), but the answer must not be "throw mid-gesture."
 7. **Q32** — export whole series (Q33 is now answered; the two are paired, so decide Q32 with
@@ -1832,61 +1861,59 @@ nullable and additive; no `CHECK` — cross-part rows arrive from boundary moves
 back to part 1), **Q43** (a part delete cannot create a compliance breach — recorded so no check is
 written for it). See §14.
 
-
 ---
 
 ## 14. Decisions log
 
 Decisions with live consequences. Reasoning included so they are not relitigated.
 
-| Question                                                  | Decision                                                                             | Reasoning                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Where limits are enforced                                 | Request at fetch, display at create/edit, distribution at export                     | Three different boundaries; conflating them is the recurring bug in this codebase                                                                                                                                                                                                                                                                                                                                          |
-| 500-verse rule as the series trigger                      | **Rejected** as primary driver                                                       | No chapter exceeds 500 verses; multi-passage already absorbs long books                                                                                                                                                                                                                                                                                                                                                    |
-| What the feature _is_                                     | **A series of studies that belong together**                                         | Teaching cadence, Analyze ergonomics and Finder navigability justify it; the verse caps are guardrails on parts, not the reason it exists. Not a workaround for length, and not a route to whole-book ESV study (Q1)                                                                                                                                                                                                       |
-| Series / Part as the vocabulary                           | **Adopted**                                                                          | "Series" is how teachers speak and does not collide with `Connection`, which already means "link between two things"; "Part" is neutral where "Session" presumes teaching and "Chapter" collides with Bible chapters. Label reads "Part 3 of 16" (Q2)                                                                                                                                                                      |
-| Split/Join collision with columns                         | **Qualify the verb by its object at study level**                                    | `column-split.svg` / `column-join.svg` / `passageJoin.js` already own the bare verbs, so study-level commands are "Split Part" / "Join Parts" / "Split into a series" — never a bare Split or Join. Divide/Merge was rejected as a second name for one concept (Q3)                                                                                                                                                        |
-| Chunk NET?                                                | **Yes**                                                                              | Its cap is our own guardrail with no server-side control, so chunking routes around nothing. Psalms = 1 passage, 6 requests                                                                                                                                                                                                                                                                                                |
-| Chunk ESV?                                                | **No**                                                                               | Crossway polices completeness server-side; sub-whole chunks would each succeed and defeat a deliberate control                                                                                                                                                                                                                                                                                                             |
-| Auto-split user selections                                | **Removed**                                                                          | Turning one requested passage into six was surprising; passage shape is a document-structure decision belonging to the user (former Q38)                                                                                                                                                                                                                                                                                   |
-| Split rule, where it lives                                | Fetch layer only                                                                     | Chapter-boundary greedy fill, invisible to the user (`splitRangeIntoPassages`)                                                                                                                                                                                                                                                                                                                                             |
-| Auto-split in the edit flow                               | **Not applied**                                                                      | Edits diff by passage `id`; split parts have none, so a remove would cascade and destroy structure                                                                                                                                                                                                                                                                                                                         |
-| ESV whole-book truncation                                 | **Confirmed** by probe                                                               | HTTP 200, `canonical: "Revelation 1–12:8"`, 202/404 verses, no error field — silent                                                                                                                                                                                                                                                                                                                                        |
-| ESV truncation trigger                                    | **Completeness, not size**                                                           | Galatians (149v) halved; Romans 1:18–8:39 (208v) returned whole                                                                                                                                                                                                                                                                                                                                                            |
-| Short-book exemption                                      | **Structural, not a verse floor**                                                    | Single- and double-chapter books, six of them. No bisecting probe needed                                                                                                                                                                                                                                                                                                                                                   |
-| Truncation detection method                               | Verse-count ratio, not `canonical`                                                   | String comparison gave 4 false positives in 9 probes; verse counting gave 0                                                                                                                                                                                                                                                                                                                                                |
-| Detection thresholds                                      | <90% **and** >15 verses short                                                        | ESV legitimately omits late-manuscript verses (Mark 9 = 48/50, John 5 = 46/47)                                                                                                                                                                                                                                                                                                                                             |
-| "Chunking = circumvention" argument                       | **Withdrawn**                                                                        | A study can already show a whole book as several passages, so chunking reproduces no extra text with no extra requests. Replaced by "don't defeat a server-side control"                                                                                                                                                                                                                                                   |
-| Hard cap on study verse count                             | **Rejected**                                                                         | Choppiness starts ~400 verses, below any round cap — a 500 cap would permit the bad case and block legitimate ones. Advisory only                                                                                                                                                                                                                                                                                          |
-| `distribution.maxBookPortion`                             | **`null` for both**                                                                  | Crossway's 50% there measures the ESV's share of the user's document, not of the biblical book                                                                                                                                                                                                                                                                                                                             |
-| `display.maxBookPortion`                                  | **`0.5` for ESV**                                                                    | The terms cap display per page in those words, excepting single/double-chapter books                                                                                                                                                                                                                                                                                                                                       |
-| Safari choppiness                                         | Out of scope, tracked in §11.1                                                       | A rendering issue; must not shape the data model                                                                                                                                                                                                                                                                                                                                                                           |
-| Limit message attribution                                 | `source`-aware                                                                       | `validatePassageLimits` once blamed the provider for our own cap. Any new limit copy must check `source` first                                                                                                                                                                                                                                                                                                             |
-| Which commands work across a part boundary                | **Join Column, Join Section, Join Segment, Move Text Up, Move Text Down — all five** | They are shipped commands with menu items and toolbar buttons, so a user reaches for them at a boundary immediately. Granularity was never ours to choose; Q24's recommendation to skip raw word moves was withdrawn because Move Text _is_ that move                                                                                                                                                                      |
-| Which boundaries are eligible                             | **Canonically contiguous only**                                                      | Different books, or a gap between parts, are never joined. The predicate is "does part _n−1_ end at the word before part _n_ begins", a pure function of canonical `startingWordId` order — not "is this part _n−1_". Overlap is undecided (Q40)                                                                                                                                                                           |
-| Cross-passage vs cross-part first                         | **Straight to cross-part**                                                           | The cheaper stepping stone was cross-passage-within-one-study, which is broken today and needs the same generalisation. Recorded consequence: it is fixed incidentally only if the helper takes an ordered passage sequence rather than a part pair                                                                                                                                                                        |
-| Export re-validation on boundary move                     | **Not needed — provably**                                                            | Boundary moves are verse-conservative: coverage is unchanged, verses only relocate between parts, and `validateExportLimits()`'s verse-identity `Set` is indifferent to which part holds a verse                                                                                                                                                                                                                           |
-| Display re-validation on boundary move                    | **Required, on both parts**                                                          | The receiver may cross `min(500, half the book)` — e.g. a part at Rom 1:1–8:25 (211 verses) tipped past 216 by a few Move Text Up gestures — and the donor's existing warning may now clear, which a stale on-screen warning would misreport. ⚠️ This cell read "Rom 1–8 sits at exactly 216": wrong, it is **225**, which already exceeds half of Romans (216.5). See §10.1                                                |
-| Is a series ever created automatically?                   | **No — always opt-in**                                                               | No range length, book size or verse count triggers one. Length as a reason to restructure is the framing Q1 already rejected; letting it back in through the UI would undo that decision quietly                                                                                                                                                                                                                           |
-| Default in the create-as-series offer                     | **Always "One study"**                                                               | Pre-selecting "series" for a long range is the same rejected instinct expressed as a default. Applies even to Psalms                                                                                                                                                                                                                                                                                                       |
-| Series eligibility threshold                              | **Any range of 2+ chapters, never restricted**                                       | Two sessions on Haggai and three on Habakkuk are real teaching plans; there is no principle by which the app knows better. "Split into a series…" stays available from the study menu for any eligible study, so the capability never depends on the app having offered it                                                                                                                                                 |
-| Solicitation threshold                                    | **Tunable UX judgement, not a constraint**                                           | Distinct from eligibility. A prompt that fires when the answer is obvious teaches users to dismiss prompts unread, which is when it stops working on Psalms. Change it freely; nothing depends on the number                                                                                                                                                                                                               |
-| Chapters per part                                         | **User's choice, default 1, live preview**                                           | The preview matters more than the stepper: it is where 150 parts for Psalms becomes visible before committing (Q9)                                                                                                                                                                                                                                                                                                         |
-| Where the compliance position is shown                    | **At creation, live in the preview**                                                 | By export there are 21 parts holding structure and notes, and restructuring is §8's expensive operation — a warning that arrives then cannot be acted on cheaply. Per-part status, the series-level aggregate, and `checkSinglePassageSupport()` per proposed part, all recomputed as the stepper moves                                                                                                                    |
-| Creation-time vs export-time strength                     | **Informational at creation, binding at export**                                     | Not an inconsistency: per-part display genuinely is compliant, so creation only informs; the aggregate is a distribution question, so whole-series export blocks (Q32/Q33)                                                                                                                                                                                                                                                 |
-| May a user create a series that will fail export?         | **Yes, knowingly**                                                                   | Compliance is the study owner's obligation (`COMPLIANCE.md` §1.6) and `enforcement` is `'warn'` throughout. The alternative is refusing creation, which removes the choice §5 exists to protect. Logged so it is not later "fixed" by blocking                                                                                                                                                                             |
-| Restrict series creation to contiguous same-book studies? | **No**                                                                               | It would contradict Q7/Q8, which allow non-contiguous and multi-book studies to exist, and would forbid the case needing the _least_ machinery: a Prison Epistles study divides part-per-passage with no arithmetic at all, while the contiguous case needs a stepper, a preview and chapter maths                                                                                                                         |
-| What contiguity actually constrains                       | **The parting strategy, not eligibility**                                            | "Chapters per part" requires contiguous single-book text because `splitRangeIntoPassages()` takes a scalar `book`; across a gap the arithmetic is unanswerable, not merely undefined. Multi-passage studies get part-per-passage instead. Do not generalise the scalar `book` in service of the stepper                                                                                                                    |
-| Part-per-passage: automatic or offered?                   | **Offered, never automatic**                                                         | Even with seams already drawn and nothing to compute, an automatic conversion would be a series imposed by the app's reading of the study's shape, contradicting "the app never decides, it offers". The absence of arithmetic is not the absence of a decision                                                                                                                                                            |
-| What may be reordered                                     | **Runs, not parts**                                                                  | A series decomposes into maximal canonically-contiguous runs; runs permute freely, parts within a run are rigid, runs are never interleaved. Reuses §8's adjacency predicate, so one function governs both boundary-move eligibility and drag legality. Consequence: a contiguous Romans series is one run and cannot be reordered at all — teaching Rom 8 first means shaping the study as Rom 1–7 + Rom 8, two runs (Q5) |
-| `seriesOrder` after a mutation                            | **Left alone — canonical order seeds it once**                                       | Re-normalising from canonical order after every mutation, as two earlier passages of this document said to do, would clobber a deliberate arrangement. Explicit, seeded at creation, user-editable within the run rule                                                                                                                                                                                                     |
-| Runs: stored or derived?                                  | **Derived, never stored**                                                            | Part delete, Split Part, Join Parts and boundary moves all change run membership — four chances for a stored `runId` to go stale. One helper folding the adjacency predicate over parts in canonical order; three callers                                                                                                                                                                                                  |
-| On series delete                                          | **Cascade — everything goes**                                                        | Reverses the earlier `set null` recommendation (Q6). Matches `0009_cascade_delete_studies.sql`, and dissolves the cross-part-connection problem via the FK. Cost: one action destroys every part's structure, notes and commentary, so the confirmation must state the part count and irreversibility                                                                                                                      |
-| Deleting a single part                                    | **Allowed, warned; the run splits in two**                                           | The part's verses leave the series entirely — handing them to a neighbour would be Join Parts under the wrong name. Three consequences the warning must name: that seam is permanently dead for all five structural commands, previously-rigid parts become reorderable, and the series is now non-contiguous (Q7). Deleting to one part dissolves the series into a standalone study                                      |
-| `segmentConnection.studyId`                               | **Stays `.notNull()`; `seriesId` added nullable (Q42, shipped in `0046`)**            | ⚠️ This read "**Must change; strategy open (Q42)**". Neither branch was taken: cross-part connections cannot be *authored* (two parts are never on screen together), so they arrive only when a **boundary move** slides under a link drawn inside one part. A `CHECK` would therefore not block a bad gesture — it would decide the fate of already-valid user work mid-move. Under-reporting in `countTouchingConnections()` is real but belongs to the phase shipping boundary moves; the index still needs a `seriesId` sibling. See §4 |
-| Icon for a standalone study                               | **`book` — unchanged**                                                               | Reverses the earlier recommendation of `book-open`, which is **not in `icons.json`** and would have rendered as blank space via the documented missing-icon fallback. `StudyItem.svelte` already uses `book` at three call sites, so the old advice was churn dressed as reuse (trap 13)                                                                                                                                   |
-| Icon for a series                                         | **`books`**                                                                          | Not "several, in order" but the `folder` → `folders` precedent: the registry already expresses this distinction as a singular/plural pair, and `folders` already means "a group among groups" in `MenuActions.svelte`. The Finder then reads `book` = study, `books` = series, `folder` = container (Q29)                                                                                                                  |
-| Split/Join Part icon names                                | **`part-split` / `part-join`**                                                       | Was `study-split` / `study-join`, which contradicts §3's decided "Split Part" / "Join Parts". The registry is uniformly object-then-verb (`column-split`, `section-join`, `segment-split`), so the object is `part`                                                                                                                                                                                                        |
-| Split/Join Part icon design                               | **The book metaphor, not a divided page**                                            | Icons are a single fill-only `d` path in a 32×32 viewBox, so the old "vertical dashed rule" needs hand-placed rects that merge at menu size. And it would be a fourth variation on "a divided rectangle" beside the three page-level split icons. The geometry cannot carry the level distinction, so the metaphor must                                                                                                    |
-| Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — three new entries total for the whole feature (`books`, `part-split`, `part-join`), plus `warning`. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` were not ours either, and are fixed by repointing at the existing `segment-split` / `segment-join` — no new artwork (trap 13)                                                     |
-
+| Question                                                  | Decision                                                                             | Reasoning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where limits are enforced                                 | Request at fetch, display at create/edit, distribution at export                     | Three different boundaries; conflating them is the recurring bug in this codebase                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 500-verse rule as the series trigger                      | **Rejected** as primary driver                                                       | No chapter exceeds 500 verses; multi-passage already absorbs long books                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| What the feature _is_                                     | **A series of studies that belong together**                                         | Teaching cadence, Analyze ergonomics and Finder navigability justify it; the verse caps are guardrails on parts, not the reason it exists. Not a workaround for length, and not a route to whole-book ESV study (Q1)                                                                                                                                                                                                                                                                                                                                        |
+| Series / Part as the vocabulary                           | **Adopted**                                                                          | "Series" is how teachers speak and does not collide with `Connection`, which already means "link between two things"; "Part" is neutral where "Session" presumes teaching and "Chapter" collides with Bible chapters. Label reads "Part 3 of 16" (Q2)                                                                                                                                                                                                                                                                                                       |
+| Split/Join collision with columns                         | **Qualify the verb by its object at study level**                                    | `column-split.svg` / `column-join.svg` / `passageJoin.js` already own the bare verbs, so study-level commands are "Split Part" / "Join Parts" / "Split into a series" — never a bare Split or Join. Divide/Merge was rejected as a second name for one concept (Q3)                                                                                                                                                                                                                                                                                         |
+| Chunk NET?                                                | **Yes**                                                                              | Its cap is our own guardrail with no server-side control, so chunking routes around nothing. Psalms = 1 passage, 6 requests                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Chunk ESV?                                                | **No**                                                                               | Crossway polices completeness server-side; sub-whole chunks would each succeed and defeat a deliberate control                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Auto-split user selections                                | **Removed**                                                                          | Turning one requested passage into six was surprising; passage shape is a document-structure decision belonging to the user (former Q38)                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Split rule, where it lives                                | Fetch layer only                                                                     | Chapter-boundary greedy fill, invisible to the user (`splitRangeIntoPassages`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Auto-split in the edit flow                               | **Not applied**                                                                      | Edits diff by passage `id`; split parts have none, so a remove would cascade and destroy structure                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ESV whole-book truncation                                 | **Confirmed** by probe                                                               | HTTP 200, `canonical: "Revelation 1–12:8"`, 202/404 verses, no error field — silent                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ESV truncation trigger                                    | **Completeness, not size**                                                           | Galatians (149v) halved; Romans 1:18–8:39 (208v) returned whole                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Short-book exemption                                      | **Structural, not a verse floor**                                                    | Single- and double-chapter books, six of them. No bisecting probe needed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Truncation detection method                               | Verse-count ratio, not `canonical`                                                   | String comparison gave 4 false positives in 9 probes; verse counting gave 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Detection thresholds                                      | <90% **and** >15 verses short                                                        | ESV legitimately omits late-manuscript verses (Mark 9 = 48/50, John 5 = 46/47)                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| "Chunking = circumvention" argument                       | **Withdrawn**                                                                        | A study can already show a whole book as several passages, so chunking reproduces no extra text with no extra requests. Replaced by "don't defeat a server-side control"                                                                                                                                                                                                                                                                                                                                                                                    |
+| Hard cap on study verse count                             | **Rejected**                                                                         | Choppiness starts ~400 verses, below any round cap — a 500 cap would permit the bad case and block legitimate ones. Advisory only                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `distribution.maxBookPortion`                             | **`null` for both**                                                                  | Crossway's 50% there measures the ESV's share of the user's document, not of the biblical book                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `display.maxBookPortion`                                  | **`0.5` for ESV**                                                                    | The terms cap display per page in those words, excepting single/double-chapter books                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Safari choppiness                                         | Out of scope, tracked in §11.1                                                       | A rendering issue; must not shape the data model                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Limit message attribution                                 | `source`-aware                                                                       | `validatePassageLimits` once blamed the provider for our own cap. Any new limit copy must check `source` first                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Which commands work across a part boundary                | **Join Column, Join Section, Join Segment, Move Text Up, Move Text Down — all five** | They are shipped commands with menu items and toolbar buttons, so a user reaches for them at a boundary immediately. Granularity was never ours to choose; Q24's recommendation to skip raw word moves was withdrawn because Move Text _is_ that move                                                                                                                                                                                                                                                                                                       |
+| Which boundaries are eligible                             | **Canonically contiguous only**                                                      | Different books, or a gap between parts, are never joined. The predicate is "does part _n−1_ end at the word before part _n_ begins", a pure function of canonical `startingWordId` order — not "is this part _n−1_". Overlap is undecided (Q40)                                                                                                                                                                                                                                                                                                            |
+| Cross-passage vs cross-part first                         | **Straight to cross-part**                                                           | The cheaper stepping stone was cross-passage-within-one-study, which is broken today and needs the same generalisation. Recorded consequence: it is fixed incidentally only if the helper takes an ordered passage sequence rather than a part pair                                                                                                                                                                                                                                                                                                         |
+| Export re-validation on boundary move                     | **Not needed — provably**                                                            | Boundary moves are verse-conservative: coverage is unchanged, verses only relocate between parts, and `validateExportLimits()`'s verse-identity `Set` is indifferent to which part holds a verse                                                                                                                                                                                                                                                                                                                                                            |
+| Display re-validation on boundary move                    | **Required, on both parts**                                                          | The receiver may cross `min(500, half the book)` — e.g. a part at Rom 1:1–8:25 (211 verses) tipped past 216 by a few Move Text Up gestures — and the donor's existing warning may now clear, which a stale on-screen warning would misreport. ⚠️ This cell read "Rom 1–8 sits at exactly 216": wrong, it is **225**, which already exceeds half of Romans (216.5). See §10.1                                                                                                                                                                                |
+| Is a series ever created automatically?                   | **No — always opt-in**                                                               | No range length, book size or verse count triggers one. Length as a reason to restructure is the framing Q1 already rejected; letting it back in through the UI would undo that decision quietly                                                                                                                                                                                                                                                                                                                                                            |
+| Default in the create-as-series offer                     | **Always "One study"**                                                               | Pre-selecting "series" for a long range is the same rejected instinct expressed as a default. Applies even to Psalms                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Series eligibility threshold                              | **Any range of 2+ chapters, never restricted**                                       | Two sessions on Haggai and three on Habakkuk are real teaching plans; there is no principle by which the app knows better. "Split into a series…" stays available from the study menu for any eligible study, so the capability never depends on the app having offered it                                                                                                                                                                                                                                                                                  |
+| Solicitation threshold                                    | **Tunable UX judgement, not a constraint**                                           | Distinct from eligibility. A prompt that fires when the answer is obvious teaches users to dismiss prompts unread, which is when it stops working on Psalms. Change it freely; nothing depends on the number                                                                                                                                                                                                                                                                                                                                                |
+| Chapters per part                                         | **User's choice, default 1, live preview**                                           | The preview matters more than the stepper: it is where 150 parts for Psalms becomes visible before committing (Q9)                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Where the compliance position is shown                    | **At creation, live in the preview**                                                 | By export there are 21 parts holding structure and notes, and restructuring is §8's expensive operation — a warning that arrives then cannot be acted on cheaply. Per-part status, the series-level aggregate, and `checkSinglePassageSupport()` per proposed part, all recomputed as the stepper moves                                                                                                                                                                                                                                                     |
+| Creation-time vs export-time strength                     | **Informational at creation, binding at export**                                     | Not an inconsistency: per-part display genuinely is compliant, so creation only informs; the aggregate is a distribution question, so whole-series export blocks (Q32/Q33)                                                                                                                                                                                                                                                                                                                                                                                  |
+| May a user create a series that will fail export?         | **Yes, knowingly**                                                                   | Compliance is the study owner's obligation (`COMPLIANCE.md` §1.6) and `enforcement` is `'warn'` throughout. The alternative is refusing creation, which removes the choice §5 exists to protect. Logged so it is not later "fixed" by blocking                                                                                                                                                                                                                                                                                                              |
+| Restrict series creation to contiguous same-book studies? | **No**                                                                               | It would contradict Q7/Q8, which allow non-contiguous and multi-book studies to exist, and would forbid the case needing the _least_ machinery: a Prison Epistles study divides part-per-passage with no arithmetic at all, while the contiguous case needs a stepper, a preview and chapter maths                                                                                                                                                                                                                                                          |
+| What contiguity actually constrains                       | **The parting strategy, not eligibility**                                            | "Chapters per part" requires contiguous single-book text because `splitRangeIntoPassages()` takes a scalar `book`; across a gap the arithmetic is unanswerable, not merely undefined. Multi-passage studies get part-per-passage instead. Do not generalise the scalar `book` in service of the stepper                                                                                                                                                                                                                                                     |
+| Part-per-passage: automatic or offered?                   | **Offered, never automatic**                                                         | Even with seams already drawn and nothing to compute, an automatic conversion would be a series imposed by the app's reading of the study's shape, contradicting "the app never decides, it offers". The absence of arithmetic is not the absence of a decision                                                                                                                                                                                                                                                                                             |
+| What may be reordered                                     | **Runs, not parts**                                                                  | A series decomposes into maximal canonically-contiguous runs; runs permute freely, parts within a run are rigid, runs are never interleaved. Reuses §8's adjacency predicate, so one function governs both boundary-move eligibility and drag legality. Consequence: a contiguous Romans series is one run and cannot be reordered at all — teaching Rom 8 first means shaping the study as Rom 1–7 + Rom 8, two runs (Q5)                                                                                                                                  |
+| `seriesOrder` after a mutation                            | **Left alone — canonical order seeds it once**                                       | Re-normalising from canonical order after every mutation, as two earlier passages of this document said to do, would clobber a deliberate arrangement. Explicit, seeded at creation, user-editable within the run rule                                                                                                                                                                                                                                                                                                                                      |
+| Runs: stored or derived?                                  | **Derived, never stored**                                                            | Part delete, Split Part, Join Parts and boundary moves all change run membership — four chances for a stored `runId` to go stale. One helper folding the adjacency predicate over parts in canonical order; three callers                                                                                                                                                                                                                                                                                                                                   |
+| On series delete                                          | **Cascade — everything goes**                                                        | Reverses the earlier `set null` recommendation (Q6). Matches `0009_cascade_delete_studies.sql`, and dissolves the cross-part-connection problem via the FK. Cost: one action destroys every part's structure, notes and commentary, so the confirmation must state the part count and irreversibility                                                                                                                                                                                                                                                       |
+| Deleting a single part                                    | **Allowed, warned; the run splits in two**                                           | The part's verses leave the series entirely — handing them to a neighbour would be Join Parts under the wrong name. Three consequences the warning must name: that seam is permanently dead for all five structural commands, previously-rigid parts become reorderable, and the series is now non-contiguous (Q7). Deleting to one part dissolves the series into a standalone study                                                                                                                                                                       |
+| `segmentConnection.studyId`                               | **Stays `.notNull()`; `seriesId` added nullable (Q42, shipped in `0046`)**           | ⚠️ This read "**Must change; strategy open (Q42)**". Neither branch was taken: cross-part connections cannot be _authored_ (two parts are never on screen together), so they arrive only when a **boundary move** slides under a link drawn inside one part. A `CHECK` would therefore not block a bad gesture — it would decide the fate of already-valid user work mid-move. Under-reporting in `countTouchingConnections()` is real but belongs to the phase shipping boundary moves; the index still needs a `seriesId` sibling. See §4                 |
+| Icon for a standalone study                               | **`book` — unchanged**                                                               | Reverses the earlier recommendation of `book-open`, which is **not in `icons.json`** and would have rendered as blank space via the documented missing-icon fallback. `StudyItem.svelte` already uses `book` at three call sites, so the old advice was churn dressed as reuse (trap 13)                                                                                                                                                                                                                                                                    |
+| Icon for a series                                         | **`books`**                                                                          | Not "several, in order" but the `folder` → `folders` precedent: the registry already expresses this distinction as a singular/plural pair, and `folders` already means "a group among groups" in `MenuActions.svelte`. The Finder then reads `book` = study, `books` = series, `folder` = container (Q29)                                                                                                                                                                                                                                                   |
+| Split/Join Part icon names                                | **`part-split` / `part-join`**                                                       | Was `study-split` / `study-join`, which contradicts §3's decided "Split Part" / "Join Parts". The registry is uniformly object-then-verb (`column-split`, `section-join`, `segment-split`), so the object is `part`                                                                                                                                                                                                                                                                                                                                         |
+| Split/Join Part icon design                               | **The book metaphor, not a divided page**                                            | Icons are a single fill-only `d` path in a 32×32 viewBox, so the old "vertical dashed rule" needs hand-placed rects that merge at menu size. And it would be a fourth variation on "a divided rectangle" beside the three page-level split icons. The geometry cannot carry the level distinction, so the metaphor must                                                                                                                                                                                                                                     |
+| Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — three new entries total for the whole feature (`books`, `part-split`, `part-join`), plus `warning`. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` were not ours either, and are fixed by repointing at the existing `segment-split` / `segment-join` — no new artwork (trap 13) |
