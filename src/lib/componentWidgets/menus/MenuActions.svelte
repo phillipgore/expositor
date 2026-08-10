@@ -37,18 +37,22 @@
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import MoveToGroupModal from '../modals/MoveToGroupModal.svelte';
 	import SplitIntoSeriesModal from '../modals/SplitIntoSeriesModal.svelte';
+	import SplitPartModal from '../modals/SplitPartModal.svelte';
+	import JoinPartsModal from '../modals/JoinPartsModal.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import { wouldCreateCircularNesting } from '$lib/utils/groupHierarchy.js';
 	import { flattenGroupsForMenu } from '$lib/utils/groupFlattening.js';
 	import { isSeriesEligible } from '$lib/utils/seriesPlanning.js';
 	import { invalidateAll } from '$app/navigation';
 
-	/** @type {{ menuId: string, groups: Array, onMoveToGroup: Function, onDelete: Function }} Props */
-	let { menuId, groups = [], onMoveToGroup, onDelete } = $props();
+	/** @type {{ menuId: string, groups: Array, series: Array, onMoveToGroup: Function, onDelete: Function }} Props */
+	let { menuId, groups = [], series = [], onMoveToGroup, onDelete } = $props();
 
 	let showMoveToModal = $state(false);
 	let showSplitIntoSeriesModal = $state(false);
 	let splitError = $state(null);
+	let showSplitPartModal = $state(false);
+	let showJoinPartsModal = $state(false);
 
 
 	// Check if a single group is selected
@@ -154,6 +158,83 @@
 			console.error('Failed to create series:', error);
 			splitError = 'Could not create the series.';
 		}
+	}
+
+	// ── Split Part / Join Parts (§8, phase 2) ─────────────────────────────────────
+	//
+	// Both act on a PART, which the Finder selects as an ordinary study. `study.seriesId` names its
+	// series but carries none of its siblings, so the series row is looked up here — Join Parts
+	// needs the neighbours to exist before it can offer a direction at all.
+
+	/** The series containing the selected part, or null when the selection is not a part. */
+	let selectedPartSeries = $derived(
+		selectedStudyData?.seriesId
+			? (series ?? []).find((s) => s.id === selectedStudyData.seriesId) ?? null
+			: null
+	);
+
+	let isPart = $derived(Boolean(selectedPartSeries));
+
+	/**
+	 * Split Part needs a part with something to divide. The authoritative rule is
+	 * `getSplitPoints()` on the server, which the modal renders; this is only the enabling test, so
+	 * it asks the cheaper question the client can answer — does the part span more than one chapter,
+	 * or hold more than one passage?
+	 *
+	 * Deliberately NOT a second copy of the planner's rule: if the two disagree, the modal opens and
+	 * states the reason, which is §11's requirement anyway.
+	 */
+	let canSplitPart = $derived(
+		isPart &&
+			(selectedStudyData?.passages ?? []).length > 0 &&
+			((selectedStudyData?.passages ?? []).length > 1 ||
+				(selectedStudyData.passages[0].toChapter ?? 0) >
+					(selectedStudyData.passages[0].fromChapter ?? 0))
+	);
+
+	// Join needs a neighbour to join with. A one-part series cannot exist (§4), so any real part has
+	// at least one — but the guard is kept because a stale payload should disable the command rather
+	// than open a modal with no legal direction.
+	let canJoinParts = $derived(isPart && (selectedPartSeries?.parts?.length ?? 0) > 1);
+
+	let splitPartDisabledReason = $derived(
+		!isPart
+			? 'Select a part of a series to split it.'
+			: !canSplitPart
+				? 'This part covers a single chapter, so it cannot be divided further.'
+				: null
+	);
+
+	let joinPartsDisabledReason = $derived(
+		!isPart ? 'Select a part of a series to join it with a neighbour.' : null
+	);
+
+	function closeMenu() {
+		const menu = document.getElementById(menuId);
+		if (menu && menu.matches(':popover-open')) {
+			menu.hidePopover();
+		}
+	}
+
+	function handleSplitPartClick() {
+		closeMenu();
+		showSplitPartModal = true;
+	}
+
+	function handleJoinPartsClick() {
+		closeMenu();
+		showJoinPartsModal = true;
+	}
+
+	/**
+	 * After a restructure the Finder is stale in several ways at once — a part added or removed,
+	 * ranges changed, possibly the series dissolved — so the whole tree is refetched rather than
+	 * patched. `invalidateAll` is what the create-series path already uses for the same reason.
+	 */
+	async function handleRestructured() {
+		showSplitPartModal = false;
+		showJoinPartsModal = false;
+		await invalidateAll();
 	}
 
 	// Note: flattenGroupsForMenu is no longer needed here as the modal handles flattening
@@ -342,6 +423,29 @@
 		title={splitDisabledReason}
 	/>
 
+	<!-- Split Part / Join Parts act on a part of an existing series (§8). Separate items from
+	     "Split into a Series..." because they are different operations on different objects — §3's
+	     rule that the verb is always qualified by its object. -->
+	<IconButton
+		iconId="part-split"
+		label="Split Part..."
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={handleSplitPartClick}
+		isDisabled={!canSplitPart}
+		title={splitPartDisabledReason}
+	/>
+
+	<IconButton
+		iconId="part-join"
+		label="Join Parts..."
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={handleJoinPartsClick}
+		isDisabled={!canJoinParts}
+		title={joinPartsDisabledReason}
+	/>
+
 </Menu>
 
 
@@ -359,5 +463,21 @@
 	error={splitError}
 	onCreate={handleCreateSeries}
 	onClose={() => (showSplitIntoSeriesModal = false)}
+/>
+
+<SplitPartModal
+	isOpen={showSplitPartModal}
+	part={selectedStudyData}
+	seriesId={selectedPartSeries?.id ?? null}
+	onDone={handleRestructured}
+	onClose={() => (showSplitPartModal = false)}
+/>
+
+<JoinPartsModal
+	isOpen={showJoinPartsModal}
+	part={selectedStudyData}
+	seriesId={selectedPartSeries?.id ?? null}
+	onDone={handleRestructured}
+	onClose={() => (showJoinPartsModal = false)}
 />
 

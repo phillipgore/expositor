@@ -183,6 +183,45 @@ async function assertPassageEmpty(tx, passageId) {
 }
 
 /**
+ * Report what a split WOULD do, without writing anything.
+ *
+ * This is what makes the confirm dialog honest: it returns the same counts the commit will produce,
+ * derived from the same functions, so "3 connections will be broken" is a fact about the operation
+ * rather than a separate estimate of it. §5's creation flow proved the pattern; a split needs it
+ * more, because the user is approving a destruction that Q35 leaves un-undoable.
+ *
+ * Takes `dbx` rather than `tx` — it reads only, so it does not need a transaction and must not
+ * open one.
+ *
+ * @returns {Promise<{ movedSegments: number, reownedConnections: number, straddlingConnections: Object[] }>}
+ */
+export async function inspectPassageSplit(dbx, { passageId, boundaryWordId }) {
+	const tree = await loadPassageTree(dbx, passageId);
+	const plan = planStructureSplit(tree, boundaryWordId);
+	const whole = descendantIds(tree, plan.moveColumns);
+
+	const movedIds = {
+		segmentIds: plan.movedSegmentIds,
+		sectionIds: whole.sectionIds,
+		columnIds: whole.columnIds
+	};
+
+	const candidates = await loadTouchingConnections(dbx, movedIds);
+	// The target ids are irrelevant to the classification — only which endpoints moved matters —
+	// so a placeholder is honest here rather than pretending to know the new part's id.
+	const ownership = planConnectionOwnership(candidates, movedIds, {
+		studyId: '(preview)',
+		seriesId: null
+	});
+
+	return {
+		movedSegments: plan.movedSegmentIds.length,
+		reownedConnections: ownership.reown.length,
+		straddlingConnections: ownership.straddling
+	};
+}
+
+/**
  * Divide one passage's structure at `boundaryWordId`, moving the far side onto `newPassageId`.
  *
  * The new passage row must already exist — this moves structure onto it and does not create it,
@@ -292,6 +331,33 @@ export async function splitPassageStructure(
 		movedColumns: plan.moveColumns.length,
 		clonedColumns: plan.cloneColumns.length,
 		movedSegments: movedSegmentIds.length,
+		reownedConnections: ownership.reown.length,
+		straddlingConnections: ownership.straddling
+	};
+}
+
+/**
+ * Report what a join WOULD do to connections, without writing.
+ *
+ * A join re-parents whole columns, so a connection breaks only when exactly one endpoint sits in
+ * the absorbed passage. Same classifier as the commit, so the count in the warning is the count
+ * that will be destroyed — the property the confirm dialog's honesty depends on.
+ *
+ * @returns {Promise<{ movedSegments: number, reownedConnections: number, straddlingConnections: Object[] }>}
+ */
+export async function inspectPassageJoin(dbx, { fromPassageId }) {
+	const tree = await loadPassageTree(dbx, fromPassageId);
+	const plan = planStructureMove(tree);
+	const moved = descendantIds(tree, plan.moveColumns);
+
+	const candidates = await loadTouchingConnections(dbx, moved);
+	const ownership = planConnectionOwnership(candidates, moved, {
+		studyId: '(preview)',
+		seriesId: null
+	});
+
+	return {
+		movedSegments: plan.movedSegmentIds.length,
 		reownedConnections: ownership.reown.length,
 		straddlingConnections: ownership.straddling
 	};

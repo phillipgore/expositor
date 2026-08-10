@@ -644,9 +644,13 @@
 <MenuExport menuId="MenuExport" view={activeModeButton} />
 <MenuSettings menuId="MenuSettings" alignment="end" {isAdmin} />
 
+<!-- `series` is passed so Split Part / Join Parts can find the series a selected part belongs to.
+     A part is selected as a `study`, and `study.seriesId` names the series but carries none of its
+     siblings, which both commands need. -->
 <MenuActions 
 	menuId="MenuActions" 
 	{groups}
+	{series}
 	onMoveToGroup={handleMoveToGroup}
 	onDelete={handleDeleteClick}
 />

@@ -240,5 +240,54 @@ check(
 	null
 );
 
+console.log('\n── §8 the seam split moves NO structure (the endpoint branches on this) ──');
+
+// Why this matters, and why it is asserted here rather than left to the endpoint:
+//
+// A part divides two ways (getSplitPoints): at a CHAPTER line inside one passage, or at a SEAM
+// between passages. Only the first moves structure, because each passage row owns its own columns —
+// re-parenting the ROW carries everything with it. The split endpoint was first written as a single
+// path that called splitPassageStructure() regardless, which for a seam split both duplicated the
+// moved range and inspected a passage that does not change. Pinning the invariant here means the
+// endpoint's branch has something to be wrong against.
+//
+// The seam case is modelled as what it really is: two SEPARATE trees, one per passage row. Asking
+// for a split of the second tree at its own first word moves all of it — which is exactly why the
+// endpoint re-parents the row instead of calling this at all.
+const passageOneTree = [col('p1c1', w(1, 1), [sec('p1s1', w(1, 1), [seg('p1g1', w(1, 1))])])];
+const passageTwoTree = [col('p2c1', w(3, 1), [sec('p2s1', w(3, 1), [seg('p2g1', w(3, 1))])])];
+
+// The first passage is untouched by a seam split: nothing in it is at or after the second
+// passage's start, so no column of it moves.
+const untouched = planStructureSplit(passageOneTree, w(3, 1));
+check('the staying passage moves no column', untouched.moveColumns.length, 0);
+check('and clones nothing', untouched.cloneColumns.length, 0);
+check('all of its segments stay', untouched.stayingSegmentIds.length, 1);
+
+// The moving passage's tree is wholly at or after the boundary, so it would move in ONE piece with
+// no clone — confirming there is no straddle to handle, which is what licenses the endpoint's
+// cheaper row re-parent.
+const wholeMove = planStructureSplit(passageTwoTree, w(3, 1));
+check('the moving passage moves as one column', wholeMove.moveColumns.length, 1);
+check('with nothing cloned', wholeMove.cloneColumns.length, 0);
+check('and nothing left behind', wholeMove.stayingSegmentIds.length, 0);
+
+// And a connection wholly inside either passage is untouched, because neither endpoint moved.
+const insideOne = {
+	id: 'k7',
+	fromType: 'segment',
+	toType: 'segment',
+	fromSegmentId: 'p1g1',
+	toSegmentId: 'p1g1'
+};
+const seamOwnership = planConnectionOwnership(
+	[insideOne],
+	{ segmentIds: [], sectionIds: [], columnIds: [] },
+	{ studyId: 'new', seriesId: 's' }
+);
+check('a seam split breaks no connections', seamOwnership.straddling.length, 0);
+check('and re-owns none', seamOwnership.reown.length, 0);
+check('leaving it entirely alone', seamOwnership.unaffected.length, 1);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
