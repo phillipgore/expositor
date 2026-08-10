@@ -4,7 +4,9 @@
 > here for one reason only: commit messages and people's memory still use it, so a search for
 > it should land somewhere useful. It is not an alternative name for the feature — see §3.
 
-**Status:** IN PROGRESS — **phase 1 complete**; phase 2 not started. Migration `0046` and the four new `icons.json` entries
+**Status:** IN PROGRESS — **phase 1 complete; phase 2 under way** (see the phase-2 note below for
+exactly which increments have landed — Split/Join is not yet reachable from the UI). Migration
+`0046` and the four new `icons.json` entries
 
 have landed in the repo. `0046` is **applied to dev only** — not staging, not production. Verified
 on dev: applies in one transaction, is idempotent on re-run, all five FKs carry the intended
@@ -38,10 +40,44 @@ verifier scripts pin the behaviour to this document — `verify-series-runs.mjs`
 `verify-boundary-reasons.mjs` (24 checks) — and both run against real `bible.json` via
 `node --import ./scripts/alias-loader.mjs`.
 
-**Next: phase 2**, which is blocked on Q40 (overlapping boundaries) and Q23 (cross-part
-connections). Neither is a coding task; both are decisions.
+**Phase 2 is IN PROGRESS — two of roughly ten increments have landed, and Split/Join is not yet
+reachable from the UI.** What exists:
 
-**Last updated:** 2026-08-08
+- **The planning layer** (`seriesRestructure.js`, 48 assertions) — pure range arithmetic for Split
+  Part / Join Parts, shared by the confirm dialog and the endpoint so the preview cannot diverge
+  from the outcome, exactly as §5's creation flow does with `planSeriesParts()`.
+- **The structure-transfer layer** (`seriesStructurePlan.js` + `server/db/seriesStructure.js`, 45
+  assertions) — which column/section/segment rows change parent, and what happens to the
+  connections anchored to them.
+
+⚠️ **The blocker phase 2's own \"what a boundary move must do\" step 4 warned about is now real and
+handled, and the shape of the fix is worth knowing before writing the endpoints.** Joining two
+parts coalesces two ranges into one, so the absorbed `passage` row disappears — and
+`passage_column.passage_id` is `ON DELETE CASCADE`. The obvious implementation order (write the
+merged range, delete the absorbed row) destroys every column, section, segment, heading, note,
+commentary and connection in the absorbed part, **and reports success.** Structure is therefore
+re-parented before anything is deleted, and the delete sits behind a guard that refuses a passage
+row still owning columns. Anyone extending this must preserve that order.
+
+Likewise the `studyId` wrong-answer bug §8 predicted is reachable as soon as structure moves:
+`countTouchingConnections()` filters on `segmentConnection.studyId`, so it silently under-counts
+and the confirm modal then states that no connections are affected. Connections are now loaded by
+their six **endpoint** columns instead, never by `studyId`.
+
+**Still outstanding in phase 2:** Split/Join API endpoints and UI; generalising the five commands
+from passage scope to sequence scope (two call graphs, per the ⚠️ in §8 — de-duplicating
+`passageJoin`/`passageReconcile` is currently an explicit **non-goal**, not an assumed
+prerequisite); §10.1 display re-validation on both parts; adjacent-part prefetch; balance by length.
+
+**Blocking questions, resolved rather than guessed.** Q40 and Q23 were ratified from what is
+already live and phased: `classifyBoundary()` already returns `'overlap'` as its own excluded
+state, and a join declines it because merging overlapping ranges would duplicate verses; §11
+already phases connections as warn-then-stubs, so the transfer layer *reports* straddling
+connections and never destroys them itself. **Q35 (undo) is deliberately left open** — the app has
+no undo anywhere, so making series the first feature to demand app-wide `⌘Z` inverts the cost.
+Split/Join ship with confirm-before-destroy, the mitigation part delete already uses.
+
+**Last updated:** 2026-08-10
 
 ⚠️ **This read "ON HOLD. Not scheduled; no code written" — all three clauses are now false.** Left
 visible because the next reader's first question is "has anything shipped?", and a status line that

@@ -94,7 +94,11 @@
 
 	let selectedStudyData = $derived(selectedStudy?.data ?? null);
 
-	/** A study already in a series cannot be split again — that is "Split Part" (§8, phase 3). */
+	/**
+	 * A study already in a series cannot be split again — that is "Split Part" (§8), which §11
+	 * phases as **phase 2**, not phase 3. Its planning and structure-transfer layers have landed;
+	 * the endpoint and UI have not, so this guard still holds for now.
+	 */
 	let isAlreadyPart = $derived(Boolean(selectedStudyData?.seriesId));
 
 	let canSplitIntoSeries = $derived(
