@@ -13,11 +13,12 @@ import {
 
 
 import { auth } from '$lib/server/auth.js';
-import { eq, asc, inArray, sql } from 'drizzle-orm';
+import { eq, asc, inArray, sql, or } from 'drizzle-orm';
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 import { getBoundaryDisabledReason } from '$lib/utils/seriesRuns.js';
 import { selectPrefetchTarget } from '$lib/utils/seriesPrefetch.js';
 import { warmAdjacentPart } from '$lib/server/db/seriesPrefetchRunner.js';
+import { resolveStructureOwners } from '$lib/server/db/structureOwners.js';
 
 
 
@@ -399,18 +400,87 @@ export async function load({ params, request, depends }) {
 			endStructure();
 
 
-			// Query segment connections for this study
+			// Query segment connections.
+			//
+			// ── Widened to the SERIES for edge stubs (§8 strategy (c), phase 3) ──
+			//
+			// `where(studyId = …)` is correct for a standalone study and WRONG for a part, in the specific
+			// way §8 predicts: a connection whose other endpoint moved to an adjacent part still names only
+			// one study, so the part at the far end holds no row referring to it and the link vanishes from
+			// that page. Under phase 2 the row was deleted outright, so nothing was lost invisibly; now that
+			// it survives, both parts must be able to see it.
+			//
+			// Selecting by `seriesId` returns rows belonging to OTHER pairs of parts too, which is exactly
+			// why `classifyConnections()` has a third `foreign` outcome — those are dropped rather than
+			// drawn as stubs on every part. A standalone study has no seriesId and takes the original path,
+			// so nothing changes for it.
 			const endConnections = perfTimer(`  └ connections query`);
-			const connections = await db
-				.select()
-				.from(segmentConnection)
-				.where(eq(segmentConnection.studyId, studyId));
+			const connections = studyData.seriesId
+				? await db
+						.select()
+						.from(segmentConnection)
+						.where(
+							or(
+								eq(segmentConnection.studyId, studyId),
+								eq(segmentConnection.seriesId, studyData.seriesId)
+							)
+						)
+				: await db
+						.select()
+						.from(segmentConnection)
+						.where(eq(segmentConnection.studyId, studyId));
 			endConnections();
+
+			// ── Ownership index for edge-stub labels (§8 (c), phase 3) ──────────
+			//
+			// A stub knows only the id of its absent endpoint; naming the part it lives in needs the
+			// reverse lookup. Built only when a connection actually reaches outside this study, so a
+			// series with no cross-part links pays nothing.
+			//
+			// ⚠️ Three id columns, not one. `segment_connection` carries six endpoint FKs across three
+			// types (§8's Q42 note), so resolving only segment ids would leave a cross-COLUMN link — the
+			// case §3's "genuine overlap" paragraph anticipates — with no label and therefore no stub.
+			let structureOwnership = null;
+			if (studyData.seriesId) {
+				// Built from `allColumns` / `allSections` / `allSegments` — the flat rows already fetched
+				// above — rather than from `passagesWithStructure`. Those rows are unambiguously this
+				// study's structure, whereas the assembled list carries a union type (a passage whose row
+				// went missing is returned without a `structure` key), so walking it would need a cast to
+				// say something the flat rows already state plainly.
+				const localIds = new Set([
+					...allColumns.map((c) => c.id),
+					...allSections.map((s) => s.id),
+					...allSegments.map((s) => s.id)
+				]);
+
+				// Every endpoint id on every row, regardless of type: a row may legitimately carry a
+				// non-null id in a column its own type does not use, and collecting a few extra ids is
+				// harmless here — they simply resolve to nothing.
+				const foreignIds = new Set();
+				for (const conn of connections) {
+					for (const id of [
+						conn.fromSegmentId,
+						conn.toSegmentId,
+						conn.fromSectionId,
+						conn.toSectionId,
+						conn.fromColumnId,
+						conn.toColumnId
+					]) {
+						if (id && !localIds.has(id)) foreignIds.add(id);
+					}
+				}
+
+				if (foreignIds.size > 0) {
+					structureOwnership = await resolveStructureOwners(db, [...foreignIds]);
+				}
+			}
+
 			endContent();
 
 			return {
 				passagesWithText: passagesWithStructure,
-				connections
+				connections,
+				structureOwnership
 			};
 		})();
 

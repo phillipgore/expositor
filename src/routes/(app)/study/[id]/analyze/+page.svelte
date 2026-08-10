@@ -68,7 +68,14 @@
 	// so every existing `data.passagesWithText` / `data.connections` reference in
 	// this (large) component keeps working unchanged — those reads simply see
 	// `undefined`/`[]` until the stream lands, which all the existing guards handle.
-	let streamedContent = $state(/** @type {{ passagesWithText: any[], connections: any[] } | null} */ (null));
+	// `structureOwnership` rides along with the connections it labels (§8 (c), phase 3): it maps an
+	// out-of-part endpoint id to the part that owns it, which is what turns a dropped connection into a
+	// labelled edge stub. Null for a standalone study.
+	let streamedContent = $state(
+		/** @type {{ passagesWithText: any[], connections: any[], structureOwnership?: Record<string, string>|null } | null} */ (
+			null
+		)
+	);
 
 	// Non-reactive guard tracking which study's content is currently mounted. Used to
 	// distinguish a REAL study switch (navigation to a different study) from a same-study
@@ -133,7 +140,11 @@
 	let data = $derived({
 		...rawData,
 		passagesWithText: streamedContent?.passagesWithText,
-		connections: streamedContent?.connections
+		connections: streamedContent?.connections,
+		// Resolved alongside the connections it labels (§8 (c), phase 3), so it must arrive by the same
+		// streamed route — reading it off `rawData` would find nothing and every cross-part stub would
+		// silently go unlabelled and therefore undrawn.
+		structureOwnership: streamedContent?.structureOwnership
 	});
 
 	// ─── Segment height resize ────────────────────────────────────────────────
@@ -4419,7 +4430,15 @@
 				     position:absolute also keeps it out of the flex flow, so it never
 				     contributes a gap slot between study-header and passage-wrapper. -->
 				<div class="connections-container">
-					<ConnectionsOverlay connections={data.connections || []} scale={currentScale} />
+					<!-- `seriesParts` and `structureOwnership` are what let the overlay label a cross-part
+					     connection's edge stub (§8 (c), phase 3). Both are null for a standalone study, and
+					     the overlay then behaves exactly as before. -->
+					<ConnectionsOverlay
+						connections={data.connections || []}
+						scale={currentScale}
+						seriesParts={data.seriesContext?.parts ?? null}
+						structureOwnership={data.structureOwnership ?? null}
+					/>
 				</div>
 
 				<!-- Padded content column: the padding + flex gap that used to live on

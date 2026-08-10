@@ -436,7 +436,53 @@ export async function joinPassageStructure(
 }
 
 /**
- * Delete the connections a caller has decided cannot survive (Q23 phase-2 strategy (b)).
+ * Preserve straddling connections as cross-part rows (§8 strategy (c), phase 3).
+ *
+ * This is what replaces `deleteConnections()` for the phase-3 behaviour. A connection whose endpoints
+ * ended up in different parts is **kept**: it is stamped with `seriesId` so both parts can find it, and
+ * its `studyId` is left naming whichever part it already named.
+ *
+ * ## Why `studyId` is not changed
+ *
+ * Q42 settled that `studyId` stays `.notNull()` and names the part that *owns* the row. For a cross-part
+ * connection either part is a defensible owner, and rewriting it would be churn with a real cost: the row
+ * would move between parts on every boundary move, so a delete of the newly-named part would cascade the
+ * connection away even though its other endpoint survives. Leaving ownership alone keeps the row anchored
+ * to a part that existed when the user drew it.
+ *
+ * `seriesId` is what makes it findable from the other side — the reason migration `0046` added the column
+ * before anything wrote to it.
+ *
+ * ⚠️ This does NOT enable authoring cross-part connections. Q42: two parts are never on screen together,
+ * so there is no gesture that expresses one. These rows arrive only when a boundary move slides under a
+ * connection the user legitimately drew inside one part.
+ *
+ * @param {Object} tx
+ * @param {Array<Object>} connections - The straddling rows reported by a transfer
+ * @param {string|null} seriesId
+ * @returns {Promise<number>} How many were preserved
+ */
+export async function preserveCrossPartConnections(tx, connections, seriesId) {
+	const ids = (connections ?? []).map((c) => c.id).filter(Boolean);
+	if (ids.length === 0 || !seriesId) return 0;
+
+	await tx
+		.update(segmentConnection)
+		.set({ seriesId, updatedAt: new Date() })
+		.where(inArray(segmentConnection.id, ids));
+
+	return ids.length;
+}
+
+/**
+ * Delete the connections a caller has decided cannot survive (Q23 strategy (b)).
+ *
+ * ⚠️ **No longer called by anything, and deliberately kept.** Phase 3 replaced strategy (b) with (c):
+ * every caller now uses `preserveCrossPartConnections()` instead. This is retained because Q23 is a
+ * ratified *decision*, not a closed one — §8 lists four strategies and the plan may yet want (b) back
+ * for a case (c) cannot serve, and because a reader comparing the two behaviours should be able to see
+ * both. If it is still unused when phase 3 is signed off, delete it then rather than letting it rot
+ * unexplained.
  *
  * Separate from the two operations above on purpose. Those two only ever *report* straddling
  * connections; destroying them is a distinct act that follows the user confirming a warning which

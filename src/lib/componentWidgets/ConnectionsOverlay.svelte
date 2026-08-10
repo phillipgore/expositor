@@ -52,10 +52,62 @@
 	import { invalidate } from '$app/navigation';
 	import { toolbarState, setActiveConnection, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey, setToolbarState, clearSelectedItem, setActiveSegment, setActiveSection, setActiveColumn, showConnectionsForTypes } from '$lib/stores/toolbar.js';
 	import { QUICK_NOTE_MAX_CHARS } from '$lib/constants/notes.js';
+	import { endpointOf, stubLabel } from '$lib/utils/connectionStubs.js';
 
 
 
-	let { connections = [], scale: scaleProp = 1 } = $props();
+	// `seriesParts` and `structureOwnership` are supplied only for a part of a series, and only exist to
+	// label edge stubs (§8 (c), phase 3). A standalone study passes neither and behaves exactly as before.
+	let {
+		connections = [],
+		scale: scaleProp = 1,
+		seriesParts = null,
+		structureOwnership = null
+	} = $props();
+
+	/**
+	 * Edge stubs for connections whose other endpoint lives in a different part.
+	 * @type {Array<{ id: string, x1: number, y1: number, x2: number, y2: number, d: string, label: string, direction: 'forward'|'backward', lineStyle: string }>}
+	 */
+	let stubs = $state([]);
+
+	/** Length (layout units) of a stub's tail, and the gap it leaves at the canvas edge. */
+	const STUB_LENGTH = 26;
+
+	/**
+	 * Describe the stub for a connection with one endpoint off this page, or null if it is not a
+	 * cross-part link at all.
+	 *
+	 * Returns null — meaning "draw nothing" — for the two cases that look identical in the DOM but mean
+	 * different things: an endpoint absent because content is still streaming, and a row whose absent
+	 * endpoint belongs to no part we know of. Neither is a continuation, and a marker claiming otherwise
+	 * would be a confident false statement of the kind §8 warns about.
+	 *
+	 * @param {any} connection
+	 * @param {'from'|'to'} presentEnd
+	 * @returns {{ label: string, direction: 'forward'|'backward' }|null}
+	 */
+	function describeStub(connection, presentEnd) {
+		if (!seriesParts || !structureOwnership) return null;
+
+		const absentEnd = presentEnd === 'from' ? 'to' : 'from';
+		const absent = endpointOf(connection, absentEnd);
+		if (!absent.id) return null;
+
+		const otherPartId = structureOwnership[absent.id];
+		if (!otherPartId) return null;
+
+		const here = seriesParts.findIndex((part) => part.id === connection.studyId);
+		const there = seriesParts.findIndex((part) => part.id === otherPartId);
+		if (there === -1) return null;
+
+		return {
+			label: stubLabel({ orderedParts: seriesParts, partId: otherPartId }),
+			// Compared by position in `seriesOrder`, which is what prev/next follows (§7) — never by the
+			// ranges, since §4 forbids re-deriving the user's arrangement from canonical order.
+			direction: here !== -1 && there < here ? 'backward' : 'forward'
+		};
+	}
 
 	/**
 	 * Temporary scale override used ONLY during image/PDF export.
@@ -1127,9 +1179,9 @@
 	// ─── Path calculation ─────────────────────────────────────────────────────
 
 	function calculatePaths() {
-		if (!svgElement || !connections.length) { paths = []; return; }
+		if (!svgElement || !connections.length) { paths = []; stubs = []; return; }
 		const svgRect = svgElement.getBoundingClientRect();
-		if (svgRect.width === 0 && svgRect.height === 0) { paths = []; return; }
+		if (svgRect.width === 0 && svgRect.height === 0) { paths = []; stubs = []; return; }
 
 		const SAME_COL_PX = 20;
 
@@ -1146,6 +1198,12 @@
 		 * @type {Array<{ connection: any, fromType: ConnType, toType: ConnType, fromCX: number, toCX: number, sameCol: boolean, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right' }>}
 		 */
 		const resolved = [];
+		/**
+		 * Connections with exactly ONE endpoint on this page — cross-part links preserved by phase 3.
+		 * Collected during the resolve pass and turned into edge stubs after it, once the SVG box is known.
+		 * @type {Array<{ connection: any, presentEnd: 'from'|'to', el: Element, label: string, direction: 'forward'|'backward' }>}
+		 */
+		const stubCandidates = [];
 		/** @type {Map<string, Endpoint[]>} key = `${elementId}|${edge}` */
 		const groups = new Map();
 
@@ -1154,6 +1212,37 @@
 			const toType   = /** @type {ConnType} */ (connection.toType   || 'segment');
 			const fromEl = getElementForConnection(connection, 'from');
 			const toEl   = getElementForConnection(connection, 'to');
+
+			// ── Cross-part connections become edge stubs (§8 strategy (c), phase 3) ──
+			//
+			// `if (!fromEl || !toEl) continue` used to drop these silently, which was harmless while
+			// phase 2 DELETED any connection whose endpoints landed in different parts — there was never
+			// such a row to render. Phase 3 preserves them, so exactly one endpoint can now be absent, and
+			// dropping it would hide a link the user drew.
+			//
+			// Whether an endpoint is "present" is decided by the DOM, not by ids from the server: the
+			// element is what geometry can actually be measured from, and a segment can be absent because
+			// it is in another part OR because content is still streaming. Both cases want the same
+			// treatment — draw nothing yet, or draw a stub once we know which — so `stubs` is recomputed
+			// on every layout pass along with the arcs.
+			if ((fromEl && !toEl) || (toEl && !fromEl)) {
+				const presentEnd = fromEl ? 'from' : 'to';
+				const stub = describeStub(connection, presentEnd);
+				// Only a connection the server has confirmed reaches ANOTHER PART becomes a stub. An
+				// endpoint missing because content is still streaming, or because the row is stale, has no
+				// resolvable part and is skipped — drawing a marker for it would promise a continuation
+				// that does not exist.
+				if (stub) {
+					stubCandidates.push({
+						connection,
+						presentEnd,
+						el: /** @type {Element} */ (fromEl || toEl),
+						label: stub.label,
+						direction: stub.direction
+					});
+				}
+				continue;
+			}
 			if (!fromEl || !toEl) continue;
 			// Column ends anchor to the first VISIBLE section's top (not the column box
 			// top) so the square endpoint stays glued to the header even when the user
@@ -1448,6 +1537,43 @@
 		resolveHandleCorners(newPaths, svgRect);
 
 		paths = newPaths;
+
+		// ── Pass F: edge stubs for cross-part connections (§8 (c), phase 3) ────
+		//
+		// A stub is a short arc from the endpoint that IS on this page, running to a labelled marker at
+		// the nearest vertical edge of the canvas. It is NOT an arc to something off-screen: there is no
+		// geometry for an element that is not mounted, which is exactly why authoring a cross-part
+		// connection remains impossible (Q42). The stub says "this link continues", and the label says
+		// where.
+		//
+		// Direction follows the sequence, not the geometry: a link whose other end is in a LATER part
+		// exits right, an earlier part exits left. That makes the stub agree with the prev/next arrows
+		// §7 puts in the header, so the marker points the way the user would actually travel.
+		stubs = stubCandidates.map((candidate) => {
+			const rect = candidate.el.getBoundingClientRect();
+			const y = (rect.top + rect.bottom) / 2 - svgRect.top;
+			const anchorX =
+				candidate.direction === 'backward'
+					? rect.left - svgRect.left
+					: rect.right - svgRect.left;
+			const edgeX = candidate.direction === 'backward' ? STUB_LENGTH : svgRect.width - STUB_LENGTH;
+
+			return {
+				id: candidate.connection.id,
+				x1: anchorX,
+				y1: y,
+				x2: edgeX,
+				y2: y,
+				// A gentle bow so a stub reads as a connection rather than a rule.
+				d: `M ${anchorX} ${y} C ${(anchorX + edgeX) / 2} ${y}, ${(anchorX + edgeX) / 2} ${y}, ${edgeX} ${y}`,
+				label: candidate.label,
+				direction: candidate.direction,
+				lineStyle: getLineStyle(
+					candidate.connection.fromType || 'segment',
+					candidate.connection.toType || 'segment'
+				)
+			};
+		});
 	}
 
 	// ─── Pass E helpers: overlapping-line separation ──────────────────────────
@@ -2939,6 +3065,38 @@
 			{/if}
 		{/snippet}
 
+		<!--
+			Edge stubs for cross-part connections (§8 strategy (c), phase 3).
+
+			Drawn FIRST so they sit beneath every real arc and endpoint node: a stub is context, not a
+			thing to interact with. Deliberately inert — no hit-target, no drag handle, no click — because
+			its far end is not on this page, so every gesture a real connection offers would have nothing
+			to act on. The label is a plain <title>, which gives it a tooltip and a screen-reader name
+			without inventing a control.
+		-->
+		{#each stubs as stub (stub.id)}
+			<g class="connection-stub" class:connection-stub--backward={stub.direction === 'backward'}>
+				<title>{stub.label}</title>
+				<path
+					class="connection-stub-path"
+					class:connection-path--dashed={stub.lineStyle === 'dashed'}
+					class:connection-path--dotted={stub.lineStyle === 'dotted'}
+					class:connection-path--dashdot={stub.lineStyle === 'dashdot'}
+					d={stub.d}
+					fill="none"
+				/>
+				<!-- A small open chevron at the canvas edge, pointing the way the user would travel to
+				     reach the other end (§7's prev/next direction). -->
+				<path
+					class="connection-stub-arrow"
+					d={stub.direction === 'backward'
+						? `M ${stub.x2 + 6} ${stub.y2 - 5} L ${stub.x2} ${stub.y2} L ${stub.x2 + 6} ${stub.y2 + 5}`
+						: `M ${stub.x2 - 6} ${stub.y2 - 5} L ${stub.x2} ${stub.y2} L ${stub.x2 - 6} ${stub.y2 + 5}`}
+					fill="none"
+				/>
+			</g>
+		{/each}
+
 		<!-- Pass 1: lines + hit-targets -->
 		{#each visiblePaths as path (path.id)}
 			<path
@@ -3222,6 +3380,31 @@
 		stroke-linecap: round;
 		transition: opacity 0.1s, stroke 0.15s;
 		/* segment-segment: solid (default) */
+	}
+
+	/* ── Cross-part edge stubs (§8 strategy (c), phase 3) ──
+	   Lighter than a real connection on purpose: the link is real, but only half of it is on this page,
+	   and giving it the same weight as a complete arc would overstate what the user can see or act on.
+	   Fully inert — `pointer-events: none` on the group, so it can never intercept a gesture meant for
+	   the structure underneath. */
+	.connection-stub {
+		pointer-events: none;
+		opacity: 0.55;
+	}
+
+	.connection-stub-path {
+		stroke: var(--gray-300);
+		stroke-width: 2;
+		fill: none;
+		stroke-linecap: round;
+	}
+
+	.connection-stub-arrow {
+		stroke: var(--gray-300);
+		stroke-width: 2;
+		fill: none;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 
 	/* All connection lines render solid; the line-style classes are retained

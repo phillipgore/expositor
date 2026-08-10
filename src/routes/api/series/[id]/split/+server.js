@@ -8,7 +8,7 @@ import { planPartSplit, getSplitPoints, renumberForInsert } from '$lib/utils/ser
 import {
 	splitPassageStructure,
 	inspectPassageSplit,
-	deleteConnections
+	preserveCrossPartConnections
 } from '$lib/server/db/seriesStructure.js';
 import { validateStudyDisplayLimits } from '$lib/utils/translationLimits.js';
 import { rangeFirstWordId } from '$lib/server/db/passageReconcile.js';
@@ -261,7 +261,13 @@ export const POST = async ({ request, params }) => {
 			display: { first: firstDisplay.warnings, second: secondDisplay.warnings },
 			connections: {
 				reowned: preview.reownedConnections,
-				broken: preview.straddlingConnections.length
+				// ⚠️ Renamed from `broken` to `crossPart`, because they are no longer broken (§8 (c)).
+				// Reported so the preview can say what will happen — "2 connections will continue across
+				// the new boundary" — which is information, not a warning. `broken: 0` is kept for one
+				// release so an older client cannot read a missing field as undefined and render "undefined
+				// connections will be deleted".
+				crossPart: preview.straddlingConnections.length,
+				broken: 0
 			},
 			splitPoints
 		};
@@ -270,18 +276,16 @@ export const POST = async ({ request, params }) => {
 			return json({ ...report, dryRun: true });
 		}
 
-		// Nothing is destroyed without an acknowledgement that named the count.
-		if (preview.straddlingConnections.length > 0 && !confirmConnectionLoss) {
-			const n = preview.straddlingConnections.length;
-			return json(
-				{
-					...report,
-					error: `This split would break ${n} connection${n === 1 ? '' : 's'} crossing the new boundary.`,
-					needsConnectionConfirmation: true
-				},
-				{ status: 409 }
-			);
-		}
+		// ⚠️ The 409 confirmation gate is GONE, and removing it is the point of phase 3.
+		//
+		// Under strategy (b) a split that crossed a connection destroyed it, so it had to stop and ask —
+		// Q35 leaves the app with no undo, and confirm-before-destroy was the whole mitigation. Under (c)
+		// nothing is destroyed: the connection survives as a cross-part row and both parts render it as an
+		// edge stub. Keeping the prompt would be a warning about a loss that no longer happens, which is
+		// the §11 failure of a message outliving the behaviour it described.
+		//
+		// `confirmConnectionLoss` is still accepted in the body and simply ignored, so a client that has
+		// not been redeployed keeps working instead of failing on an unexpected field.
 
 		const result = await db.transaction(async (tx) => {
 			const now = new Date();
@@ -354,9 +358,19 @@ export const POST = async ({ request, params }) => {
 				});
 			}
 
-			// 4. Only now, and only because the caller confirmed it.
-			const brokenIds = moved.straddlingConnections.map((c) => c.id);
-			await deleteConnections(tx, brokenIds);
+			// 4. Cross-part connections are PRESERVED, not deleted (§8 strategy (c), phase 3).
+			//
+			// Phase 2 shipped strategy (b) — warn, then delete — and this replaces it. The connection is
+			// stamped with `seriesId` so both parts can find it, and each part renders it as an edge stub
+			// ("continues in Part 4") instead of losing it. §8 calls (c) "arguably the feature's best
+			// justification: cross-chapter connections are precisely what a Romans series wants", and a
+			// user who splits Romans at chapter 8 was previously losing exactly the links that motivated
+			// making it a series.
+			const preserved = await preserveCrossPartConnections(
+				tx,
+				moved.straddlingConnections,
+				seriesId
+			);
 
 			// 5. Q18: the new part is where the user's attention is going, so it becomes the resume
 			//    target. Otherwise the series row would keep reopening the part they just divided.
@@ -365,14 +379,16 @@ export const POST = async ({ request, params }) => {
 				.set({ lastPartId: newPartId, updatedAt: now })
 				.where(eq(studySeries.id, seriesId));
 
-			return { newPartId, moved, broken: brokenIds.length };
+			return { newPartId, moved, preserved };
 		});
 
 		return json({
 			...report,
 			newPartId: result.newPartId,
 			movedSegments: result.moved.movedSegments,
-			brokenConnections: result.broken
+			// Reported as preserved, not broken: phase 3 keeps these as cross-part rows.
+			crossPartConnections: result.preserved,
+			brokenConnections: 0
 		});
 	} catch (error) {
 		console.error('Error splitting part:', error);

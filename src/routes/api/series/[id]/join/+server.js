@@ -7,7 +7,7 @@ import { planPartJoin, renumberForRemoval } from '$lib/utils/seriesRestructure.j
 import {
 	joinPassageStructure,
 	inspectPassageJoin,
-	deleteConnections
+	preserveCrossPartConnections
 } from '$lib/server/db/seriesStructure.js';
 import { validateStudyDisplayLimits } from '$lib/utils/translationLimits.js';
 import { formatPassageReference } from '$lib/utils/passageFormatting.js';
@@ -164,7 +164,7 @@ export const POST = async ({ request, params }) => {
 
 		const report = {
 			ok: true,
-			connections: { broken: probe.straddling },
+			connections: { crossPart: probe.straddling, broken: 0 },
 			keepId: plan.keep.id,
 			keepTitle: plan.keep.title,
 			absorbId: plan.absorb.id,
@@ -221,19 +221,9 @@ async function commitJoin({
 	confirmConnectionLoss,
 	probe
 }) {
-	// The probe was already run to build the report, so it is passed in rather than repeated — and
-	// the refusal happens before the transaction opens, so declining costs no writes at all.
-	if (probe.needsConfirmation && !confirmConnectionLoss) {
-		const n = probe.straddling;
-		return json(
-			{
-				...report,
-				error: `Joining these parts would break ${n} connection${n === 1 ? '' : 's'} that cross the seam.`,
-				needsConnectionConfirmation: true
-			},
-			{ status: 409 }
-		);
-	}
+	// ⚠️ No confirmation gate: phase 3 preserves cross-part connections rather than deleting them
+	// (§8 strategy (c)), so there is no loss to acknowledge. See the split endpoint for the full note.
+	// `confirmConnectionLoss` is still accepted and ignored, so an un-redeployed client keeps working.
 
 	const result = await db.transaction(async (tx) => {
 		const now = new Date();
@@ -250,10 +240,10 @@ async function commitJoin({
 		});
 
 		// The caller has already acknowledged this count (or there is nothing to acknowledge).
-		await deleteConnections(
-			tx,
-			moved.straddlingConnections.map((c) => c.id)
-		);
+		// Preserved as cross-part rows rather than deleted (§8 (c)). A Join Parts that absorbs one part
+		// into another can still leave a connection reaching outside the merged part — to a THIRD part —
+		// and that link survives now instead of being destroyed.
+		await preserveCrossPartConnections(tx, moved.straddlingConnections, seriesId);
 
 		// 2. The surviving part takes the merged range, and keeps its own title (Q28).
 		const rows = [...keepPassages, ...absorbPassages];
@@ -320,7 +310,7 @@ async function commitJoin({
 		...report,
 		dissolved: result.dissolved,
 		movedSegments: result.moved.movedSegments,
-		brokenConnections: result.moved.straddlingConnections.length
+		crossPartConnections: result.moved.straddlingConnections.length, brokenConnections: 0
 	});
 }
 
