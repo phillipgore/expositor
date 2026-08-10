@@ -5,6 +5,9 @@ import { eq, and, inArray, asc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
 import { runDatabaseDiagnostics } from '$lib/server/db/health.js';
+// Word-id ordering now lives in a DB-free module so the verifiers can reach it; imported (not
+// just re-exported) because this file calls it internally. See the re-export below.
+import { compareWordIds } from '$lib/utils/wordIds.js';
 
 /**
  * Get the current database status (health, readiness, and pool metrics).
@@ -182,28 +185,25 @@ export async function createDefaultPassageStructure(passageId, testamentId, book
 
 
 /**
- * Compare two word IDs to determine their order
- * Word ID format: BOOK-CHAPTER-VERSE-WORD (e.g., "JN-001-001-005")
- * @param {string} wordId1 - First word ID
- * @param {string} wordId2 - Second word ID
- * @returns {number} Negative if wordId1 < wordId2, 0 if equal, positive if wordId1 > wordId2
+ * Compare two word IDs to determine their order.
+ *
+ * Re-exported from `$lib/utils/wordIds.js`, where the implementation now lives. It was moved
+ * because this file imports `$lib/server/db/index.js` → `$env/static/private`, so importing
+ * `compareWordIds` from here opens a database connection — which put the one function needed to
+ * *reason* about structure boundaries out of reach of the plain-Node verifier scripts.
+ *
+ * Kept as a named re-export rather than asking callers to change their import: `passageJoin.js`
+ * and `passageReconcile.js` both import it from here, and rewriting working imports is churn that
+ * would bury the actual change in this commit.
+ *
+ * ⚠️ It is imported at the top of this file and re-exported here, NOT written as a bare
+ * `export { compareWordIds } from '...'`. That form re-exports without creating a local binding,
+ * and this file calls the function in 16 places — so the bare form throws `ReferenceError` at
+ * runtime, in the Analyze editing paths, with a build that compiles clean and a type-check that
+ * passes. Caught before it shipped; the failure mode is COMPLIANCE.md §1.8's, an error that hides
+ * until the code actually runs.
  */
-export function compareWordIds(wordId1, wordId2) {
-	if (!wordId1 || !wordId2) return 0;
-	
-	const parts1 = wordId1.split('-');
-	const parts2 = wordId2.split('-');
-	
-	// Compare chapter, verse, and word number (indices 1, 2, 3)
-	for (let i = 1; i < 4; i++) {
-		const num1 = parseInt(parts1[i], 10);
-		const num2 = parseInt(parts2[i], 10);
-		const diff = num1 - num2;
-		if (diff !== 0) return diff;
-	}
-	
-	return 0;
-}
+export { compareWordIds };
 
 /**
  * Get the next item in an array based on the current item
