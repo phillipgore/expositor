@@ -108,11 +108,44 @@
 			: null
 	);
 
-	let joinSegmentReason = $derived(
-		canExplainStart &&
-			$toolbarState.hasActiveSegment &&
-			$toolbarState.isActiveSegmentFirstInPassage
+	// ── Join Segment now works across a boundary (SERIES_PLAN §8, phase 2) ──
+	//
+	// Two distinct situations produce `isActiveSegmentFirstInPassage`, and they now have opposite
+	// answers:
+	//
+	//   - an INTERNAL passage seam, or a part boundary whose previous part abuts, is joinable — the
+	//     server resolves the predecessor across the seam (`crossPartJoin.js`);
+	//   - the very first passage of a series with no eligible previous seam is not.
+	//
+	// `boundaryBefore` is exactly the discriminator already computed for this purpose: it is null when
+	// the preceding seam is contiguous (nothing to explain) and a sentence when it is permanently
+	// ineligible. So a non-null reason still disables the command; a null one no longer does.
+	let joinSegmentCrossesBoundary = $derived(
+		$toolbarState.hasActiveSegment && $toolbarState.isActiveSegmentFirstInPassage
+	);
 
+	// An internal seam inside a multi-passage part: joinable, and never a series-boundary matter.
+	let atInternalSeam = $derived(
+		joinSegmentCrossesBoundary && passageCount > 1 && activePassageIndex !== 0
+	);
+
+	/**
+	 * Is a cross-boundary Join Segment available?
+	 *
+	 * True at an internal passage seam (always joinable), or at a part's leading edge whose previous
+	 * seam is contiguous. False for the first part of a series, and for an ineligible seam.
+	 */
+	let canJoinSegmentAcross = $derived(
+		joinSegmentCrossesBoundary &&
+			!isDocument &&
+			(atInternalSeam || (atPartStart && seriesContext?.boundaryBefore === null))
+	);
+
+	// The reason is now shown only when the command is genuinely dead: an ineligible seam. Previously
+	// it also appeared over a contiguous seam, where it read "not available across parts yet" — which
+	// is now false, and §11 is explicit that a promise of a later fix must not outlive the fix.
+	let joinSegmentReason = $derived(
+		canExplainStart && joinSegmentCrossesBoundary && !canJoinSegmentAcross
 			? seriesContext.boundaryBefore
 			: null
 	);
@@ -303,7 +336,8 @@
 			// Trigger join segment event via custom event
 			window.dispatchEvent(new CustomEvent('join-segment'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.isActiveSegmentFirstInPassage}
+		isDisabled={!$toolbarState.hasActiveSegment ||
+			($toolbarState.isActiveSegmentFirstInPassage && !canJoinSegmentAcross)}
 		ariaLabel={joinSegmentReason ? `Join Segment — ${joinSegmentReason}` : undefined}
 	/>
 	{#if joinSegmentReason}

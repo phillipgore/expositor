@@ -26,6 +26,9 @@ import {
 	isPassageSeamEligible,
 	classifyPassageSeam
 } from '../src/lib/utils/sequenceScope.js';
+// Imported so the COMPOSITION of scope resolution and boundary arithmetic can be pinned here, which
+// is what Join Segment actually performs. The two are verified independently elsewhere.
+import { planBoundaryShift, countVerses } from '../src/lib/utils/boundaryMove.js';
 
 let pass = 0;
 let fail = 0;
@@ -358,6 +361,51 @@ const withinStudy = resolveScope({
 assert('a cross-passage join within one study resolves', withinStudy.ok);
 check('to the previous passage’s segment', withinStudy.target.id, 'ag');
 assert('and is flagged as crossing a boundary', withinStudy.crossesBoundary);
+
+console.log('\n── the composed cross-part Join Segment (§8: scope + boundary together) ──');
+
+// The two modules are verified separately above and in verify-boundary-move.mjs, but Join Segment
+// uses them TOGETHER, and the composition is where the meaning lives: resolveScope finds the
+// predecessor across the seam, then the boundary moves so the verses follow the structure. Pinned
+// here because a correct scope resolution plus a correct shift can still be wired together wrongly —
+// which is exactly the class of defect that produced the duplicated-verses bug in the split endpoint.
+//
+// Setup mirrors crossPartJoin.js: joining part 2's first segment (g3, anchored 3:1) into part 1's
+// last (g2). g3 runs until the next segment begins at 3:10 — structure has implicit extent — so the
+// new boundary is that anchor, and Romans 3:1–3:9 moves to part 1.
+const composed = resolveScope({
+	sequence: contiguousSequence,
+	granularity: 'segment',
+	itemId: 'g3',
+	direction: 'previous'
+});
+check('the predecessor is found across the seam', composed.target.id, 'g2');
+check('and it lives in the earlier passage', composed.target.passageIndex, 0);
+check('while the active segment is in the later one', composed.active.passageIndex, 1);
+
+const shifted = planBoundaryShift({
+	before: romansOneTwo,
+	after: romansThreeFour,
+	// The anchor of the segment FOLLOWING g3 inside its own passage.
+	newBoundaryWordId: w('RO', 3, 10)
+});
+assert('the boundary shift is accepted', shifted.ok);
+check(
+	'part 1 now ends where the joined segment ended',
+	`${shifted.before.toChapter}:${shifted.before.toVerse}`,
+	'3:9'
+);
+check(
+	'part 2 now starts after it',
+	`${shifted.after.fromChapter}:${shifted.after.fromVerse}`,
+	'3:10'
+);
+check('the earlier part received, so content moved backward', shifted.direction, 'backward');
+assert(
+	'and coverage is conserved, so §10.1 may still skip the export re-check',
+	countVerses(romansOneTwo) + countVerses(romansThreeFour) ===
+		countVerses(shifted.before) + countVerses(shifted.after)
+);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -2281,10 +2281,41 @@
 		segment: '/api/passages/segments/join'
 	};
 
+	/**
+	 * The passage row that owns a structural item.
+	 *
+	 * Needed because Join Segment may now cross a passage boundary (SERIES_PLAN §8), and the server
+	 * cannot resolve the sequence without knowing which passage the gesture started in. Returns null
+	 * when the item cannot be located, which makes the request fall back to the within-passage path —
+	 * failing closed rather than guessing at a boundary.
+	 */
+	function passageIdOf(type, id) {
+		// `passagesWithText`, NOT `passages`: the structure tree is attached to the streamed variant,
+		// which is what the activePassageIndex effect above already reads. Written against `passages`
+		// first, where `structure` is undefined — so every lookup would have missed, `passageId` would
+		// always have been null, and the cross-boundary path would have been silently unreachable while
+		// appearing wired. svelte-check caught it; at runtime it would merely have "not worked".
+		for (const p of data.passagesWithText ?? []) {
+			const columns = p.structure?.columns ?? [];
+			const hit =
+				type === 'column'
+					? columns.some((col) => col.id === id)
+					: type === 'section'
+						? columns.some((col) => col.sections?.some((sec) => sec.id === id))
+						: columns.some((col) =>
+								col.sections?.some((sec) => sec.segments?.some((seg) => seg.id === id))
+							);
+			if (hit) return p.id;
+		}
+		return null;
+	}
+
 	/** Build the join request body for a given item type/id. */
 	function joinBody(type, id, extra = {}) {
 		const key = type === 'column' ? 'columnId' : type === 'section' ? 'sectionId' : 'segmentId';
-		return { [key]: id, ...extra };
+		// `passageId` travels for every type so the server can resolve the sequence. Only Join Segment
+		// acts on it today; the other two ignore it until they are generalised in turn.
+		return { [key]: id, passageId: passageIdOf(type, id), ...extra };
 	}
 
 	/**
