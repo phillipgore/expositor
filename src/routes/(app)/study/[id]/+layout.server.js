@@ -13,9 +13,11 @@ import {
 
 
 import { auth } from '$lib/server/auth.js';
-import { eq, asc, inArray } from 'drizzle-orm';
+import { eq, asc, inArray, sql } from 'drizzle-orm';
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 import { getBoundaryDisabledReason } from '$lib/utils/seriesRuns.js';
+import { selectPrefetchTarget } from '$lib/utils/seriesPrefetch.js';
+import { warmAdjacentPart } from '$lib/server/db/seriesPrefetchRunner.js';
 
 
 
@@ -79,6 +81,9 @@ export async function load({ params, request, depends }) {
 		//
 		// Two small indexed queries, and only for parts: a standalone study pays nothing.
 		let seriesContext = null;
+		// Resolved inside the series branch below, consumed after the shell is sent. Declared here so
+		// the fire-and-forget call sits outside the branch, where it is visible rather than buried.
+		let prefetchTarget = null;
 
 		if (studyData.seriesId) {
 			const [seriesRow] = await db
@@ -103,10 +108,16 @@ export async function load({ params, request, depends }) {
 			// §11 option (1) requires the five cross-part commands to be disabled *with a reason*,
 			// and `getBoundaryDisabledReason` cannot tell "not yet" from "never" without the
 			// ranges. One indexed query, and only for parts.
+			// `id` and a cached-text presence flag ride along for adjacent-part prefetch (§11): the
+			// decision needs to know which passages are cold, and `id` is what the warm-up then
+			// updates. Deliberately NOT `cachedText` itself — the column holds the full processed
+			// HTML of a passage, so selecting it for every sibling would pull an entire series'
+			// text into memory on every part load to answer a yes/no question.
 			const siblingPassages =
 				parts.length > 0
 					? await db
 							.select({
+								id: passage.id,
 								studyId: passage.studyId,
 								testament: passage.testament,
 								bookId: passage.bookId,
@@ -114,7 +125,8 @@ export async function load({ params, request, depends }) {
 								fromChapter: passage.fromChapter,
 								fromVerse: passage.fromVerse,
 								toChapter: passage.toChapter,
-								toVerse: passage.toVerse
+								toVerse: passage.toVerse,
+								hasCachedText: sql`${passage.cachedText} IS NOT NULL`
 							})
 							.from(passage)
 							.where(
@@ -200,10 +212,36 @@ export async function load({ params, request, depends }) {
 				};
 
 			}
+
+			// ── Adjacent-part prefetch (§11, phase 2) ────────────────────────
+			//
+			// Navigating a series is the one place where the next thing the user opens is predictable:
+			// §7 gives them prev/next and `⌥→`, and readers move through a series in order. Warming the
+			// next part's `cachedText` now makes that first visit as fast as a second one.
+			//
+			// ⚠️ Deliberately NOT awaited, and deliberately outside the streamed content promise. It is
+			// an optimisation for the NEXT page, so making the current one wait for it — or fail with it
+			// — would trade a real cost for a speculative gain. Errors are swallowed with a log for the
+			// same reason: the provider being down must slow nothing and break nothing here.
+			//
+			// It runs after the shell is resolved and competes for the same rate limit as the page the
+			// user is reading, which is why `selectPrefetchTarget` warms at most ONE part and skips any
+			// part that is even partially cached.
+			prefetchTarget = selectPrefetchTarget({
+				parts: partsWithPassages,
+				currentPartId: studyId,
+				direction: 'next'
+			});
 		}
 
 		const translation = studyData.translation || 'esv';
 		endShell();
+
+		// Kicked off without `await`: the page does not depend on it, and a slow provider must not delay
+		// the response. `void` marks that the floating promise is intentional rather than forgotten.
+		if (prefetchTarget) {
+			void warmAdjacentPart(prefetchTarget, translation);
+		}
 
 
 		// ── Heavy work (STREAMED, not awaited) ───────────────────────────────
