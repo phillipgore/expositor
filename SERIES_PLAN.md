@@ -41,8 +41,8 @@ verifier scripts pin the behaviour to this document — `verify-series-runs.mjs`
 `node --import ./scripts/alias-loader.mjs`.
 
 **Phase 2 is IN PROGRESS, and its two headline items are DONE: Split Part / Join Parts, and all five
-cross-boundary commands.** What remains is smaller — adjacent-part prefetch and "balance by length"
-(Q11). What exists:
+cross-boundary commands**, plus "balance by length" (Q11). **Adjacent-part prefetch is the only phase-2
+item left.** What exists:
 
 - **The planning layer** (`seriesRestructure.js`, 48 assertions) — pure range arithmetic for Split
   Part / Join Parts, shared by the confirm dialog and the endpoint so the preview cannot diverge
@@ -55,17 +55,18 @@ cross-boundary commands.** What remains is smaller — adjacent-part prefetch an
   runs the *same code path* as the commit rather than describing it, so the dialog's stated counts
   are facts about the operation.
 
-**✅ Two paths are now exercised against a real database**, which had been the largest outstanding
-risk: everything before this was verified only by pure-layer tests and by reasoning, and a pure test
-can assert "the planner never asks for a delete that relies on the cascade" but not "the cascade did
-not fire".
+**✅ Five write probes now exercise the real database**, which had been the largest outstanding risk:
+everything before them was verified only by pure-layer tests and by reasoning, and a pure test can
+assert "the planner never asks for a delete that relies on the cascade" but not "the cascade did not
+fire".
 
 - `npm run probe:join-parts` (44 assertions) — Join Parts, the highest-risk operation, since the
   absorbed part's `passage` row is deleted. All content survives; **`assertPassageEmpty()` genuinely
   fires** when asked to delete a passage that still owns columns, and the transaction rolls back.
-- `npm run probe:xpj` (47 assertions) — the cross-part join at **segment and section** granularity:
-  content folded, ranges moved, `cachedText` invalidated on both sides, connections not orphaned,
-  nothing lost to cascade. The section case also confirms the multi-segment boundary rule below.
+- `npm run probe:xpj` (65 assertions) — the cross-part join at **all three granularities**: content
+  folded, ranges moved, `cachedText` invalidated on both sides, connections not orphaned, nothing lost
+  to cascade. The section case confirms the multi-segment boundary rule below; the column case confirms
+  that sections are re-parented before their container is deleted.
 - `npm run probe:split-part` (50 assertions) — Split Part, including the **straddling column**: the
   clone preserves `width` / `leftOffset` / `colour` / `topOffset`, the original column and section keep
   their ids so the near side keeps its identity, and `seriesOrder` is shifted rather than re-derived.
@@ -74,17 +75,26 @@ not fire".
   segment is left anchored outside its passage range, and a mid-verse caret is refused by the analyzer
   *and* the executor with nothing written.
 
-Both are **WRITE probes** and deliberately stay out of `npm run verify`: they mutate the database, so
+- `npm run probe:balance` (14 assertions) — creating a **balanced** series end to end: the rows written
+  are the parts the same planner previewed, with a counter-check that the default shape would have been
+  six parts rather than three. ⚠️ Its last five assertions read the *source* of the modal → menu →
+  endpoint hand-offs, because the probe reproduces the endpoint's logic rather than invoking it; that
+  gap was found by mutation and is labelled rather than hidden.
+
+These are all **WRITE probes** and deliberately stay out of `npm run verify`: they mutate the database, so
 they must be run knowingly. Each builds its own prefixed fixture and removes it in a `finally`,
 including after a failed assertion. Both were mutation-checked — deleting the guard, or skipping the
 range move, makes them fail.
 
-**Every structural operation in phase 2 is now exercised against a real database** — Split Part, Join
-Parts, the cross-part join at segment and section granularity, and Move Text in both directions (168
-probe assertions across four probes). The only remaining gap is the **column** granularity of the
-cross-part join, which shares the section code path with one extra re-parent level and is covered by
-the pure layer alone. Stated rather than implied, so nobody infers coverage from the absence of a
-warning.
+**Every structural operation in phase 2 is exercised against a real database, with no path left to the
+pure layer alone** — Split Part, Join Parts, the cross-part join at all three granularities, Move Text
+in both directions, and balanced creation. **200 probe assertions across five probes**, alongside 366
+verifier assertions across eight scripts.
+
+The most valuable single result: mutating the column join to delete its container *before* re-parenting
+the sections destroys two segments, both their notes and a heading, and fails 10 assertions. The
+ordering comment had been asserting that risk since `169e773`; it is now demonstrated rather than
+argued.
 
 ⚠️ Running a probe needs two loader shims that did not exist before (`scripts/alias-hooks.mjs`):
 `schema.js` is really `schema.ts`, and `$env/static/private` is generated by Vite. The `$env` shim
@@ -165,7 +175,13 @@ Because the boundary is derived from the caret, the moved verses always land ins
 part whose segment already covers them, by implicit extent. Traced against real `planBoundaryShift`
 output — an earlier draft of the code comment claimed re-parenting was required, and it was wrong.
 
-**Still outstanding in phase 2:** adjacent-part prefetch; "balance by length" (Q11). De-duplicating
+**✅ "Balance by length" is done (Q11).** Offered in the Split-into-Series preview beside the
+chapters-per-part stepper, off by default, taking a part **count** (a number whose consequence the
+preview can show) rather than a target length. It never splits a chapter, and the modal says so — a
+range containing one very long chapter still yields one long part, which is an inherent limit of
+respecting chapter boundaries rather than a defect.
+
+**Still outstanding in phase 2:** **adjacent-part prefetch** only. De-duplicating
 `passageJoin`/`passageReconcile` remains an explicit **non-goal**, not an assumed prerequisite — the
 three Joins were generalised by *routing around* those functions, not through them, so the question is
 still open rather than answered.
@@ -191,7 +207,7 @@ connections and never destroys them itself. **Q35 (undo) is deliberately left op
 no undo anywhere, so making series the first feature to demand app-wide `⌘Z` inverts the cost.
 Split/Join ship with confirm-before-destroy, the mitigation part delete already uses.
 
-**Last updated:** 2026-08-10
+**Last updated:** 2026-08-11
 
 ⚠️ **This read "ON HOLD. Not scheduled; no code written" — all three clauses are now false.** Left
 visible because the next reader's first question is "has anything shipped?", and a status line that
@@ -1415,7 +1431,7 @@ carry different reasons.
   required for the five commands
 - Cross-part connections: warn-and-delete — **done for Split/Join** (Q23 strategy (b): the count is
   in the preview, the delete needs an explicit acknowledgement)
-- Adjacent-part prefetch; "balance by length"
+- ✅ **"Balance by length" — done** (Q11); **adjacent-part prefetch** is the only phase-2 item remaining
 - _Q40 and Q23 are no longer blocking — both were ratified from what was already live and phased;
   see the phase-2 note at the top of this document. Q35 (undo) remains open._
 
