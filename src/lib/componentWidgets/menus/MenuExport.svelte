@@ -95,6 +95,7 @@
 	import ExportComplianceModal from '$lib/componentWidgets/modals/ExportComplianceModal.svelte';
 
 	import { validateExportLimits } from '$lib/utils/translationLimits.js';
+	import { checkSeriesExport } from '$lib/utils/seriesExport.js';
 
 	let { menuId = 'MenuExport', view = 'analyze' } = $props();
 
@@ -126,6 +127,28 @@
 	}
 
 	/**
+	 * Is this study part of a series, and does the series as a whole breach the licence?
+	 *
+	 * §10's asymmetry, and the reason a per-part check is not enough: a user who takes the whole of John
+	 * as 21 one-chapter parts passes EVERY per-part check and sees no warning anywhere, while the series
+	 * covers a complete book. "The finer the parting, the more thoroughly per-part validation goes
+	 * quiet" — so splitting into a series is the most effective way to make compliance warnings vanish
+	 * without changing what the user ends up reading.
+	 *
+	 * Null when the study is standalone, or when the sibling ranges are not loaded — the check needs
+	 * every part's passages, and guessing from one part's would under-report, which is the failure mode
+	 * this exists to prevent.
+	 */
+	let seriesExportCheck = $derived.by(() => {
+		const parts = $page.data?.seriesContext?.parts;
+		if (!parts?.length) return null;
+		// `seriesContext.parts` carries ranges only when the layout loaded them; a part without passages
+		// would silently contribute zero verses to the aggregate.
+		if (!parts.every((part) => Array.isArray(part.passages))) return null;
+		return checkSeriesExport(parts, $page.data?.study?.translation ?? 'esv');
+	});
+
+	/**
 	 * Gate an export/print behind the distribution check.
 	 *
 	 * Compliant artifacts run immediately — the overwhelmingly common case, and a
@@ -137,6 +160,32 @@
 	 */
 	function guardExport(format, run) {
 		const result = checkCompliance();
+
+		// ── The series-wide check takes precedence (§10, Q32) ──────────────────
+		//
+		// A part can be individually compliant while the series it belongs to is not — that is the whole
+		// point of §10's 21-part John example. So when the aggregate breaches, the user is told about the
+		// SERIES even though the artifact they asked for is one part, because exporting each part in turn
+		// is how a whole book leaves the app one compliant file at a time.
+		//
+		// Q32 makes this block where per-part export only warns: "the most likely way to breach the ESV
+		// quotation terms, so it deserves 'block' even while per-part export stays 'warn'."
+		const series = seriesExportCheck;
+		if (series && !series.compliant) {
+			complianceResult = {
+				warnings: [
+					`This study is part ${$page.data?.seriesContext?.position ?? '?'} of a ${series.partCount}-part series covering ${series.totalVerses} verses in total.`,
+					...series.warnings,
+					'Each part on its own is within the limit, but exporting them all reproduces more than the licence allows.'
+				],
+				blocked: series.blocked,
+				totalVerses: series.totalVerses
+			};
+			complianceFormat = format;
+			pendingAction = series.blocked ? null : run;
+			complianceOpen = true;
+			return;
+		}
 
 		if (result.compliant) {
 			run();

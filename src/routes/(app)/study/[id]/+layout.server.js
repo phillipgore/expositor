@@ -180,7 +180,15 @@ export async function load({ params, request, depends }) {
 				seriesContext = {
 					id: seriesRow.id,
 					name: seriesRow.name,
-					parts,
+					// ⚠️ `partsWithPassages`, not the bare `parts` rows.
+					//
+					// The whole-series export check (§10, Q32) aggregates every part's ranges, and a part
+					// arriving without `passages` contributes zero verses — so handing over the bare rows
+					// would make a whole-book series look compliant. That is precisely the silent
+					// under-report §10 says this check exists to prevent, so the shape that carries ranges
+					// is the one that travels. The rows are already loaded above for boundary reasons; this
+					// costs nothing extra.
+					parts: partsWithPassages,
 					// 1-based for display ("Part 3 of 16"); the index stays available via parts.
 					position: index + 1,
 					total: parts.length,
