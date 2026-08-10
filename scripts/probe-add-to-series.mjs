@@ -160,7 +160,7 @@ try {
 	console.log('\n── a non-contiguous addition WARNS and is still allowed (§4/Q7) ──');
 	const philippians = id('php');
 	await sql`INSERT INTO study (id, title, translation, user_id, created_at, updated_at) VALUES (${philippians}, 'Philippians', 'esv', ${owner.id}, now(), now())`;
-	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${id('pg')}, ${philippians}, 'NT', 'PHP', 'Philippians', 1, 1, 4, 23, 0, now())`;
+	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${id('pg')}, ${philippians}, 'NT', 'PH', 'Philippians', 1, 1, 4, 23, 0, now())`;
 
 	({ parts } = await loadParts());
 	const [phpRow] = await db.select().from(study).where(eq(study.id, philippians));

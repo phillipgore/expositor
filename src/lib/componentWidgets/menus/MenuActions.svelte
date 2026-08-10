@@ -40,6 +40,8 @@
 	import SplitPartModal from '../modals/SplitPartModal.svelte';
 	import JoinPartsModal from '../modals/JoinPartsModal.svelte';
 	import AddToSeriesModal from '../modals/AddToSeriesModal.svelte';
+	import ReorderRunsModal from '../modals/ReorderRunsModal.svelte';
+	import { describeRuns } from '$lib/utils/seriesReorder.js';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import { wouldCreateCircularNesting } from '$lib/utils/groupHierarchy.js';
 	import { flattenGroupsForMenu } from '$lib/utils/groupFlattening.js';
@@ -273,6 +275,53 @@
 		showAddToSeriesModal = true;
 	}
 
+	// ── Reorder runs (§4, phase 3) ────────────────────────────────────────────
+	//
+	// §11: "only meaningful for a series with 2+ runs: a contiguous Romans series has exactly one run
+	// and nothing to reorder, so the UI must not offer a drag handle that can never do anything." The
+	// command is therefore disabled — with a reason — for a single-run series, rather than opening a
+	// dialog that would show one immovable row.
+	//
+	// Runs are computed here from data the Finder already holds, so the menu can answer "is this
+	// offerable?" without a round trip. The endpoint recomputes them anyway, so a stale client cannot
+	// produce a bad write.
+	let showReorderModal = $state(false);
+
+	/**
+	 * The series to reorder: the one selected directly, or the one the selected part belongs to.
+	 *
+	 * Both entry points matter — §6 gives a series its own Finder row (selectable as `type: 'series'`,
+	 * which `groupFlattening.js` was fixed to report), and a user who has a part open is just as likely
+	 * to reach for the command from there.
+	 */
+	let selectedSeriesRow = $derived(
+		$toolbarState.selectedItem?.count === 1 &&
+			$toolbarState.selectedItem?.items[0]?.type === 'series'
+			? ((series ?? []).find((s) => s.id === $toolbarState.selectedItem.items[0].data?.id) ?? null)
+			: null
+	);
+
+	let reorderTargetSeries = $derived(selectedSeriesRow ?? selectedPartSeries ?? null);
+
+	let reorderRuns = $derived(
+		reorderTargetSeries?.parts?.length ? describeRuns(reorderTargetSeries.parts) : null
+	);
+
+	let canReorderRuns = $derived(Boolean(reorderRuns?.reorderable));
+
+	let reorderDisabledReason = $derived(
+		!reorderTargetSeries
+			? 'Select a series, or a part of one, to reorder it.'
+			: !reorderRuns?.reorderable
+				? 'Every part of this series follows the one before it, so there is nothing to reorder.'
+				: null
+	);
+
+	function handleReorderClick() {
+		closeMenu();
+		showReorderModal = true;
+	}
+
 	// Note: flattenGroupsForMenu is no longer needed here as the modal handles flattening
 
 
@@ -482,6 +531,18 @@
 		title={joinPartsDisabledReason}
 	/>
 
+	<!-- §4: reordering permutes RUNS, not parts. Disabled with a reason for a contiguous series, which
+	     has exactly one run and nothing to rearrange (§11). -->
+	<IconButton
+		iconId="arrow-up-square"
+		label="Reorder Series..."
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={handleReorderClick}
+		isDisabled={!canReorderRuns}
+		title={reorderDisabledReason}
+	/>
+
 	<!-- The inverse of "Split into a Series...": that makes a series FROM a study, this puts a study
 	     INTO one (Q17). Uses `books` — the series icon (§9) — because the object of the verb is the
 	     series, per §3's rule that the verb is qualified by its object. -->
@@ -528,6 +589,13 @@
 	seriesId={selectedPartSeries?.id ?? null}
 	onDone={handleRestructured}
 	onClose={() => (showJoinPartsModal = false)}
+/>
+
+<ReorderRunsModal
+	isOpen={showReorderModal}
+	series={reorderTargetSeries}
+	onDone={handleRestructured}
+	onClose={() => (showReorderModal = false)}
 />
 
 <AddToSeriesModal
