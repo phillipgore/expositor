@@ -335,6 +335,114 @@ try {
 	);
 	check('part B now starts at 3:20', `${secRangeB.from_chapter}:${secRangeB.from_verse}`, '3:20');
 
+	// ── Join COLUMN across a boundary, on a fresh fixture ─────────────────────
+	//
+	// The column path differs from the section path by one level: it re-parents SECTIONS onto the target
+	// column, and the segments follow implicitly via their sections. That extra level is the only thing
+	// not already covered, and it is where `passage_section.column_id`'s cascade would bite if the delete
+	// came before the re-parent.
+	//
+	// Part B needs TWO columns: a column join that would move every segment out of its passage is refused
+	// as a Join Parts in disguise, so the second column is what makes the operation legal at all.
+	console.log('\n── Join COLUMN across a boundary (re-parents sections, not segments) ──');
+
+	await sql`DELETE FROM study WHERE id LIKE ${PREFIX + '%'}`;
+	await sql`DELETE FROM study_series WHERE id LIKE ${PREFIX + '%'}`;
+
+	const s3 = id('s3-series');
+	const s3PartA = id('s3-partA');
+	const s3PartB = id('s3-partB');
+	const s3PassA = id('s3-passA');
+	const s3PassB = id('s3-passB');
+
+	await sql`INSERT INTO study_series (id, name, user_id, created_at, updated_at) VALUES (${s3}, 'Probe col', ${owner.id}, now(), now())`;
+	await sql`INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at) VALUES (${s3PartA}, 'A', 'esv', ${owner.id}, ${s3}, 0, now(), now())`;
+	await sql`INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at) VALUES (${s3PartB}, 'B', 'esv', ${owner.id}, ${s3}, 1, now(), now())`;
+	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${s3PassA}, ${s3PartA}, 'NT', 'RO', 'Romans', 1, 1, 2, 29, 0, now())`;
+	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${s3PassB}, ${s3PartB}, 'NT', 'RO', 'Romans', 3, 1, 4, 25, 0, now())`;
+
+	// Part A: the target column, with its own section and segment.
+	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, width, created_at, updated_at) VALUES (${id('s3-colA')}, ${s3PassA}, ${w(1, 1)}, 300, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s3-secA')}, ${id('s3-colA')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s3-a1')}, ${id('s3-secA')}, ${w(1, 1)}, 'A1', now(), now())`;
+
+	// Part B, column 1 (JOINED): two sections, each with a segment. Both sections must survive the move.
+	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s3-colB1')}, ${s3PassB}, ${w(3, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s3-secB1')}, ${id('s3-colB1')}, ${w(3, 1)}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s3-secB2')}, ${id('s3-colB1')}, ${w(3, 5)}, 'pink', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s3-b1')}, ${id('s3-secB1')}, ${w(3, 1)}, 'B1', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s3-b2')}, ${id('s3-secB2')}, ${w(3, 5)}, 'B2', now(), now())`;
+	await sql`INSERT INTO passage_heading (id, passage_segment_id, heading_type, text, created_at, updated_at) VALUES (${id('s3-h')}, ${id('s3-b2')}, 'one', 'Moving heading', now(), now())`;
+
+	// Part B, column 2 (STAYS): sets the boundary at 3:20.
+	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s3-colB2')}, ${s3PassB}, ${w(3, 20)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s3-secB3')}, ${id('s3-colB2')}, ${w(3, 20)}, 'red', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s3-b3')}, ${id('s3-secB3')}, ${w(3, 20)}, 'B3', now(), now())`;
+
+	const colPlan = await analyzeCrossPartJoin(db, owner.id, s3PassB, id('s3-colB1'), 'column');
+	assert('the column join is available', colPlan.ok === true);
+	assert('and crosses a boundary', colPlan.crossesBoundary === true);
+	check('nineteen verses move (3:1–3:19)', colPlan.versesMoved, 19);
+
+	const colResult = await joinAcrossBoundary(
+		db,
+		owner.id,
+		s3PassB,
+		id('s3-colB1'),
+		'merge',
+		'column'
+	);
+	check('two segments moved', colResult.movedSegments, 2);
+
+	const colRows = await sql`
+		SELECT s.id, s.note, sec.id AS section_id, col.id AS column_id, p.study_id
+		FROM passage_segment s
+		JOIN passage_section sec ON s.passage_section_id = sec.id
+		JOIN passage_column col ON sec.passage_column_id = col.id
+		JOIN passage p ON col.passage_id = p.id
+		WHERE s.id LIKE ${PREFIX + '%'}
+	`;
+	const colById = new Map(colRows.map((r) => [r.id, r]));
+	check('all four segments survive the column join', colRows.length, 4);
+	check('B1 kept its note', colById.get(id('s3-b1'))?.note, 'B1');
+	check('B2 kept its note', colById.get(id('s3-b2'))?.note, 'B2');
+	check('B1 moved to part A', colById.get(id('s3-b1'))?.study_id, s3PartA);
+	check('B2 moved with it', colById.get(id('s3-b2'))?.study_id, s3PartA);
+	check('B3 stayed in part B', colById.get(id('s3-b3'))?.study_id, s3PartB);
+
+	// The level that distinguishes this path: both SECTIONS kept their ids and now hang off the TARGET
+	// column. Had the delete preceded the re-parent, the cascade would have taken them and their segments.
+	check(
+		'B1 is still in its original section',
+		colById.get(id('s3-b1'))?.section_id,
+		id('s3-secB1')
+	);
+	check(
+		'B2 is still in its original section',
+		colById.get(id('s3-b2'))?.section_id,
+		id('s3-secB2')
+	);
+	check(
+		'and both sections now hang off part A’s column',
+		colById.get(id('s3-b1'))?.column_id,
+		id('s3-colA')
+	);
+	check('including the second one', colById.get(id('s3-b2'))?.column_id, id('s3-colA'));
+	check(
+		'the joined column row is gone',
+		colRows.some((r) => r.column_id === id('s3-colB1')),
+		false
+	);
+
+	const colHeads =
+		await sql`SELECT passage_segment_id FROM passage_heading WHERE id = ${id('s3-h')}`;
+	check('the heading on a moved segment survives', colHeads.length, 1);
+
+	const [colRangeA] = await sql`SELECT to_chapter, to_verse FROM passage WHERE id = ${s3PassA}`;
+	const [colRangeB] = await sql`SELECT from_chapter, from_verse FROM passage WHERE id = ${s3PassB}`;
+	check('part A now ends at 3:19', `${colRangeA.to_chapter}:${colRangeA.to_verse}`, '3:19');
+	check('part B now starts at 3:20', `${colRangeB.from_chapter}:${colRangeB.from_verse}`, '3:20');
+
 	console.log('\n── no orphaned structure anywhere in the fixture ──');
 	const orphans = await sql`
 		SELECT COUNT(*)::int AS n FROM passage_segment s
