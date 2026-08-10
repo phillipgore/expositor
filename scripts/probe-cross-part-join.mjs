@@ -251,6 +251,90 @@ try {
 		);
 	}
 
+	// ── Join SECTION across a boundary, on a fresh fixture ────────────────────
+	//
+	// A section join moves SEVERAL segments at once, which is what makes its boundary rule differ from
+	// Join Segment's: the new boundary is the first segment that STAYS, not the one after the active
+	// item. `verify-sequence-scope.mjs` pins that rule in the pure layer; this confirms the executor
+	// obeys it against Postgres, and that re-parenting a section's segments before deleting the section
+	// does not let `passage_segment.section_id`'s cascade take them.
+	console.log('\n── Join SECTION across a boundary (multi-segment boundary rule) ──');
+
+	await sql`DELETE FROM study WHERE id LIKE ${PREFIX + '%'}`;
+	await sql`DELETE FROM study_series WHERE id LIKE ${PREFIX + '%'}`;
+
+	const s2 = id('s2-series');
+	const s2PartA = id('s2-partA');
+	const s2PartB = id('s2-partB');
+	const s2PassA = id('s2-passA');
+	const s2PassB = id('s2-passB');
+
+	await sql`INSERT INTO study_series (id, name, user_id, created_at, updated_at) VALUES (${s2}, 'Probe sec', ${owner.id}, now(), now())`;
+	await sql`INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at) VALUES (${s2PartA}, 'A', 'esv', ${owner.id}, ${s2}, 0, now(), now())`;
+	await sql`INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at) VALUES (${s2PartB}, 'B', 'esv', ${owner.id}, ${s2}, 1, now(), now())`;
+	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${s2PassA}, ${s2PartA}, 'NT', 'RO', 'Romans', 1, 1, 2, 29, 0, now())`;
+	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${s2PassB}, ${s2PartB}, 'NT', 'RO', 'Romans', 3, 1, 4, 25, 0, now())`;
+
+	// Part A: one section with one segment (the join target's container).
+	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s2-colA')}, ${s2PassA}, ${w(1, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s2-secA')}, ${id('s2-colA')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s2-a1')}, ${id('s2-secA')}, ${w(1, 1)}, 'A1', now(), now())`;
+
+	// Part B: one column, TWO sections. The first (3:1 and 3:5) is joined backwards; the second (3:20)
+	// stays, so the boundary must land at 3:20 — not at 3:5.
+	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s2-colB')}, ${s2PassB}, ${w(3, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s2-secX')}, ${id('s2-colB')}, ${w(3, 1)}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s2-secY')}, ${id('s2-colB')}, ${w(3, 20)}, 'red', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s2-x1')}, ${id('s2-secX')}, ${w(3, 1)}, 'X1', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s2-x2')}, ${id('s2-secX')}, ${w(3, 5)}, 'X2', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s2-y1')}, ${id('s2-secY')}, ${w(3, 20)}, 'Y1', now(), now())`;
+
+	const secPlan = await analyzeCrossPartJoin(db, owner.id, s2PassB, id('s2-secX'), 'section');
+	assert('the section join is available', secPlan.ok === true);
+	assert('and crosses a boundary', secPlan.crossesBoundary === true);
+	// 3:1–3:19 moves: nineteen verses, NOT the four that a per-segment boundary would give.
+	check('nineteen verses move (3:1–3:19)', secPlan.versesMoved, 19);
+
+	const secResult = await joinAcrossBoundary(
+		db,
+		owner.id,
+		s2PassB,
+		id('s2-secX'),
+		'merge',
+		'section'
+	);
+	check('two segments moved', secResult.movedSegments, 2);
+
+	const secSegs = await sql`
+		SELECT s.id, s.note, sec.id AS section_id, p.study_id
+		FROM passage_segment s
+		JOIN passage_section sec ON s.passage_section_id = sec.id
+		JOIN passage_column col ON sec.passage_column_id = col.id
+		JOIN passage p ON col.passage_id = p.id
+		WHERE s.id LIKE ${PREFIX + '%'}
+	`;
+	const secById = new Map(secSegs.map((r) => [r.id, r]));
+	check('all four segments survive the section join', secSegs.length, 4);
+	check('X1 kept its note', secById.get(id('s2-x1'))?.note, 'X1');
+	check('X2 kept its note', secById.get(id('s2-x2'))?.note, 'X2');
+	check('X1 moved to part A', secById.get(id('s2-x1'))?.study_id, s2PartA);
+	check('X2 moved with it', secById.get(id('s2-x2'))?.study_id, s2PartA);
+	check('Y1 stayed in part B', secById.get(id('s2-y1'))?.study_id, s2PartB);
+	check(
+		'the joined section row is gone (its segments were re-parented first)',
+		secSegs.some((r) => r.section_id === id('s2-secX')),
+		false
+	);
+
+	const [secRangeA] = await sql`SELECT to_chapter, to_verse FROM passage WHERE id = ${s2PassA}`;
+	const [secRangeB] = await sql`SELECT from_chapter, from_verse FROM passage WHERE id = ${s2PassB}`;
+	check(
+		'part A now ends at 3:19 — the first segment that STAYS sets the boundary',
+		`${secRangeA.to_chapter}:${secRangeA.to_verse}`,
+		'3:19'
+	);
+	check('part B now starts at 3:20', `${secRangeB.from_chapter}:${secRangeB.from_verse}`, '3:20');
+
 	console.log('\n── no orphaned structure anywhere in the fixture ──');
 	const orphans = await sql`
 		SELECT COUNT(*)::int AS n FROM passage_segment s
