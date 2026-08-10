@@ -154,29 +154,45 @@
 			: null
 	);
 
-	// The move commands are gated on a word selection, and `isCaretAtSegmentStart/End` disables
-	// them for an unrelated in-segment reason — excluded so the note only claims the boundary
-	// when the boundary is genuinely what is in the way.
-	let moveUpReason = $derived(
-		canExplainStart &&
-
-			$toolbarState.hasWordSelection &&
+	// ── Move Text Up / Down across a boundary (§8, commands 4 and 5) ──
+	//
+	// The move commands are gated on a word selection, and `isCaretAtSegmentStart/End` disables them for
+	// an unrelated in-segment reason — excluded so a note only claims the boundary when the boundary is
+	// genuinely what is in the way.
+	//
+	// ⚠️ Move Down uses the END edge, so it pairs `atPartEnd` with `boundaryAfter`. `canJoinAcross()`
+	// above is start-edge only and must NOT be reused here: doing so would enable Move Down whenever the
+	// part's *leading* seam happened to be contiguous, which is a different seam entirely.
+	let moveIsWordScoped = $derived(
+		$toolbarState.hasWordSelection &&
 			!$toolbarState.hasActiveColumn &&
-			!$toolbarState.hasActiveSection &&
-			$toolbarState.isWordInFirstSegment
-			? seriesContext.boundaryBefore
-			: null
+			!$toolbarState.hasActiveSection
+	);
+
+	let moveUpCrossesBoundary = $derived(moveIsWordScoped && $toolbarState.isWordInFirstSegment);
+	let moveDownCrossesBoundary = $derived(moveIsWordScoped && $toolbarState.isWordInLastSegment);
+
+	// Same shape as canJoinAcross, but per edge: an internal passage seam is always eligible, and a
+	// part edge is eligible when its own seam is contiguous (null reason).
+	let canMoveUpAcross = $derived(
+		moveUpCrossesBoundary &&
+			!isDocument &&
+			((passageCount > 1 && activePassageIndex !== 0) ||
+				(atPartStart && seriesContext?.boundaryBefore === null))
+	);
+	let canMoveDownAcross = $derived(
+		moveDownCrossesBoundary &&
+			!isDocument &&
+			((passageCount > 1 && activePassageIndex !== passageCount - 1) ||
+				(atPartEnd && seriesContext?.boundaryAfter === null))
+	);
+
+	let moveUpReason = $derived(
+		canExplainStart && moveUpCrossesBoundary && !canMoveUpAcross ? seriesContext.boundaryBefore : null
 	);
 
 	let moveDownReason = $derived(
-		canExplainEnd &&
-
-			$toolbarState.hasWordSelection &&
-			!$toolbarState.hasActiveColumn &&
-			!$toolbarState.hasActiveSection &&
-			$toolbarState.isWordInLastSegment
-			? seriesContext.boundaryAfter
-			: null
+		canExplainEnd && moveDownCrossesBoundary && !canMoveDownAcross ? seriesContext.boundaryAfter : null
 	);
 
 
@@ -362,7 +378,11 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('move-text-up'));
 		}}
-		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInFirstSegment || $toolbarState.isCaretAtSegmentStart}
+		isDisabled={!$toolbarState.hasWordSelection ||
+			$toolbarState.hasActiveColumn ||
+			$toolbarState.hasActiveSection ||
+			($toolbarState.isWordInFirstSegment && !canMoveUpAcross) ||
+			$toolbarState.isCaretAtSegmentStart}
 		ariaLabel={moveUpReason ? `Move Text Up — ${moveUpReason}` : undefined}
 	/>
 	{#if moveUpReason}
@@ -377,7 +397,11 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('move-text-down'));
 		}}
-		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.isWordInLastSegment || $toolbarState.isCaretAtSegmentEnd}
+		isDisabled={!$toolbarState.hasWordSelection ||
+			$toolbarState.hasActiveColumn ||
+			$toolbarState.hasActiveSection ||
+			($toolbarState.isWordInLastSegment && !canMoveDownAcross) ||
+			$toolbarState.isCaretAtSegmentEnd}
 		ariaLabel={moveDownReason ? `Move Text Down — ${moveDownReason}` : undefined}
 	/>
 	{#if moveDownReason}

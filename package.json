@@ -14,6 +14,7 @@
 		"probe:xpj": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-cross-part-join.mjs",
 		"probe:join-parts": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-join-parts.mjs",
 		"probe:split-part": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-split-part.mjs",
+		"probe:move-text": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-cross-part-move.mjs",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"db:generate": "drizzle-kit generate",
