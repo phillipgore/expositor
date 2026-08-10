@@ -81,11 +81,34 @@ produced three separate defects — duplicated verses in the new part, a structu
 passage that does not move, and a confirmation demanded for connections that would never be touched.
 `verify-series-structure.mjs` now pins the distinction.
 
-**Still outstanding in phase 2:** generalising the five commands from passage scope to sequence
-scope (two call graphs, per the ⚠️ in §8 — de-duplicating `passageJoin`/`passageReconcile` is
-currently an explicit **non-goal**, not an assumed prerequisite); adjacent-part prefetch; balance by
-length. §10.1 re-validation is **done for Split/Join** but will need doing again for the five
-commands, which is where the worked example in that section actually applies.
+**The five commands: decision layers built, not yet wired.** Two more pure modules have landed, and
+they are the substance of the generalisation §8 asks for — but **no command consults them yet, so no
+user-visible behaviour has changed**:
+
+- `sequenceScope.js` (56 assertions) — the scope resolution §8 specifies, taking an **ordered
+  sequence of passages** rather than a part pair. `resolveScope()` replaces "am I the first item in
+  my passage?" with "what precedes this item in the sequence, and may we reach it?", returning
+  `crossesBoundary` and a refusal reason instead of throwing. Because it takes a sequence, it also
+  fixes the single-study multi-passage case §8 notes is broken *today*.
+- `boundaryMove.js` (41 assertions) — §8 step 2, "adjust both parts' passage ranges". Both ranges
+  derive from **one** boundary word id, so a gap or overlap between them is unrepresentable. Verse
+  conservation is enforced rather than assumed, because §10.1's licence to skip the export re-check
+  depends on it.
+
+**Still outstanding in phase 2:** wiring the five commands to those two modules — the endpoints and
+`passageJoin.js`/`utils.js` still carry their passage-scoped guards, including the literal
+`'Cannot join the first segment in a passage'`; the client-side guards §8 lists
+(`isActiveSegmentFirstInPassage` and friends); §10.1 re-validation for the five commands (**done for
+Split/Join**, and this is where §10.1's worked example actually applies); adjacent-part prefetch;
+balance by length. De-duplicating `passageJoin`/`passageReconcile` remains an explicit **non-goal**,
+not an assumed prerequisite.
+
+⚠️ **`direction` means where the CONTENT moved, never where the boundary moved.** They are exact
+opposites, and §10.1 reads it to decide which part is the "receiver" whose display limit must be
+re-checked — so getting it backwards grows the wrong part. A boundary moving *later* means the
+earlier part received, i.e. content moved `'backward'` (the three Joins and Move Text Up); a boundary
+moving *earlier* means content moved `'forward'` (Move Text Down). This was wrong in the first draft
+of `boundaryMove.js` and is recorded because the naming reads plausibly either way.
 
 **Blocking questions, resolved rather than guessed.** Q40 and Q23 were ratified from what is
 already live and phased: `classifyBoundary()` already returns `'overlap'` as its own excluded
@@ -1311,7 +1334,9 @@ carry different reasons.
   §3's vocabulary). Planning layer, structure transfer, both endpoints with a shared `dryRun` path,
   and both confirm modals. Not yet run against a real database.
 - **Generalise all five commands from passage scope to sequence scope** — Join Column, Join
-  Section, Join Segment, Move Text Up, Move Text Down — gated on the contiguity predicate (§8)
+  Section, Join Segment, Move Text Up, Move Text Down — gated on the contiguity predicate (§8).
+  🔨 **Decision layers done** (`sequenceScope.js`, `boundaryMove.js`); the commands themselves are
+  **not yet wired to them** and still carry their passage-scoped guards
 - Boundary-move compliance re-validation for both parts (§10.1) — **done for Split/Join**, still
   required for the five commands
 - Cross-part connections: warn-and-delete — **done for Split/Join** (Q23 strategy (b): the count is
