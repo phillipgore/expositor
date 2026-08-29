@@ -348,15 +348,21 @@ those distinct.
 ⚠️ **Read this before concluding §1.7 was reverted.** The New Study form no longer prints
 the resolved limit. Both licence alerts there are now generic:
 
-> _"This selection has too many verses for ESV. Create a series, shorten a passage, or switch to NET."_ (blocking)
-> _"This study has more verses than ESV allows on one page. You can still save it; export may be limited."_ (advisory)
+> _"This selection is more than ESV can load at once. Serialize it, shorten a passage, or switch to NET."_ (blocking)
+> _"This study shows more of a book than ESV allows on one page. Serialize it or shorten a passage. You can still save it."_ (advisory)
+
+⚠️ Both sentences were reworded on 2026-08-29 — twice, in two passes. First for naming the
+wrong limit (_"has too many verses for ESV"_, _"has more verses than ESV allows"_); then for
+mentioning export and for naming the series control by a label it no longer carries. See the
+second and third addenda below. The paragraphs that follow describe the structure of these
+alerts, which is unchanged throughout.
 
 **The blocking message names three remedies, series first**, because it is the only one that
 costs the user nothing — the other two mean studying less text, or accepting a different
 translation. It is also the remedy the app went to some trouble to make possible (§1.10).
 
-⚠️ That clause appears **only when `seriesEligible`**, the same flag that renders the radios,
-so the copy cannot outlive the control it names. The two underlying rules were never written
+⚠️ That clause appears **only when `seriesEligible`**, the same flag that renders the Serialize
+toggle, so the copy cannot outlive the control it names. The two underlying rules were never written
 to agree: blocking is a **verse** count (`checkSinglePassageSupport()`), eligibility is a
 **chapter** count (2+). They coincide only because no single chapter is long enough to trip
 the block — Psalm 119, the longest at 176 verses, is nowhere near 500. That is an accident of
@@ -387,6 +393,102 @@ into two checks — is now unreachable in this form by construction.
 multi-passage study leaves the user to find the offending passage. `passageIssues` still
 carries the per-passage index and message for exactly this reason, so the fix is a fieldset
 highlight or tooltip rather than a re-derivation. Revisit if users report confusion.
+
+### Addendum (2026-08-29): a generic message can still name the wrong limit
+
+⚠️ **Removing the numbers did not make the copy axis-neutral, and that was not noticed for a
+month.** A user reported the display advisory as a miscalculation: their largest part was 131
+verses, ESV's cap is 500, and the alert said they had exceeded it. The arithmetic was right and
+the sentence was wrong.
+
+The limit is `min(500, bookTotal × 0.5)`. For **Ephesians** — 155 verses — the resolved cap is
+77, so the portion binds and 500 never enters. Most books behave this way; the verse cap only
+wins above 1,000 verses, which is Matthew (1,071 → 535), Psalms, and a handful of others. The
+reported case displayed 131 verses of Ephesians against an allowance of 77 — genuinely
+non-compliant, by a clause the message never mentioned.
+
+The advisory hardcoded the verse branch, so in the common case it reported a threshold the user
+could look up in the licence and find themselves innocent of.
+
+**This is §1.7 inverted.** §1.7 was two thresholds shown at once because `min()` had been split
+into two checks. This is one threshold shown when the *other* bound — the same failure to treat
+"whichever is less" as a single resolved number, arrived at from the opposite direction. The
+resolution logic was never at fault either time: `validateStudyDisplayLimits()` computes
+`boundByPortion` specifically so a message can name the input that won, and the export-path copy
+branches on it correctly. The form's generic sentence simply never asked.
+
+**Fixed by phrasing, not by branching.** The advisory now reads _"shows more of a book than ESV
+allows on one page"_ — the wording the per-part alert had used all along. It is true under either
+branch.
+
+⚠️ **The obvious fix was rejected.** _"more verses **or a greater percentage of a book** than ESV
+allows"_ is accurate and was the first proposal. It also spells out both branches and leaves the
+reader to work out which applies — reintroducing, as prose, the two-thresholds confusion the
+addendum above had just removed by deleting the numbers. Accuracy achieved by enumerating every
+case is how §1.7 got its four simultaneous alerts.
+
+**The blocking message had the same defect from a second source.**
+`checkSinglePassageSupport()` returns two reasons, and only `exceeds-request` is a verse count;
+`complete-book` is a licence refusal that no length change fixes. _"Too many verses for ESV"_
+described the second as the first, which is precisely the mismatch that produced the
+could-not-work remedy recorded above — advice to split, for a limit splitting cannot reach. It
+now reads _"is more than ESV can load at once"_, which is true of both reasons and prejudges
+neither.
+
+**What is still owed.** The advisory is now true *both ways* rather than true *by construction*.
+Surfacing `boundByPortion` on `validateStudyDisplayLimits()`'s return — it is computed per book
+and discarded — would let the form branch as the export copy does. Until that exists, do not add
+a number back to this sentence: there is currently no way for it to know which number is right.
+
+### Addendum (2026-08-29, same day): export left the creation surfaces — everywhere this time
+
+⚠️ **A migration recorded as complete had been done in one branch only.** The comment beside the
+series alerts states plainly: _"Nothing here mentions export any more. `MenuExport.guardExport()`
+owns that, sees the real loaded ranges, and BLOCKS (Q32) rather than mentioning."_ True of that
+branch. **Four other creation surfaces still mentioned it**, and were missed because the scrub was
+done where the bug had been reported rather than by searching for the clause:
+
+| Surface | Clause |
+| --- | --- |
+| `StudyForm` display advisory | _"You can still save it; **export may be limited**."_ |
+| `SplitIntoSeriesModal` footer | _"These limits are **enforced when you export**."_ |
+| `JoinPartsModal` footer | same sentence |
+| `SplitPartModal` footer | same sentence |
+
+**Two independent faults in one clause.** It is wrong in **place**, because export is an act the
+user has not chosen to perform — the reasoning is already written out in `ExportComplianceModal`'s
+header, which is why display limits are inline and distribution limits wait for the button. And it
+is wrong in **fact**, or at best unknowable at creation time: whole-series export **blocks**
+(Q32), per-part export warns via `ExportComplianceModal`, and which of the two a given study
+meets depends on what the user later asks for. "May be limited" understates the blocking case and
+"enforced when you export" flattens both into a policy that matches neither. A fixed sentence
+asserting the behaviour of a subsystem it never reads — the same defect shape as the stale series
+string §1.9 already records, and the same shape again as the wrong-limit defect above it. **Three
+occurrences now, of one mistake: prose stating what code does, with nothing keeping the two in
+step.**
+
+Every footer now stops at _"You can still create this series."_ / _"…join these parts."_ /
+_"…split this part."_ — the half that carries the §1.6 point, that compliance is the owner's
+decision. The advisory gained the remedies instead: _"Serialize it or shorten a passage. You can
+still save it."_
+
+⚠️ **"You can still save it" is kept as its own sentence, not folded into the remedy list.** It is
+the absence of an action, and a list whose final item withdraws the premise reads as padding. But
+it cannot simply be deleted: a yellow alert offering only fixes reads as a precondition, and both
+§1.6 and SERIES_PLAN's _"May a user create a series that will fail export? **Yes, knowingly**"_
+depend on the user understanding they may proceed.
+
+### The control was renamed and the copy was not
+
+Separately, both alerts said _"Create a series"_ while the control is a switch labelled
+**Serialize** — wording left from when it was a radio pair reading "One study / A series of
+studies". This is §1.9's absent-control defect at lower cost: the toggle is on screen, but not
+findable by the word the sentence uses. Both now say _"Serialize it"_, still gated on
+`seriesEligible` so the clause cannot outlive the switch.
+
+`verify-chapter-verse-bounds.mjs` quotes this remedy when explaining what it checks, and was
+updated with it. The **invariant is unchanged** — every range that can trigger the block can
+become a series — only the sentence it quotes moved.
 
 ---
 

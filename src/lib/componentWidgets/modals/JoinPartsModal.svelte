@@ -181,9 +181,9 @@
 				{#each preview.display ?? [] as message}
 					<p class="warning">{message}</p>
 				{/each}
-				<p class="compliance-foot">
-					You can still join these parts. These limits are enforced when you export.
-				</p>
+				<!-- No mention of export, matching the other compliance footers; see
+				     SplitIntoSeriesModal for the reasoning. -->
+				<p class="compliance-foot">You can still join these parts.</p>
 			</div>
 		{/if}
 

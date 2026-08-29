@@ -28,8 +28,10 @@
 	import PassageSelector from '$lib/componentWidgets/PassageSelector.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
-	import Stepper from '$lib/componentElements/Stepper.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
+	import Badge from '$lib/componentElements/Badge.svelte';
+	import ToggleSwitch from '$lib/componentElements/ToggleSwitch.svelte';
+	import ManageSerializationModal from '$lib/componentWidgets/modals/ManageSerializationModal.svelte';
 	import messages from '$lib/data/messages.json';
 	import { getAllTranslationsMetadata } from '$lib/utils/translationConfig';
 	import {
@@ -251,7 +253,12 @@
 		passages.map((p, index) => {
 			const chapterSpan = (p.toChapter ?? p.fromChapter) - (p.fromChapter ?? 0) + 1;
 			const raw = chaptersPerPassageInput[p.id];
-			const parsed = parseInt(raw, 10);
+			// Untouched passages start divided at ONE chapter per part, matching
+			// `ManageSerializationModal.DEFAULT_CHAPTERS_PER_PASSAGE`. An absent key used to
+			// mean "leave whole", which made the form's summary pill contradict the modal the
+			// moment it opened: the modal seeded 1 ch per row while this still read 0. The two
+			// defaults have to be the same number or the pill describes a plan nobody chose.
+			const parsed = raw === undefined ? 1 : parseInt(raw, 10);
 			// One short of the span — every setting that genuinely divides this passage.
 			//
 			// NOT `floor(span / 2)`, which the study-wide stepper uses. There it enforces §4's
@@ -264,10 +271,13 @@
 			const maxPer = chapterSpan > 1 ? chapterSpan - 1 : 0;
 			const chapters =
 				Number.isFinite(parsed) && parsed >= 1 ? Math.min(parsed, Math.max(1, maxPer)) : 0;
+			// No `label` here any more: the only consumer was the per-passage stepper row, which
+			// moved into `ManageSerializationModal` and derives its own. What survives in this
+			// file is the arithmetic feeding the hidden `chaptersPerPassage` input and the
+			// series preview, none of which needs a human reference.
 			return {
 				id: p.id,
 				index,
-				label: passageLabel(p),
 				chapterSpan,
 				canDivide: chapterSpan > 1,
 				maxPer,
@@ -456,56 +466,11 @@
 	});
 
 	/**
-	 * The "One study" / "A series of studies" pair, for `RadioButtons`.
-	 *
-	 * `isChecked` is left off deliberately: the group runs in controlled mode, where the
-	 * selection comes from the `value` binding below. Setting it here would state the choice
-	 * in two places and invite them to disagree.
+	 * Whether the parting controls are open. They live in `ManageSerializationModal` now, so
+	 * the steppers, the per-passage rows and the part list that used to be inline here moved
+	 * with them — along with `passageLabel`, `setPassageChapters` and the step handlers.
 	 */
-	const seriesChoiceOptions = [
-		{ id: 'create-one-study', value: 'false', text: 'One study', isChecked: false },
-		{ id: 'create-as-series', value: 'true', text: 'A series of studies', isChecked: false }
-	];
-
-	function stepChaptersDown() {
-		if (chaptersPerPart > 1) chaptersInput = String(chaptersPerPart - 1);
-	}
-
-	function stepChaptersUp() {
-		if (chaptersPerPart < maxChaptersPerPart) chaptersInput = String(chaptersPerPart + 1);
-	}
-
-	/**
-	 * A passage's human reference, e.g. "Revelation 1–22". Used to label its stepper, so the
-	 * user can tell which control governs which passage without counting rows.
-	 */
-	function passageLabel(p) {
-		const book = getBook(p.testament, p.book)?.title || p.book || '';
-		const from = p.fromChapter;
-		const to = p.toChapter;
-		return from === to ? `${book} ${from}` : `${book} ${from}–${to}`;
-	}
-
-	/** Set one passage's chapters-per-part. `0` means "leave whole" (one part). */
-	function setPassageChapters(id, value) {
-		chaptersPerPassageInput = { ...chaptersPerPassageInput, [id]: String(value) };
-	}
-
-	function stepPassageDown(entry) {
-		// Stepping below 1 returns the passage to undivided, which is the only way back to
-		// "one part" once a stepper has been touched.
-		const next = entry.chapters <= 1 ? 0 : entry.chapters - 1;
-		setPassageChapters(entry.id, next);
-	}
-
-	function stepPassageUp(entry) {
-		if (entry.chapters === 0) {
-			setPassageChapters(entry.id, 1);
-			return;
-		}
-		if (entry.chapters < entry.maxPer) setPassageChapters(entry.id, entry.chapters + 1);
-	}
-
+	let isSerializationModalOpen = $state(false);
 
 	// --- Unsaved-changes (dirty) tracking, edit mode only ------------------
 	// Baseline snapshot of the last-saved values. The edit-flow layout watches
@@ -813,16 +778,23 @@
 		makes the user find the long passage themselves. Deliberate (see COMPLIANCE.md
 		§1.7's addendum); a fieldset highlight is the fix if it proves annoying.
 
-		⚠️ "Create a series" is offered FIRST, and only when `seriesEligible`. First because
+		⚠️ "Serialize it" is offered FIRST, and only when `seriesEligible`. First because
 		it is the only remedy that costs the user nothing — the other two mean studying less
-		text or accepting a different translation. Conditional because the radios it refers
-		to are gated on the same flag (`mode === 'new'` plus 2+ chapters), so in edit mode,
+		text or accepting a different translation. Conditional because the toggle it refers
+		to is gated on the same flag (`mode === 'new'` plus 2+ chapters), so in edit mode,
 		or for a study of single-chapter passages, the sentence would point at a control that
 		is not on screen. Advice naming an absent control is the defect this form has already
 		shipped once, in the series warning that survived its own data.
 
-		Sharing `seriesEligible` with the radios is what keeps the two in step: there is no
+		Sharing `seriesEligible` with the toggle is what keeps the two in step: there is no
 		second predicate to forget to update.
+
+		⚠️ The verb is "Serialize" because that is the LABEL ON THE SWITCH. It read "Create a
+		series" until 2026-08-29, from when the control was a radio pair reading "One study /
+		A series of studies". Advice naming a control by a name it no longer carries is the
+		absent-control defect at lower cost — the toggle is right there, but not findable by
+		the word the sentence uses. If the switch is ever relabelled, this and the display
+		advisory below both follow it.
 
 		⚠️ ONE-STUDY ONLY. Under a series this said the same thing as the alert beside the part
 		list — necessarily so, since both resolve from the same `checkSinglePassageSupport()`
@@ -833,14 +805,22 @@
 		that fixes it and the part list that shows WHICH part is at fault, neither of which this
 		one can point at from up here. Nothing is lost by suppressing it — Save is below the part
 		list, so the retained alert cannot be scrolled past on the way to it.
+
+		⚠️ NOT "too many verses for ESV", which this said until 2026-08-29.
+		`checkSinglePassageSupport()` returns TWO reasons and only one of them is a verse
+		count: `exceeds-request` genuinely is, but `complete-book` is a licence refusal —
+		ESV will not serve a whole book by any route, at any length. Describing that as a
+		verse problem invites the remedy §1.9 already recorded as a dead end (split it up),
+		since splitting fixes retrieval and does nothing about the portion clause. "More
+		than ESV can load at once" is true of both reasons and prejudges neither.
 	-->
 	{#if submissionBlockedByPassages && !createAsSeries}
 		<Alert
 			color="red"
 			look="subtle"
-			message={`This selection has too many verses for ${selectedTranslation.toUpperCase()}. ${
+			message={`This selection is more than ${selectedTranslation.toUpperCase()} can load at once. ${
 				seriesEligible
-					? `Create a series, shorten a passage, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`
+					? `Serialize it, shorten a passage, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`
 					: `Shorten a passage, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`
 			}`}
 		/>
@@ -891,50 +871,65 @@
 		report a page violation for something that will never be rendered as a page, and
 		the series preview runs its own per-part checks below.
 	-->
+	<!--
+		⚠️ "more of a book", NOT "more verses". This read "more verses than ESV allows on one
+		page" and was WRONG in the case that fires most often. The limit is
+		`min(500, bookTotal × 0.5)` — `validateStudyDisplayLimits()` resolves it and tracks
+		`boundByPortion` precisely because "half of Ephesians" and "500 verses" are different
+		explanations. For most books the PORTION binds: Ephesians 1-5 is 131 verses, nowhere
+		near 500, but well past the 77 that half of 155 allows. Naming the verse cap there
+		gave a number the user could check against the licence and find innocent — §1.7's
+		defect inverted, reporting the threshold that did not bind instead of both at once.
+
+		The neutral phrasing is deliberate over the accurate-but-longer "more verses or a
+		greater percentage of a book": that spells out both branches and leaves the user to
+		work out which applies, which is the confusion §1.7's addendum removed from this form
+		when it dropped the numbers. "More of a book" is true under either branch. It also
+		now matches the per-part copy below, which had the right words all along.
+
+		The honest fix is to return `boundByPortion` from `validateStudyDisplayLimits()` so
+		this can branch the way the export copy does. Until then this sentence is true both
+		ways rather than true by construction — do not add a number to it without that.
+
+		⚠️ NO MENTION OF EXPORT. This ended "You can still save it; export may be limited"
+		until 2026-08-29, and that clause was wrong twice over. Wrong in FACT: whole-series
+		export BLOCKS in `MenuExport.guardExport()` (Q32) while per-part export warns, and
+		which one a study meets depends on what the user later asks for — so "may be limited"
+		understates one case and misdescribes the other. A fixed sentence making a claim about
+		a subsystem it never reads, the same shape as the stale string recorded in the series
+		branch below. Wrong in PLACE, because export is an act the
+		user has not chosen to perform yet; `ExportComplianceModal`'s own header sets out
+		why that boundary exists and why display limits are handled inline while
+		distribution limits wait for the button press. The series branch was scrubbed of
+		export at that time and this line was missed.
+
+		The remedies replace it, ordered as the red alert above orders them and gated on the
+		same `seriesEligible` — series first because it costs the user nothing. "You can
+		still save it" stays as its own sentence rather than a third list item: it is the
+		absence of an action, and a list whose last entry undoes the premise reads as
+		padding. But it must be SAID. Compliance is the owner's call (COMPLIANCE §1.6; the
+		"May a user create a series that will fail export? Yes, knowingly" row in
+		SERIES_PLAN), and a yellow alert offering only fixes reads as a precondition.
+	-->
 	{#if !submissionBlockedByPassages && !createAsSeries && hasDisplayComplianceIssue}
 		<Alert
 			color="yellow"
 			look="subtle"
-			message={`This study has more verses than ${selectedTranslation.toUpperCase()} allows on one page. You can still save it; export may be limited.`}
+			message={`This study shows more of a book than ${selectedTranslation.toUpperCase()} allows on one page. ${
+				seriesEligible ? 'Serialize it or shorten a passage.' : 'Shorten a passage.'
+			} You can still save it.`}
 		/>
 	{/if}
-
-	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
-	{#if groupId}
-		<input type="hidden" name="groupId" value={groupId} />
-	{/if}
-
-	<Label text="Passages"></Label>
-
-	<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
-	<PassageSelector bind:passages onPassagesChange={handlePassagesChange} />
-	<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 
 	<!--
-		§5 entry point 1: "One study" or "A series of studies".
-
-		Placed AFTER the passage selector because the choice is only meaningful once there is a
-		range to divide, and eligibility (2+ chapters) is a property of that range. Shown only
-		when eligible: offering a disabled radio pair on a single-chapter study would advertise
-		a capability and refuse it in the same breath.
-
-		Uses RadioButtons in its controlled mode. This was previously a hand-rolled radio pair,
-		because the component re-derived its selection from `isChecked` in an `$effect` and so
-		fought the boolean this form controls directly. That component now accepts a binding, so
-		the local copy — and its duplicated blue accent CSS and lost roving-tabindex keyboard
-		handling — is gone. The `name` still doubles as the field the server action reads, so no
-		hidden mirror of the choice is needed.
+		Hoisted to sit with the other form-level notices, above the Passages heading, rather
+		than under the passage list where it used to trail the inline parting controls. Those
+		controls are gone — the stepper is in the modal now — so there was nothing left down
+		there for these alerts to be adjacent TO, and they read as a footer to the passage
+		list instead of as a statement about the study. All four study-level alerts now stack
+		in one place, in one order, whether or not a series is chosen.
 	-->
 	{#if seriesEligible}
-		<Label text="Create as"></Label>
-		<RadioButtons
-			name="createAsSeries"
-			RadioButtonProperties={seriesChoiceOptions}
-			value={createAsSeries ? 'true' : 'false'}
-			handleChange={(event) =>
-				(createAsSeries = /** @type {HTMLInputElement} */ (event.currentTarget).value === 'true')}
-		/>
-
 		{#if createAsSeries}
 			<!-- The setting the preview below was computed from, sent so the server plans the
 			     same parts the user is looking at. -->
@@ -943,88 +938,9 @@
 			     server re-plans the parts the user is looking at rather than a default shape. -->
 			<input type="hidden" name="chaptersPerPassage" value={JSON.stringify(chaptersPerPassage)} />
 
-			{#if showChaptersStepper}
-				<Stepper
-					id="chapters-per-part"
-					label="Chapters per part:"
-					bind:value={chaptersInput}
-					min={1}
-					max={maxChaptersPerPart}
-					onDecrement={stepChaptersDown}
-					onIncrement={stepChaptersUp}
-					decrementDisabled={chaptersPerPart <= 1}
-					incrementDisabled={chaptersPerPart >= maxChaptersPerPart}
-					decrementLabel="Fewer chapters per part"
-					incrementLabel="More chapters per part"
-					summary={`${seriesParts.length} parts · avg ${seriesAverageVerses} verses each`}
-				/>
-			{:else}
-				<!--
-					One stepper PER PASSAGE (§5, trap 15).
-
-					This used to be a sentence announcing that the study "will be created as N parts,
-					one per passage". That was the app deciding the shape: a Revelation + Matthew study
-					has two seams and fifty chapters, and being told it must be two parts of 404 and
-					1071 verses is precisely the imposition rule 1 forbids. §5's table sent that case to
-					Split Part afterwards — 48 modal round-trips, none of them visible before committing.
-
-					Each stepper governs ONE passage, so every division is a single contiguous
-					single-book range. The scalar `book` is never generalised and no part ever spans
-					two passages — the seams the user drew stay exactly where they drew them.
-				-->
-				<p class="series-explain">
-					This study has {passages.length} passages, so each becomes a part. Divide any of them
-					further below — the divisions you made above are kept either way.
-				</p>
-
-				<ul class="passage-parting">
-					{#each passageParting as entry (entry.id)}
-						<li>
-							{#if entry.canDivide}
-								<!-- `isInline`: these are compact list rows where the passage reference,
-								     control and count belong on one line. The study-wide stepper above
-								     stacks its label instead, having a longer label and a wider row. -->
-								<Stepper
-									id={`passage-parting-${entry.id}`}
-									label={entry.label}
-									isInline
-									classes="passage-parting-stepper"
-									displayValue={entry.chapters === 0 ? 'Whole' : `${entry.chapters} ch`}
-									onDecrement={() => stepPassageDown(entry)}
-									onIncrement={() => stepPassageUp(entry)}
-									decrementDisabled={entry.chapters === 0}
-									incrementDisabled={entry.chapters >= entry.maxPer}
-									decrementLabel={`Fewer chapters per part for ${entry.label}`}
-									incrementLabel={`More chapters per part for ${entry.label}`}
-									summary={`${entry.partCount} ${entry.partCount === 1 ? 'part' : 'parts'}`}
-								/>
-							{:else}
-								<!-- One chapter has no internal seam, so there is nothing to steer. Stated
-								     rather than shown as a disabled control, which would advertise a
-								     capability and refuse it in the same breath.
-
-								     The label is repeated here because in the branch above it is the
-								     Stepper's own <label for>, which an undivided passage has no field
-								     to point at. -->
-								<span class="passage-parting-label">{entry.label}</span>
-								<span class="passage-parting-summary">1 part · single chapter</span>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			{/if}
-
-			<!-- The preview §5 cares about more than the control: seeing the list run to 150 IS
-			     the information the user needs before committing. Scrolls, never truncates. -->
-			<ul class="series-parts" aria-live="polite">
-				{#each seriesParts as part (part.seriesOrder)}
-					<li>
-						<span class="part-order">Part {part.seriesOrder}</span>
-						<span class="part-title">{part.title}</span>
-						<span class="part-verses">{part.verseCount} verses</span>
-					</li>
-				{/each}
-			</ul>
+			<!-- The summary pill this block used to open with now rides on the Passages
+			     heading instead. It is a status readout, not a notice, so stacking it with
+			     the alerts gave a neutral fact the same weight as a compliance warning. -->
 
 			<!--
 				Shown, never enforced (§5, COMPLIANCE §1.6). Includes the series-level aggregate
@@ -1084,21 +1000,9 @@
 				/>
 			{/if}
 
-			{#if needsSeriesConfirmation}
-				<!--
-					A hard gate: `seriesBlocksSubmit` disables Save until this is ticked, so the
-					checkbox is the only thing standing between a mis-click and 150 studies. It is
-					also exactly what a Psalms series legitimately is, hence a confirmation rather
-					than a refusal.
-				-->
-				<Checkbox
-					id="confirm-large-series"
-					bind:checked={hasConfirmedLargeSeries}
-					spacingBottom="1.2rem"
-				>
-					Yes, create {seriesParts.length} parts.
-				</Checkbox>
-			{:else if isLargePartCount}
+			<!-- The large-series confirmation now sits in the button bar, beside the Save it
+			     gates. See FormButtonBar below. -->
+			{#if !needsSeriesConfirmation && isLargePartCount}
 				<Alert
 					color="blue"
 					look="subtle"
@@ -1106,11 +1010,110 @@
 				/>
 			{/if}
 		{/if}
-
-		<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
 	{/if}
 
+	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
+	{#if groupId}
+		<input type="hidden" name="groupId" value={groupId} />
+	{/if}
+
+	<!--
+		§5 entry point 1, as a switch plus a modal.
+
+		⚠️ DISABLED, NEVER HIDDEN. This block previously rendered only when `seriesEligible`,
+		on the reasoning that "offering a disabled control on a single-chapter study would
+		advertise a capability and refuse it in the same breath". That judgement is reversed:
+		a greyed switch with a `title` explaining WHY tells the user the capability exists and
+		what would unlock it, whereas a control that simply is not there tells them nothing and
+		reads as a missing feature.
+
+		The parting controls themselves live in `ManageSerializationModal`. Inline, the part
+		list ran to 150 rows for Psalms, pushing Save off-screen and making the form's shape
+		depend on a setting most studies never touch.
+
+		`createAsSeries` is a plain hidden input rather than a radio `name`, since a switch has
+		no value attribute to submit.
+	-->
+	<input type="hidden" name="createAsSeries" value={createAsSeries ? 'true' : 'false'} />
+
+	<!--
+		The heading carries the series status readout at its far right: it describes the
+		passage list below it, so it belongs on that list's title bar rather than in the
+		alert stack, where a neutral "2 parts" fact sat among compliance warnings and
+		borrowed their urgency.
+
+		Label's `margin-bottom` is zeroed by `.passages-heading :global(label)` — it carries
+		0.6rem for its usual stacked-above-a-field position, which on a flex row is dead
+		space that lifts the text off the pill's centre line.
+	-->
+	<div class="passages-heading">
+		<Label text="Passages"></Label>
+
+		{#if seriesEligible && createAsSeries}
+			<Badge
+				color="blue"
+				look="subtle"
+				size="small"
+				ariaLive="polite"
+				message={`${seriesParts.length} parts · avg ${seriesAverageVerses} verses each`}
+			/>
+		{/if}
+	</div>
+
+	<!--
+		1.8rem, matched by `.serialize-row`'s bottom margin, so the Serialize row sits in a
+		band of its own rather than crowding the divider above it and the passage card below.
+		The two numbers are a PAIR — the row reads as centred only while they agree, so change
+		both or neither.
+	-->
+	<DividerHorizontal spacingTop="0.0rem" spacingBottom="1.8rem"></DividerHorizontal>
+
+	<div class="serialize-row">
+		<ToggleSwitch
+			id="serialize"
+			label="Serialize"
+			checked={createAsSeries}
+			isDisabled={!seriesEligible}
+			title={seriesEligible
+				? 'Divide this study into a series of parts'
+				: 'A series needs a passage spanning at least two chapters'}
+			onToggle={(next) => (createAsSeries = next)}
+		/>
+
+		<Button
+			label="Manage Serialization"
+			classes="gray"
+			isDisabled={!createAsSeries}
+			handleClick={() => (isSerializationModalOpen = true)}
+			title={createAsSeries
+				? 'Choose how this study is divided into parts'
+				: 'Turn on Serialize to divide this study into parts'}
+		></Button>
+	</div>
+	<PassageSelector bind:passages onPassagesChange={handlePassagesChange} />
+	<DividerHorizontal spacingTop="0.0rem" spacingBottom="2.7rem"></DividerHorizontal>
+
 	<FormButtonBar>
+		{#if needsSeriesConfirmation}
+			<!--
+				A hard gate: `seriesBlocksSubmit` disables Save until this is ticked, so the
+				checkbox is the only thing standing between a mis-click and 150 studies. It is
+				also exactly what a Psalms series legitimately is, hence a confirmation rather
+				than a refusal.
+
+				Placed in the button bar, at the far left, so it sits beside the Save it governs
+				— the count that provokes it is now behind the modal, so a confirmation left up
+				there would have referred to a number no longer on screen.
+			-->
+			<Checkbox
+				id="confirm-large-series"
+				bind:checked={hasConfirmedLargeSeries}
+				spacingBottom="0rem"
+				data-align="start"
+			>
+				Yes, create {seriesParts.length} parts.
+			</Checkbox>
+		{/if}
 
 		<Button
 			href={cancelHref}
@@ -1129,7 +1132,6 @@
 				submissionBlockedByPassages ||
 				seriesBlocksSubmit}
 		>
-
 			{#if isAnalyzing}
 				<Spinner size="sm" inline color="var(--white)" label="Checking…" showLabel />
 			{:else if isSubmitting}
@@ -1141,6 +1143,26 @@
 	</FormButtonBar>
 </form>
 
+<!--
+	Outside the <form> deliberately: `Modal` renders a native <dialog>, and a dialog nested in a
+	form makes its buttons implicit form submitters in some browsers — a stepper press inside the
+	modal could submit the study.
+-->
+<ManageSerializationModal
+	isOpen={isSerializationModalOpen}
+	{passages}
+	translationId={selectedTranslation}
+	title={studyTitle}
+	chaptersPerPart={chaptersInput}
+	chaptersPerPassage={chaptersPerPassageInput}
+	onConfirm={(settings) => {
+		chaptersInput = settings.chaptersPerPart;
+		chaptersPerPassageInput = settings.chaptersPerPassage;
+		isSerializationModalOpen = false;
+	}}
+	onClose={() => (isSerializationModalOpen = false)}
+/>
+
 <style>
 	form {
 		width: 41.4rem;
@@ -1149,95 +1171,55 @@
 
 	/* --- Series choice + preview (§5 entry point 1) ----------------------- */
 
+	/* "Passages" on the left, the series summary pill hard right, on one line.
+
+	   Deliberately identical to `InputField`'s `.label-wrapper`, which is what puts "Title"
+	   above its "Required" pill: same `space-between`, same 0.6rem below, same -0.3rem badge
+	   nudge. This heading is the same construct one level up — a label with a status chip —
+	   so it should measure the same rather than be tuned by eye. */
+	.passages-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 0.6rem;
+	}
+
+	/* Label ships 0.6rem of bottom margin for its usual stacked-above-a-field position. On a
+	   flex row that margin is dead space that lifts the text off the pill's centre line, so
+	   it is cancelled here rather than made conditional inside Label. */
+	.passages-heading :global(label) {
+		margin-bottom: 0;
+	}
+
+	/* The pill's padding makes it optically sit low against the label's cap height; the same
+	   correction `InputField` applies to the "Required" badge. */
+	.passages-heading :global(.badge) {
+		margin-top: -0.3rem;
+	}
+
+	/* The switch and its modal trigger keep their own line below the divider, at opposite
+	   ends: the button lands on the passage card's right edge, under the pill it explains.
+
+	   1.8rem below MATCHES the divider's `spacingBottom` above, which is the whole point:
+	   the row is a band between two rules of its own, and equal margins are what make it
+	   read as centred there. Both were 1.2rem and the row looked pinched against the
+	   passage card. They are a pair — changing one alone reintroduces the imbalance. */
+	.serialize-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 1.8rem;
+	}
+
 	/* The radio pair, stepper and confirmation checkbox that used to be styled here now live
 	   in RadioButtons, Stepper and Checkbox respectively. */
 
-	/* Per-passage division rows (multi-passage studies) */
-	.passage-parting {
-		list-style: none;
-		margin: 0 0 1.2rem;
-		padding: 0;
-	}
-
-	.passage-parting li {
-		display: flex;
-		align-items: center;
-		gap: 0.8rem;
-		padding: 0.5rem 0;
-		font-size: 1.3rem;
-	}
-
-	.passage-parting-label {
-		flex: 1;
-		color: var(--black);
-	}
-
-	/* The per-passage stepper sits in a row that already supplies its own spacing, so the
-	   component's default bottom margin is dropped and its label takes the flexible column
-	   that `.passage-parting-label` holds in the undivided branch. */
-	.passage-parting li :global(.stepper-row.passage-parting-stepper) {
-		flex: 1;
-		margin-bottom: 0rem;
-	}
-
-	.passage-parting li :global(.stepper-row.passage-parting-stepper label.stepper-label) {
-		flex: 1;
-	}
-
-	.passage-parting-summary {
-		min-width: 7rem;
-		text-align: right;
-		color: var(--gray-300);
-	}
-
-	.series-explain {
-		margin: 0 0 1.2rem;
-		font-size: 1.4rem;
-		color: var(--black);
-	}
-
-	/* Scrolls rather than truncating: seeing that the list runs to 150 IS the
-	   information §5 wants visible before committing. */
-	.series-parts {
-		list-style: none;
-		margin: 0 0 1.2rem;
-		padding: 0;
-		max-height: 24rem;
-		overflow-y: auto;
-		border: 1px solid var(--gray-100);
-		border-radius: 0.4rem;
-	}
-
-	.series-parts li {
-		display: flex;
-		align-items: baseline;
-		gap: 0.8rem;
-		padding: 0.6rem 0.8rem;
-		font-size: 1.3rem;
-		border-bottom: 1px solid var(--gray-100);
-	}
-
-	.series-parts li:last-child {
-		border-bottom: none;
-	}
-
-	.part-order {
-		color: var(--gray-300);
-		min-width: 5rem;
-	}
-
-	.part-title {
-		flex: 1;
-		color: var(--black);
-	}
-
-	.part-verses {
-		color: var(--gray-300);
-		white-space: nowrap;
-	}
+	/* The per-passage rows, the part list and their styles moved to
+	   `ManageSerializationModal` along with the markup they dressed. */
 
 	/* Layout AND spacing are the Checkbox element's; the spacing this form wants is passed in
 	   as `spacingBottom` rather than reached in through `:global`, which was never scoped to
 	   this component and so fought two other copies of the same rule. */
 </style>
-

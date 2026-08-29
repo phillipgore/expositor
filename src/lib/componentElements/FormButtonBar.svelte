@@ -52,8 +52,17 @@
 <style>
 	.button-bar {
 		display: flex;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 0.6rem;
+
+		/* A child marked `data-align="start"` is pushed to the far left, with the buttons
+		   staying right. Used for the large-series confirmation, which belongs beside Save
+		   because it gates it. `margin-right: auto` on the child rather than
+		   `space-between` on the bar: the latter would spread the buttons apart too. */
+		:global([data-align='start']) {
+			margin-right: auto;
+		}
 
 		&.margin-top {
 			margin-top: 1.8rem;

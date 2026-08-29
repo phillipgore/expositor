@@ -158,11 +158,13 @@ if (unservable.length > 0) {
 }
 check('no part of any book is unservable at 1 chapter per part', unservable.length, 0);
 
-console.log('\n── "create a series" is never advice the user cannot take ──');
+console.log('\n── "serialize it" is never advice the user cannot take ──');
 
-// The blocking alert offers three remedies, and one of them names a control: "Create a series,
+// The blocking alert offers three remedies, and one of them names a control: "Serialize it,
 // shorten a passage, or switch to NET." That is only honest if EVERY range able to trigger the
-// block is also able to become a series — otherwise the form points at radios it did not render.
+// block is also able to become a series — otherwise the form points at a toggle it did not
+// render. (The remedy read "Create a series" until 2026-08-29; the control is a switch labelled
+// "Serialize" and the copy now uses its label. The invariant checked here is unchanged.)
 //
 // The two rules come from different places and were never written to agree. Blocking is
 // `checkSinglePassageSupport()` (a verse count against ESV's request cap and the complete-book

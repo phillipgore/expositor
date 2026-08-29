@@ -6,7 +6,11 @@ import { auth } from '$lib/server/auth.js';
 import { eq, and } from 'drizzle-orm';
 import bibleData from '$lib/data/bible.json';
 import { expandGroupAncestors, createDefaultPassageStructure } from '$lib/server/db/utils.js';
-import { validatePassagesLimits } from '$lib/utils/translationLimits.js';
+import {
+	validatePassagesLimits,
+	checkSinglePassageSupport
+} from '$lib/utils/translationLimits.js';
+import { planSeriesParts } from '$lib/utils/seriesPlanning.js';
 
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 import { enforceCacheLimit } from '$lib/server/db/cacheEvictionRunner.js';
@@ -195,13 +199,64 @@ export const actions = {
 			//
 			// Note the client blocks these cases during selection so the user finds
 			// out while choosing rather than after committing; this is the server-side
-			// backstop for a direct POST.
-			const limitCheck = validatePassagesLimits(passagesData, translation.toString());
-			if (!limitCheck.valid) {
-				return fail(400, {
-					error: limitCheck.error,
-					title: title.toString()
-				});
+			// backstop for a direct POST. That mirroring is the point — and is exactly what
+			// drifted below, so keep the two in step.
+			//
+			// ⚠️ SERIES-AWARE. Asking `validatePassagesLimits()` unconditionally was a bug that
+			// blocked the very case the series feature exists to solve: §5 creates-then-parts, so
+			// the passages arriving here are still the undivided whole-book range. A Matthew
+			// series was refused with "This passage spans 1071 verses… add it as several smaller
+			// passages" — advice the user had already taken, by asking for a series. The client
+			// had been fixed for exactly this (`submissionBlockedByPassages`) and the server had
+			// not, which is COMPLIANCE §1.9: a check belongs at every chokepoint, not the one
+			// that came to mind first.
+			//
+			// Crossway's limits are per REQUEST and per PAGE, and a part is its own study on its
+			// own page fetched by its own request — so the PARTS are what those clauses govern,
+			// not the source range they were derived from (COMPLIANCE §1.10).
+			const seriesPlanForLimits = createAsSeries
+				? planSeriesParts({
+						passages: passagesData,
+						chaptersPerPart,
+						chaptersPerPassage,
+						translationId: translation.toString(),
+						baseTitle: title.toString()
+					})
+				: null;
+
+			// Only a plan that will really become a series may substitute its parts for the whole
+			// range. Fewer than 2 parts means the conversion below produces nothing — an
+			// ineligible range, or a setting that collapses to one part — and the study stays a
+			// single undivided study, which is exactly what the one-study check governs.
+			//
+			// Without this branch `createAsSeries=true` would be a trivial bypass of the passage
+			// limit: claim a series, get no parts, keep an unservable study.
+			const willBeSeries = (seriesPlanForLimits?.parts?.length ?? 0) >= 2;
+
+			if (willBeSeries) {
+				// The same question the form asks, via the same helper, against the same planner
+				// the /api/series endpoint runs. A part ESV genuinely cannot serve still blocks.
+				const unservablePart = seriesPlanForLimits.parts
+					.map((part) => ({
+						seriesOrder: part.seriesOrder,
+						...checkSinglePassageSupport(part.passages[0], translation.toString())
+					}))
+					.find((result) => !result.canBeSinglePassage);
+
+				if (unservablePart) {
+					return fail(400, {
+						error: `Part ${unservablePart.seriesOrder} cannot be loaded: ${unservablePart.message}`,
+						title: title.toString()
+					});
+				}
+			} else {
+				const limitCheck = validatePassagesLimits(passagesData, translation.toString());
+				if (!limitCheck.valid) {
+					return fail(400, {
+						error: limitCheck.error,
+						title: title.toString()
+					});
+				}
 			}
 
 

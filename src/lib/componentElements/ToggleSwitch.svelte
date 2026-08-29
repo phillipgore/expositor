@@ -24,28 +24,34 @@
 	 * @component
 	 */
 
-	/** Unique id for the switch (ties the label to the control). */
-	export let id = '';
+	/**
+	 * @typedef {Object} ToggleSwitchProps
+	 * @property {string} [id] - Unique id for the switch (ties the label to the control)
+	 * @property {string} [label] - Visible text label displayed next to the switch
+	 * @property {boolean} [checked] - Bindable on/off state
+	 * @property {boolean} [isDisabled] - Disable interaction
+	 * @property {string} [title] - Tooltip, e.g. the reason the switch is disabled
+	 * @property {(checked: boolean) => void} [onToggle] - Called with the NEW state
+	 */
 
-	/** Visible text label displayed next to the switch. */
-	export let label = '';
-
-	/** Current on/off state (controlled by the parent). */
-	export let checked = false;
-
-	/** Disable interaction (e.g. while saving). */
-	export let isDisabled = false;
-
-	/** Callback invoked with the NEW state when the user toggles. */
-	export let onToggle = /** @type {(checked: boolean) => void} */ (() => {});
+	/** @type {ToggleSwitchProps} */
+	let {
+		id = '',
+		label = '',
+		checked = $bindable(false),
+		isDisabled = false,
+		title = undefined,
+		onToggle
+	} = $props();
 
 	function handleClick() {
 		if (isDisabled) return;
-		onToggle(!checked);
+		checked = !checked;
+		onToggle?.(checked);
 	}
 </script>
 
-<div class="toggle-switch-field">
+<div class="toggle-switch-field" {title}>
 	<button
 		{id}
 		type="button"
@@ -55,14 +61,14 @@
 		aria-checked={checked}
 		aria-label={label}
 		disabled={isDisabled}
-		on:click={handleClick}
+		onclick={handleClick}
 	>
 		<span class="track">
 			<span class="thumb"></span>
 		</span>
 	</button>
 	{#if label}
-		<label for={id}>{label}</label>
+		<label for={id} class:disabled={isDisabled}>{label}</label>
 	{/if}
 </div>
 
@@ -76,6 +82,14 @@
 	label {
 		cursor: pointer;
 		user-select: none;
+		margin-bottom: 0rem;
+
+		/* Greyed with the switch, matching how RadioButtons and Checkbox treat a disabled
+		   label. A switch that is disabled-not-hidden has to look disabled. */
+		&.disabled {
+			color: var(--gray-500);
+			cursor: not-allowed;
+		}
 	}
 
 	.toggle-switch {

@@ -59,9 +59,12 @@
 	 * @property {string} [ariaDescribedby] - ID of an element describing the checkbox
 	 * @property {(event: Event) => void} [handleChange] - Change event handler
 	 * @property {import('svelte').Snippet} [children] - Snippet for label content
+	 *
+	 * Any further attributes are spread onto the wrapper, so a caller can position it from
+	 * outside — `data-align="start"` is what `FormButtonBar` looks for.
 	 */
 
-	/** @type {CheckboxProps} */
+	/** @type {CheckboxProps & Record<string, any>} */
 	let {
 		id,
 		name,
@@ -74,7 +77,8 @@
 		classes = '',
 		ariaDescribedby,
 		handleChange,
-		children
+		children,
+		...restProps
 	} = $props();
 </script>
 
@@ -83,7 +87,7 @@
 	`.button-container` carrying the box-and-label pair. Same nesting, same class names, same
 	disabled handling — so a checkbox and a radio group sitting together read as one family.
 -->
-<div class="checkbox-container {classes}" style="margin-bottom: {spacingBottom};">
+<div class="checkbox-container {classes}" style="margin-bottom: {spacingBottom};" {...restProps}>
 	<div class="button-container {alignTop ? 'align-top' : ''} {isDisabled ? 'disabled' : ''}">
 		<input
 			type="checkbox"

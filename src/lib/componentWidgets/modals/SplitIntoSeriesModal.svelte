@@ -38,7 +38,6 @@
 
 	let { isOpen = false, study = null, error = null, onCreate, onClose } = $props();
 
-
 	// §5/Q9: the default is 1, and the user chooses. Never derived from range length.
 	//
 	// Held as a string because `Input` surfaces strings; `chaptersPerPart` below is the parsed,
@@ -53,7 +52,6 @@
 			isSubmitting = false;
 		}
 	});
-
 
 	let passages = $derived(study?.passages ?? []);
 
@@ -81,7 +79,6 @@
 		if (!Number.isFinite(parsed) || parsed < 1) return 1;
 		return Math.min(parsed, Math.max(1, maxChaptersPerPart));
 	});
-
 
 	// ── "Balance by length" (§5 option (b), Q11) ──────────────────────────────────
 	//
@@ -156,9 +153,7 @@
 	/** Which parts are individually over a limit, so the list can mark them. */
 	let flaggedOrders = $derived(new Set(partWarnings.map((w) => w.seriesOrder)));
 
-	let averageVerses = $derived(
-		parts.length > 0 ? Math.round(plan.totalVerses / parts.length) : 0
-	);
+	let averageVerses = $derived(parts.length > 0 ? Math.round(plan.totalVerses / parts.length) : 0);
 
 	// Q10: soft-warn above ~30 parts, confirm at 150. A refusal is wrong here — 150 parts is
 	// probably a mis-click, but it is also exactly what a Psalms series legitimately is.
@@ -184,7 +179,6 @@
 	function stepUp() {
 		if (chaptersPerPart < maxChaptersPerPart) chaptersInput = String(chaptersPerPart + 1);
 	}
-
 
 	async function handleCreate() {
 		if (!canCreate) return;
@@ -222,8 +216,8 @@
 >
 	{#if strategy === 'ineligible'}
 		<p class="explain">
-			This study covers a single chapter, so there is nothing to divide. A series needs at
-			least two chapters.
+			This study covers a single chapter, so there is nothing to divide. A series needs at least two
+			chapters.
 		</p>
 	{:else}
 		{#if showStepper}
@@ -279,8 +273,8 @@
 				     never split, so a range containing one very long chapter still yields one very long
 				     part. Better to say so here than to let the preview look like a broken promise. -->
 				<p class="hint">
-					Parts break on chapter boundaries, so they are evened out as far as whole chapters
-					allow — a single long chapter still makes one long part.
+					Parts break on chapter boundaries, so they are evened out as far as whole chapters allow —
+					a single long chapter still makes one long part.
 				</p>
 			{/if}
 		{:else}
@@ -315,9 +309,18 @@
 				{#each seriesWarnings as warning}
 					<p class="notice">{warning.message}</p>
 				{/each}
-				<p class="compliance-foot">
-					You can still create this series. These limits are enforced when you export.
-				</p>
+				<!--
+					⚠️ Says nothing about export, deliberately. This read "…These limits are
+					enforced when you export" until 2026-08-29 — premature (export is an act the
+					user has not chosen here) and imprecise (whole-series export blocks per Q32,
+					per-part export warns, and this cannot know which the user will ask for).
+					Creation surfaces state the position and the
+					remedy; `ExportComplianceModal` owns the export moment, and its header sets
+					out why the two are separate. The sentence that remains is the one doing the
+					work: compliance is the owner's call (COMPLIANCE §1.6), so the modal has to
+					say the series may still be created.
+				-->
+				<p class="compliance-foot">You can still create this series.</p>
 			</div>
 		{/if}
 
@@ -326,7 +329,6 @@
 		{/if}
 
 		{#if needsConfirmation}
-
 			<Checkbox id="confirm-large-split" bind:checked={hasConfirmedLarge} spacingBottom="1.2rem">
 				Yes, create {parts.length} parts.
 			</Checkbox>
@@ -449,4 +451,3 @@
 		color: var(--red);
 	}
 </style>
-
