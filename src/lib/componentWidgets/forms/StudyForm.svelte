@@ -17,6 +17,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 
 	import bibleData from '$lib/data/bible.json';
+	import { getBook } from '$lib/utils/bibleData.js';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
@@ -27,6 +28,8 @@
 	import PassageSelector from '$lib/componentWidgets/PassageSelector.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
+	import Stepper from '$lib/componentElements/Stepper.svelte';
+	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 	import messages from '$lib/data/messages.json';
 	import { getAllTranslationsMetadata } from '$lib/utils/translationConfig';
 	import {
@@ -115,6 +118,12 @@
 	 * Empty for a translation that can chunk (a passage may span a whole book).
 	 * For ESV this reports ranges too large for one request, and complete books
 	 * Crossway will not serve whole.
+	 *
+	 * The per-passage `index` and `message` are no longer rendered — the form shows one
+	 * generic alert instead — but both are kept rather than reduced to a bare count. They
+	 * are what a passage-level affordance would need (highlighting the offending fieldset,
+	 * or a tooltip), which is the known follow-up if the generic copy proves too vague, and
+	 * discarding them here would mean re-deriving them there.
 	 */
 	let passageIssues = $derived(
 		passages
@@ -124,21 +133,25 @@
 
 	let hasPassageIssues = $derived(passageIssues.length > 0);
 
+	// NOTE: what actually BLOCKS submission is `submissionBlockedByPassages`, declared with the
+	// series planning below because it depends on the planned parts. `hasPassageIssues` alone is
+	// the one-study answer and is no longer the whole story.
+
 	/**
-	 * Rendering-performance assessment for the study as a whole.
+	 * Verses this study would render on ONE page, if created as one study.
 	 *
-	 * Deliberately advisory: total verses is summed across passages because DOM
-	 * cost is a property of the whole study, not of any one passage. Never blocks
-	 * — see src/lib/config/studyLimits.js for why there is no hard cap.
+	 * Summed across passages because DOM cost is a property of the whole page, not of
+	 * any one passage.
 	 */
-	let studySizeAssessment = $derived(
-		assessStudySize(
-			passages.reduce(
-				(total, p) => total + checkSinglePassageSupport(p, selectedTranslation).verseCount,
-				0
-			)
+	let singleStudyVerses = $derived(
+		passages.reduce(
+			(total, p) => total + checkSinglePassageSupport(p, selectedTranslation).verseCount,
+			0
 		)
 	);
+
+	// NOTE: the rendering-performance assessment that consumes `singleStudyVerses` is declared
+	// AFTER the series planning below, because it also reads `seriesParts`.
 
 	/**
 	 * Licence-compliance assessment for the study's total on-screen footprint.
@@ -159,6 +172,19 @@
 	let displayComplianceWarnings = $derived(
 		validateStudyDisplayLimits(passages, selectedTranslation).warnings
 	);
+
+	/**
+	 * Whether ANY display limit is exceeded — the only thing this form now asks of the
+	 * assessment above.
+	 *
+	 * The individual messages are still computed, and deliberately so: the per-book
+	 * `min(pageCap, bookTotal × maxBookPortion)` resolution that COMPLIANCE.md §1.7 exists
+	 * to enforce is what decides whether this is true at all. What changed is that the
+	 * resolved numbers are no longer printed on this form — not that they stopped being
+	 * derived. `validateStudyDisplayLimits()` remains the single source of that judgement,
+	 * and export/print still shows its full text.
+	 */
+	let hasDisplayComplianceIssue = $derived(displayComplianceWarnings.length > 0);
 
 	// --- One study, or a series? (SERIES_PLAN §5, entry point 1) ------------
 	//
@@ -184,8 +210,9 @@
 
 	let seriesStrategy = $derived(getPartingStrategy(passages));
 
-	// Only chapters-per-part has anything to steer. For a multi-passage study the user already
-	// drew the seams, so a stepper would imply a choice that isn't theirs to make here.
+	// A single contiguous range steers with ONE stepper. A multi-passage study steers with one
+	// stepper PER PASSAGE (see `passageParting` below) — the seams between passages are the
+	// user's, but the chapters inside each one are still divisible.
 	let showChaptersStepper = $derived(seriesStrategy === 'chapters-per-part');
 
 	let totalChapters = $derived(
@@ -205,6 +232,72 @@
 		return Math.min(parsed, Math.max(1, maxChaptersPerPart));
 	});
 
+	// --- Per-passage division (multi-passage studies) -----------------------
+	//
+	// Keyed by passage id, NOT by index: a passage the user deletes or drags must take its own
+	// setting with it, and an index-keyed map would silently hand passage 2's division to
+	// whatever slid into slot 2.
+	//
+	// Absent key = "leave this passage whole", which is what every multi-passage series did
+	// before this existed. So the default shape is unchanged and the user opts in per passage.
+	/** @type {Record<string, string>} */
+	let chaptersPerPassageInput = $state({});
+
+	/**
+	 * How many chapters each passage spans, and whether it can be divided at all.
+	 * A one-chapter passage has no internal seam — same rule as `getPartingStrategy`.
+	 */
+	let passageParting = $derived(
+		passages.map((p, index) => {
+			const chapterSpan = (p.toChapter ?? p.fromChapter) - (p.fromChapter ?? 0) + 1;
+			const raw = chaptersPerPassageInput[p.id];
+			const parsed = parseInt(raw, 10);
+			// One short of the span — every setting that genuinely divides this passage.
+			//
+			// NOT `floor(span / 2)`, which the study-wide stepper uses. There it enforces §4's
+			// "a series needs 2+ parts" by making a single passage yield two. Here that reasoning
+			// does not transfer: the 2-part minimum is a property of the SERIES, and the other
+			// passages contribute parts too. Copying the bound across would have refused 2
+			// chapters per part on a 3-chapter passage — a division into 2 parts, which is both
+			// valid and the obvious thing to want. `seriesBlocksSubmit` still enforces the real
+			// minimum on the assembled plan, which is where it belongs.
+			const maxPer = chapterSpan > 1 ? chapterSpan - 1 : 0;
+			const chapters =
+				Number.isFinite(parsed) && parsed >= 1 ? Math.min(parsed, Math.max(1, maxPer)) : 0;
+			return {
+				id: p.id,
+				index,
+				label: passageLabel(p),
+				chapterSpan,
+				canDivide: chapterSpan > 1,
+				maxPer,
+				chapters,
+				// What this passage contributes to the series, for the summary beside the stepper.
+				partCount: chapters >= 1 ? Math.ceil(chapterSpan / chapters) : 1
+			};
+		})
+	);
+
+	/** Positional array in the shape `planSeriesParts()` and the endpoint expect. */
+	let chaptersPerPassage = $derived(passageParting.map((entry) => entry.chapters));
+
+	// Drop settings for passages that no longer exist, so a deleted passage cannot leave a stale
+	// entry that a later passage reusing its id would inherit.
+	//
+	// Rebuilt in one pass and only reassigned when something actually changed — assigning
+	// unconditionally would re-trigger this effect on its own write.
+	$effect(() => {
+		const live = new Set(passages.map((p) => p.id));
+		/** @type {Record<string, string>} */
+		const kept = {};
+		let dropped = false;
+		for (const [key, value] of Object.entries(chaptersPerPassageInput)) {
+			if (live.has(key)) kept[key] = value;
+			else dropped = true;
+		}
+		if (dropped) chaptersPerPassageInput = kept;
+	});
+
 	// The SAME planner the server action's endpoint runs, so this preview cannot promise a shape
 	// the creation produces differently.
 	let seriesPlan = $derived(
@@ -212,6 +305,7 @@
 			? planSeriesParts({
 					passages,
 					chaptersPerPart,
+					chaptersPerPassage,
 					translationId: selectedTranslation,
 					baseTitle: studyTitle
 				})
@@ -223,7 +317,113 @@
 	// Compliance is SHOWN, never enforced (§5, COMPLIANCE §1.6): a user may knowingly create a
 	// series that will warn at export. Note these are the planner's series-aware warnings, which
 	// include the series-level aggregate the per-part checks would otherwise silence (trap 8).
+	/**
+	 * Planned parts ESV genuinely cannot serve, each asked on its own terms.
+	 *
+	 * This is the series-aware counterpart to `passageIssues`, and it is deliberately the
+	 * SAME function: a part is a study, so "can this be fetched and shown" has one answer,
+	 * not a per-context variant. Reusing `checkSinglePassageSupport()` is what keeps the
+	 * blocking rule honest — if a part really were unservable, this still catches it.
+	 *
+	 * In practice it is empty for chapter-sized parts, and that is a fact about the canon
+	 * rather than luck: the longest chapter in the Bible is Psalm 119 at 176 verses, about a
+	 * third of ESV's 500-verse ceiling (pinned by `verify-chapter-verse-bounds.mjs`, so this
+	 * claim fails loudly if the data ever contradicts it).
+	 */
+	let seriesPartIssues = $derived(
+		(seriesPlan?.parts ?? [])
+			.map((part) => ({
+				seriesOrder: part.seriesOrder,
+				...checkSinglePassageSupport(part.passages[0], selectedTranslation)
+			}))
+			.filter((r) => !r.canBeSinglePassage)
+	);
+
+	/**
+	 * Whether retrieval problems should BLOCK submission.
+	 *
+	 * ⚠️ Not simply `hasPassageIssues`. That asks "can ESV serve this passage as one study?",
+	 * which is the wrong question the moment the user has asked for a series — and it was
+	 * asked anyway, because §5 creates-then-parts, so the form's passages stay whole-book
+	 * right up to submit. The consequence was a dead end with no exit: a whole-Matthew series
+	 * had Save disabled at 7, 4, 2 AND 1 chapters per part, because the check never looked at
+	 * the parts. No stepper setting could satisfy a test that was not reading the stepper.
+	 *
+	 * Crossway's limits are scoped per REQUEST and per PAGE (api.esv.org, retrieved
+	 * 2026-08-28: "up to 500 verses per query"; "may not display more than 500 verses or
+	 * one-half of any book (whichever is less) on any page"). A series part is its own study
+	 * on its own page, fetched by its own request, so the parts are what those clauses govern
+	 * — not the source range they were derived from. See COMPLIANCE.md §1.10.
+	 *
+	 * Still strict: a part ESV genuinely cannot serve blocks exactly as before. What no longer
+	 * blocks is a range that is only too large *undivided*, which is the case the series
+	 * feature exists to solve.
+	 */
+	let submissionBlockedByPassages = $derived(
+		createAsSeries && seriesPlan ? seriesPartIssues.length > 0 : hasPassageIssues
+	);
+
+	/**
+	 * Rendering-performance assessment, measured on the unit that actually renders.
+	 *
+	 * ⚠️ NOT always the cross-passage sum. Under a series the sum is a number no page
+	 * ever displays: whole Psalms reported 2,461 verses while its largest part renders
+	 * 176, and whole Matthew reported 1,071 against a largest part of 228. Both alerts
+	 * were false, and their advice ("consider a smaller range") was the very thing the
+	 * user had already done by choosing a series.
+	 *
+	 * The thresholds in studyLimits.js are per-PAGE — DOM spans in one Analyze view — so
+	 * the count handed to them must be the largest thing that becomes a page. For a
+	 * series that is the biggest part. This mirrors the licence alert in the markup
+	 * below, withheld under a series on the same ground: a series is not one page.
+	 *
+	 * Deliberately still ASKED rather than suppressed outright. On ESV the question is
+	 * moot — `maxVerses` is 500 with `chunking: false`, so any part big enough to reach
+	 * VERSE_COUNT_NOTICE (600) is blocked by `seriesPartIssues` before it can exist. But
+	 * NET sets `chunking: true`, so that 500 is a chunk size and nothing caps a part:
+	 * Psalms at 75 chapters per part is two creatable parts of ~1,200 verses each, and
+	 * suppressing under `createAsSeries` would render exactly that case silent.
+	 *
+	 * Declared here, below the planner, because it reads `seriesParts`.
+	 *
+	 * Never blocks — see src/lib/config/studyLimits.js for why there is no hard cap.
+	 */
+	let studySizeAssessment = $derived.by(() => {
+		if (createAsSeries && seriesParts.length > 0) {
+			const largest = seriesParts.reduce((max, part) => Math.max(max, part.verseCount ?? 0), 0);
+			return assessStudySize(largest, { unit: 'part' });
+		}
+		return assessStudySize(singleStudyVerses);
+	});
+
 	let seriesWarnings = $derived(seriesPlan?.warnings ?? []);
+
+	/**
+	 * The planner's part warnings, split by WHICH LIMIT they came from.
+	 *
+	 * `assessPlan()` emits two kinds into one array and tags them: a retrieval failure
+	 * carries `reason` (`'exceeds-request'` / `'complete-book'`, from
+	 * `checkSinglePassageSupport()`), a display violation does not (it comes from
+	 * `validateStudyDisplayLimits()`). The form was reading neither and printing one
+	 * hardcoded sentence about display over both.
+	 *
+	 * That sentence was wrong for the commoner case. Matthew at 13 chapters per part puts
+	 * 532 verses in part 2 — over ESV's 500-verse REQUEST cap, but roughly half of Matthew,
+	 * so plausibly within the DISPLAY allowance. The alert said "shows more of a book than
+	 * ESV allows on one page", which is a different clause on a different axis (COMPLIANCE
+	 * §1.7). The part cannot be fetched; what it would display never arises.
+	 *
+	 * ⚠️ This is trap 8's lesson recurring: a hardcoded sentence gated on a count is a claim
+	 * about data it never reads. The comment on the alert below already records this bug from
+	 * the last time — that pass fixed the COUNT and left the SENTENCE. Split the data, then
+	 * let each branch write its own copy; do not re-merge these.
+	 *
+	 * Partition is exhaustive by construction (`reason` present or absent), so a third kind
+	 * cannot silently fall into the wrong sentence — it would land in `display` and be
+	 * visible as wrong, rather than vanishing.
+	 */
+	let seriesRetrievalWarnings = $derived(seriesWarnings.filter((w) => Boolean(w.reason)));
+	let seriesDisplayWarnings = $derived(seriesWarnings.filter((w) => !w.reason));
 
 	let seriesAverageVerses = $derived(
 		seriesParts.length > 0 ? Math.round(seriesPlan.totalVerses / seriesParts.length) : 0
@@ -255,12 +455,55 @@
 		if (!seriesEligible && createAsSeries) createAsSeries = false;
 	});
 
+	/**
+	 * The "One study" / "A series of studies" pair, for `RadioButtons`.
+	 *
+	 * `isChecked` is left off deliberately: the group runs in controlled mode, where the
+	 * selection comes from the `value` binding below. Setting it here would state the choice
+	 * in two places and invite them to disagree.
+	 */
+	const seriesChoiceOptions = [
+		{ id: 'create-one-study', value: 'false', text: 'One study', isChecked: false },
+		{ id: 'create-as-series', value: 'true', text: 'A series of studies', isChecked: false }
+	];
+
 	function stepChaptersDown() {
 		if (chaptersPerPart > 1) chaptersInput = String(chaptersPerPart - 1);
 	}
 
 	function stepChaptersUp() {
 		if (chaptersPerPart < maxChaptersPerPart) chaptersInput = String(chaptersPerPart + 1);
+	}
+
+	/**
+	 * A passage's human reference, e.g. "Revelation 1–22". Used to label its stepper, so the
+	 * user can tell which control governs which passage without counting rows.
+	 */
+	function passageLabel(p) {
+		const book = getBook(p.testament, p.book)?.title || p.book || '';
+		const from = p.fromChapter;
+		const to = p.toChapter;
+		return from === to ? `${book} ${from}` : `${book} ${from}–${to}`;
+	}
+
+	/** Set one passage's chapters-per-part. `0` means "leave whole" (one part). */
+	function setPassageChapters(id, value) {
+		chaptersPerPassageInput = { ...chaptersPerPassageInput, [id]: String(value) };
+	}
+
+	function stepPassageDown(entry) {
+		// Stepping below 1 returns the passage to undivided, which is the only way back to
+		// "one part" once a stepper has been touched.
+		const next = entry.chapters <= 1 ? 0 : entry.chapters - 1;
+		setPassageChapters(entry.id, next);
+	}
+
+	function stepPassageUp(entry) {
+		if (entry.chapters === 0) {
+			setPassageChapters(entry.id, 1);
+			return;
+		}
+		if (entry.chapters < entry.maxPer) setPassageChapters(entry.id, entry.chapters + 1);
 	}
 
 
@@ -548,11 +791,60 @@
 	<!--
 		Retrieval problems BLOCK submission: the fetch would fail (or silently
 		truncate), so letting the user proceed only defers the same error to a point
-		where they've already lost the form. Each message names the remedy.
+		where they've already lost the form.
+
+		ONE generic alert, no verse counts and no passage names. This was previously one
+		alert PER offending passage, each carrying the util's full prose — verse count,
+		the resolved limit, and two sentences of licence mechanics. Selecting two whole
+		books produced two paragraph-sized red blocks explaining a rule the user cannot
+		change, at the moment they are still typing chapter numbers. Length was what
+		registered, not content.
+
+		⚠️ The translation name STAYS while the numbers go. It is the one variable the
+		user can actually act on, and the limit is not universal: NET has no display
+		restriction at all, so "too many verses" unqualified would state a rule of
+		Scripture rather than of this licence.
+
+		The numbers are not lost — `checkSinglePassageSupport()` still returns the full
+		message, and export/print still shows it, where there is room and the legal
+		stakes are higher. Only this form's presentation changed.
+
+		Accepted cost: with Save disabled and no passage named, a multi-passage study
+		makes the user find the long passage themselves. Deliberate (see COMPLIANCE.md
+		§1.7's addendum); a fieldset highlight is the fix if it proves annoying.
+
+		⚠️ "Create a series" is offered FIRST, and only when `seriesEligible`. First because
+		it is the only remedy that costs the user nothing — the other two mean studying less
+		text or accepting a different translation. Conditional because the radios it refers
+		to are gated on the same flag (`mode === 'new'` plus 2+ chapters), so in edit mode,
+		or for a study of single-chapter passages, the sentence would point at a control that
+		is not on screen. Advice naming an absent control is the defect this form has already
+		shipped once, in the series warning that survived its own data.
+
+		Sharing `seriesEligible` with the radios is what keeps the two in step: there is no
+		second predicate to forget to update.
+
+		⚠️ ONE-STUDY ONLY. Under a series this said the same thing as the alert beside the part
+		list — necessarily so, since both resolve from the same `checkSinglePassageSupport()`
+		call on the same parts, so they could never disagree or appear apart. Two alerts for one
+		fact reads as two problems.
+
+		The lower one is the survivor because position is the argument: it sits with the stepper
+		that fixes it and the part list that shows WHICH part is at fault, neither of which this
+		one can point at from up here. Nothing is lost by suppressing it — Save is below the part
+		list, so the retained alert cannot be scrolled past on the way to it.
 	-->
-	{#each passageIssues as issue (issue.index)}
-		<Alert color="red" look="subtle" message={`Passage ${issue.index + 1}: ${issue.message}`} />
-	{/each}
+	{#if submissionBlockedByPassages && !createAsSeries}
+		<Alert
+			color="red"
+			look="subtle"
+			message={`This selection has too many verses for ${selectedTranslation.toUpperCase()}. ${
+				seriesEligible
+					? `Create a series, shorten a passage, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`
+					: `Shorten a passage, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`
+			}`}
+		/>
+	{/if}
 
 	<!--
 		Size feedback NEVER blocks. It's our own rendering-performance guess, not a
@@ -564,7 +856,7 @@
 		that cannot be saved yet. A whole-book ESV selection otherwise stacked four
 		alerts at once, and this was the least actionable of them.
 	-->
-	{#if studySizeAssessment.message && !hasPassageIssues}
+	{#if studySizeAssessment.message && !submissionBlockedByPassages}
 		<Alert
 			color={studySizeAssessment.level === 'warning' ? 'yellow' : 'blue'}
 			look="subtle"
@@ -581,16 +873,30 @@
 		over, and refusing to save at that moment would strand work already done.
 		So we state the position plainly and let the user act on it.
 
-		Also suppressed while a retrieval error blocks submission. The blocking
-		message already explains that the selection exceeds both what one request
-		may return and what one page may display, so repeating the page half as a
-		separate advisory says the same thing twice about a study that cannot be
-		saved. Once the blocker is resolved these reappear if they still apply.
+		Also suppressed while a retrieval error blocks submission. Now that both alerts
+		are generic they say very nearly the same sentence, so showing them together
+		would read as a stutter; and the yellow one's "you can still save it" is false
+		while the red one has Save disabled. Reappears once the blocker is resolved, if
+		it still applies.
+
+		Collapsed to ONE generic line for the same reason as the blocking alert above: this
+		was one yellow alert PER over-limit book, each naming a verse count and a resolved
+		cap. The resolution still happens — it is what decides whether this appears at all —
+		it is simply no longer printed here. See COMPLIANCE.md §1.7 and its addendum.
 	-->
-	{#if !hasPassageIssues}
-		{#each displayComplianceWarnings as warning (warning)}
-			<Alert color="yellow" look="subtle" message={warning} />
-		{/each}
+	<!--
+		Also withheld once a series is chosen. This measures the SOURCE passages as one
+		page, and a series is not one page — its parts are separate studies with separate
+		URLs, which is the unit Crossway's "on any page" clause names. Leaving it on would
+		report a page violation for something that will never be rendered as a page, and
+		the series preview runs its own per-part checks below.
+	-->
+	{#if !submissionBlockedByPassages && !createAsSeries && hasDisplayComplianceIssue}
+		<Alert
+			color="yellow"
+			look="subtle"
+			message={`This study has more verses than ${selectedTranslation.toUpperCase()} allows on one page. You can still save it; export may be limited.`}
+		/>
 	{/if}
 
 	<input type="hidden" name="passages" value={JSON.stringify(passages)} />
@@ -612,81 +918,100 @@
 		when eligible: offering a disabled radio pair on a single-chapter study would advertise
 		a capability and refuse it in the same breath.
 
-		Plain radios rather than the RadioButtons component: that component owns its own checked
-		state and re-derives it from its props, which fights a boolean this form needs to control
-		directly. The `name` doubles as the field the server action reads, so no hidden mirror of
-		the choice is needed — one less thing to get out of step.
+		Uses RadioButtons in its controlled mode. This was previously a hand-rolled radio pair,
+		because the component re-derived its selection from `isChecked` in an `$effect` and so
+		fought the boolean this form controls directly. That component now accepts a binding, so
+		the local copy — and its duplicated blue accent CSS and lost roving-tabindex keyboard
+		handling — is gone. The `name` still doubles as the field the server action reads, so no
+		hidden mirror of the choice is needed.
 	-->
 	{#if seriesEligible}
 		<Label text="Create as"></Label>
-		<div class="series-choice">
-			<div class="series-option">
-				<input
-					type="radio"
-					id="create-one-study"
-					name="createAsSeries"
-					value="false"
-					checked={!createAsSeries}
-					onchange={() => (createAsSeries = false)}
-				/>
-				<label for="create-one-study">One study</label>
-			</div>
-			<div class="series-option">
-				<input
-					type="radio"
-					id="create-as-series"
-					name="createAsSeries"
-					value="true"
-					checked={createAsSeries}
-					onchange={() => (createAsSeries = true)}
-				/>
-				<label for="create-as-series">A series of studies</label>
-			</div>
-		</div>
+		<RadioButtons
+			name="createAsSeries"
+			RadioButtonProperties={seriesChoiceOptions}
+			value={createAsSeries ? 'true' : 'false'}
+			handleChange={(event) =>
+				(createAsSeries = /** @type {HTMLInputElement} */ (event.currentTarget).value === 'true')}
+		/>
 
 		{#if createAsSeries}
 			<!-- The setting the preview below was computed from, sent so the server plans the
 			     same parts the user is looking at. -->
 			<input type="hidden" name="chaptersPerPart" value={chaptersPerPart} />
+			<!-- The per-passage divisions, in the positional shape the planner takes. Sent so the
+			     server re-plans the parts the user is looking at rather than a default shape. -->
+			<input type="hidden" name="chaptersPerPassage" value={JSON.stringify(chaptersPerPassage)} />
 
 			{#if showChaptersStepper}
-				<div class="stepper-row">
-					<label class="stepper-label" for="chapters-per-part">Chapters per part:</label>
-					<div class="stepper">
-						<button
-							type="button"
-							class="step"
-							onclick={stepChaptersDown}
-							disabled={chaptersPerPart <= 1}
-							aria-label="Fewer chapters per part"
-						>−</button>
-						<input
-							id="chapters-per-part"
-							type="number"
-							min="1"
-							max={maxChaptersPerPart}
-							bind:value={chaptersInput}
-						/>
-						<button
-							type="button"
-							class="step"
-							onclick={stepChaptersUp}
-							disabled={chaptersPerPart >= maxChaptersPerPart}
-							aria-label="More chapters per part"
-						>+</button>
-					</div>
-					<span class="stepper-summary" aria-live="polite">
-						{seriesParts.length} parts · avg {seriesAverageVerses} verses each
-					</span>
-				</div>
+				<Stepper
+					id="chapters-per-part"
+					label="Chapters per part:"
+					bind:value={chaptersInput}
+					min={1}
+					max={maxChaptersPerPart}
+					onDecrement={stepChaptersDown}
+					onIncrement={stepChaptersUp}
+					decrementDisabled={chaptersPerPart <= 1}
+					incrementDisabled={chaptersPerPart >= maxChaptersPerPart}
+					decrementLabel="Fewer chapters per part"
+					incrementLabel="More chapters per part"
+					summary={`${seriesParts.length} parts · avg ${seriesAverageVerses} verses each`}
+				/>
 			{:else}
-				<!-- §5: "the absence of arithmetic is not the absence of a decision" — a
-				     multi-passage study has no stepper, but the user is still told what the
-				     parting will be before committing. -->
+				<!--
+					One stepper PER PASSAGE (§5, trap 15).
+
+					This used to be a sentence announcing that the study "will be created as N parts,
+					one per passage". That was the app deciding the shape: a Revelation + Matthew study
+					has two seams and fifty chapters, and being told it must be two parts of 404 and
+					1071 verses is precisely the imposition rule 1 forbids. §5's table sent that case to
+					Split Part afterwards — 48 modal round-trips, none of them visible before committing.
+
+					Each stepper governs ONE passage, so every division is a single contiguous
+					single-book range. The scalar `book` is never generalised and no part ever spans
+					two passages — the seams the user drew stay exactly where they drew them.
+				-->
 				<p class="series-explain">
-					This study has {passages.length} passages, so it will be created as
-					{passages.length} parts — one per passage, keeping the divisions you made above.
+					This study has {passages.length} passages, so each becomes a part. Divide any of them
+					further below — the divisions you made above are kept either way.
 				</p>
+
+				<ul class="passage-parting">
+					{#each passageParting as entry (entry.id)}
+						<li>
+							{#if entry.canDivide}
+								<!-- `isInline`: these are compact list rows where the passage reference,
+								     control and count belong on one line. The study-wide stepper above
+								     stacks its label instead, having a longer label and a wider row. -->
+								<Stepper
+									id={`passage-parting-${entry.id}`}
+									label={entry.label}
+									isInline
+									classes="passage-parting-stepper"
+									displayValue={entry.chapters === 0 ? 'Whole' : `${entry.chapters} ch`}
+									onDecrement={() => stepPassageDown(entry)}
+									onIncrement={() => stepPassageUp(entry)}
+									decrementDisabled={entry.chapters === 0}
+									incrementDisabled={entry.chapters >= entry.maxPer}
+									decrementLabel={`Fewer chapters per part for ${entry.label}`}
+									incrementLabel={`More chapters per part for ${entry.label}`}
+									summary={`${entry.partCount} ${entry.partCount === 1 ? 'part' : 'parts'}`}
+								/>
+							{:else}
+								<!-- One chapter has no internal seam, so there is nothing to steer. Stated
+								     rather than shown as a disabled control, which would advertise a
+								     capability and refuse it in the same breath.
+
+								     The label is repeated here because in the branch above it is the
+								     Stepper's own <label for>, which an undivided passage has no field
+								     to point at. -->
+								<span class="passage-parting-label">{entry.label}</span>
+								<span class="passage-parting-summary">1 part · single chapter</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
 			{/if}
 
 			<!-- The preview §5 cares about more than the control: seeing the list run to 150 IS
@@ -701,21 +1026,78 @@
 				{/each}
 			</ul>
 
-			<!-- Shown, never enforced (§5, COMPLIANCE §1.6). Includes the series-level aggregate
-			     that per-part parting would otherwise silence. -->
-			{#each seriesWarnings as warning (warning.message)}
+			<!--
+				Shown, never enforced (§5, COMPLIANCE §1.6). Includes the series-level aggregate
+				that per-part parting would otherwise silence.
+
+				Collapsed to ONE generic line, matching the two alerts above the passage list.
+				Volume is the whole problem here: finer parting multiplies part-scoped warnings —
+				a 50-part series can emit one per part — and a wall of near-identical yellow
+				alerts is read as decoration and scrolled past, so the compliance position the
+				user is responsible for lands *less* often than if one line were shown.
+
+				A previous pass tried an ordered, de-duplicated, truncated list with a "show all"
+				toggle. It was still a list of paragraphs, which was solving the wrong half: the
+				per-part detail is not information the user acts on while choosing a parting, and
+				the parts it names are about to be renumbered by the next stepper press anyway.
+
+				⚠️ Every warning reaching here is now PER-PART and fixable by the stepper above,
+				so the copy names that remedy. It previously read "…You can still create the
+				series; export may be limited", which was a hardcoded string firing on
+				`seriesWarnings.length > 0` — and after the series-wide notice was re-scoped to
+				export, a whole-book Matthew series rendered it with ZERO part-scoped warnings.
+				The alert asserted a page violation that provably did not exist. A fixed sentence
+				gated on a count is a claim about data it never reads; keep the two in step.
+
+				Nothing here mentions export any more. `MenuExport.guardExport()` owns that, sees
+				the real loaded ranges, and BLOCKS (Q32) rather than mentioning.
+			-->
+			{#if seriesRetrievalWarnings.length > 0}
+				<!--
+					RED, because this one blocks: an unservable part is what
+					`submissionBlockedByPassages` is computed from, so Save is disabled whenever
+					this shows. Yellow would have promised a study the form refuses to save.
+
+					This is also the alert the user sees INSTEAD of the red one above the passage
+					list, which is suppressed under a series precisely so this fact is stated once.
+				-->
 				<Alert
-					color={warning.level === 'notice' ? 'blue' : 'yellow'}
+					color="red"
 					look="subtle"
-					message={warning.message}
+					message={`Some parts have too many verses for ${selectedTranslation.toUpperCase()} to load. Use fewer chapters per part, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`}
 				/>
-			{/each}
+			{:else if seriesDisplayWarnings.length > 0}
+				<!--
+					Yellow, and a genuinely different finding from the branch above: the parts
+					fetch fine, but one shows more of a book than the licence permits on a page
+					(Galatians at 5 chapters per part — 131 of 149 verses, against a half-book cap
+					of 74). Never blocks; compliance is the study owner's call (§5, COMPLIANCE §1.6).
+
+					`{:else if}` rather than a second `{#if}`: retrieval outranks display, the same
+					precedence `assessPlan()` applies per part. A part that cannot be fetched has no
+					page, so what it would display there is not yet a question.
+				-->
+				<Alert
+					color="yellow"
+					look="subtle"
+					message={`Some parts show more of a book than ${selectedTranslation.toUpperCase()} allows on one page. Use fewer chapters per part.`}
+				/>
+			{/if}
 
 			{#if needsSeriesConfirmation}
-				<label class="series-confirm">
-					<input type="checkbox" bind:checked={hasConfirmedLargeSeries} />
+				<!--
+					A hard gate: `seriesBlocksSubmit` disables Save until this is ticked, so the
+					checkbox is the only thing standing between a mis-click and 150 studies. It is
+					also exactly what a Psalms series legitimately is, hence a confirmation rather
+					than a refusal.
+				-->
+				<Checkbox
+					id="confirm-large-series"
+					bind:checked={hasConfirmedLargeSeries}
+					spacingBottom="1.2rem"
+				>
 					Yes, create {seriesParts.length} parts.
-				</label>
+				</Checkbox>
 			{:else if isLargePartCount}
 				<Alert
 					color="blue"
@@ -744,7 +1126,7 @@
 			isDisabled={isSubmitting ||
 				isAnalyzing ||
 				hasDuplicateTitle ||
-				hasPassageIssues ||
+				submissionBlockedByPassages ||
 				seriesBlocksSubmit}
 		>
 
@@ -767,73 +1149,44 @@
 
 	/* --- Series choice + preview (§5 entry point 1) ----------------------- */
 
-	.series-choice {
-		display: flex;
-		flex-direction: column;
-		gap: 0.6rem;
-		margin-bottom: 1.8rem;
+	/* The radio pair, stepper and confirmation checkbox that used to be styled here now live
+	   in RadioButtons, Stepper and Checkbox respectively. */
+
+	/* Per-passage division rows (multi-passage studies) */
+	.passage-parting {
+		list-style: none;
+		margin: 0 0 1.2rem;
+		padding: 0;
 	}
 
-	.series-option {
-		display: flex;
-		align-items: center;
-		gap: 0.3rem;
-	}
-
-	.series-option input {
-		accent-color: var(--blue);
-	}
-
-	.series-option label {
-		font-size: 1.4rem;
-		color: var(--black);
-	}
-
-	.stepper-row {
+	.passage-parting li {
 		display: flex;
 		align-items: center;
 		gap: 0.8rem;
-		flex-wrap: wrap;
-		margin-bottom: 1.2rem;
+		padding: 0.5rem 0;
+		font-size: 1.3rem;
 	}
 
-	.stepper-label {
-		font-size: 1.4rem;
+	.passage-parting-label {
+		flex: 1;
 		color: var(--black);
 	}
 
-	.stepper {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
+	/* The per-passage stepper sits in a row that already supplies its own spacing, so the
+	   component's default bottom margin is dropped and its label takes the flexible column
+	   that `.passage-parting-label` holds in the undivided branch. */
+	.passage-parting li :global(.stepper-row.passage-parting-stepper) {
+		flex: 1;
+		margin-bottom: 0rem;
 	}
 
-	.stepper input {
-		width: 6rem;
-		padding: 0.4rem 0.6rem;
-		border: 1px solid var(--gray-200);
-		border-radius: 0.4rem;
-		font-size: 1.4rem;
+	.passage-parting li :global(.stepper-row.passage-parting-stepper label.stepper-label) {
+		flex: 1;
 	}
 
-	.step {
-		width: 2.8rem;
-		height: 2.8rem;
-		border: 1px solid var(--gray-200);
-		border-radius: 0.4rem;
-		background: var(--white);
-		font-size: 1.6rem;
-		line-height: 1;
-		cursor: pointer;
-	}
-
-	.step:disabled {
-		opacity: 0.4;
-		cursor: default;
-	}
-
-	.stepper-summary {
-		font-size: 1.3rem;
+	.passage-parting-summary {
+		min-width: 7rem;
+		text-align: right;
 		color: var(--gray-300);
 	}
 
@@ -883,13 +1236,8 @@
 		white-space: nowrap;
 	}
 
-	.series-confirm {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		margin-bottom: 1.2rem;
-		font-size: 1.3rem;
-		color: var(--black);
-	}
+	/* Layout AND spacing are the Checkbox element's; the spacing this form wants is passed in
+	   as `spacingBottom` rather than reached in through `:global`, which was never scoped to
+	   this component and so fought two other copies of the same rule. */
 </style>
 

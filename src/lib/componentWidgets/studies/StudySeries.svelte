@@ -12,8 +12,14 @@
 	 *
 	 * Two things it does NOT do, both by decision rather than omission:
 	 *  - It does not nest. A series contains parts and nothing else (§6, Q14).
-	 *  - It does not offer a reorder handle. Reordering permutes *runs*, not parts, and a
-	 *    contiguous series is a single run with nothing to reorder (§4, §11 phase 3).
+	 *  - It does not offer a per-part reorder handle. Reordering permutes *runs*, not parts, and a
+	 *    contiguous series is a single run with nothing to reorder (§4, §11 phase 3). The handle
+	 *    lives in ReorderRunsModal, where a row IS a run and dragging one cannot express a false
+	 *    claim about the text.
+	 *
+	 * It IS a drop target, though: dropping a standalone study on the row proposes adding it as a new
+	 * part (Q17). `isDropTarget` only draws the highlight — the composable decides whether the gesture
+	 * is legal, and the confirm dialog states §4's warnings before anything is written.
 	 */
 	import Icon from '$lib/componentElements/Icon.svelte';
 
@@ -35,6 +41,7 @@
 		isStudyActive,
 		isStudyBeingDragged,
 		isDragging = false,
+		dropTargetSeriesId = null,
 		formatPassageReference,
 		// For search — force expand during search, matching StudyGroup
 		forceExpanded = false
@@ -48,9 +55,16 @@
 	// Part count is always shown on the row (Q16). The verse total is deferred to hover and
 	// is not computed here — it would mean summing every part's passages on every render.
 	let partCount = $derived(series.parts?.length ?? 0);
+
+	let isDropTarget = $derived(dropTargetSeriesId === series.id);
 </script>
 
-<div class="series-section" data-series-id={series.id} data-depth={depth}>
+<div
+	class="series-section"
+	class:drop-target={isDropTarget}
+	data-series-id={series.id}
+	data-depth={depth}
+>
 	<div
 		class="series-header"
 		class:selected={isSelected}
@@ -71,7 +85,10 @@
 				aria-label={isEffectivelyExpanded ? 'Collapse series' : 'Expand series'}
 				aria-expanded={isEffectivelyExpanded}
 			>
-				<Icon iconId={isEffectivelyExpanded ? 'chevron-down' : 'chevron-right'} classes="chevron-icon" />
+				<Icon
+					iconId={isEffectivelyExpanded ? 'chevron-down' : 'chevron-right'}
+					classes="chevron-icon"
+				/>
 			</button>
 			<button
 				class="series-select-button"
@@ -133,6 +150,16 @@
 		display: flex;
 		flex-direction: column;
 		position: relative;
+	}
+
+	/* Matches StudyGroup's drop-target treatment, plus an outline: a series drop means something
+	   different from a group drop (it adds a PART, §4), and a user who has just learned the grey
+	   highlight means "files into here" should be able to see this is not that. */
+	.series-section.drop-target {
+		background-color: var(--gray-light);
+		border-radius: 0.3rem;
+		outline: 0.2rem dashed var(--blue);
+		outline-offset: -0.2rem;
 	}
 
 	.series-contents {

@@ -1,23 +1,66 @@
 <script>
 	/**
-	 * @color {'gray' | 'red' | 'orange' | 'yellow' | 'green' | 'aqua' | 'blue' | 'purple' | 'pink'}
-	 * @size {'small'}
-	 * @look {'subtle'}
+	 * # Badge Component
+	 *
+	 * Short status or summary text on a coloured chip.
+	 *
+	 * ## Features
+	 * - 9 colour variants, solid or `subtle` (lighter fill, bordered)
+	 * - `small` size variant
+	 * - `isFullWidth` for a badge that spans its container and reads as a bar
+	 * - Optional `aria-live`, for a value that updates in place
+	 *
+	 * ## Usage Examples
+	 *
+	 * Inline status chip:
+	 * ```svelte
+	 * <Badge color="green" size="small" look="subtle" message="Verified" />
+	 * ```
+	 *
+	 * A live value that updates in place, as `Stepper` uses it:
+	 * ```svelte
+	 * <Badge color="blue" look="subtle" ariaLive="polite" message="150 parts · avg 16 verses each" />
+	 * ```
+	 *
+	 * Full-width, for a badge that reads as a bar rather than a chip:
+	 * ```svelte
+	 * <Badge color="blue" look="subtle" isFullWidth message="Summary of the section below" />
+	 * ```
+	 *
+	 * @typedef {'red' | 'green' | 'yellow' | 'blue' | 'orange' | 'aqua' | 'purple' | 'pink' | 'gray'} BadgeColor
+	 * @typedef {'subtle' | ''} BadgeLook
+	 * @typedef {'small' | ''} BadgeSize
 	 */
-	export let color = 'red';
-	export let size = '';
-	export let look = '';
-	
+
 	/**
-	 * @color {string}
-	 * @size {string}
-	 * @look {string}
+	 * @typedef {Object} BadgeProps
+	 * @property {BadgeColor} [color='red'] - Badge colour theme
+	 * @property {BadgeSize} [size=''] - Size variant
+	 * @property {BadgeLook} [look=''] - Visual style. 'subtle' adds a border and lighter fill
+	 * @property {string} [message=''] - Text to display. Empty string hides the badge
+	 * @property {boolean} [isFullWidth=false] - Span the container, squaring off the pill radius
+	 * @property {'off' | 'polite' | 'assertive'} [ariaLive] - Politeness for a value that
+	 *   updates in place
+	 * @property {string} [classes=''] - Additional CSS classes
 	 */
-	export let message = '';
+
+	/** @type {BadgeProps} */
+	let {
+		color = 'red',
+		size = '',
+		look = '',
+		message = '',
+		isFullWidth = false,
+		ariaLive,
+		classes = ''
+	} = $props();
 </script>
 
 {#if message}
-	<div class="badge {color} {size} {look}">
+	<div
+		class="badge {color} {size} {look} {classes} {isFullWidth ? 'full-width' : ''}"
+		aria-live={ariaLive}
+	>
 		{message}
 	</div>
 {/if}
@@ -32,6 +75,16 @@
 
 	.badge.subtle {
 		border: 1px solid;
+	}
+
+	/* A 999em radius on a full-width badge draws a giant lozenge, so the radius squares off to
+	   match `Alert`, which is the other full-width block in the same forms. `display: block`
+	   because a badge is otherwise sized by its text. */
+	.badge.full-width {
+		display: block;
+		width: 100%;
+		border-radius: 0.3rem;
+		text-align: center;
 	}
 
 	.badge.small {

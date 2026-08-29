@@ -9,6 +9,7 @@ import { expandGroupAncestors, createDefaultPassageStructure } from '$lib/server
 import { validatePassagesLimits } from '$lib/utils/translationLimits.js';
 
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
+import { enforceCacheLimit } from '$lib/server/db/cacheEvictionRunner.js';
 
 /**
  * @typedef {Object} PassageData
@@ -90,6 +91,22 @@ export const actions = {
 			// for a form that says nothing about series at all.
 			const createAsSeries = formData.get('createAsSeries') === 'true';
 			const chaptersPerPart = Number(formData.get('chaptersPerPart')) || 1;
+
+			// Per-passage divisions for a multi-passage study. Parsed defensively: a malformed
+			// value must fall back to "every passage whole" — the pre-existing shape — rather than
+			// abort a study creation that is otherwise valid.
+			let chaptersPerPassage = [];
+			try {
+				const raw = formData.get('chaptersPerPassage');
+				if (typeof raw === 'string' && raw.trim() !== '') {
+					const parsed = JSON.parse(raw);
+					if (Array.isArray(parsed)) {
+						chaptersPerPassage = parsed.map((n) => Number(n) || 0);
+					}
+				}
+			} catch {
+				chaptersPerPassage = [];
+			}
 
 
 			// Validate title
@@ -245,6 +262,7 @@ export const actions = {
 			// instead of fetching the whole study from the translation API. This is
 			// best-effort: any failure here is swallowed and the passage simply
 			// lazy-fills on first load (it starts with cachedText = null).
+			let cacheFilled = false;
 			try {
 				await fetchPassagesTextWithCache(passageValues, translation.toString(), {
 					onFetched: async (passageRow, result) => {
@@ -252,10 +270,22 @@ export const actions = {
 							.update(passage)
 							.set({ cachedText: result.text, textCachedAt: new Date() })
 							.where(eq(passage.id, passageRow.id));
+						cacheFilled = true;
 					}
 				});
 			} catch (cacheError) {
 				console.error('Failed to warm passage text cache for new study:', cacheError);
+			}
+
+			// Enforce the local-storage cap after the fill (COMPLIANCE.md §5 item 1).
+			//
+			// Creating a study is the other way text enters the cache, so it needs the same enforcement as
+			// the study loader. Wiring only the loader would have left a route by which a user could push
+			// storage over the cap and keep it there — the §1.9 lesson that a check belongs at every
+			// chokepoint, not at the one that came to mind first. Not awaited: the redirect below does not
+			// depend on it.
+			if (cacheFilled) {
+				void enforceCacheLimit(session.user.id);
 			}
 
 			// §5 route 1: convert the just-created study into a series.
@@ -280,7 +310,7 @@ export const actions = {
 					const response = await fetch('/api/series', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ studyId, chaptersPerPart })
+						body: JSON.stringify({ studyId, chaptersPerPart, chaptersPerPassage })
 					});
 					if (!response.ok) {
 						const detail = await response.json().catch(() => ({}));

@@ -22,7 +22,8 @@
 	import { formatPassageReference } from "$lib/utils/passageFormatting.js";
 	import { getFlattenedItemsList } from "$lib/utils/groupFlattening.js";
 	import { toolbarState, setActiveSegment, setActiveConnection, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
-	import { goto, invalidate } from '$app/navigation';
+	import AddToSeriesModal from "./modals/AddToSeriesModal.svelte";
+	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { flip } from 'svelte/animate';
 
@@ -34,7 +35,43 @@
 
 	// Initialize composables
 	const multiSelect = useMultiSelect();
-	const dragDrop = useDragAndDrop(() => invalidate('app:studies'));
+	const dragDrop = useDragAndDrop(
+		() => invalidate('app:studies'),
+		// Dropping a standalone study on a series row PROPOSES an add (SERIES_PLAN Q17, phase 3).
+		// It opens the same dialog the "Add to Series..." menu item opens, because §4's invariant
+		// table only warns for a gap, an overlap or a different book — and a warning nobody reads is
+		// a warning that was not given. The dialog dry-runs through the planner that performs the add.
+		(study, seriesId) => {
+			pendingSeriesDrop = { study, seriesId };
+		}
+	);
+
+	/**
+	 * The drop awaiting confirmation: `{ study, seriesId }`, or null.
+	 *
+	 * Held here rather than inside the composable so the composable stays about pointer mechanics and
+	 * this file owns the dialog, matching how every other Finder modal is driven.
+	 */
+	let pendingSeriesDrop = $state(null);
+
+	/**
+	 * Every series the user has, top-level and filed inside groups.
+	 *
+	 * The dialog needs the target's name and part count, and a series filed in a group is not in
+	 * `ungroupedSeries` — dropping on one and then being told "Selected series" with no part count
+	 * would make the preview weaker for the nested case than the loose one, for no reason.
+	 */
+	let allSeries = $derived.by(() => {
+		const collected = [...(ungroupedSeries ?? [])];
+		const walk = (groupList) => {
+			for (const group of groupList ?? []) {
+				if (group.series?.length) collected.push(...group.series);
+				walk(group.subgroups);
+			}
+		};
+		walk(groups);
+		return collected;
+	});
 	
 	// Initialize filter composable
 	const studiesFilter = useStudiesFilter(
@@ -552,6 +589,7 @@
 									isStudyActive={(studyId) => studyId === activeStudyId}
 									isStudyBeingDragged={dragDrop.isStudyBeingDragged}
 									isDragging={dragDrop.isDragging}
+									dropTargetSeriesId={dragDrop.dropTargetSeriesId}
 									{formatPassageReference}
 									isGroupSelected={(groupId) => multiSelect.isItemSelected('group', groupId)}
 									getGroupSelectionPosition={(groupId) => multiSelect.getSelectionPosition('group', groupId)}
@@ -588,6 +626,7 @@
 									isStudyActive={(studyId) => studyId === activeStudyId}
 									isStudyBeingDragged={dragDrop.isStudyBeingDragged}
 									isDragging={dragDrop.isDragging}
+									dropTargetSeriesId={dragDrop.dropTargetSeriesId}
 									{formatPassageReference}
 									forceExpanded={searchQuery.trim() !== ''}
 								/>
@@ -631,6 +670,25 @@
 		></div>
 	{/if}
 </aside>
+
+<!-- Confirmation for the drag gesture (SERIES_PLAN Q17, phase 3). Mounted only while a drop is
+     pending so its `isOpen` effect re-dry-runs for each new drop rather than reusing stale warnings. -->
+{#if pendingSeriesDrop}
+	<AddToSeriesModal
+		isOpen={true}
+		study={pendingSeriesDrop.study}
+		series={allSeries}
+		fixedSeriesId={pendingSeriesDrop.seriesId}
+		onDone={async () => {
+			pendingSeriesDrop = null;
+			// The study left its group and joined a series, so its Finder row moves and the series' part
+			// count changes. `invalidateAll` is what the other series commands use for the same reason:
+			// the tree is refetched rather than patched.
+			await invalidateAll();
+		}}
+		onClose={() => (pendingSeriesDrop = null)}
+	/>
+{/if}
 
 <style>
 	.studies-panel {

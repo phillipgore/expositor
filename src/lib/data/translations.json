@@ -66,7 +66,14 @@
 			"caching": {
 				"allowed": true,
 				"maxVerses": 500,
-				"recommendation": "Periodically clear cache to ensure latest version"
+				"maxBookPortion": 0.5,
+				"shortBookChapterThreshold": 2,
+				"source": "provider",
+				"sourceUrl": "https://api.esv.org/",
+				"retrieved": "2026-08-07",
+				"quote": "You may not locally store more than 500 verses or one-half of any book of the Bible (whichever is less).",
+				"recommendation": "Periodically clear cache to ensure latest version",
+				"description": "PUBLISHED ESV API TERM governing LOCAL STORAGE. ⚠️ `maxBookPortion` and `shortBookChapterThreshold` were ADDED 2026-08-10: this block previously held `maxVerses: 500` alone, which transcribed half of its own clause and dropped the other half. The quote above has exactly the shape of the display clause — '500 verses or one-half of any book (whichever is less)' — so storing 400 verses of Galatians (149 total) would have passed a 500-verse-only check while plainly breaching the half-book term. That is the same defect COMPLIANCE.md §1.7 records as 'whichever is less is ONE limit', now found in a third place; `resolveWhicheverIsLess()` exists so the resolution is shared rather than re-derived per call site. The short-book carve-out is inherited from the same sentence pattern the display clause uses, and it matters: the six ≤2-chapter books may be stored whole. Enforced by `planCacheEviction()` (pure) and `enforceCacheLimit()` (writes), triggered after every cache fill."
 			},
 			"display": {
 				"appliesTo": "study",

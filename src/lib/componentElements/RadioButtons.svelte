@@ -59,7 +59,8 @@
 	 * @property {string} id - Unique button identifier
 	 * @property {string} value - Radio button value
 	 * @property {string} text - Label text
-	 * @property {boolean} isChecked - Initial checked state
+	 * @property {boolean} [isChecked] - Initial checked state. Omit in controlled mode, where
+	 *   the group's `value` binding is the source of truth.
 	 * @property {boolean} [isDisabled] - Individual button disabled state
 	 * @property {string} [title] - Tooltip text for the radio button
 	 */
@@ -71,20 +72,58 @@
 	 * @property {boolean} [isInline=false] - Display buttons horizontally instead of vertically
 	 * @property {boolean} [isDisabled=false] - Disable all radio buttons in the group
 	 * @property {(event: Event) => void} [handleChange] - Change event handler
+	 * @property {string} [value] - Bindable selection. Supplying it puts the group in
+	 *   controlled mode, where the caller owns the choice; omitting it keeps the original
+	 *   uncontrolled behaviour, deriving the selection from `isChecked`.
 	 */
 
 	/** @type {RadioButtonsProps} */
-	let { RadioButtonProperties, name, isInline = false, isDisabled = false, handleChange } = $props();
+	let {
+		RadioButtonProperties,
+		name,
+		isInline = false,
+		isDisabled = false,
+		handleChange,
+		value = $bindable(undefined)
+	} = $props();
 
-	let checkedValue = $state();
+	/**
+	 * Controlled when the caller passed `value`, uncontrolled otherwise.
+	 *
+	 * The distinction matters because the uncontrolled path below re-derives the selection
+	 * from `RadioButtonProperties` in an `$effect`. For a caller whose choice IS a piece of
+	 * its own state — the New Study page's `createAsSeries` boolean — that effect fights the
+	 * binding, resetting the selection every time the props array is rebuilt. That is why
+	 * `StudyForm` previously hand-rolled its radio pair instead of using this component.
+	 *
+	 * `$props.id()` is not used here: the flag must not change across re-renders, and
+	 * whether `value` was supplied is fixed at the call site.
+	 */
+	const isControlled = value !== undefined;
+
+	let internalValue = $state();
 	let radioRefs = $state([]);
 
-	// Find and set initially checked value
+	// Find and set initially checked value. Uncontrolled mode only — under a binding the
+	// caller's value is the source of truth, and re-deriving would overwrite it.
 	$effect(() => {
-		checkedValue = RadioButtonProperties.find(
+		if (isControlled) return;
+		internalValue = RadioButtonProperties.find(
 			(buttonProperty) => buttonProperty.isChecked === true
 		)?.value;
 	});
+
+	/** The selection, read from whichever source owns it. */
+	let checkedValue = $derived(isControlled ? value : internalValue);
+
+	/**
+	 * Write the selection back to whichever source owns it.
+	 * @param {string} next
+	 */
+	function setCheckedValue(next) {
+		if (isControlled) value = next;
+		else internalValue = next;
+	}
 
 	/**
 	 * Handle keyboard navigation for radio button groups
@@ -146,7 +185,7 @@
 
 		// Update checked value and focus
 		if (targetIndex !== -1) {
-			checkedValue = RadioButtonProperties[targetIndex].value;
+			setCheckedValue(RadioButtonProperties[targetIndex].value);
 			radioRefs[targetIndex]?.focus();
 			// Trigger change handler if provided
 			if (handleChange) {
@@ -191,8 +230,13 @@
 				value={buttonProperty.value}
 				disabled={isDisabled || buttonProperty.isDisabled}
 				tabindex={getTabIndex(index)}
-				bind:group={checkedValue}
-				onchange={handleChange}
+				checked={checkedValue === buttonProperty.value}
+				onchange={(event) => {
+					// Explicit checked/onchange rather than `bind:group`: the selection may now live
+					// in the caller's state, and `bind:group` can only write to a local variable.
+					setCheckedValue(buttonProperty.value);
+					handleChange?.(event);
+				}}
 				onkeydown={(e) => handleKeydown(e, index)}
 				title={buttonProperty.title || ''}
 			/>

@@ -217,18 +217,21 @@ export function getRateLimits(translationId) {
 /**
  * Local-storage limits for a translation (`restrictions.caching`).
  *
- * ⚠️ **This reads a value COMPLIANCE.md §5 item 1 records as "read by nothing".** It still does not
- * *enforce* the cap — `passage.cachedText` remains unbounded, which §5 calls "the one genuine
- * violation" — but it is now consulted where the app would otherwise store text **speculatively**, for
- * a page the user has not asked for. See `seriesPrefetch.js`.
+ * ⚠️ **History matters here.** COMPLIANCE.md §5 item 1 recorded this value as "read by nothing", then
+ * as read-but-not-enforced once `seriesPrefetch.js` began consulting it to decline *speculative*
+ * storage. It is now **enforced**: `planCacheEviction()` decides what must go and `enforceCacheLimit()`
+ * clears it. See COMPLIANCE.md §5 item 1.
  *
- * The distinction that justifies wiring it there and not everywhere: caching text a user is reading is
- * ordinary service operation with a defensible rationale; caching text they may never open is storage
- * with no user-facing purpose at all, so a licence that forbids unbounded local storage forbids that
- * case first and most clearly.
+ * The prefetch distinction still stands and is not superseded — declining to store text the user may
+ * never open is better than storing it and evicting it later, because the second spends a provider
+ * request to achieve nothing.
+ *
+ * ⚠️ `maxBookPortion` and `shortBookChapterThreshold` are read here because the storage clause has the
+ * same "whichever is less" shape as the display clause. Reading only `maxVerses` would have let 400
+ * verses of Galatians (149 total) sit in the cache as "compliant".
  *
  * @param {string} translationId
- * @returns {{ maxVerses: number|null, allowed: boolean }}
+ * @returns {{ maxVerses: number|null, maxBookPortion: number|null, shortBookChapterThreshold: number|null, allowed: boolean }}
  */
 export function getCachingLimits(translationId) {
 	// `getRestrictions()` is the existing accessor every sibling here uses; I reached for a
@@ -238,6 +241,11 @@ export function getCachingLimits(translationId) {
 
 	return {
 		maxVerses: typeof caching.maxVerses === 'number' ? caching.maxVerses : null,
+		maxBookPortion: typeof caching.maxBookPortion === 'number' ? caching.maxBookPortion : null,
+		shortBookChapterThreshold:
+			typeof caching.shortBookChapterThreshold === 'number'
+				? caching.shortBookChapterThreshold
+				: null,
 		// `allowed: false` would mean "do not persist at all". No translation says that today; the field
 		// is read rather than assumed so a licence change is a data edit, not a code change.
 		allowed: caching.allowed !== false
@@ -574,6 +582,72 @@ function describePortion(portion) {
 	if (portion === 0.75) return 'three quarters';
 	if (portion === 1 / 3) return 'a third';
 	return `${Math.round(portion * 100)}%`;
+}
+
+/**
+ * Resolve a licence clause of the form "N verses or one-half of any book, whichever is less" into the
+ * ONE number that actually binds for a given book.
+ *
+ * ## Why this is shared rather than written per clause
+ *
+ * The ESV terms use this exact sentence shape three times — for display, for distribution, and for
+ * local storage. COMPLIANCE.md §1.7 records what happens when it is transcribed instead of understood:
+ * two independent checks both fire, and a single-book study over the line is told "at most 500" and
+ * "at most 50%" when only half of John (439) binds. That was fixed once inside
+ * `validateStudyDisplayLimits()`; the storage clause added in 2026-08-10 would have been a fourth
+ * chance to make it again, so the resolution moved here.
+ *
+ * `boundByPortion` is returned rather than recomputed by callers, because the message has to name the
+ * input that won — "half of Galatians" and "500 verses" are different explanations, and picking the
+ * wrong one produces a warning the user cannot verify against the licence.
+ *
+ * @param {Object} params
+ * @param {number} params.bookTotal - Total verses in the book
+ * @param {number} params.chapterCount - Chapters in the book, for the short-book carve-out
+ * @param {number|null} params.maxVerses - The absolute ceiling from the clause, or null
+ * @param {number|null} params.maxBookPortion - The fraction-of-book ceiling, or null
+ * @param {number|null} params.shortBookChapterThreshold - Books at or under this many chapters are exempt
+ *   from the portion limit, per the licence's own parenthesis. Null disables the carve-out.
+ * @returns {{ limit: number|null, allowed: number|null, boundByPortion: boolean, isShortBook: boolean }}
+ */
+export function resolveWhicheverIsLess({
+	bookTotal,
+	chapterCount,
+	maxVerses,
+	maxBookPortion,
+	shortBookChapterThreshold
+}) {
+	// The carve-out is a CHAPTER-count test, which is how the clause is written: Philemon's 25 verses
+	// are irrelevant, its single chapter is the reason. Applied before anything else, because for these
+	// six books the portion limit does not exist at all.
+	const isShortBook =
+		shortBookChapterThreshold !== null &&
+		chapterCount > 0 &&
+		chapterCount <= shortBookChapterThreshold;
+
+	const portionCap =
+		isShortBook || maxBookPortion === null || bookTotal <= 0 ? null : bookTotal * maxBookPortion;
+
+	let limit = null;
+	let boundByPortion = false;
+	if (portionCap !== null && maxVerses !== null) {
+		boundByPortion = portionCap <= maxVerses;
+		limit = Math.min(portionCap, maxVerses);
+	} else if (portionCap !== null) {
+		boundByPortion = true;
+		limit = portionCap;
+	} else if (maxVerses !== null) {
+		limit = maxVerses;
+	}
+
+	return {
+		limit,
+		// Floored: half of Galatians is 74.5, and a licence ceiling has to be a whole verse count. 74 is
+		// the compliant reading — 75 would be over half.
+		allowed: limit === null ? null : Math.floor(limit),
+		boundByPortion,
+		isShortBook
+	};
 }
 
 /**

@@ -30,6 +30,7 @@
 	 * @component
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 
 	let { isOpen = false, part = null, seriesId = null, onDone, onClose } = $props();
 
@@ -187,14 +188,16 @@
 		{/if}
 
 		{#if brokenCount > 0}
-			<label class="confirm">
-				<input type="checkbox" bind:checked={acknowledgedConnectionLoss} />
-				<span>
-					Delete {brokenCount}
-					{brokenCount === 1 ? 'connection' : 'connections'} that cannot survive the merge. This cannot
-					be undone.
-				</span>
-			</label>
+			<Checkbox
+				id="join-parts-confirm"
+				bind:checked={acknowledgedConnectionLoss}
+				alignTop
+				spacingBottom="0.8rem"
+			>
+				Delete {brokenCount}
+				{brokenCount === 1 ? 'connection' : 'connections'} that cannot survive the merge. This cannot
+				be undone.
+			</Checkbox>
 		{/if}
 	{/if}
 
@@ -286,14 +289,9 @@
 		color: var(--gray-300);
 	}
 
-	.confirm {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.6rem;
-		font-size: 1.3rem;
-		color: var(--black);
-		margin-bottom: 0.8rem;
-	}
+	/* Layout AND spacing are the Checkbox element's; the spacing this modal wants is passed
+	   in as `spacingBottom` rather than reached in through `:global`, which was never scoped
+	   to this component and so fought two other copies of the same rule. */
 
 	.error {
 		margin: 0;

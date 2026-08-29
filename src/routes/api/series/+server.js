@@ -62,7 +62,11 @@ export const POST = async ({ request }) => {
 			// "Balance by length" (§5 option (b), Q11). Opt-in, so the default remains fixed
 			// chapters-per-part; the planner ignores these unless `balanceByLength` is true.
 			balanceByLength = false,
-			targetParts = 0
+			targetParts = 0,
+			// Per-passage divisions (§5, trap 15). Positional against the study's passages in
+			// `displayOrder`, which is the order they are selected in below — so the array the
+			// New Study preview built lines up with the rows this endpoint plans from.
+			chaptersPerPassage = []
 		} = body ?? {};
 
 		if (!studyId || typeof studyId !== 'string') {
@@ -119,7 +123,10 @@ export const POST = async ({ request }) => {
 			// the same function and the same options, which is what makes §5's "the preview a user
 			// approves is the parting they get" true rather than merely intended.
 			balanceByLength,
-			targetParts
+			targetParts,
+			chaptersPerPassage: Array.isArray(chaptersPerPassage)
+				? chaptersPerPassage.map((n) => Number(n) || 0)
+				: []
 		});
 
 		if (plan.strategy === 'ineligible') {

@@ -250,6 +250,11 @@
         "d": "M0 12h12V0h8v12h12v8H20v12h-8V20H0z"
     },
     {
+        "_id": "minus",
+        "viewBox": "0 0 32 32", 
+        "d": "M0 12h32v8H0z"
+    },
+    {
         "_id": "plus-circle",
         "viewBox": "0 0 32 32", 
         "d": "M16 0a16 16 0 1 1 0 32 16 16 0 0 1 0-32m2 6h-4v8H6v4h8v8h4v-8h8v-4h-8z"

@@ -526,9 +526,12 @@ keep a stored `runId` correct. Instead fold the adjacency predicate over the par
 order, on demand. One helper, three callers: reorder legality, the part-delete warning, and
 boundary-move eligibility.
 
-⚠️ **Q40 now gates reordering too.** For overlapping parts — Rom 1–3 and Rom 3–5 — "are these in
-the same run?" has no answer, because overlap is neither contiguity nor a gap. The same undecided
-question now blocks two features rather than one.
+⚠️ **Q40 gates reordering too, and is settled.** For overlapping parts — Rom 1–3 and Rom 3–5 — "are
+these in the same run?" has no answer from adjacency alone, because overlap is neither contiguity nor a
+gap. Q40 resolves it the same way for both features: an overlapping seam is **ineligible**, so it ends
+a run rather than continuing one. This note used to end "the same undecided question now blocks two
+features rather than one" — it blocks neither; `classifyBoundary()` returns `'overlap'` as its own
+excluded state and both callers read it.
 
 ### Deletion
 
@@ -691,8 +694,23 @@ strategies:
 | Study shape                                          | Strategy offered                  | Why                                                 |
 | ---------------------------------------------------- | --------------------------------- | --------------------------------------------------- |
 | One contiguous range, 2+ chapters (Romans 1–16)      | **Chapters per part** (stepper)   | Chapter arithmetic is well-defined                  |
-| Multiple passages (Prison Epistles; Rom 1–3 + Rom 8) | **One part per passage**          | Seams already drawn by the user; nothing to compute |
-| Multiple passages, finer parts wanted                | Part-per-passage, then Split Part | Phase 2                                             |
+| Multiple passages (Prison Epistles; Rom 1–3 + Rom 8) | **One part per passage** (default)| Seams already drawn by the user; nothing to compute |
+| Multiple passages, finer parts wanted                | **Chapters per part, per passage** | One stepper per passage at creation; Split Part after |
+
+**Update — per-passage division landed.** The third row previously read "part-per-passage, then Split
+Part (phase 2)", and that route was real but unusable at the scale it was needed: a Revelation +
+Matthew study is two parts of 404 and 1071 verses, and reaching one chapter per part meant invoking
+Split Part 48 times, none of it visible before committing. Rule 3 asks for the preview to carry the
+decision, so the New Study form now shows **one stepper per passage** that spans 2+ chapters, each
+defaulting to "whole" — the old shape — so nothing is imposed and the default is unchanged.
+
+⚠️ **This did NOT generalise the scalar `book`**, and the distinction is the whole of trap 15.
+`planByChapters()` is called once per passage with a single contiguous single-book range, which is
+the input it already accepted; parts are then renumbered across the series. No division spans two
+passages, so the unanswerable cross-gap question ("is part 4 Romans 8, or Romans 4 which is not in
+this study?") never arises. The algorithm was invoked N times, not widened once. Pinned by
+`scripts/verify-per-passage-parting.mjs` (33 assertions), which also fails if the renumbering is
+removed — two parts numbered 1 is the failure mode, and `seriesOrder` is what the Finder orders by.
 
 ⚠️ **Why the stepper is single-book — a code fact, not an oversight.**
 `splitRangeIntoPassages(range, translationId)` destructures a **scalar `book`** and iterates
@@ -972,14 +990,15 @@ today.
 from different books, or from non-adjacent parts of a book, are never joined. The predicate is
 not "is this part _n−1_" but "does part _n−1_ end at the word immediately preceding part _n_'s
 first word" — a pure function of `startingWordId` ordering, which the schema already provides
-canonically. Overlap is a third case, not covered by either — see Q40.
+canonically. Overlap is a third case, covered by neither, and is **also ineligible** — see Q40, which
+is settled.
 
 | Boundary                                       | Cross-part ops             |
 | ---------------------------------------------- | -------------------------- |
 | Part 3 ends Rom 3:31, part 4 begins Rom 4:1    | ✅ Contiguous              |
 | Part 3 ends Rom 3:31, part 4 begins Rom 5:1    | ❌ Gap — chapter 4 omitted |
 | Part 3 ends Eph 6:24, part 4 begins Phil 1:1   | ❌ Different books         |
-| Part 3 is Rom 1–3, part 4 is Rom 3–5 (overlap) | ❓ Undecided — see Q40     |
+| Part 3 is Rom 1–3, part 4 is Rom 3–5 (overlap) | ❌ Overlap — see Q40       |
 
 **A dead boundary must be disabled with a stated reason,** not silently inert. "Parts 3 and 4
 aren't adjacent in Scripture" is a satisfying explanation; a greyed-out button with no tooltip is
@@ -1473,8 +1492,11 @@ carry different reasons.
   the delete needs an explicit acknowledgement). Superseded in phase 3 by edge stubs
 - ✅ **"Balance by length" — done** (Q11)
 - ✅ **Adjacent-part prefetch — done**, completing phase 2
-- _Q40 and Q23 are no longer blocking — both were ratified from what was already live and phased;
-  see the phase-2 note at the top of this document. Q35 (undo) remains open._
+- _Q40 and Q23 are **closed**, not merely unblocked — both were ratified from what was already live
+  and phased; see the phase-2 note at the top of this document. Q23's last loose end,
+  `countTouchingConnections()` under-reporting cross-part links, was fixed on 2026-08-10. **Q35 (undo)
+  is the only question left open, and it is settled as a deliberate no** — see §11's answer and the
+  standing-limitations block._
 
 **Phase 3 — polish**
 
@@ -1484,18 +1506,47 @@ carry different reasons.
   endpoints, because nothing is destroyed any more
 - ✅ **Add a standalone study to a series — done** (Q17). §4's invariant table is honoured exactly,
   including its unevenness: a translation mismatch refuses; a gap, an overlap or a different book
-  only warn. The endpoint exists; the drag GESTURE is not wired
+  only warn. ✅ **The drag GESTURE is now wired**: dropping a standalone study on a series row opens
+  the same confirmation the menu item opens, with the dropped series preselected. The drop proposes,
+  it does not commit — a gap or a different book only warns, and a warning that is applied without
+  being read is not a warning. The drop target is withheld for a multi-selection, a group drag or a
+  study already in a series, since all three would refuse on release
 - ✅ **Reorder runs — done** (not parts — §4's run rule). `describeRuns()` reports `reorderable:
 false` for a contiguous series, so the UI has what it needs to withhold a handle that could never
-  do anything. The endpoint exists; the drag HANDLE is not wired
-- ✅ **Whole-series export compliance check — done** (Q32). Aggregates the series' full passage set
-  through `validateExportLimits()` and **blocks**, where per-part export only warns. The export
-  ROUTE is not wired — this is the check such a route must run
+  do anything. ✅ **The drag HANDLE is now wired**, in `ReorderRunsModal` — where a row IS a run, so
+  no available gesture can claim Romans 8 sits between chapters 3 and 4. It **adds to** the up/down
+  buttons rather than replacing them (WCAG 2.1.1 stays satisfied by the buttons), and it reuses the
+  same `move()` step-recorder, so a drag and a pair of button presses replay identically against the
+  endpoint. The Finder's part rows still have no handle, for the reason above
+- ✅ **Whole-series export compliance check — done AND wired** (Q32). Aggregates the series' full
+  passage set through `validateExportLimits()` and **blocks**, where per-part export only warns.
+  ⚠️ This line read "The export ROUTE is not wired — this is the check such a route must run", and
+  that was **false when written**: `MenuExport.svelte` derives `seriesExportCheck` and `guardExport()`
+  gives it precedence over the per-part result, honouring `blocked`. The layout supplies
+  `seriesContext.parts` as `partsWithPassages` precisely so the aggregate can see every range. The
+  stale claim survived because nobody re-read the component — the same drift this document exists to
+  catch, recorded rather than quietly deleted
 
 ⚠️ **What "done" means here, precisely:** every phase-3 decision layer and endpoint is implemented,
-verified and mutation-tested. Three of the four still need a UI affordance — a drag gesture, a drag
-handle, and an export menu item. Those are wiring, not design, and each has a tested endpoint
-underneath it. Said plainly so nobody reads four ticks as "phase 3 is shipped to users".
+verified and mutation-tested, **and all four now have a UI affordance**. The drag gesture and the
+drag handle were wired last; `scripts/verify-series-drag.mjs` (20 checks) asserts the wires
+themselves, because the previous state of this list is exactly what no other gate could detect: an
+endpoint that is verified, mutation-tested and unreachable.
+
+⚠️ **This paragraph twice claimed "the export menu item is still not wired", and it was wrong both
+times.** The second time it was rewritten by someone who had just fixed two other wires and copied
+the third claim forward without opening `MenuExport.svelte` — where the check had been wired all
+along. Two lessons, and the second is the useful one: a status list is evidence about the document,
+not about the code; and **the moment to distrust an inherited claim is when you are editing the line
+next to it.** A `grep` for `checkSeriesExport` would have taken seconds.
+
+⚠️ **What the drag verifier does and does not prove.** It is a static scan of the component sources,
+not a rendered-DOM test: it proves the callback is called, the drop target is matched by the
+attribute the row really renders, `dragover` calls `preventDefault` (without which `ondrop` never
+fires, silently), and the keyboard buttons were not removed. It does **not** prove the gesture feels
+right, that the ghost tracks the cursor, or that Safari agrees — those still need a human with a
+mouse. It was mutation-tested: deleting the callback call and the `ondragover` binding turns three
+checks red.
 
 **Q34 — answered: yes, and the condition is met.** The recommendation was "yes, but only if the
 unavailable commands are visibly disabled with a reason"; both reason strings are now wired
@@ -1643,6 +1694,66 @@ the code states what it does, not why the obvious alternative fails.
    warnings go to disappear**, and the finer the parting the quieter it gets. This is
    `COMPLIANCE.md` §1.6 one level up: legal pieces assembling an illegal whole. See Q33 and §5's
    preview requirement.
+
+   ⚠️ **The obvious fix over-corrects, and did.** `assessPlan()` answered this by running the page
+   validator across the source passages and emitting every result as an "Across the whole series:"
+   notice. Under `passage-per-part` that duplicated the per-part checks outright — part _N_'s
+   passages **are** source passage _N_, so the identical string was emitted twice, once prefixed
+   per part and once prefixed per series. A Revelation + Matthew study produced **six** alerts of
+   which three were verbatim repeats and a fourth restated the third: a wall of yellow that gets
+   skimmed and dismissed, so the position the user is legally responsible for lands _less_ often
+   than if fewer had been shown. Compliance noise is not free; it is paid for in attention.
+
+   ⚠️ **RESOLVED 2026-08-28 — and the resolution is that the aggregate does not belong at
+   creation at all.** Two corrections were needed, in sequence, and the first was insufficient:
+
+   1. The notice reported a **display** violation ("the complete book of Matthew … on one
+      page"). A series is many pages — separate studies at separate URLs, each its own request.
+      Crossway scopes the clause "on any page", so the per-part checks already enforce it.
+   2. Re-scoping it to **export** made it true but still useless: it fired on every whole-book
+      ESV series, at every stepper setting, and could not be cleared by any control on the form.
+
+   It now emits **nothing**. `MenuExport.guardExport()` runs `checkSeriesExport()` at export and
+   **blocks** (Q32) — stronger than a notice, better informed (real loaded ranges), and already
+   worded to tell the user to export parts separately. The trap's concern is answered at the
+   boundary where the clause it protects actually applies.
+
+   What survives at creation is the per-part check, which catches the opposite failure: **too
+   few parts**. Galatians at 5 chapters per part puts 131 of 149 verses in part 1 — fetchable,
+   so Save is enabled, yet over the half-book display cap. That is fixable by the stepper next
+   to the message, which is the test for whether a creation-time warning earns its place.
+
+   `verify-per-passage-parting.mjs` and `verify-chapter-verse-bounds.mjs` assert both halves:
+   creation is silent for a whole-book series, **and** `checkSeriesExport()` still refuses it.
+   Asserting only the first would pass equally well if the aggregate had been deleted outright.
+
+   ⚠️ **The same defect recurred a third time, 2026-08-28, in the alert that replaced it.** The
+   fix above corrected the **count** the alert was gated on and left its **sentence** hardcoded:
+   `seriesWarnings.length > 0` rendered "Some parts show more of a book than ESV allows on one
+   page". But `assessPlan()` pushes _two_ kinds into that array — retrieval failures
+   (`reason: 'exceeds-request'`, from `checkSinglePassageSupport()`) and display violations (no
+   `reason`, from `validateStudyDisplayLimits()`). Matthew at 13 chapters per part puts 532
+   verses in part 2: over the 500-verse **request** cap, but only about half of Matthew, so
+   almost certainly _within_ the display allowance. The alert named the wrong clause on the wrong
+   axis, and did it in yellow while Save was disabled.
+
+   It also **duplicated** the red alert above the passage list, necessarily: both resolve from
+   the same `checkSinglePassageSupport()` call on the same parts, so they could never disagree
+   or appear apart. One fact, two alerts, reading as two problems.
+
+   Now partitioned on `reason` in `StudyForm.svelte` — red "too many verses … to load" for
+   retrieval, yellow "more of a book than … allows on one page" for display, `{:else if}` so
+   retrieval outranks display exactly as `assessPlan()` does per part. The upper alert is
+   suppressed under a series; the lower one survives because it sits beside the stepper that
+   fixes it and the part list that shows which part is at fault, and Save is below it either way.
+   Pinned by `verify-study-size-unit.mjs` with Matthew@13 and Galatians@5 as the discriminating
+   pair, plus an exhaustiveness check so a third warning kind cannot silently adopt one of the
+   two sentences.
+
+   **The lesson, stated generally:** a hardcoded sentence gated on a count is a claim about data
+   it never reads. Fixing _when_ such an alert fires does not fix _what it says_ — those are two
+   defects and this repository has now shipped both, twice, in the same alert. When an array
+   carries tagged variants, branch on the tag or do not render prose about it.
 
 9. **Five existing commands are scoped to the passage, and that is not obvious from their
    names.** Join Column, Join Section, Join Segment, Move Text Up and Move Text Down all read
@@ -1813,11 +1924,24 @@ Highest-stakes first — the first two are hard to reverse once code exists, bec
 migration shape. Q23, Q40, Q41 and Q42 all follow from the five-command decision in §8; none of
 them existed in this form before it.
 
-1. **Q23** — cross-part connections: block / delete / preserve. Biggest technical risk. No longer
-   "which strategy is nicest": with five commands crossing the boundary, `segmentConnection`'s
-   `studyId` becomes actively wrong and `countTouchingConnections()` silently under-reports. It
-   decides whether phase 1's migration adds `segmentConnection.seriesId`, and that migration is
-   no longer speculative.
+⚠️ **All four are now answered, and this list was the last place still saying otherwise.** As of
+2026-08-10 the only genuinely open question in this section is **Q35 (undo)**, which is settled as a
+deliberate *no* rather than pending. Entries below are kept with their original wording quoted, because
+what each one got wrong is more useful than a clean list — three of them described as "blocking" or
+"undecided" work that was already live, verified and mutation-tested.
+
+1. ⚠️ **Q23 is answered and no longer open** — strategy **(c) preserve**, as edge stubs. This read
+   "Biggest technical risk … it decides whether phase 1's migration adds `segmentConnection.seriesId`",
+   and every part of it is now discharged: `0046` added the column, `preserveCrossPartConnections()`
+   stamps surviving rows, the layout widens its query to the series, each part draws an inert labelled
+   stub, and the 409 "this will break N connections" gates are gone because nothing is destroyed.
+
+   The last loose thread named here — "`countTouchingConnections()` silently under-reports" — was
+   **fixed on 2026-08-10**, and it outlived the rest of the answer by a full phase. Its deferral was
+   conditional ("belongs to the phase shipping boundary moves"); that phase shipped, and nobody re-read
+   the sentence. Same shape as COMPLIANCE.md §1.9's `maxVerses: 1000`: **a justification that depends
+   on a condition must name the condition, so whoever removes it knows what they invalidated.** Proven
+   by `npm run probe:conn-count` against a real database, mutation-tested.
 2. ⚠️ **Q42 is answered and no longer open** — this read "**Blocks the phase-1 migration**, and
    pairs with Q23 — adding `seriesId` beside a `.notNull()` `studyId` fixes nothing, so these two
    must be decided together." Migration `0046` has shipped: `studyId` stays `.notNull()`, `seriesId`
@@ -1826,15 +1950,29 @@ them existed in this form before it.
    Kept in place rather than deleted because "blocks the migration" is what made it #2, and the
    migration shipping is precisely what a future reader needs to see.
 
-3. **Q40** — what the five commands do at an **overlapping** part boundary. Newly opened by the
-   adjacency decision (§8). Contiguity and gaps are settled; overlap is a third case with no
-   answer, and Q7 says overlap is _normal_. Now blocks **two** features, not one: boundary-move
-   eligibility and the run rule that governs reordering (§4).
-4. **Q4** — `study_series` table vs. `study.seriesParentId`. ⚠️ Listed here as open, but treated as
-   decided everywhere else: §4's heading is "Recommendation: a `study_series` table", both
-   alternatives have explicit "**Rejected —**" subsections, and §11 phase 1 commits to the table.
-   Either promote it to §14 as decided, or state what evidence would reopen it — leaving it at #4
-   overstates what is actually undecided.
+3. ⚠️ **Q40 is answered and no longer open** — overlapping boundaries are **ineligible**, resolved in
+   full at §8 above. This entry read "a third case with no answer" and "blocks **two** features", both
+   of which were already false: `classifyBoundary()` has returned `'overlap'` as its own excluded state
+   since phase 2, `computeRuns()` ends a run there, and the disabled command names the real reason
+   ("These parts overlap, so this boundary has no defined position") rather than claiming the parts are
+   not adjacent. Pinned by `verify-sequence-scope.mjs` ("overlap is its own third state") and
+   `verify-series-restructure.mjs` ("overlapping parts cannot be joined").
+
+   Kept rather than deleted because the *contradiction* is the lesson: this list said "undecided" while
+   §8 said "SETTLED" and the code agreed with §8. **A question is closed when the code and its
+   verifier agree — not when every list has been updated.** Q7 is untouched: overlap remains a
+   legitimate way to divide a series; it just does not support structural editing across the seam.
+4. ⚠️ **Q4 is answered and no longer open** — `study_series` table, shipped in `0046`. This entry
+   used to say it was "listed here as open, but treated as decided everywhere else", and offered a
+   choice: promote it, or state what would reopen it. **Promoted.** §4's heading is "Recommendation:
+   a `study_series` table", both alternatives carry explicit "**Rejected —**" subsections, phase 1
+   committed to it, and the table has existed in the database for three phases. It is in the closed
+   list below.
+
+   **What would reopen it:** nothing short of needing a series to nest inside another series, which
+   §6/Q14 rules out. A flat ordered sequence with invariants is what the table encodes; if series ever
+   became arbitrarily nestable, `seriesParentId` would be worth re-reading — and that is a different
+   feature, not a revision of this one.
 5. ⚠️ **Q34 is answered and no longer open** — option (1) shipped: the five commands are visibly
    disabled with **both** reason strings, resolved server-side per edge (§11). This entry also
    recorded a leftover **scoped gap** (the reason showing only on single-passage parts, so a
@@ -1854,7 +1992,10 @@ Closed: **Q1** (the reframing), **Q2/Q3** (terminology and the Split/Join collis
 (explicit `seriesOrder`, canonically seeded, never re-derived), **Q6** (series delete cascades),
 **Q9** (the user picks chapters-per-part, default 1), **Q24** (boundary-move granularity — settled
 by the existing command set, not a design choice), **Q29** (`books`, on the `folder`/`folders`
-precedent), **Q31** (no `series-part` icon — numbering is text), **Q33** (aggregate reported at
+precedent), **Q4** (`study_series` table, shipped in `0046`; `study.seriesParentId` rejected — see the
+reopening condition at #4 above), **Q23** (preserve as edge stubs — strategy (c); the
+`countTouchingConnections()` under-report closed 2026-08-10), **Q40** (overlapping boundaries
+ineligible; `'overlap'` is its own excluded state, so the refusal names it), **Q31** (no `series-part` icon — numbering is text), **Q33** (aggregate reported at
 creation, informationally; binding at export), **Q42** (`studyId` stays `.notNull()`; `seriesId`
 nullable and additive; no `CHECK` — cross-part rows arrive from boundary moves, not authoring),
 **Q18** (the title resumes the last-viewed part via `studySeries.lastPartId`, `set null`, falling
@@ -1891,7 +2032,7 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | Safari choppiness                                         | Out of scope, tracked in §11.1                                                       | A rendering issue; must not shape the data model                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Limit message attribution                                 | `source`-aware                                                                       | `validatePassageLimits` once blamed the provider for our own cap. Any new limit copy must check `source` first                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Which commands work across a part boundary                | **Join Column, Join Section, Join Segment, Move Text Up, Move Text Down — all five** | They are shipped commands with menu items and toolbar buttons, so a user reaches for them at a boundary immediately. Granularity was never ours to choose; Q24's recommendation to skip raw word moves was withdrawn because Move Text _is_ that move                                                                                                                                                                                                                                                                                                       |
-| Which boundaries are eligible                             | **Canonically contiguous only**                                                      | Different books, or a gap between parts, are never joined. The predicate is "does part _n−1_ end at the word before part _n_ begins", a pure function of canonical `startingWordId` order — not "is this part _n−1_". Overlap is undecided (Q40)                                                                                                                                                                                                                                                                                                            |
+| Which boundaries are eligible                             | **Canonically contiguous only**                                                      | Different books, or a gap between parts, are never joined. The predicate is "does part _n−1_ end at the word before part _n_ begins", a pure function of canonical `startingWordId` order — not "is this part _n−1_". Overlap is a third excluded state rather than a gap, so the refusal names it (Q40, settled)                                                                                                                                                                                                                                                                                                            |
 | Cross-passage vs cross-part first                         | **Straight to cross-part**                                                           | The cheaper stepping stone was cross-passage-within-one-study, which is broken today and needs the same generalisation. Recorded consequence: it is fixed incidentally only if the helper takes an ordered passage sequence rather than a part pair                                                                                                                                                                                                                                                                                                         |
 | Export re-validation on boundary move                     | **Not needed — provably**                                                            | Boundary moves are verse-conservative: coverage is unchanged, verses only relocate between parts, and `validateExportLimits()`'s verse-identity `Set` is indifferent to which part holds a verse                                                                                                                                                                                                                                                                                                                                                            |
 | Display re-validation on boundary move                    | **Required, on both parts**                                                          | The receiver may cross `min(500, half the book)` — e.g. a part at Rom 1:1–8:25 (211 verses) tipped past 216 by a few Move Text Up gestures — and the donor's existing warning may now clear, which a stale on-screen warning would misreport. ⚠️ This cell read "Rom 1–8 sits at exactly 216": wrong, it is **225**, which already exceeds half of Romans (216.5). See §10.1                                                                                                                                                                                |
@@ -1911,7 +2052,7 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | Runs: stored or derived?                                  | **Derived, never stored**                                                            | Part delete, Split Part, Join Parts and boundary moves all change run membership — four chances for a stored `runId` to go stale. One helper folding the adjacency predicate over parts in canonical order; three callers                                                                                                                                                                                                                                                                                                                                   |
 | On series delete                                          | **Cascade — everything goes**                                                        | Reverses the earlier `set null` recommendation (Q6). Matches `0009_cascade_delete_studies.sql`, and dissolves the cross-part-connection problem via the FK. Cost: one action destroys every part's structure, notes and commentary, so the confirmation must state the part count and irreversibility                                                                                                                                                                                                                                                       |
 | Deleting a single part                                    | **Allowed, warned; the run splits in two**                                           | The part's verses leave the series entirely — handing them to a neighbour would be Join Parts under the wrong name. Three consequences the warning must name: that seam is permanently dead for all five structural commands, previously-rigid parts become reorderable, and the series is now non-contiguous (Q7). Deleting to one part dissolves the series into a standalone study                                                                                                                                                                       |
-| `segmentConnection.studyId`                               | **Stays `.notNull()`; `seriesId` added nullable (Q42, shipped in `0046`)**           | ⚠️ This read "**Must change; strategy open (Q42)**". Neither branch was taken: cross-part connections cannot be _authored_ (two parts are never on screen together), so they arrive only when a **boundary move** slides under a link drawn inside one part. A `CHECK` would therefore not block a bad gesture — it would decide the fate of already-valid user work mid-move. Under-reporting in `countTouchingConnections()` is real but belongs to the phase shipping boundary moves; the index still needs a `seriesId` sibling. See §4                 |
+| `segmentConnection.studyId`                               | **Stays `.notNull()`; `seriesId` added nullable (Q42, shipped in `0046`)**           | ⚠️ This read "**Must change; strategy open (Q42)**". Neither branch was taken: cross-part connections cannot be _authored_ (two parts are never on screen together), so they arrive only when a **boundary move** slides under a link drawn inside one part. A `CHECK` would therefore not block a bad gesture — it would decide the fate of already-valid user work mid-move. Under-reporting in `countTouchingConnections()` was real and is now **fixed** (2026-08-10): it filters on `studyId OR seriesId`, the same predicate the layout uses to draw edge stubs, so the Join confirm modal and the rendered page cannot disagree. The deferral said it "belongs to the phase shipping boundary moves" — that phase shipped, which expired the condition, and the fix waited only because nobody re-read the sentence. Proven by `npm run probe:conn-count` (6 checks, real database), mutation-tested by reverting the argument. See §4 |
 | Icon for a standalone study                               | **`book` — unchanged**                                                               | Reverses the earlier recommendation of `book-open`, which is **not in `icons.json`** and would have rendered as blank space via the documented missing-icon fallback. `StudyItem.svelte` already uses `book` at three call sites, so the old advice was churn dressed as reuse (trap 13)                                                                                                                                                                                                                                                                    |
 | Icon for a series                                         | **`books`**                                                                          | Not "several, in order" but the `folder` → `folders` precedent: the registry already expresses this distinction as a singular/plural pair, and `folders` already means "a group among groups" in `MenuActions.svelte`. The Finder then reads `book` = study, `books` = series, `folder` = container (Q29)                                                                                                                                                                                                                                                   |
 | Split/Join Part icon names                                | **`part-split` / `part-join`**                                                       | Was `study-split` / `study-join`, which contradicts §3's decided "Split Part" / "Join Parts". The registry is uniformly object-then-verb (`column-split`, `section-join`, `segment-split`), so the object is `part`                                                                                                                                                                                                                                                                                                                                         |

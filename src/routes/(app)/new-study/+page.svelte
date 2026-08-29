@@ -32,6 +32,9 @@
 		display: flex;
 		justify-content: center;
 		margin-top: 3.6rem;
+		/* Breathing room under the Cancel/Save bar so the buttons never sit
+		   flush against the bottom edge when the form is long enough to scroll. */
+		padding-bottom: 3.6rem;
 	}
 
 	form {

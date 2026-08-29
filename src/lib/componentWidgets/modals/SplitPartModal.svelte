@@ -32,6 +32,7 @@
 	 * @component
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 
 	let { isOpen = false, part = null, seriesId = null, onDone, onClose } = $props();
 
@@ -240,14 +241,16 @@
 		{#if brokenCount > 0}
 			<!-- Q23 strategy (b): warn with the count, then delete only on acknowledgement. Phase 3
 			     replaces this with edge stubs that keep the connections instead. -->
-			<label class="confirm">
-				<input type="checkbox" bind:checked={acknowledgedConnectionLoss} />
-				<span>
-					Delete {brokenCount}
-					{brokenCount === 1 ? 'connection' : 'connections'} crossing the new boundary. This cannot be
-					undone.
-				</span>
-			</label>
+			<Checkbox
+				id="split-part-confirm"
+				bind:checked={acknowledgedConnectionLoss}
+				alignTop
+				spacingBottom="0.8rem"
+			>
+				Delete {brokenCount}
+				{brokenCount === 1 ? 'connection' : 'connections'} crossing the new boundary. This cannot be
+				undone.
+			</Checkbox>
 		{/if}
 
 		{#if error}
@@ -331,14 +334,9 @@
 		color: var(--gray-300);
 	}
 
-	.confirm {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.6rem;
-		font-size: 1.3rem;
-		color: var(--black);
-		margin-bottom: 0.8rem;
-	}
+	/* Layout AND spacing are the Checkbox element's; the spacing this modal wants is passed
+	   in as `spacingBottom` rather than reached in through `:global`, which was never scoped
+	   to this component and so fought two other copies of the same rule. */
 
 	.error {
 		margin: 0;

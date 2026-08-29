@@ -114,10 +114,11 @@ check('with every one of its passages listed', multi?.passages.length, 3);
 
 console.log('\n── ⚠️ COMPLIANCE: never store text speculatively under a storage cap ──');
 
-// COMPLIANCE.md §5 item 1 calls unbounded `passage.cachedText` "the one genuine violation": ESV forbids
-// locally storing more than 500 verses and nothing caps or clears the column. A prefetch writes text for
-// a part the user has NOT opened, so those verses have no user-facing purpose — the least defensible
-// possible case under such a clause. It is therefore skipped for ESV entirely.
+// ESV forbids locally storing more than 500 verses or half a book. COMPLIANCE.md §5 item 1 called the
+// unbounded `passage.cachedText` "the one genuine violation"; that item is now closed by eviction at the
+// cap, and this guard still stands on its own footing: a prefetch writes text for a part the user has NOT
+// opened, so storing it and later evicting it spends a provider request to achieve nothing. Declining is
+// strictly better than correcting, so it is skipped for ESV entirely.
 //
 // NET declares no caching cap, so the identical series prefetches normally. Attributing the limit to the
 // licence that imposes it is the decisions log's "limit message attribution" rule.

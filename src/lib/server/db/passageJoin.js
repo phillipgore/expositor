@@ -34,14 +34,10 @@ import {
 	segmentConnection
 } from '$lib/server/db/schema.js';
 
-
-import { eq, inArray, asc } from 'drizzle-orm';
+import { eq, inArray, asc, or } from 'drizzle-orm';
 import { compareWordIds } from '$lib/server/db/utils.js';
 import { mergedNoteWillTruncate } from '$lib/constants/notes.js';
-import {
-	foldSegmentContent,
-	reanchorConnectionsOnto
-} from '$lib/server/db/passageFold.js';
+import { foldSegmentContent, reanchorConnectionsOnto } from '$lib/server/db/passageFold.js';
 
 /* ------------------------------------------------------------------ */
 /* Loading + context                                                   */
@@ -187,7 +183,10 @@ async function loadContext(dbx, userId, type, itemId) {
 	if (!passageId) throw new Error('Item not found');
 
 	const owner = await dbx
-		.select({ studyId: passage.studyId, userId: study.userId })
+		// `seriesId` travels with the study because a cross-part connection is stamped with it and
+		// carries ANOTHER part's `studyId` — see `countTouchingConnections()` for why filtering on
+		// `studyId` alone under-reports.
+		.select({ studyId: passage.studyId, userId: study.userId, seriesId: study.seriesId })
 		.from(passage)
 		.innerJoin(study, eq(passage.studyId, study.id))
 		.where(eq(passage.id, passageId))
@@ -197,19 +196,56 @@ async function loadContext(dbx, userId, type, itemId) {
 		throw new Error('Unauthorized');
 	}
 
-	return { studyId: owner[0].studyId, passageId };
+	return { studyId: owner[0].studyId, passageId, seriesId: owner[0].seriesId ?? null };
 }
 
 /* ------------------------------------------------------------------ */
 /* Connection-touch counting (for analyze summaries)                   */
 /* ------------------------------------------------------------------ */
 
-/** Count connections (in a study) that touch a given item. */
-async function countTouchingConnections(dbx, studyId, type, itemId) {
+/**
+ * Count connections that touch a given item.
+ *
+ * ## Why this widens to the series (SERIES_PLAN §14, Q23)
+ *
+ * ⚠️ This used to filter on `studyId` alone, and SERIES_PLAN recorded it as **silently
+ * under-reporting**: "`countTouchingConnections()` filters on it and so silently under-reports."
+ *
+ * The mechanism: `segment_connection.studyId` is `.notNull()` and names ONE study, but a boundary move
+ * can slide structure into a sibling part, leaving a connection whose endpoints live in two different
+ * parts. Phase 3 stopped deleting those and started stamping them with `seriesId` instead
+ * (`preserveCrossPartConnections()`), so the row survives while still carrying the *other* part's
+ * `studyId`. Counting by `studyId` therefore missed exactly the connections that a Join is most likely
+ * to disturb — and the failure was invisible, because a count of 0 looks identical to "no connections".
+ *
+ * Consequence in the UI: `analyzeJoin()` feeds this into `needsDecision`, so an under-count meant the
+ * confirm modal omitted "connections" from its summary and the user acknowledged a join that silently
+ * altered a cross-part link. The plan deferred the fix to "the phase shipping boundary moves"; that
+ * phase has shipped, so the deferral has expired.
+ *
+ * The predicate is deliberately the SAME shape the study layout already uses to draw edge stubs
+ * (`studyId = ? OR seriesId = ?`), so what the modal counts and what the page renders cannot disagree.
+ *
+ * ⚠️ Selecting by `seriesId` also returns rows belonging to other PAIRS of parts, which is why the
+ * endpoint-id filter below is what actually decides a touch. That filter is the narrowing step — the
+ * widened query only ensures the candidate rows are present to be filtered at all.
+ *
+ * @param {Object} dbx
+ * @param {string} studyId
+ * @param {'column'|'section'|'segment'} type
+ * @param {string} itemId
+ * @param {string|null} [seriesId] - When the study is part of a series, cross-part rows stamped with it
+ *   are considered too. Omitted/null keeps the original single-study behaviour for standalone studies.
+ */
+async function countTouchingConnections(dbx, studyId, type, itemId, seriesId = null) {
 	const conns = await dbx
 		.select()
 		.from(segmentConnection)
-		.where(eq(segmentConnection.studyId, studyId));
+		.where(
+			seriesId
+				? or(eq(segmentConnection.studyId, studyId), eq(segmentConnection.seriesId, seriesId))
+				: eq(segmentConnection.studyId, studyId)
+		);
 	return conns.filter((c) => {
 		if (type === 'segment') return c.fromSegmentId === itemId || c.toSegmentId === itemId;
 		if (type === 'section') return c.fromSectionId === itemId || c.toSectionId === itemId;
@@ -233,7 +269,7 @@ async function countTouchingConnections(dbx, studyId, type, itemId) {
  * @returns {Promise<{ needsDecision: boolean, summary: string, hasTarget: boolean, noteWillTruncate: boolean }>}
  */
 export async function analyzeJoin(dbx, userId, type, itemId) {
-	const { studyId, passageId } = await loadContext(dbx, userId, type, itemId);
+	const { studyId, passageId, seriesId } = await loadContext(dbx, userId, type, itemId);
 	const tree = await loadTree(dbx, passageId);
 
 	const parts = [];
@@ -276,13 +312,12 @@ export async function analyzeJoin(dbx, userId, type, itemId) {
 		throw new Error('Invalid join type');
 	}
 
-	const connCount = await countTouchingConnections(dbx, studyId, type, itemId);
+	const connCount = await countTouchingConnections(dbx, studyId, type, itemId, seriesId);
 	if (connCount > 0) {
 		// Surface that connections are affected, but not the raw count — the modal
 		// just needs to convey the kind of impact, not the exact tally.
 		parts.push(connCount === 1 ? 'connection' : 'connections');
 	}
-
 
 	return {
 		needsDecision: parts.length > 0,
@@ -368,7 +403,6 @@ async function reanchorAndPrune(tx, studyId, passageId) {
 export async function joinSegment(dbInstance, userId, segmentId, decision = 'merge') {
 	const { studyId, passageId } = await loadContext(dbInstance, userId, 'segment', segmentId);
 
-
 	await dbInstance.transaction(async (tx) => {
 		const tree = await loadTree(tx, passageId);
 		const flat = flattenSegments(tree);
@@ -423,7 +457,6 @@ export async function joinSegment(dbInstance, userId, segmentId, decision = 'mer
  */
 export async function joinSection(dbInstance, userId, sectionId, decision = 'merge') {
 	const { studyId, passageId } = await loadContext(dbInstance, userId, 'section', sectionId);
-
 
 	await dbInstance.transaction(async (tx) => {
 		const tree = await loadTree(tx, passageId);
@@ -488,7 +521,6 @@ export async function joinSection(dbInstance, userId, sectionId, decision = 'mer
  */
 export async function joinColumn(dbInstance, userId, columnId, decision = 'merge') {
 	const { studyId, passageId } = await loadContext(dbInstance, userId, 'column', columnId);
-
 
 	await dbInstance.transaction(async (tx) => {
 		const tree = await loadTree(tx, passageId);

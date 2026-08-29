@@ -54,18 +54,18 @@ export function selectPrefetchTarget({ parts, currentPartId, direction = 'next',
 
 	// ⚠️ **Never store text speculatively for a translation with a local-storage cap.**
 	//
-	// COMPLIANCE.md §5 item 1 calls unbounded `passage.cachedText` "the one genuine violation": the ESV
-	// terms forbid locally storing more than 500 verses, and nothing caps, ages out or clears the column.
-	// This prefetch would make that strictly worse in the least defensible way — it writes the text of a
-	// part the user has NOT opened, so the stored verses have no user-facing purpose at all.
+	// The ESV terms forbid locally storing more than 500 verses or half a book. COMPLIANCE.md §5 item 1
+	// called the unbounded `passage.cachedText` "the one genuine violation"; that item is now **closed**
+	// by eviction at the cap (`planCacheEviction()` / `enforceCacheLimit()`).
+	//
+	// ⚠️ This guard is NOT superseded by that fix, and the reason is worth keeping: prefetch writes the
+	// text of a part the user has NOT opened, so those verses have no user-facing purpose at all. Storing
+	// them and then evicting them spends a provider request to achieve nothing — declining is strictly
+	// better than correcting.
 	//
 	// Caching what someone is reading is service operation with a rationale; caching what they may never
-	// read is storage with none, so it is the first thing such a clause forbids. Skipped for ESV; NET
-	// declares no caching cap and is unaffected, which is the same read-the-source rule the decisions
-	// log's "limit message attribution" row demands.
-	//
-	// This does NOT fix §5 item 1 — the cap is still unenforced for text the user does open. It declines
-	// to enlarge the breach for a speculative gain.
+	// read is storage with none. Skipped for ESV; NET declares no caching cap and is unaffected, which is
+	// the same read-the-source rule the decisions log's "limit message attribution" row demands.
 	if (translationId && getCachingLimits(translationId).maxVerses !== null) return null;
 
 	// `seriesOrder` is the user's arrangement and §4 forbids re-deriving it, so it is sorted by, never

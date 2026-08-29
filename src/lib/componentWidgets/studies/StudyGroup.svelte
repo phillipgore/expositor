@@ -41,6 +41,8 @@
 		isSeriesActive,
 		onToggleSeriesCollapse,
 		onSeriesHeaderClick,
+		// Which series row (if any) is the current drop target for an "add to series" drag (Q17)
+		dropTargetSeriesId = null,
 		// For search - force expand groups during search
 		forceExpanded = false
 	} = $props();
@@ -138,6 +140,7 @@
 							{isSeriesActive}
 							{onToggleSeriesCollapse}
 							{onSeriesHeaderClick}
+							{dropTargetSeriesId}
 							{forceExpanded}
 						/>
 					</div>
@@ -165,6 +168,7 @@
 							{isStudyActive}
 							{isStudyBeingDragged}
 							{isDragging}
+							{dropTargetSeriesId}
 							{formatPassageReference}
 							{forceExpanded}
 						/>

@@ -3,12 +3,23 @@
  * 
  * Manages drag-and-drop state and logic for moving studies between groups.
  * Includes auto-scrolling, drop zone detection, and API integration.
- * 
+ *
+ * ## Dropping a study on a series (SERIES_PLAN Q17, phase 3)
+ *
+ * A series row is a drop target as well as a group row, but it is NOT handled here: the drop only
+ * *proposes* the add, via `onDropOnSeries`. §4's invariant table makes a gap, an overlap or a
+ * different book WARN rather than refuse, and a warning has to be read before it is accepted — so the
+ * gesture opens the confirm dialog, which dry-runs through the same planner that performs the add.
+ * Writing straight from the mouseup would ship those warnings silently, which is the one thing §4
+ * asks this feature not to do.
+ *
  * @param {Function} invalidateCallback - Callback to reload data after moves
+ * @param {Function} [onDropOnSeries] - Called with (study, seriesId) when a standalone study is
+ *   dropped on a series row. Proposes the add; it does not perform it.
  * @returns {Object} Drag and drop state and functions
  */
 
-export function useDragAndDrop(invalidateCallback) {
+export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 	let isDragging = $state(false);
 	let draggedStudies = $state([]);
 	let draggedGroups = $state([]);
@@ -17,6 +28,7 @@ export function useDragAndDrop(invalidateCallback) {
 	let currentMouseX = $state(0);
 	let currentMouseY = $state(0);
 	let dropTargetGroupId = $state(null);
+	let dropTargetSeriesId = $state(null);
 	const DRAG_THRESHOLD = 5; // pixels to move before initiating drag
 	
 	// Focus management
@@ -158,17 +170,46 @@ export function useDragAndDrop(invalidateCallback) {
 		
 		if (!elementAtPoint) {
 			dropTargetGroupId = null;
+			dropTargetSeriesId = null;
 			return;
 		}
 		
-		// Find the closest group-section ancestor
-		const groupSection = elementAtPoint.closest('.group-section[data-group-id]');
+		// A series row is a drop target only for a gesture that could legally be an "add to series":
+		// exactly one study, not already a part, and no groups in the drag. Highlighting a target that
+		// would refuse on mouseup is the dead-affordance §11 forbids for the reorder handle, and the
+		// same reasoning applies to a drop zone.
+		const seriesSection = canProposeSeriesAdd()
+			? elementAtPoint.closest('.series-section[data-series-id]')
+			: null;
+		dropTargetSeriesId = seriesSection?.getAttribute('data-series-id') ?? null;
+
+		// Find the closest group-section ancestor. Suppressed while over a series so a series filed
+		// inside a group does not light up both rows and leave the user guessing which one takes the drop.
+		const groupSection = dropTargetSeriesId
+			? null
+			: elementAtPoint.closest('.group-section[data-group-id]');
 		
 		if (groupSection) {
 			dropTargetGroupId = groupSection.getAttribute('data-group-id');
 		} else {
 			dropTargetGroupId = null;
 		}
+	}
+
+	/**
+	 * Whether the current drag could become an "add to series".
+	 *
+	 * Mirrors the menu command's own conditions (Q17): a study already in a series would have to answer
+	 * what happens to the series it leaves — §4 dissolves a series that drops to one part — which the
+	 * endpoint deliberately does not do. Multi-select is excluded because the endpoint takes one
+	 * `studyId`, so a three-study drop would silently add one.
+	 */
+	function canProposeSeriesAdd() {
+		return (
+			draggedGroups.length === 0 &&
+			draggedStudies.length === 1 &&
+			!draggedStudies[0]?.seriesId
+		);
 	}
 
 	/**
@@ -330,6 +371,17 @@ export function useDragAndDrop(invalidateCallback) {
 		
 		if (isDragging) {
 			event.preventDefault();
+
+			// A drop on a series row proposes an add and nothing else — no group move, no ungrouping.
+			// Returning early matters: the same coordinates sit inside a group section whenever the
+			// series is filed in one, and falling through would ALSO reparent the study.
+			if (dropTargetSeriesId !== null && canProposeSeriesAdd()) {
+				const study = draggedStudies[0];
+				const seriesId = dropTargetSeriesId;
+				resetDragState();
+				onDropOnSeries?.(study, seriesId);
+				return;
+			}
 			
 			// Handle group drops
 			if (draggedGroups.length > 0 && dropTargetGroupId !== null) {
@@ -394,11 +446,22 @@ export function useDragAndDrop(invalidateCallback) {
 			}
 		}
 		
-		// Reset drag state
+		resetDragState();
+	}
+
+	/**
+	 * Clear every piece of drag state.
+	 *
+	 * Extracted because the series-drop path returns early and must not leave a ghost following the
+	 * cursor while the confirm dialog is open — one exit that forgets a field is exactly how that
+	 * happens.
+	 */
+	function resetDragState() {
 		isDragging = false;
 		draggedStudies = [];
 		draggedGroups = [];
 		dropTargetGroupId = null;
+		dropTargetSeriesId = null;
 		dragStartX = 0;
 		dragStartY = 0;
 		currentMouseX = 0;
@@ -449,6 +512,7 @@ export function useDragAndDrop(invalidateCallback) {
 		get currentMouseX() { return currentMouseX; },
 		get currentMouseY() { return currentMouseY; },
 		get dropTargetGroupId() { return dropTargetGroupId; },
+		get dropTargetSeriesId() { return dropTargetSeriesId; },
 		
 		// Functions
 		handleStudyMouseDown,

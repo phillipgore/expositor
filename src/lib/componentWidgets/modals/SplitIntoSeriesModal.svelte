@@ -32,6 +32,8 @@
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Input from '$lib/componentElements/Input.svelte';
+	import Stepper from '$lib/componentElements/Stepper.svelte';
+	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 	import { planSeriesParts, getPartingStrategy } from '$lib/utils/seriesPlanning.js';
 
 	let { isOpen = false, study = null, error = null, onCreate, onClose } = $props();
@@ -225,55 +227,39 @@
 		</p>
 	{:else}
 		{#if showStepper}
-			<div class="stepper-row">
-				<!-- A real <label for>, rather than aria-labelledby: `Input` does not forward aria
-				     attributes, so a labelledby here would have named nothing. -->
-				<label class="stepper-label" for="chapters-per-part">Chapters per part:</label>
-
-				<div class="stepper">
-					<button
-						type="button"
-						class="step"
-						onclick={stepDown}
-						disabled={chaptersPerPart <= 1}
-						aria-label="Fewer chapters per part"
-					>−</button>
-					<Input
-						id="chapters-per-part"
-						name="chapters-per-part"
-						type="number"
-						min={1}
-						max={maxChaptersPerPart}
-						bind:value={chaptersInput}
-					/>
-
-
-					<button
-						type="button"
-						class="step"
-						onclick={stepUp}
-						disabled={chaptersPerPart >= maxChaptersPerPart}
-						aria-label="More chapters per part"
-					>+</button>
-				</div>
-				<!-- The summary §5 sketches: "16 parts · avg 27 verses each" -->
-				<span class="summary" aria-live="polite">
-					{parts.length} parts · avg {averageVerses} verses each
-				</span>
-			</div>
+			<!-- The summary §5 sketches: "16 parts · avg 27 verses each" -->
+			<Stepper
+				id="chapters-per-part"
+				name="chapters-per-part"
+				label="Chapters per part:"
+				bind:value={chaptersInput}
+				min={1}
+				max={maxChaptersPerPart}
+				onDecrement={stepDown}
+				onIncrement={stepUp}
+				decrementDisabled={chaptersPerPart <= 1}
+				incrementDisabled={chaptersPerPart >= maxChaptersPerPart}
+				decrementLabel="Fewer chapters per part"
+				incrementLabel="More chapters per part"
+				summary={`${parts.length} parts · avg ${averageVerses} verses each`}
+			/>
 
 			<!-- §5 option (b), Q11. Offered beside the stepper rather than replacing it, so the user can
 			     see which of the two shapes they are choosing. Off by default: §5 keeps chapter
 			     boundaries as the default because they are meaningful to readers in a way equal verse
 			     counts are not. -->
 			<div class="balance-row">
-				<label class="balance-toggle">
-					<input type="checkbox" bind:checked={balanceByLength} />
-					Balance by length
-				</label>
+				<!-- No bottom spacing: this one sits inline in `.balance-row`, which supplies its
+				     own gap and margin. -->
+				<Checkbox
+					id="balance-by-length"
+					label="Balance by length"
+					bind:checked={balanceByLength}
+					spacingBottom="0rem"
+				/>
 
 				{#if balanceByLength}
-					<label class="stepper-label" for="balance-parts">into</label>
+					<label class="balance-label" for="balance-parts">into</label>
 					<div class="balance-count">
 						<Input
 							id="balance-parts"
@@ -284,7 +270,7 @@
 							bind:value={balanceTargetInput}
 						/>
 					</div>
-					<span class="stepper-label">parts</span>
+					<span class="balance-label">parts</span>
 				{/if}
 			</div>
 
@@ -341,10 +327,9 @@
 
 		{#if needsConfirmation}
 
-			<label class="confirm">
-				<input type="checkbox" bind:checked={hasConfirmedLarge} />
+			<Checkbox id="confirm-large-split" bind:checked={hasConfirmedLarge} spacingBottom="1.2rem">
 				Yes, create {parts.length} parts.
-			</label>
+			</Checkbox>
 		{:else if isLargePartCount}
 			<p class="hint">
 				{parts.length} parts is a lot to navigate. Consider more chapters per part.
@@ -360,46 +345,18 @@
 		color: var(--black);
 	}
 
-	.stepper-row {
-		display: flex;
-		align-items: center;
-		gap: 0.8rem;
-		flex-wrap: wrap;
-		margin-bottom: 1.2rem;
-	}
+	/* The stepper and its summary badge are the Stepper element's own; nothing to add here.
 
-	.stepper-label {
+	   A previous pass pushed the summary right with `:global(.stepper-row .stepper-summary)`,
+	   commented as being local to this modal. It was not: `:global()` is not scoped to the
+	   component, so that rule applied wherever a Stepper rendered — which is why the New Study
+	   page showed its stats jammed against the far right edge. The summary is a full-width
+	   badge on its own row now, so no alignment override is wanted anywhere. */
+
+	/* "into" / "parts", the words either side of the balance count. */
+	.balance-label {
 		font-size: 1.4rem;
 		color: var(--black);
-	}
-
-	.stepper {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		max-width: 12rem;
-	}
-
-	.step {
-		width: 2.8rem;
-		height: 2.8rem;
-		border: 1px solid var(--gray-200);
-		border-radius: 0.4rem;
-		background: var(--white);
-		font-size: 1.6rem;
-		line-height: 1;
-		cursor: pointer;
-	}
-
-	.step:disabled {
-		opacity: 0.4;
-		cursor: default;
-	}
-
-	.summary {
-		font-size: 1.3rem;
-		color: var(--gray-300);
-		margin-left: auto;
 	}
 
 	.balance-row {
@@ -408,14 +365,6 @@
 		gap: 0.8rem;
 		flex-wrap: wrap;
 		margin-bottom: 0.8rem;
-	}
-
-	.balance-toggle {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		font-size: 1.4rem;
-		color: var(--black);
 	}
 
 	.balance-count {
@@ -486,14 +435,6 @@
 		margin: 0;
 		font-size: 1.2rem;
 		color: var(--gray-300);
-	}
-
-	.confirm {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		font-size: 1.3rem;
-		color: var(--black);
 	}
 
 	.hint {

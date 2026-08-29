@@ -148,7 +148,7 @@ rather than closing them all is a choice, not an oversight:
 | ---------------------------------- | -------------------------- | ------------------------------------------------------- |
 | Half a book **per query**          | ✅ Server-side truncation  | Compliant — necessarily                                 |
 | Half a book **displayed per page** | ❌ Cannot see our DOM      | **Now warned** at study level (§1.6)                    |
-| ≤500 verses **locally stored**     | ❌ Cannot see our database | ⚠️ **Not compliant.** `passage.cachedText` is unbounded |
+| ≤500 verses **locally stored**     | ❌ Cannot see our database | **Now enforced** by eviction at the cap (§5 item 1)     |
 | ≤500 verses **distributed**        | ❌ Cannot see our exports  | **Now warned** at export/print (§1.9)                   |
 
 | Surface                                 | Rule applied                                                                |
@@ -343,6 +343,157 @@ The performance note is deliberately **not** merged into the licence warning: on
 own rendering guess, the other is a published restriction, and §6 rule 6 exists to keep
 those distinct.
 
+### Addendum (2026-08-28): the numbers moved out of the creation form
+
+⚠️ **Read this before concluding §1.7 was reverted.** The New Study form no longer prints
+the resolved limit. Both licence alerts there are now generic:
+
+> _"This selection has too many verses for ESV. Create a series, shorten a passage, or switch to NET."_ (blocking)
+> _"This study has more verses than ESV allows on one page. You can still save it; export may be limited."_ (advisory)
+
+**The blocking message names three remedies, series first**, because it is the only one that
+costs the user nothing — the other two mean studying less text, or accepting a different
+translation. It is also the remedy the app went to some trouble to make possible (§1.10).
+
+⚠️ That clause appears **only when `seriesEligible`**, the same flag that renders the radios,
+so the copy cannot outlive the control it names. The two underlying rules were never written
+to agree: blocking is a **verse** count (`checkSinglePassageSupport()`), eligibility is a
+**chapter** count (2+). They coincide only because no single chapter is long enough to trip
+the block — Psalm 119, the longest at 176 verses, is nowhere near 500. That is an accident of
+the canon rather than a designed invariant, so `verify-chapter-verse-bounds.mjs` checks all
+1,189 chapters' worth of ranges exhaustively and fails if the two ever diverge.
+
+**The `min()` resolution is untouched and still authoritative.** `resolveWhicheverIsLess()`
+and `validateStudyDisplayLimits()` are unchanged, still compute the binding number per book,
+and are still what *decides whether the advisory appears at all* — the form asks them a
+boolean instead of printing their prose. Every row of the table above still holds; it is now
+a statement about what the validator returns rather than about what this one form displays.
+The full text is still shown at **export/print**, where the legal stakes are higher and there
+is room for it.
+
+**Why the change.** The alerts were per-passage and per-book, each carrying a verse count, a
+resolved cap and up to two sentences of licence mechanics. Two whole books produced two
+paragraph-sized blocks — before the user had finished choosing passages. That is §1.7's own
+concern one level up: the section exists because four simultaneous alerts made the real
+position harder to see, and the fix reduced them to one *correct* alert without asking
+whether the remaining one was worth reading. Volume defeats an advisory whoever is right
+about the numbers.
+
+**One thing this genuinely improves.** A message that prints no numbers cannot misreport
+them. The §1.7 failure mode — two thresholds shown side by side because `min()` was split
+into two checks — is now unreachable in this form by construction.
+
+**One thing it costs, accepted deliberately.** With Save disabled and no passage named, a
+multi-passage study leaves the user to find the offending passage. `passageIssues` still
+carries the per-passage index and message for exactly this reason, so the fix is a fieldset
+highlight or tooltip rather than a re-derivation. Revisit if users report confusion.
+
+---
+
+## 1.10 A series is many pages — the scope error that made whole books unsavable
+
+_Added 2026-08-28, after a user reported that a Matthew series could not be saved in any
+configuration._
+
+Selecting the whole of Matthew and choosing "A series of studies" left **Save disabled at
+every setting** — 7, 4, 2 and 1 chapters per part alike — while showing an advisory that
+said the series *could* be created. Two independent defects, both about **scope** rather
+than arithmetic. Every number involved was computed correctly.
+
+### The blocking check never looked at the parts
+
+`hasPassageIssues` was derived from the **form's** passages — one 1071-verse Matthew range.
+Series creation is create-then-part (`SERIES_PLAN.md` §5), so that range stays whole right
+up to submit: the parts exist only in the preview. The stepper therefore could not influence
+a check that never read it, and **no setting could clear it**. A control offered as the
+remedy for a block that ignores the control is worse than no control.
+
+Fixed by asking the same question of the **planned parts** when a series is requested
+(`submissionBlockedByPassages`). It calls the same `checkSinglePassageSupport()`, so a part
+ESV genuinely cannot serve still blocks; what no longer blocks is a range that is merely too
+large *undivided*, which is the case the series feature exists to solve.
+
+### The aggregate reported a page limit for something that is not a page
+
+`assessPlan()` ran the page validator across the source passages and reported _"This study
+displays the complete book of Matthew… ESV allows at most 500 verses on one page."_ A series
+is not one page. Its parts are separate studies at separate URLs, each fetched by its own
+request.
+
+Crossway scopes each clause to a unit, and the units differ (api.esv.org, retrieved
+2026-08-28):
+
+| Clause | Unit | Enforced by |
+| --- | --- | --- |
+| "up to 500 verses **per query**, or half a book, whichever is less" | one request | per-part check |
+| "not display more than 500 … **on any page**" | one page | per-part check |
+| "not **locally store** more than 500 verses or one-half of any book" | the cache | `enforceCacheLimit()` |
+| "may **distribute** up to 500 verses…" | one artifact | `validateExportLimits()` |
+
+Reading the display clause as covering a whole series would mean that reading Matthew one
+chapter at a time in a browser breaches it too, which cannot be the intent.
+
+**Trap 8's underlying worry survives**, and must: storage and distribution genuinely *do*
+aggregate across parts. Those bind at their own boundaries.
+
+### Re-scoping the notice was not enough — it is now removed
+
+_Same day, second pass._ The aggregate was first re-worded from a page warning to an export
+notice. That fixed the falsehood and left the defect: it still fired on **every** whole-book
+ESV series, could not be cleared by any control on the form, and named a boundary the user
+had not reached and might never reach. A notice nobody can act on is the yellow-wall problem
+in §1.7 wearing different words.
+
+It is now emitted **nowhere at creation**. `MenuExport.guardExport()` already runs
+`checkSeriesExport()` over the loaded part ranges and, per `SERIES_PLAN.md` Q32, **blocks**
+where per-part export only warns. It also already says the useful thing: _"Each part on its
+own is within the limit, but exporting them all reproduces more than the licence allows."_
+The creation-time copy was a weaker duplicate of a stronger gate.
+
+⚠️ **A stale hardcoded string is what exposed this.** The form rendered
+_"Some parts have more verses than ESV allows on one page"_ whenever
+`seriesWarnings.length > 0`. Once the aggregate became an export notice, a whole-book Matthew
+series satisfied that count with **zero** part-scoped warnings — so the alert asserted a
+per-part page violation that provably did not exist. **A fixed sentence gated on a count is a
+claim about data it never reads.** The copy and the predicate must be changed together.
+
+### What creation still warns about: too few parts
+
+One creation-time check remains, and it is the only one that is both true now and fixable
+now. Galatians is 149 verses over 6 chapters, so half the book is **74**. At 5 chapters per
+part, part 1 holds **131 verses** — under the 500-verse *request* cap, so it fetches fine and
+nothing blocks Save, yet over the half-book *display* cap, so the page it renders is
+genuinely non-compliant.
+
+| Setting | Parts | Warns |
+| --- | --- | --- |
+| 5 ch | 2 | **yes** — part 1, 131 of 149 |
+| 3 ch | 2 | **yes** — part 2, 75 of 149 |
+| 2 ch | 3 | no |
+| 1 ch | 6 | no |
+
+Two different limits, and only the display one sees this. The remedy is the stepper beside
+the message, so the copy names it: _"Some parts show more of a book than ESV allows on one
+page. Use fewer chapters per part."_
+
+This only bites **short books**. For Matthew, half is 535 — above the 500-verse cap — so the
+request limit binds first and no chapter grouping can trip it.
+
+### Why chapter-sized parts are safe, as data rather than assertion
+
+The unblocking rests on chapters being far smaller than 500 verses. That is checked, not
+assumed: `verify-chapter-verse-bounds.mjs` walks all 1,189 chapters and every one of the 61
+multi-chapter books, planning 1,184 chapter-parts and running the real support check on each.
+
+The longest chapter in the Bible is **Psalm 119 at 176 verses** — under 40% of the limit, so
+the margin is structural rather than incidental. If `bible.json` is ever re-versified, that
+file fails loudly rather than letting an over-limit part through.
+
+⚠️ The verifier's first draft filtered books on `chapterData.length < 2` and excluded **every
+book**, passing by checking nothing. `chapterData` is a one-element array wrapping an object
+keyed by chapter. Two assertions on the counts (61 books, >1,000 parts) caught it — which is
+the case for asserting that a test *did work*, not merely that it did not fail.
+
 ---
 
 ## 1.8 What running the never-executed check revealed
@@ -530,6 +681,19 @@ needs: can this translation serve this range as _one_ passage, and if not, why �
 lives in `src/lib/config/` rather than `translations.json` deliberately: filing our own
 numbers beside publisher limits is precisely the mistake §3 documents.
 
+It nevertheless shares the *scoping* discipline of the licence checks, and got it wrong
+in the same way. Those thresholds measure **one rendered page** — DOM spans in a single
+Analyze view — so under a series they must be given the largest **part**, not the summed
+source range. They were given the sum, and a whole-Psalms series reported 2,461 verses
+against a largest part of 176. Same error as the display aggregate in §1.10, one axis
+over: a count that measures a different unit from the sentence reporting it. Pinned by
+`scripts/verify-study-size-unit.mjs`.
+
+Note this is *not* redundant with the blocking retrieval check, though on ESV it looks
+it: ESV's `chunking: false` and `maxVerses: 500` mean an over-large part is refused
+before it can reach the 600-verse notice. NET sets `chunking: true`, so nothing caps a
+part there and the size assessment is the only thing that speaks.
+
 `restrictions.distribution.enforcement` is `'warn'` or `'block'`, per translation.
 Today both translations are `'warn'`. Flipping to `'block'` at public release is a
 JSON edit — no code change. This is the main reason the seam was built now.
@@ -675,25 +839,66 @@ It clones rather than duplicating the legal text so the two copies cannot drift.
 
 ## 5. Open items
 
-1. **⚠️ Local storage exceeds the licence — the one genuine violation.**
+1. ~~**⚠️ Local storage exceeds the licence — the one genuine violation.**~~ **Done
+   (2026-08-10).**
 
    > "You may not locally store more than 500 verses or one-half of any book of the
    > Bible (whichever is less)."
 
-   `passage.cachedText` (migration 0035) persists fetched ESV text **indefinitely and
-   without bound**. A user with several studies is over 500 verses quickly, and nothing
-   caps, ages out or clears it. `restrictions.caching.maxVerses: 500` is recorded in the
-   JSON and **read by nothing**.
+   `passage.cachedText` (migration 0035) persisted fetched ESV text **indefinitely and
+   without bound**. A user with several studies was over 500 verses quickly, and nothing
+   capped, aged out or cleared it. `restrictions.caching.maxVerses: 500` was recorded in
+   the JSON and **read by nothing**.
 
    Previously filed as item 5, "worth a look." That was too mild: the other gaps in §1
-   are positions one could defend, whereas this one contradicts an explicit clause. It is
-   listed first because it is the only item here that is simply wrong rather than
+   are positions one could defend, whereas this one contradicted an explicit clause. It
+   is listed first because it was the only item here that was simply wrong rather than
    arguable.
 
-   Likely remedies: a TTL on `cachedText`, eviction once the total passes 500 verses, or
-   a back-office "clear cached Scripture" action. Note the clause governs _storage_, not
-   _display_, so clearing the cache does not restrict what a user may study — the text
-   is re-fetched on demand.
+   **What shipped: eviction at the cap.** `planCacheEviction()` (pure) decides what must
+   go; `enforceCacheLimit()` clears it; both run **immediately after every cache fill** —
+   the study loader, the new-study action, and the series prefetch runner. Verified by
+   `scripts/verify-cache-eviction.mjs` (45 checks, real `bible.json`) and exercised
+   against a real database by `npm run probe:eviction` (21 checks).
+
+   ### ⚠️ Why eviction, and not the other two remedies this item proposed
+
+   This item originally offered three candidates as if they were equivalent. They are
+   not — only one of them enforces the clause:
+
+   - **A TTL bounds age, not quantity.** A user with thirty studies is over the cap the
+     moment they load them, whatever the expiry is. A 24-hour TTL on 4,000 stored verses
+     is 4,000 stored verses. Listing it alongside eviction was the error.
+   - **A back-office "clear cached Scripture" action makes compliance a chore the user
+     must remember.** Worth having as a convenience; it cannot be the mechanism, because
+     a licence term honoured only when someone remembers is not honoured. **Not built** —
+     see the limitation below.
+   - **Eviction at the cap** is triggered by the write that would exceed it, so the
+     breach is impossible rather than temporary.
+
+   ### ⚠️ The clause was being read at half its width
+
+   `restrictions.caching` held `maxVerses: 500` **alone**, so 400 verses of Galatians —
+   a 149-verse book — would have passed a 500-verse check while plainly breaching "or
+   one-half of any book" in the same sentence. That is §1.7's "whichever is less is ONE
+   limit" defect in a third location, so the resolution now lives in one shared
+   `resolveWhicheverIsLess()` rather than being re-derived per clause. `maxBookPortion`
+   and `shortBookChapterThreshold` were added to the JSON; the six ≤2-chapter books may
+   still be stored whole, per the licence's own parenthesis.
+
+   ### What this does NOT do — two honest limits
+
+   - **It is per user and per translation, not global.** A user over the cap who never
+     triggers another fill stays over it until they do. Enforcement is attached to the
+     write that could breach the cap, so a dormant account is not swept; a background job
+     would close that, and none exists. NET is deliberately not policed at all — the
+     clause is Crossway's, and NET declares no storage cap.
+   - **There is still no manual "clear cached Scripture" control.** The remedy this item
+     listed third was not built, only reclassified as a convenience.
+
+   Note the clause governs _storage_, not _display_, so eviction does not restrict what a
+   user may study — an evicted passage is re-fetched on demand. Eviction costs a provider
+   request; it never costs a user's work.
 
 2. **Optional: ask Crossway about a whole-book licence tier.** Genuinely optional; the
    answer under the current terms is already plain, and nothing is blocked meanwhile.

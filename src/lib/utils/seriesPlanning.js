@@ -21,7 +21,7 @@
  * that calls it.
  */
 
-import { countVersesInRange, getVerseCount } from './bibleData.js';
+import { countVersesInRange, getVerseCount, getBook } from './bibleData.js';
 import { checkSinglePassageSupport, validateStudyDisplayLimits } from './translationLimits.js';
 
 /**
@@ -67,6 +67,9 @@ export function isSeriesEligible(passages) {
  * @param {string} [options.baseTitle] - Source study title, used to name parts
  * @param {boolean} [options.balanceByLength] - Opt in to "Balance by length" (§5 option (b), Q11)
  * @param {number} [options.targetParts] - How many parts to balance into; required by `balanceByLength`
+ * @param {Array<number>} [options.chaptersPerPassage] - Per-passage chapters-per-part, positionally
+ *   matching `passages`. Only used by the `passage-per-part` strategy. `0`/absent means "this
+ *   passage stays whole", which is the pre-existing behaviour for every entry.
  * @returns {{ strategy: string, parts: Array<Object>, totalVerses: number, warnings: Array<Object> }}
  */
 export function planSeriesParts({
@@ -75,7 +78,8 @@ export function planSeriesParts({
 	translationId,
 	baseTitle = '',
 	balanceByLength = false,
-	targetParts = 0
+	targetParts = 0,
+	chaptersPerPassage = []
 }) {
 	const strategy = getPartingStrategy(passages);
 
@@ -94,7 +98,7 @@ export function planSeriesParts({
 
 	const parts =
 		strategy === 'passage-per-part'
-			? planByPassage(passages, baseTitle)
+			? planByPassage(passages, baseTitle, chaptersPerPassage)
 			: useBalance
 				? planByBalance(passages[0], targetParts, baseTitle)
 				: planByChapters(passages[0], chaptersPerPart, baseTitle);
@@ -105,15 +109,38 @@ export function planSeriesParts({
 		strategy,
 		parts,
 		totalVerses,
-		warnings: assessPlan(parts, passages, translationId)
+		warnings: assessPlan(parts, translationId)
 	};
 }
 
 /**
- * One part per passage. No arithmetic — the seams already exist.
+ * One part per passage — or, where the user asked for it, several parts per passage.
+ *
+ * ## Why this may now subdivide
+ *
+ * The original version emitted exactly one part per passage, on the reasoning that "the seams
+ * already exist". That is true of the seams BETWEEN passages and false of the text inside one: a
+ * study of Revelation plus Matthew has two user-drawn seams and 50 chapters, and locking it to two
+ * parts of 404 and 1071 verses is the app deciding the shape, which §5 rule 1 forbids. §5's table
+ * routed that case to "part-per-passage, then Split Part" — 48 modal round-trips to reach a shape
+ * the creation preview could have offered directly, and never visible before committing, which
+ * rule 3 asks for.
+ *
+ * ⚠️ **The scalar `book` is NOT generalised** (§5, trap 15). Each passage is parted on its own by
+ * `planByChapters()`, which receives a single contiguous single-book range — exactly the input it
+ * already accepts. The unanswerable cross-gap question ("is part 4 Romans 8, or Romans 4 which is
+ * not in this study?") never arises, because no division ever spans two passages. Contiguity
+ * constrains the algorithm, not the feature; this honours that by calling the algorithm N times
+ * rather than by widening it once.
+ *
+ * @param {Array<Object>} passages
+ * @param {string} baseTitle
+ * @param {Array<number>} [chaptersPerPassage] - Positional; `0`/absent leaves that passage whole.
  */
-function planByPassage(passages, baseTitle) {
-	return passages.map((p, index) => {
+function planByPassage(passages, baseTitle, chaptersPerPassage = []) {
+	const parts = [];
+
+	passages.forEach((p, index) => {
 		const range = {
 			testament: p.testament,
 			book: p.book ?? p.bookId,
@@ -122,13 +149,40 @@ function planByPassage(passages, baseTitle) {
 			toChapter: p.toChapter,
 			toVerse: p.toVerse
 		};
-		return {
-			seriesOrder: index + 1,
-			title: baseTitle ? `${baseTitle} — Part ${index + 1}` : `Part ${index + 1}`,
+
+		const requested = Math.floor(Number(chaptersPerPassage?.[index]) || 0);
+		const spansChapters = range.toChapter > range.fromChapter;
+
+		if (requested >= 1 && spansChapters) {
+			// Delegated, not re-implemented: partial-chapter bounds at the range's own edges
+			// (Q12) are handled there, and duplicating that arithmetic is how the two copies
+			// start disagreeing about whether Rom 1:18–8:39 begins at verse 1.
+			// Titled by BOOK, not by the study title: a multi-passage study spans books, so
+			// "Prison Epistles 1–3" is wrong twice over — it names chapters of an unstated book,
+			// and four passages would each restart at chapter 1, giving repeated titles.
+			for (const sub of planByChapters(range, requested, bookLabelOf(range))) {
+				parts.push(sub);
+			}
+			return;
+		}
+
+		parts.push({
+			seriesOrder: 0,
+			// Named for the book and chapters it covers, matching the chapters-per-part strategy.
+			// The old `Part 2` gave the Finder a list of parts distinguishable only by number — and
+			// with subdivision that is now actively ambiguous, since several parts come from one
+			// passage.
+			title: partTitle(bookLabelOf(range), range, index + 1),
 			passages: [range],
 			verseCount: verseCountOf(range)
-		};
+		});
 	});
+
+	// Renumbered ACROSS the whole series, after all passages are expanded. `planByChapters()`
+	// numbers from 1 each time it is called, so without this a two-passage study subdivided on
+	// both sides would produce two parts numbered 1 — and `seriesOrder` is the column the Finder
+	// orders by and the boundary commands identify neighbours with.
+	return parts.map((part, order) => ({ ...part, seriesOrder: order + 1 }));
 }
 
 /**
@@ -300,6 +354,17 @@ function planByChapters(passage, chaptersPerPart, baseTitle) {
 }
 
 /**
+ * A range's readable book name, falling back to the raw id.
+ *
+ * `getBook()` returns null for an unknown id, and a part titled "undefined 3–5" in the Finder
+ * would be worse than one titled "MT 3–5".
+ */
+function bookLabelOf(range) {
+	const book = range.book ?? range.bookId;
+	return getBook(range.testament, book)?.title || book || '';
+}
+
+/**
  * Name a chapter-derived part after the chapters it covers, which is more use in the Finder
  * than "Part 7" alone.
  */
@@ -328,18 +393,21 @@ function verseCountOf(range) {
 /**
  * Assess a plan for compliance, per SERIES_PLAN §5 and Q33.
  *
- * Three checks, and the third is the one that is easy to omit:
+ * Two checks, BOTH scoped to a single part:
  *
- *   1. Per-part display limits — delegated to `validateStudyDisplayLimits()`.
+ *   1. Per-part display limits — delegated to `validateStudyDisplayLimits()`. This is the one
+ *      that catches "too few parts": Galatians at 5 chapters per part puts 131 of its 149 verses
+ *      in part 1, over the half-book cap of 74. Fetchable, so nothing blocks — and genuinely
+ *      non-compliant on the page it will be shown on. Adding parts clears it, which is why it
+ *      belongs beside a stepper.
  *   2. `checkSinglePassageSupport` per part, so a stepper setting that makes a part unservable
  *      is caught while the stepper is still on screen.
- *   3. The SERIES-LEVEL aggregate, computed by running the same page validator over ALL the
- *      parts at once. Per-part checks go quiet as the parting gets finer — 21 one-chapter parts
- *      of John each pass while the series still covers a book ESV caps at 439 verses on a page.
- *      "No warnings" would otherwise be read as "compliant" when it only means the check that
- *      could see the problem was never run (trap 8).
  *
- * ⚠️ The per-part and aggregate checks both DELEGATE rather than re-deriving the limit. A first
+ * ⚠️ There is deliberately NO series-level aggregate here; see the comment at the end of this
+ * function before adding one back. Trap 8 is real but is answered at the export boundary, where
+ * the aggregate can BLOCK rather than merely mention.
+ *
+ * ⚠️ Both checks DELEGATE rather than re-deriving the limit. A first
  * draft of this function hand-rolled `min(maxVersesPerPage, bookTotal × maxBookPortion)`, which
  * was wrong in two ways that matter: it would have reported the cap as two competing numbers
  * instead of resolving "whichever is less" to the one that binds (COMPLIANCE §1.7 — the error
@@ -351,26 +419,18 @@ function verseCountOf(range) {
  * Informational, never blocking: compliance is the study owner's obligation and refusing
  * creation would remove the choice §5 exists to protect.
  */
-function assessPlan(parts, sourcePassages, translationId) {
+function assessPlan(parts, translationId) {
 	const warnings = [];
 
 	for (const part of parts) {
 		const range = part.passages[0];
 
-		const display = validateStudyDisplayLimits(part.passages, translationId);
-		for (const message of display.warnings) {
-			warnings.push({
-				level: 'warning',
-				scope: 'part',
-				seriesOrder: part.seriesOrder,
-				message: `Part ${part.seriesOrder}: ${message}`
-			});
-		}
-
 		// `canBeSinglePassage` — NOT `supported`, which is what an earlier draft guessed at.
 		// A wrong property name here would be silently falsy and quietly disable this check.
 		const support = checkSinglePassageSupport(range, translationId);
-		if (support && support.canBeSinglePassage === false) {
+		const unservable = Boolean(support && support.canBeSinglePassage === false);
+
+		if (unservable) {
 			warnings.push({
 				level: 'warning',
 				scope: 'part',
@@ -379,23 +439,49 @@ function assessPlan(parts, sourcePassages, translationId) {
 				message: `Part ${part.seriesOrder}: ${support.message}`
 			});
 		}
-	}
 
-	// The series-level aggregate — the check that per-part parting silences.
-	//
-	// Run over the SOURCE passages, so the aggregate reflects what the series covers rather
-	// than the sum of the parts; the validator's verse-identity Set means overlapping parts
-	// (Q40) are counted once, not twice.
-	const seriesWide = validateStudyDisplayLimits(sourcePassages, translationId);
-	if (!seriesWide.compliant) {
-		for (const message of seriesWide.warnings) {
+		// Retrieval takes precedence over display, exactly as the New Study form already does for
+		// the non-series case (see StudyForm.svelte, the `{#if !hasPassageIssues}` guard and its
+		// comment). A part ESV will not serve produces BOTH messages, and they are the same fact
+		// twice: "does not serve the complete book of Matthew" already says the licence limits
+		// what one page may display, so appending "allows at most 500 verses of a single book"
+		// adds a number to a part that cannot be fetched at all. The retrieval message is the
+		// more actionable of the two — it names the remedy — so it is the one that survives.
+		const display = validateStudyDisplayLimits(part.passages, translationId);
+		for (const message of display.warnings) {
+			if (unservable) continue;
 			warnings.push({
-				level: 'notice',
-				scope: 'series',
-				message: `Across the whole series: ${message} Each part is checked on its own, so this will not warn again until export.`
+				level: 'warning',
+				scope: 'part',
+				seriesOrder: part.seriesOrder,
+				message: `Part ${part.seriesOrder}: ${message}`
 			});
 		}
 	}
 
+	// NOTHING is emitted for the series as a whole. A deliberate removal, not an omission.
+	//
+	// This spot has now been wrong twice, in opposite directions. It first reported the aggregate
+	// as a DISPLAY violation ("the complete book of Matthew … on one page"), which is a category
+	// error: a series is many pages. Re-scoping it to EXPORT fixed the wording and left the real
+	// defect — it still fired on every whole-book ESV series, could not be cleared by any control
+	// on the form, and warned about a boundary the user had not reached and might never reach.
+	//
+	// The aggregate IS enforced, and more strictly than a notice here could be:
+	// `MenuExport.guardExport()` runs `checkSeriesExport()` at the moment of export and per Q32
+	// BLOCKS, where per-part export only warns. It also knows more — the loaded part ranges
+	// rather than a plan — and already says the useful thing ("Each part on its own is within the
+	// limit, but exporting them all reproduces more than the licence allows").
+	//
+	// Trap 8's worry is "validation goes quiet as parting gets finer". That is answered by the
+	// export gate, not from here. What remains above is the per-part loop, which is the only
+	// check that is BOTH true at creation and fixable at creation: a part over the half-book
+	// display cap is cleared by the stepper sitting beside the message. Galatians at 5 chapters
+	// per part is the case — 131 of 149 verses in part 1, fetchable (under the 500-verse request
+	// cap) yet over half the book, so Save is enabled and the part is still non-compliant.
+	//
+	// ⚠️ Do not reinstate a series-wide message here. If the export gate is ever weakened, fix
+	// the gate.
 	return warnings;
 }
+

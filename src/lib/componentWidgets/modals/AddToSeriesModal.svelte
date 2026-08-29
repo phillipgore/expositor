@@ -15,10 +15,19 @@
 	 * Warnings come from the server's `dryRun`, not from a second copy of the rule here: the planner
 	 * that judges the drop is the planner that performs it, so what the dialog promises is what happens.
 	 *
+	 * ## Two entry points, one dialog
+	 *
+	 * The menu command leaves the target open, so the user picks a series. The drag gesture has already
+	 * named one by dropping on its row, so `fixedSeriesId` preselects it and the picker goes away — an
+	 * enabled dropdown there would invite the user to contradict the gesture they just made, and a
+	 * disabled one would be a control that cannot be operated. The confirmation itself is NOT skipped:
+	 * the drop chose a target, it did not read §4's warnings.
+	 *
 	 * ## Props
 	 * @property {boolean} isOpen
 	 * @property {Object} study - The standalone study being added
 	 * @property {Array} series - Every series available to the user
+	 * @property {string|null} [fixedSeriesId] - Target chosen by a drop; hides the picker when set
 	 * @property {Function} onDone - Called after a successful add
 	 * @property {Function} onClose
 	 *
@@ -26,7 +35,14 @@
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
 
-	let { isOpen = false, study = null, series = [], onDone, onClose } = $props();
+	let {
+		isOpen = false,
+		study = null,
+		series = [],
+		fixedSeriesId = null,
+		onDone,
+		onClose
+	} = $props();
 
 	let selectedSeriesId = $state('');
 	let preview = $state(null);
@@ -35,7 +51,8 @@
 
 	$effect(() => {
 		if (isOpen) {
-			selectedSeriesId = series?.[0]?.id ?? '';
+			// A dropped target wins over the first-series default: the gesture already said which one.
+			selectedSeriesId = fixedSeriesId ?? series?.[0]?.id ?? '';
 			preview = null;
 			error = '';
 			submitting = false;
@@ -114,19 +131,27 @@
 			part; you can move it afterwards by reordering the series.
 		</p>
 
-		<div class="row">
-			<label class="row-label" for="target-series">Series</label>
-			<select
-				id="target-series"
-				bind:value={selectedSeriesId}
-				onchange={refresh}
-				disabled={submitting}
-			>
-				{#each series as option}
-					<option value={option.id}>{option.name}</option>
-				{/each}
-			</select>
-		</div>
+		{#if fixedSeriesId}
+			<!-- The drop named the target, so it is stated rather than offered (see the note above). -->
+			<div class="row">
+				<span class="row-label">Series</span>
+				<span class="row-value">{targetSeries?.name ?? 'Selected series'}</span>
+			</div>
+		{:else}
+			<div class="row">
+				<label class="row-label" for="target-series">Series</label>
+				<select
+					id="target-series"
+					bind:value={selectedSeriesId}
+					onchange={refresh}
+					disabled={submitting}
+				>
+					{#each series as option}
+						<option value={option.id}>{option.name}</option>
+					{/each}
+				</select>
+			</div>
+		{/if}
 
 		{#if preview?.ok}
 			<ul class="outcome">
@@ -172,6 +197,12 @@
 
 	.row-label {
 		font-size: 1.4rem;
+		color: var(--black);
+	}
+
+	.row-value {
+		font-size: 1.4rem;
+		font-weight: 600;
 		color: var(--black);
 	}
 

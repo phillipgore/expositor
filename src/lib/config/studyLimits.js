@@ -81,25 +81,47 @@ export const VERSE_COUNT_NOTICE = 600;
 export const VERSE_COUNT_WARNING = 1200;
 
 /**
- * Assess a study's total verse count for rendering performance.
+ * Assess a verse count for rendering performance.
  *
  * Advisory only: `level` is never anything a caller should treat as a failure.
  * Copy avoids promising a specific outcome, since the underlying cause is not yet
  * confirmed — it describes what may happen, not what will.
  *
- * @param {number} totalVerses - Total verses across every passage in the study
+ * ## Why `unit` exists
+ *
+ * Every threshold in this file measures ONE RENDERED PAGE — DOM spans laid out by
+ * one Analyze view. So the caller must pass the count of a thing that will actually
+ * be rendered as a page, and for a series that is a PART, not the source range the
+ * parts were cut from. A whole-Psalms series was reporting 2,461 verses; no page in
+ * it renders more than 176.
+ *
+ * The remedy differs with the unit, which is why this is a copy variant and not one
+ * unit-neutral sentence: "consider a smaller range" is useless advice to a user who
+ * has already divided the range — their control is chapters per part.
+ *
+ * This is the third appearance in this codebase of one bug: a count that measures a
+ * different unit from the sentence reporting it. See COMPLIANCE.md §1.10 and the
+ * sibling suppression in StudyForm.svelte, where the licence alert is withheld under
+ * a series for the same reason ("a series is not one page").
+ *
+ * @param {number} totalVerses - Verses in the unit being assessed
+ * @param {{ unit?: 'study'|'part' }} [options] - `'part'` when the count is the largest part of a series
  * @returns {{ level: 'ok'|'notice'|'warning', totalVerses: number, estimatedSpans: number, message: string|null }}
  */
-export function assessStudySize(totalVerses) {
+export function assessStudySize(totalVerses, options = {}) {
 	const verses = Number.isFinite(totalVerses) && totalVerses > 0 ? Math.floor(totalVerses) : 0;
 	const estimatedSpans = verses * SPANS_PER_VERSE;
+	const isPart = options.unit === 'part';
+	const count = verses.toLocaleString();
 
 	if (verses >= VERSE_COUNT_WARNING) {
 		return {
 			level: 'warning',
 			totalVerses: verses,
 			estimatedSpans,
-			message: `This study contains ${verses.toLocaleString()} verses. Studies this large can scroll and zoom slowly, particularly in Safari. You can still create it — consider whether a smaller range would suit how you plan to work.`
+			message: isPart
+				? `The largest part contains ${count} verses. Parts this large can scroll and zoom slowly, particularly in Safari. You can still create the series — consider fewer chapters per part.`
+				: `This study contains ${count} verses. Studies this large can scroll and zoom slowly, particularly in Safari. You can still create it — consider whether a smaller range would suit how you plan to work.`
 		};
 	}
 
@@ -108,7 +130,9 @@ export function assessStudySize(totalVerses) {
 			level: 'notice',
 			totalVerses: verses,
 			estimatedSpans,
-			message: `This study contains ${verses.toLocaleString()} verses. Large studies may feel less responsive when scrolling or zooming.`
+			message: isPart
+				? `The largest part contains ${count} verses. Large parts may feel less responsive when scrolling or zooming.`
+				: `This study contains ${count} verses. Large studies may feel less responsive when scrolling or zooming.`
 		};
 	}
 

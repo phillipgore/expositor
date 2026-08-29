@@ -18,6 +18,7 @@ import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 import { getBoundaryDisabledReason } from '$lib/utils/seriesRuns.js';
 import { selectPrefetchTarget } from '$lib/utils/seriesPrefetch.js';
 import { warmAdjacentPart } from '$lib/server/db/seriesPrefetchRunner.js';
+import { enforceCacheLimit } from '$lib/server/db/cacheEvictionRunner.js';
 import { resolveStructureOwners } from '$lib/server/db/structureOwners.js';
 
 
@@ -252,7 +253,9 @@ export async function load({ params, request, depends }) {
 		// Kicked off without `await`: the page does not depend on it, and a slow provider must not delay
 		// the response. `void` marks that the floating promise is intentional rather than forgotten.
 		if (prefetchTarget) {
-			void warmAdjacentPart(prefetchTarget, translation);
+			// The user id travels with it so the runner can re-check the storage cap after warming
+			// (COMPLIANCE.md §5 item 1).
+			void warmAdjacentPart(prefetchTarget, translation, session.user.id);
 		}
 
 
@@ -273,15 +276,37 @@ export async function load({ params, request, depends }) {
 			// fetched live and lazily backfilled into the DB so subsequent loads are
 			// fast and don't re-hit the translation API.
 			const endText = perfTimer(`  └ passage text fetch`);
+			let cacheFilled = false;
 			const passagesWithText = await fetchPassagesTextWithCache(passagesData, translation, {
 				onFetched: async (passageRow, result) => {
 					await db
 						.update(passage)
 						.set({ cachedText: result.text, textCachedAt: new Date() })
 						.where(eq(passage.id, passageRow.id));
+					cacheFilled = true;
 				}
 			});
 			endText();
+
+			// ── Enforce the local-storage cap (COMPLIANCE.md §5 item 1) ──────
+			//
+			// This is the load-bearing wire for that item: `passage.cachedText` persisted fetched ESV text
+			// "indefinitely and without bound", which COMPLIANCE.md called the one genuine licence
+			// violation. The cap is enforced HERE, immediately after the write that could exceed it,
+			// because a cap checked anywhere else is a cap with a window during which the app is in breach.
+			//
+			// ⚠️ Triggered only when a fill actually happened. Running it on every study load would issue a
+			// query per page view to re-answer a question whose inputs did not change — and §11.1's rule
+			// against spending unmeasured cost on unmeasured problems applies to compliance code too.
+			//
+			// ⚠️ NOT awaited, and errors are swallowed inside the runner. The user's own text is already
+			// fetched and rendered by this point; eviction corrects what is STORED, so making the page wait
+			// for it would trade a real delay for no visible benefit. Eviction never removes text this page
+			// is displaying — the clause governs storage, not display, and an evicted row re-fetches on
+			// demand.
+			if (cacheFilled) {
+				void enforceCacheLimit(session.user.id);
+			}
 
 			// Fetch structure (columns, sections, segments) for ALL passages using
 			// three batched queries (one per level) instead of the previous N+1
