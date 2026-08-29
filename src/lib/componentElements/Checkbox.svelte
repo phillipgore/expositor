@@ -106,18 +106,23 @@
 </div>
 
 <style>
-	/* Deliberately identical to RadioButtons: same 0.3rem gap, and no font overrides, so the
-	   label inherits Label's own 1.4rem/500 exactly as a radio's does. An earlier pass set
+	/* Matches RadioButtons in everything that should match: no font overrides, so the label
+	   inherits Label's own 1.4rem/500 exactly as a radio's does. An earlier pass set
 	   `font-size: inherit` and `font-weight: 400` here, which rendered the checkbox label
-	   visibly smaller and lighter than the radio labels directly above it. */
-	.checkbox-container {
-		display: flex;
-		flex-direction: column;
+	   visibly smaller and lighter than the radio labels directly above it.
 
+	   No `display: flex` on the container: RadioButtons needs it to stack N radios with a gap,
+	   but a single checkbox has one child, so a flex context here did nothing except stretch
+	   the wrapper to full width. */
+	.checkbox-container {
 		.button-container {
 			display: flex;
 			align-items: center;
-			gap: 0.3rem;
+			/* 0.5rem, NOT the 0.3rem RadioButtons uses. This is the one place copying the radios
+			   exactly is wrong: a radio is a circle with optical padding inside its bounding box,
+			   while a checkbox is a square filling its box edge to edge. The same declared gap
+			   therefore reads as visibly tighter on a checkbox. */
+			gap: 0.5rem;
 
 			/* Labels that wrap need the box on the first line, not floating mid-paragraph. */
 			&.align-top {
@@ -136,13 +141,21 @@
 
 	input {
 		accent-color: var(--blue);
-		/* A native checkbox draws marginally smaller than a radio at the same font size, so the
-		   box is pinned to match the radios it sits with. */
-		width: 1.3rem;
-		height: 1.3rem;
 		margin: 0rem;
 		flex-shrink: 0;
+
+		/* Same focus treatment as RadioButtons, so keyboard focus looks identical across the
+		   two controls. */
+		&:focus,
+		&:focus-visible {
+			box-shadow: 0rem 0rem 0rem 0rem;
+		}
 	}
+
+	/* NO explicit width/height. `html` is `font-size: 62.5%`, so the `1.3rem` a previous pass
+	   set here was 13px against a native control's 14px — it shrank the box below the radios
+	   it was meant to match, while the comment claimed the opposite. Both controls now render
+	   at their native size, which is what actually matches. */
 
 	/* Matches the box to the cap height of the first line under `align-top`. */
 	.align-top input {
