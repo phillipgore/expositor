@@ -68,6 +68,15 @@
 	let formElement = $state(null);
 	let isAnalyzing = $state(false);
 
+	/**
+	 * A failure from the series analysis step.
+	 *
+	 * Held separately from `form?.error`, which carries SvelteKit action failures. The series path
+	 * never posts to an action — it fetches, then navigates — so it has no `form` prop to populate,
+	 * and reusing that one would mean an error from a previous save could reappear here.
+	 */
+	let seriesEditError = $state('');
+
 	const testamentData = bibleData[0].testamentData;
 	const ntBookData = testamentData[1].bookData;
 
@@ -112,7 +121,18 @@
 	//
 	// In edit mode the translation is fixed by the study and not part of this
 	// form, so fall back to the study's own translation.
-	let selectedTranslation = $state(mode === 'edit' ? initialData?.translation || 'esv' : 'esv');
+	let selectedTranslation = $state(
+		mode === 'edit' || mode === 'series-edit' ? initialData?.translation || 'esv' : 'esv'
+	);
+
+	/**
+	 * Editing an existing thing, whether a standalone study or a whole series.
+	 *
+	 * Several rules below apply to both — the translation is fixed, the title must not collide with
+	 * OTHER studies, and unsaved changes must be guarded. Naming the shared case once stops those
+	 * rules being re-derived (and drifting) per mode.
+	 */
+	let isEditing = $derived(mode === 'edit' || mode === 'series-edit');
 
 	/**
 	 * Per-passage retrieval problems for the chosen translation.
@@ -201,14 +221,28 @@
 	//      bare number — "Psalms at one chapter per part means 150 parts" has to be visible
 	//      BEFORE committing, not discovered in the Finder afterwards.
 	//
-	// Offered only in `new` mode: converting an existing study is the study menu's job, and an
-	// edit-mode radio here would collide with the passage-reconciliation review flow.
-	let createAsSeries = $state(false);
-	let chaptersInput = $state('1');
+	// Offered in `new` (create as a series) and `series-edit` (re-divide an existing one). NOT in
+	// plain `edit`: converting a standalone study is the study menu's job, and a toggle here would
+	// collide with the passage-reconciliation review flow.
+	//
+	// In `series-edit` the study ALREADY is a series, so the switch starts on and reflects reality
+	// rather than proposing a change. Turning it off means dissolving the series, which is
+	// destructive and confirmed separately.
+	let createAsSeries = $state(mode === 'series-edit');
+
+	// Seeded from the series' CURRENT division when editing one, so the modal opens on the shape the
+	// user has rather than proposing a re-division they did not ask for. `null` means the series is
+	// hand-shaped and has no single chapters-per-part, in which case the default stands and nothing
+	// happens unless the user moves the stepper.
+	let chaptersInput = $state(
+		mode === 'series-edit' && initialData?.chaptersPerPart
+			? String(initialData.chaptersPerPart)
+			: '1'
+	);
 
 	// Eligibility is the SHARED rule, not a local re-derivation: 2+ chapters, never tightened
 	// (§5, trap 10). A single-chapter study simply has no seam to cut on.
-	let seriesEligible = $derived(mode === 'new' && isSeriesEligible(passages));
+	let seriesEligible = $derived(mode !== 'edit' && isSeriesEligible(passages));
 
 	let seriesStrategy = $derived(getPartingStrategy(passages));
 
@@ -290,6 +324,22 @@
 
 	/** Positional array in the shape `planSeriesParts()` and the endpoint expect. */
 	let chaptersPerPassage = $derived(passageParting.map((entry) => entry.chapters));
+
+	/**
+	 * Has the user actually asked to RE-DIVIDE an existing series?
+	 *
+	 * Only true when the stepper differs from the division the series already has. Sending the
+	 * setting unconditionally would make every save a re-division: opening the form and changing
+	 * only the subtitle would re-plan the seams, and a series whose current shape has no single
+	 * chapters-per-part (hand-split with Split Part) would be flattened to a uniform one it never
+	 * asked for.
+	 */
+	let divisionChanged = $derived(
+		mode === 'series-edit' &&
+			createAsSeries &&
+			initialData?.chaptersPerPart != null &&
+			chaptersPerPart !== initialData.chaptersPerPart
+	);
 
 	// Drop settings for passages that no longer exist, so a deleted passage cannot leave a stale
 	// entry that a later passage reusing its id would inherit.
@@ -461,8 +511,13 @@
 
 	// Passage edits can make a chosen series impossible (down to one chapter) or move the
 	// stepper out of range. Reset rather than submit a stale setting.
+	//
+	// ⚠️ NOT in `series-edit`. There the study already IS a series, and silently flipping the switch
+	// off would turn "your passage edit left one chapter" into an unannounced request to DISSOLVE
+	// the series — a destructive act arrived at by a side effect. The save path refuses that case
+	// with an explanation instead, which is a refusal the user can act on.
 	$effect(() => {
-		if (!seriesEligible && createAsSeries) createAsSeries = false;
+		if (mode !== 'series-edit' && !seriesEligible && createAsSeries) createAsSeries = false;
 	});
 
 	/**
@@ -488,7 +543,7 @@
 	);
 
 	/** Dirty when editing and the current values differ from the saved baseline. */
-	let isDirty = $derived(mode === 'edit' && !!initialData?.id && currentSnapshot !== savedSnapshot);
+	let isDirty = $derived(isEditing && !!initialData?.id && currentSnapshot !== savedSnapshot);
 
 	/**
 	 * Get duplicate title message if a study with this title already exists
@@ -499,9 +554,12 @@
 		if (!title || !title.trim()) return '';
 		const trimmedTitle = title.trim().toLowerCase();
 
-		// When editing, exclude the current study from duplicate check
+		// When editing, exclude the current study from duplicate check. In series-edit the loader
+		// has already excluded this series' own parts — their titles are derived from the parting
+		// ("Matthew 3"), so treating them as user-chosen names would make the series collide with
+		// itself on every keystroke.
 		const studiesToCheck =
-			mode === 'edit' && initialData?.id
+			isEditing && initialData?.id
 				? existingStudies.filter((s) => s.id !== initialData.id)
 				: existingStudies;
 
@@ -607,6 +665,67 @@
 	 *
 	 * @param {{ cancel: () => void }} param0
 	 */
+	/**
+	 * Editing a SERIES always goes through review.
+	 *
+	 * Unlike a study edit — which submits straight through when nothing needs a decision — a series
+	 * edit can delete whole parts, and that must never happen without the user having seen what each
+	 * doomed part contains. The endpoint refuses a commit without `confirmPartDeletion` anyway, so
+	 * bypassing review here would only produce a 409 the user could not act on.
+	 */
+	async function runSeriesAnalysisGate({ cancel }) {
+		cancel();
+
+		if (hasDuplicateTitle || isAnalyzing || isSubmitting) return;
+
+		isAnalyzing = true;
+		try {
+			const res = await fetch(`/api/series/${initialData.id}/analyze-edit`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				// The division travels with the analysis so the report can name what a join would
+				// DISCARD (Q28). Sent only when the user actually moved the stepper — see
+				// `divisionChanged`.
+				body: JSON.stringify({
+					passages,
+					...(divisionChanged ? { chaptersPerPart, chaptersPerPassage } : {})
+				})
+			});
+
+			const report = await res.json();
+
+			if (!res.ok) {
+				// Surfaced rather than swallowed: a limit breach or a missing series is something
+				// the user can act on, and falling through to a save would fail anyway.
+				seriesEditError = report?.error || 'Could not check these changes. Please try again.';
+				return;
+			}
+
+			const seriesId = initialData.id;
+			sessionStorage.setItem(
+				pendingEditKey(seriesId),
+				JSON.stringify({
+					title: studyTitle,
+					subtitle: studySubtitle,
+					passages,
+					// The requested DIVISION, carried through the review so the save applies the
+					// shape the user approved. Sent only when it actually differs from what the
+					// series already has — otherwise an edit that merely changed a passage would
+					// re-divide the series as a side effect.
+					...(divisionChanged ? { chaptersPerPart, chaptersPerPassage } : {}),
+					report
+				})
+			);
+			sessionStorage.setItem(armedKey(seriesId), '1');
+			await goto(`/series/${seriesId}/edit/review`);
+		} catch (err) {
+			console.error('Series edit analysis failed:', err);
+			seriesEditError = 'Could not check these changes. Please try again.';
+		} finally {
+			isAnalyzing = false;
+		}
+	}
+
 	async function runAnalysisGate({ cancel }) {
 		// Stop this submission; we'll either navigate to review or submit directly.
 		cancel();
@@ -705,6 +824,13 @@
 	bind:this={formElement}
 	method="POST"
 	use:enhance={({ cancel }) => {
+		// A SERIES edit never posts to an action: its save spans several parts, so it goes through
+		// the reserialize endpoint after the review page collects decisions.
+		if (mode === 'series-edit' && initialData?.id) {
+			runSeriesAnalysisGate({ cancel });
+			return;
+		}
+
 		// In edit mode, gate EVERY submit on analysis/review. The analysis step
 		// decides whether to navigate to the full-page review or submit straight
 		// through. New studies post normally below.
@@ -720,15 +846,25 @@
 		};
 	}}
 >
-	<Heading heading="h1" hasSub={groupName ? true : false}
-		>{mode === 'new' ? 'New Study' : 'Edit Study'}</Heading
-	>
+	<Heading heading="h1" hasSub={groupName ? true : false}>
+		{#if mode === 'new'}
+			New Study
+		{:else if mode === 'series-edit'}
+			Edit Series
+		{:else}
+			Edit Study
+		{/if}
+	</Heading>
 	{#if groupName}
 		<Heading heading="h2" isMuted notBold>{`To be created in "${groupName}".`}</Heading>
 	{/if}
 
 	{#if form?.error}
 		<Alert color="red" look="subtle" message={form.error} />
+	{/if}
+
+	{#if seriesEditError}
+		<Alert color="red" look="subtle" message={seriesEditError} />
 	{/if}
 
 	<InputField
@@ -1074,9 +1210,11 @@
 			label="Serialize"
 			checked={createAsSeries}
 			isDisabled={!seriesEligible}
-			title={seriesEligible
-				? 'Divide this study into a series of parts'
-				: 'A series needs a passage spanning at least two chapters'}
+			title={!seriesEligible
+				? 'A series needs a passage spanning at least two chapters'
+				: mode === 'series-edit'
+					? 'This study is a series. Turning this off will dissolve it into one study.'
+					: 'Divide this study into a series of parts'}
 			onToggle={(next) => (createAsSeries = next)}
 		/>
 

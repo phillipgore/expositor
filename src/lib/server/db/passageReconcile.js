@@ -25,7 +25,7 @@ import {
 } from '$lib/server/db/schema.js';
 
 
-import { eq, inArray, asc } from 'drizzle-orm';
+import { eq, inArray, asc, or } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
 import { compareWordIds } from '$lib/server/db/utils.js';
@@ -283,6 +283,56 @@ function segmentHasContent(seg) {
 	return Boolean(
 		seg.headingOne || seg.headingTwo || seg.headingThree || seg.note || seg.commentary
 	);
+}
+
+/**
+ * Every connection with an endpoint among the given ids.
+ *
+ * ⚠️ Loaded BY ENDPOINT, never by `studyId`.
+ *
+ * Both call sites previously filtered `where(eq(segmentConnection.studyId, studyId))` and then
+ * matched endpoints in memory. That is correct only while every connection touching a study's
+ * structure is *owned* by that study — true before series existed, and false since. SERIES_PLAN §8
+ * records the consequence for the sibling helper: "the query **silently returns fewer rows than it
+ * should.** No error; `analyzeJoin()` simply reports that no connections are affected, and the
+ * confirm modal tells the user so." §11 notes `analyzeEdit()` was left on that old passage-scoped
+ * path when the sibling was fixed; this is that fix.
+ *
+ * A cross-part connection carries the OTHER part's `studyId`, so editing a part's range would drop
+ * it from the report — the user would never be asked, and it would then be destroyed by cascade
+ * when its endpoint went. A missing warning, which is worse than a wrong one.
+ *
+ * Asking about endpoints rather than ownership is also simply the right question: a connection is
+ * affected because of what it points AT, not because of which row happens to own it. This mirrors
+ * `loadTouchingConnections()` in `server/db/seriesStructure.js`, whose docblock makes the same
+ * point; the two are kept deliberately parallel rather than merged, because that one runs inside a
+ * split/join transaction and this one must also serve read-only analysis.
+ *
+ * @param {Object} dbx - A db handle or an open transaction
+ * @param {{segmentIds: string[], sectionIds: string[], columnIds: string[]}} ids
+ * @returns {Promise<Array<Object>>}
+ */
+async function loadConnectionsTouching(dbx, { segmentIds, sectionIds, columnIds }) {
+	const clauses = [];
+	if (segmentIds.length > 0) {
+		clauses.push(inArray(segmentConnection.fromSegmentId, segmentIds));
+		clauses.push(inArray(segmentConnection.toSegmentId, segmentIds));
+	}
+	if (sectionIds.length > 0) {
+		clauses.push(inArray(segmentConnection.fromSectionId, sectionIds));
+		clauses.push(inArray(segmentConnection.toSectionId, sectionIds));
+	}
+	if (columnIds.length > 0) {
+		clauses.push(inArray(segmentConnection.fromColumnId, columnIds));
+		clauses.push(inArray(segmentConnection.toColumnId, columnIds));
+	}
+
+	// No ids means no candidates. `or()` with an empty list is not a valid filter, and omitting the
+	// where clause entirely would select EVERY connection in the database — the same trap
+	// `loadTouchingConnections()` guards.
+	if (clauses.length === 0) return [];
+
+	return dbx.select().from(segmentConnection).where(or(...clauses));
 }
 
 /* ------------------------------------------------------------------ */
@@ -604,19 +654,11 @@ async function analyzeRemoval(dbx, studyId, passageId, side, boundaryWord) {
 	// Connections touching any orphaned item.
 	const orphanSectionIds = new Set(orphanSections.map((s) => s.id));
 	const orphanColumnIds = new Set(orphanColumns.map((c) => c.id));
-	const allConnections = await dbx
-		.select()
-		.from(segmentConnection)
-		.where(eq(segmentConnection.studyId, studyId));
-	const affected = allConnections.filter(
-		(c) =>
-			(c.fromSegmentId && orphanSegIdSet.has(c.fromSegmentId)) ||
-			(c.toSegmentId && orphanSegIdSet.has(c.toSegmentId)) ||
-			(c.fromSectionId && orphanSectionIds.has(c.fromSectionId)) ||
-			(c.toSectionId && orphanSectionIds.has(c.toSectionId)) ||
-			(c.fromColumnId && orphanColumnIds.has(c.fromColumnId)) ||
-			(c.toColumnId && orphanColumnIds.has(c.toColumnId))
-	);
+	const affected = await loadConnectionsTouching(dbx, {
+		segmentIds: [...orphanSegIdSet],
+		sectionIds: [...orphanSectionIds],
+		columnIds: [...orphanColumnIds]
+	});
 
 	// Maps from each removed entity → the surviving target of the same kind,
 	// used here only to detect connections that would collapse into a self-loop.
@@ -864,24 +906,14 @@ async function reanchorOrphanConnections(
 	target,
 	connChoice = 'reanchor'
 ) {
-	const segSet = new Set(orphanSegIds);
-	const secSet = new Set(orphanSectionIds);
-	const colSet = new Set(orphanColumnIds);
-
-	const allConns = await tx
-		.select()
-		.from(segmentConnection)
-		.where(eq(segmentConnection.studyId, studyId));
-
-	const affected = allConns.filter(
-		(c) =>
-			(c.fromSegmentId && segSet.has(c.fromSegmentId)) ||
-			(c.toSegmentId && segSet.has(c.toSegmentId)) ||
-			(c.fromSectionId && secSet.has(c.fromSectionId)) ||
-			(c.toSectionId && secSet.has(c.toSectionId)) ||
-			(c.fromColumnId && colSet.has(c.fromColumnId)) ||
-			(c.toColumnId && colSet.has(c.toColumnId))
-	);
+	// ⚠️ Must load by the SAME predicate `analyzeRemoval()` reports with. If the report and the
+	// write disagree about which connections are affected, the user is asked about one set and a
+	// different set is modified — the decision they made would be applied to something else.
+	const affected = await loadConnectionsTouching(tx, {
+		segmentIds: orphanSegIds,
+		sectionIds: orphanSectionIds,
+		columnIds: orphanColumnIds
+	});
 	if (affected.length === 0) return;
 
 	// Maps from removed entity → surviving target of the same kind.
@@ -895,8 +927,18 @@ async function reanchorOrphanConnections(
 	}
 
 	const affectedIds = new Set(affected.map((c) => c.id));
-	// Survivor pool = connections that won't be touched, used for dedup matching.
-	const survivorPool = allConns.filter((c) => !affectedIds.has(c.id));
+
+	// Survivor pool = connections that won't be touched, used for dedup matching when a re-anchored
+	// connection lands on endpoints an existing one already joins.
+	//
+	// Scoped by `studyId` DELIBERATELY, unlike the affected set above. This asks a different
+	// question — "what connections already exist in this document that a re-anchored one could
+	// duplicate?" — and folding a connection into one owned by a different part would move the
+	// user's link into a study they are not editing. The narrow scope is right here for the same
+	// reason the wide one is right there.
+	const survivorPool = (
+		await tx.select().from(segmentConnection).where(eq(segmentConnection.studyId, studyId))
+	).filter((c) => !affectedIds.has(c.id));
 
 	for (const conn of affected) {
 		if (connChoice === 'delete' || !target) {

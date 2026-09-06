@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { studySeries, study } from '$lib/server/db/schema.js';
+import { studySeries, study, studyGroup } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, and } from 'drizzle-orm';
 
@@ -55,6 +55,52 @@ export const PATCH = async ({ request, params }) => {
 				return json({ error: 'Series name cannot be empty' }, { status: 400 });
 			}
 			updates.name = trimmed;
+		}
+
+		// The subtitle, which is nullable — so `null` and `''` both mean "clear it", while an absent
+		// key means "leave it alone". Accepted here as well as in `reserialize` because renaming a
+		// series is a placement-style edit that should not require the whole review flow.
+		if (body.subtitle !== undefined) {
+			if (body.subtitle === null) {
+				updates.subtitle = null;
+			} else if (typeof body.subtitle === 'string') {
+				updates.subtitle = body.subtitle.trim() === '' ? null : body.subtitle.trim();
+			} else {
+				return json({ error: 'subtitle must be a string or null' }, { status: 400 });
+			}
+		}
+
+		// Filing the series in a group, or moving it back to the top level with an explicit null.
+		//
+		// This is a PLACEMENT change, not a membership one, so it does not fall foul of the note
+		// above: it never touches which studies are parts, nor their seriesOrder. A series occupies
+		// one Finder slot the way a study does (§4), and the Finder's "Move to..." command had no
+		// way to move it until this existed — it issued a PATCH that this handler ignored, so the
+		// move reported success and nothing moved.
+		//
+		// `undefined` means "not mentioned"; `null` means "move to the top level". Distinguishing
+		// them matters, because `groupId` is nullable and a caller must be able to clear it.
+		if (body.groupId !== undefined) {
+			if (body.groupId === null) {
+				updates.groupId = null;
+			} else if (typeof body.groupId === 'string' && body.groupId.trim() !== '') {
+				// The destination must be a group THIS user owns. Without the ownership check a
+				// series could be filed into someone else's group, where its owner could no longer
+				// see it — scoping the lookup makes a foreign group indistinguishable from a
+				// missing one, as everywhere else in this file.
+				const [group] = await db
+					.select({ id: studyGroup.id })
+					.from(studyGroup)
+					.where(and(eq(studyGroup.id, body.groupId), eq(studyGroup.userId, session.user.id)))
+					.limit(1);
+
+				if (!group) {
+					return json({ error: 'That group could not be found' }, { status: 400 });
+				}
+				updates.groupId = body.groupId;
+			} else {
+				return json({ error: 'groupId must be a group id or null' }, { status: 400 });
+			}
 		}
 
 		// lastPartId records which part to reopen when the series title is clicked (Q18).

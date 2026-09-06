@@ -878,6 +878,33 @@ Verified on the scratch clone: deleting the remembered part leaves the series ro
 `user.lastStudyView` — the confusion this question exists to record. The chevron still expands and
 the title still navigates; only the destination changed.
 
+⚠️ **Q18 — REVISED (2026-08-29): the title opens the SERIES, not a part.** Navigating straight to a
+part made the series row unable to be selected on its own, and that had consequences well beyond
+navigation:
+
+- `handleSeriesHeaderClick` navigated without ever calling `multiSelect.handleItemClick`, so
+  `isItemSelected('series', …)` was never true. The row's selection styling was dead code and the
+  toolbar never saw a series at all.
+- The part it opened became `activeStudyId`, which the Finder's auto-select effect then selected. So
+  clicking a series reliably ended up selecting a **part**.
+- Edit therefore acted on that part, opening one part's passage list as though it were the study.
+  A 28-part Matthew series offered "Matthew 3" for editing rather than the Matthew 1–28 the user
+  typed — §5's whole premise is that a series **is** a study the user divided.
+
+A series is selected the way a group is (§4 treats both as expandable Finder rows), and a group
+click opens `/study-group/[id]` — its own page, never one of its studies. A series now has the
+same: `/series/[id]`, with the parts listed and the recomposed passage list behind Edit.
+
+**`lastPartId` is not obsolete.** It still records where the user was, and the series page offers it
+as an explicit "Continue reading Part N" button. What changed is that resuming is a choice the user
+makes rather than a side effect of selecting the series — which is precisely what let the selection
+leak into a part. Q18's answer (resume the last-viewed part) survives; its *trigger* moved.
+
+Pinned by `scripts/verify-series-selection.mjs`, which asserts the click selects the series, that it
+does not navigate to a part, and that Edit is disabled while a part is selected — the last of these
+mutation-tested, including the trap that disabling Edit must **not** disable part deletion (§4's
+`describePartDeletion` flow depends on it).
+
 ---
 
 ## 7. Navigation
@@ -1998,8 +2025,9 @@ reopening condition at #4 above), **Q23** (preserve as edge stubs — strategy (
 ineligible; `'overlap'` is its own excluded state, so the refusal names it), **Q31** (no `series-part` icon — numbering is text), **Q33** (aggregate reported at
 creation, informationally; binding at export), **Q42** (`studyId` stays `.notNull()`; `seriesId`
 nullable and additive; no `CHECK` — cross-part rows arrive from boundary moves, not authoring),
-**Q18** (the title resumes the last-viewed part via `studySeries.lastPartId`, `set null`, falling
-back to part 1), **Q43** (a part delete cannot create a compliance breach — recorded so no check is
+**Q18** (the title opens the SERIES page; `studySeries.lastPartId`, `set null`, falling back to part
+1, now drives an explicit "Continue reading" button there rather than the click itself — REVISED
+2026-08-29, see §Q18 for why resume-on-click made a series impossible to select), **Q43** (a part delete cannot create a compliance breach — recorded so no check is
 written for it). See §14.
 
 ---

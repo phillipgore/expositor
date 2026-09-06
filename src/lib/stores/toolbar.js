@@ -1383,6 +1383,26 @@ export function setZoomMode(mode, view) {
  * @param {boolean} selection.hasGroups - Whether selection includes groups
  * @param {boolean} selection.hasStudies - Whether selection includes studies
  */
+/**
+ * Is this selection a single PART of a series?
+ *
+ * A serialized study is edited as a whole, through its series: the passage list the user typed is
+ * spread across the parts, so opening one part's editor shows a fragment of the study and invites
+ * an edit that silently means something different from what it appears to mean.
+ *
+ * ⚠️ This gates EDIT ONLY. Deleting a part is a deliberate, supported operation with its own §4
+ * warning copy (`describePartDeletion` — it explains that the run splits and which commands die at
+ * the new seam), so `canDelete` must not borrow this predicate.
+ *
+ * @param {object|null} selection
+ * @returns {boolean}
+ */
+function isSinglePartSelection(selection) {
+	if (!selection || selection.count !== 1) return false;
+	const item = selection.items?.[0];
+	return item?.type === 'study' && Boolean(item?.data?.seriesId);
+}
+
 export function setSelectedItem(selection) {
 	toolbarStateStore.update(state => ({
 		...state,
@@ -1390,7 +1410,14 @@ export function setSelectedItem(selection) {
 		// On the study edit/review route, Edit, Delete, and the mode switcher must stay
 		// disabled even though the study being edited is auto-selected in the Finder —
 		// otherwise selecting it would let the user re-edit/delete or jump out mid-edit.
-		canEdit: !state.isStudyEditRoute && selection !== null && selection.count > 0,
+		//
+		// A part of a series is additionally excluded from EDIT (but not Delete — see above):
+		// the series is the editable unit.
+		canEdit:
+			!state.isStudyEditRoute &&
+			selection !== null &&
+			selection.count > 0 &&
+			!isSinglePartSelection(selection),
 		canDelete: !state.isStudyEditRoute && selection !== null && selection.count > 0,
 		// Enabled if a study is selected OR if a study route is currently active.
 		canSwitchMode: !state.isStudyEditRoute && (state.isStudyRoute || (selection !== null && selection.hasStudies))

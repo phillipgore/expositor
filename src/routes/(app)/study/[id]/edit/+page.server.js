@@ -50,6 +50,18 @@ export async function load({ params, request, depends }) {
 			throw error(403, 'You do not have permission to edit this study');
 		}
 
+		// A PART is edited through its series, never on its own.
+		//
+		// The toolbar already disables Edit for a selected part, but a disabled button is not a
+		// guard: this URL is bookmarkable, reachable by typing, and survives in browser history
+		// from before the series existed. Without this redirect the form would open on a fragment
+		// of the study — one part's passages, presented as though they were the whole thing — and
+		// saving would reconcile that fragment against the part, quietly meaning something other
+		// than what the user saw.
+		if (studyData.seriesId) {
+			throw redirect(307, `/series/${studyData.seriesId}/edit`);
+		}
+
 		// Query the passages for this study
 		const passagesData = await db
 			.select()

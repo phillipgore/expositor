@@ -44,7 +44,11 @@ export function useMultiSelect(updateToolbarCallback) {
 				items: selectedItems,
 				count: selectedItems.length,
 				hasGroups: selectedItems.some(i => i.type === 'group'),
-				hasStudies: selectedItems.some(i => i.type === 'study')
+				hasStudies: selectedItems.some(i => i.type === 'study'),
+				// A series is neither a group nor a study (SERIES_PLAN §4), so without its own flag
+				// every consumer downstream had to re-derive it from `items` or, worse, treat a
+				// series selection as "not a selection at all".
+				hasSeries: selectedItems.some(i => i.type === 'series')
 			});
 		}
 		
@@ -217,6 +221,7 @@ export function useMultiSelect(updateToolbarCallback) {
 			// Separate studies and groups
 			const studyItems = selectedItems.filter(item => item.type === 'study');
 			const groupItems = selectedItems.filter(item => item.type === 'group');
+			const seriesItems = selectedItems.filter(item => item.type === 'series');
 
 			// Move studies
 			if (studyItems.length > 0) {
@@ -239,6 +244,25 @@ export function useMultiSelect(updateToolbarCallback) {
 							method: 'PATCH',
 							headers: { 'Content-Type': 'application/json' },
 							body: JSON.stringify({ parentGroupId: targetGroupId })
+						})
+					)
+				);
+			}
+
+			// Move series.
+			//
+			// ⚠️ This branch was MISSING, and its absence was silent: a selected series was filtered
+			// into neither list above, so the move reported success while leaving the series exactly
+			// where it was. `study_series.groupId` exists and a series occupies one Finder slot the
+			// way a study does (§4), so it moves the same way — via its own endpoint, because a
+			// series is a separate table and `/api/groups` would not find it.
+			if (seriesItems.length > 0) {
+				await Promise.all(
+					seriesItems.map(item =>
+						fetch(`/api/series/${item.id}`, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ groupId: targetGroupId })
 						})
 					)
 				);

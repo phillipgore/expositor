@@ -24,11 +24,21 @@ export function useKeyboardNavigation(getSortedGroupsAndStudies, onToggleCollaps
 		const item = flattenedItems[index];
 		if (!item) return;
 
-		// Find the DOM element and focus it
-		// For groups, target the button specifically since there are multiple elements with data-group-id
-		const selector = item.type === 'group' 
-			? `.group-select-button[data-group-id="${item.id}"]`
-			: `[data-study-id="${item.id}"]`;
+		// Find the DOM element and focus it.
+		// For groups and series, target the select button specifically, since several elements
+		// carry the same data-*-id.
+		//
+		// ⚠️ The series case was MISSING: a series row matches neither `.group-select-button` nor
+		// `[data-study-id]`, so `document.querySelector` returned null and arrowing onto a series
+		// focused nothing at all — the keyboard silently skipped a row that is visibly there.
+		let selector;
+		if (item.type === 'group') {
+			selector = `.group-select-button[data-group-id="${item.id}"]`;
+		} else if (item.type === 'series') {
+			selector = `.series-select-button[data-series-id="${item.id}"]`;
+		} else {
+			selector = `[data-study-id="${item.id}"]`;
+		}
 		
 		const element = document.querySelector(selector);
 		if (element) {
@@ -43,13 +53,15 @@ export function useKeyboardNavigation(getSortedGroupsAndStudies, onToggleCollaps
 	 */
 	function handleArrowLeft(flattenedItems) {
 		const currentItem = flattenedItems[focusedItemIndex];
-		if (!currentItem || currentItem.type !== 'group') return;
+		// Series rows collapse too — they are expandable Finder rows exactly as groups are (§4).
+		// `onToggleCollapse` is supplied by StudiesPanel and routes by type.
+		if (!currentItem || (currentItem.type !== 'group' && currentItem.type !== 'series')) return;
 
-		const group = currentItem.data;
-		
-		// If group is expanded, collapse it
-		if (!group.isCollapsed) {
-			onToggleCollapse(group.id, group.isCollapsed);
+		const item = currentItem.data;
+
+		// If expanded, collapse it
+		if (!item.isCollapsed) {
+			onToggleCollapse(item.id, item.isCollapsed, currentItem.type);
 		}
 	}
 
@@ -58,13 +70,13 @@ export function useKeyboardNavigation(getSortedGroupsAndStudies, onToggleCollaps
 	 */
 	function handleArrowRight(flattenedItems) {
 		const currentItem = flattenedItems[focusedItemIndex];
-		if (!currentItem || currentItem.type !== 'group') return;
+		if (!currentItem || (currentItem.type !== 'group' && currentItem.type !== 'series')) return;
 
-		const group = currentItem.data;
-		
-		// If group is collapsed, expand it
-		if (group.isCollapsed) {
-			onToggleCollapse(group.id, group.isCollapsed);
+		const item = currentItem.data;
+
+		// If collapsed, expand it
+		if (item.isCollapsed) {
+			onToggleCollapse(item.id, item.isCollapsed, currentItem.type);
 		}
 	}
 

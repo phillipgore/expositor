@@ -304,10 +304,24 @@
 		if (count === 0) return;
 		
 		const item = items[0];
-		const editUrl = item.type === 'group' 
-			? `/study-group/${item.id}/edit`
-			: `/study/${item.id}/edit`;
-		
+
+		// Routed by TYPE rather than by "group or not". A series is neither a group nor a study
+		// (SERIES_PLAN §4), so the old two-way branch sent a series id to `/study/{id}/edit`, which
+		// loads a study row and 404s.
+		//
+		// A PART is deliberately absent: `canEdit` is false while one is selected, because a
+		// serialized study is edited as a whole through its series. Editing one part in isolation
+		// is what made the passage list read as "part 3 of Romans" instead of the study the user
+		// actually typed.
+		let editUrl;
+		if (item.type === 'group') {
+			editUrl = `/study-group/${item.id}/edit`;
+		} else if (item.type === 'series') {
+			editUrl = `/series/${item.id}/edit`;
+		} else {
+			editUrl = `/study/${item.id}/edit`;
+		}
+
 		goto(editUrl);
 	}
 

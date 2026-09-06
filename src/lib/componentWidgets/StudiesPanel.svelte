@@ -1,7 +1,7 @@
 <script>
 	/**
 	 * StudiesPanel Component (Refactored)
-	 * 
+	 *
 	 * Orchestrates the studies panel with delegated responsibilities:
 	 * - Data filtering and search (this file)
 	 * - Multi-select logic (useMultiSelect composable)
@@ -9,29 +9,40 @@
 	 * - Group display (StudyGroup component)
 	 * - Study display (StudyItem component)
 	 */
-	import Input from "$lib/componentElements/Input.svelte";
-	import Icon from "$lib/componentElements/Icon.svelte";
-	import StudyGroup from "./studies/StudyGroup.svelte";
-	import StudySeries from "./studies/StudySeries.svelte";
-	import StudyItem from "./studies/StudyItem.svelte";
-	import { useMultiSelect } from "$lib/composables/useMultiSelect.svelte.js";
-	import { useDragAndDrop } from "$lib/composables/useDragAndDrop.svelte.js";
-	import { useStudiesFilter } from "$lib/composables/useStudiesFilter.svelte.js";
-	import { useKeyboardNavigation } from "$lib/composables/useKeyboardNavigation.svelte.js";
-	import { usePanelResize } from "$lib/composables/usePanelResize.svelte.js";
-	import { formatPassageReference } from "$lib/utils/passageFormatting.js";
-	import { getFlattenedItemsList } from "$lib/utils/groupFlattening.js";
-	import { toolbarState, setActiveSegment, setActiveConnection, setHeadingOrNoteEditorActive } from '$lib/stores/toolbar.js';
-	import AddToSeriesModal from "./modals/AddToSeriesModal.svelte";
+	import Input from '$lib/componentElements/Input.svelte';
+	import Icon from '$lib/componentElements/Icon.svelte';
+	import StudyGroup from './studies/StudyGroup.svelte';
+	import StudySeries from './studies/StudySeries.svelte';
+	import StudyItem from './studies/StudyItem.svelte';
+	import { useMultiSelect } from '$lib/composables/useMultiSelect.svelte.js';
+	import { useDragAndDrop } from '$lib/composables/useDragAndDrop.svelte.js';
+	import { useStudiesFilter } from '$lib/composables/useStudiesFilter.svelte.js';
+	import { useKeyboardNavigation } from '$lib/composables/useKeyboardNavigation.svelte.js';
+	import { usePanelResize } from '$lib/composables/usePanelResize.svelte.js';
+	import { formatPassageReference } from '$lib/utils/passageFormatting.js';
+	import { getFlattenedItemsList } from '$lib/utils/groupFlattening.js';
+	import {
+		toolbarState,
+		setActiveSegment,
+		setActiveConnection,
+		setHeadingOrNoteEditorActive
+	} from '$lib/stores/toolbar.js';
+	import AddToSeriesModal from './modals/AddToSeriesModal.svelte';
 	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { flip } from 'svelte/animate';
 
-	let { isOpen = false, studies = [], groups = [], ungroupedStudies = [], ungroupedSeries = [], initialWidth = 300 } = $props();
+	let {
+		isOpen = false,
+		studies = [],
+		groups = [],
+		ungroupedStudies = [],
+		ungroupedSeries = [],
+		initialWidth = 300
+	} = $props();
 
 	// Search state
 	let searchQuery = $state('');
-	let searchInputRef = $state(null);
 
 	// Initialize composables
 	const multiSelect = useMultiSelect();
@@ -72,7 +83,7 @@
 		walk(groups);
 		return collected;
 	});
-	
+
 	// Initialize filter composable
 	const studiesFilter = useStudiesFilter(
 		() => studies,
@@ -81,19 +92,26 @@
 		() => searchQuery,
 		() => ungroupedSeries
 	);
-	
+
 	// Derived filtered/sorted data
 	let sortedStudies = $derived(studiesFilter.getSortedStudies());
 	let filteredGroups = $derived(studiesFilter.getFilteredGroups());
 	let filteredUngroupedStudies = $derived(studiesFilter.getFilteredUngroupedStudies());
 	let sortedGroupsAndStudies = $derived(studiesFilter.getSortedGroupsAndStudies());
-	
-	// Initialize keyboard navigation
+
+	// Initialize keyboard navigation.
+	//
+	// The collapse callback routes by ROW TYPE: a series is a separate table with its own endpoint
+	// (`/api/series/[id]`, not `/api/groups/[id]`), so passing `toggleGroupCollapse` directly would
+	// PATCH a group id that does not exist and silently fail to collapse the row.
 	const keyboardNav = useKeyboardNavigation(
 		() => sortedGroupsAndStudies,
-		toggleGroupCollapse
+		(id, currentState, type) =>
+			type === 'series'
+				? toggleSeriesCollapse(id, currentState)
+				: toggleGroupCollapse(id, currentState)
 	);
-	
+
 	// Initialize panel resize
 	const panelResize = usePanelResize(
 		initialWidth,
@@ -104,10 +122,10 @@
 		'left', // Panel is on the left side
 		300 // Minimum width: 30.0rem
 	);
-	
+
 	let panelWidth = $derived(panelResize.getWidth());
 	let isResizing = $derived(panelResize.getIsResizing());
-	
+
 	// Track active study from current route
 	let activeStudyId = $derived.by(() => {
 		if ($page.url.pathname.startsWith('/study/')) {
@@ -117,7 +135,7 @@
 		}
 		return null;
 	});
-	
+
 	// Track current study view (document vs analyze) so that selecting a new study
 	// keeps the user in the same view they're currently in. When inside a study view
 	// we read it directly from the route. When NOT inside a study view (e.g. on the
@@ -133,10 +151,24 @@
 		return $toolbarState.lastStudyView;
 	});
 
+	/**
+	 * Track the active series from the current route.
+	 *
+	 * Mirrors `activeGroupId`. A series row is "active" when its own page is open — NOT when one
+	 * of its parts is being read; that is what `isActive` on the row already reports separately,
+	 * and conflating the two is what made a part's activity look like the series'.
+	 */
+	let activeSeriesId = $derived.by(() => {
+		if ($page.url.pathname.startsWith('/series/')) {
+			const pathPart = $page.url.pathname.split('/series/')[1];
+			// Strip /edit and any other suffix, as the group and study equivalents do.
+			return pathPart.split('/')[0];
+		}
+		return null;
+	});
 
 	// Track active group from current route or URL parameter
 	let activeGroupId = $derived.by(() => {
-
 		// Check if we're on a study-group page
 		if ($page.url.pathname.startsWith('/study-group/')) {
 			const pathPart = $page.url.pathname.split('/study-group/')[1];
@@ -153,7 +185,6 @@
 		}
 		return null;
 	});
-
 
 	/**
 	 * Toggle group collapsed state
@@ -199,20 +230,46 @@
 	/**
 	 * Handle series header click.
 	 *
-	 * Q18: the title navigates to the last-viewed part, falling back to part 1 when nothing
-	 * is remembered (studySeries.lastPartId is nullable and SET NULL on part delete). The
-	 * chevron is a separate control and handles expand/collapse on its own.
+	 * ⚠️ Deliberately IDENTICAL in shape to `handleGroupHeaderClick`: select the row, then open
+	 * the row's own page. A series is selected the way a group is (§4 treats both as expandable
+	 * Finder rows), so it must behave the same way.
+	 *
+	 * This REVERSES Q18's resume-on-click. The old version navigated straight to a PART and never
+	 * selected anything, which meant:
+	 *   1. `isItemSelected('series', ...)` was never true, so the row's selection styling was dead
+	 *      code and the toolbar never saw a series;
+	 *   2. the part it navigated to became `activeStudyId`, which the auto-select effect below
+	 *      then selected — so clicking a series reliably ended up selecting a PART, and Edit acted
+	 *      on that part.
+	 *
+	 * Resuming is not lost: `/series/[id]` offers it as an explicit "Continue reading" button, so
+	 * it is a choice the user makes rather than a side effect of selecting the series.
+	 *
+	 * The chevron is a separate control and handles expand/collapse on its own.
 	 */
 	function handleSeriesHeaderClick(event, series) {
 		event.preventDefault();
 
 		const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey;
-		if (hasModifier) return;
 
-		const remembered = series.parts?.find((p) => p.id === series.lastPartId);
-		const target = remembered ?? series.parts?.[0];
-		if (target) {
-			goto(`/study/${target.id}/${currentStudyView}`);
+		clearStudyContentState();
+
+		// Always select the series, modifier or not — the modifiers are the multi-select gestures
+		// and belong to `handleItemClick`, exactly as for groups and studies.
+		multiSelect.handleItemClick(
+			event,
+			'series',
+			series.id,
+			series,
+			getFlattenedItemsList(sortedGroupsAndStudies)
+		);
+
+		// Only navigate without modifiers, and only when the destination differs from the current
+		// route. A redundant same-URL goto() still toggles $navigating, which arms the global
+		// loading curtain without producing a load to clear it — see handleStudyClick.
+		if (!hasModifier) {
+			const dest = `/series/${series.id}`;
+			if ($page.url.pathname !== dest) goto(dest);
 		}
 	}
 
@@ -221,15 +278,21 @@
 	 */
 	function handleGroupHeaderClick(event, group) {
 		event.preventDefault();
-		
+
 		// Check for modifier keys
 		const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey;
 
 		clearStudyContentState();
-		
+
 		// Always select the group
-		multiSelect.handleItemClick(event, 'group', group.id, group, getFlattenedItemsList(sortedGroupsAndStudies));
-		
+		multiSelect.handleItemClick(
+			event,
+			'group',
+			group.id,
+			group,
+			getFlattenedItemsList(sortedGroupsAndStudies)
+		);
+
 		// Only navigate if no modifier keys are pressed, and only when the destination
 		// differs from the current route. Re-selecting an already-active group is fully
 		// handled by the multi-select re-selection above; a redundant goto() to the
@@ -246,16 +309,22 @@
 	 */
 	function handleStudyClick(event, study) {
 		event.preventDefault();
-		
+
 		// Check for modifier keys
 		const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey;
-		
+
 		// Always select the study
-		multiSelect.handleItemClick(event, 'study', study.id, study, getFlattenedItemsList(sortedGroupsAndStudies));
-		
+		multiSelect.handleItemClick(
+			event,
+			'study',
+			study.id,
+			study,
+			getFlattenedItemsList(sortedGroupsAndStudies)
+		);
+
 		// Selecting a study deselects any active connection, segment, or note editor inside the study
 		clearStudyContentState();
-		
+
 		// Only navigate if no modifier keys are pressed, and only when the destination
 		// differs from the current route. Preserve the current view (document vs
 		// analyze) when switching studies.
@@ -273,14 +342,13 @@
 		}
 	}
 
-
 	/**
 	 * Handle study mousedown for drag
 	 */
 	function handleStudyMouseDown(event, study) {
 		const isStudySelected = multiSelect.isItemSelected('study', study.id);
-		const getSelectedStudies = () => multiSelect.getSelectedStudies().map(item => item.data);
-		
+		const getSelectedStudies = () => multiSelect.getSelectedStudies().map((item) => item.data);
+
 		dragDrop.handleStudyMouseDown(event, study, isStudySelected, getSelectedStudies);
 	}
 
@@ -290,7 +358,7 @@
 	function handleGroupMouseDown(event, group) {
 		const isGroupSelected = multiSelect.isItemSelected('group', group.id);
 		const getSelectedItems = () => multiSelect.selectedItems;
-		
+
 		// Get all groups (flat list) for ancestry checking
 		const allGroups = [];
 		function collectGroups(groupList) {
@@ -302,7 +370,7 @@
 			}
 		}
 		collectGroups(groups);
-		
+
 		dragDrop.handleGroupMouseDown(event, group, isGroupSelected, getSelectedItems, allGroups);
 	}
 
@@ -330,7 +398,7 @@
 		const clickedOnChevron = event.target.closest('.chevron-button');
 
 		clearStudyContentState();
-		
+
 		if (!clickedOnStudy && !clickedOnGroupButton && !clickedOnChevron) {
 			multiSelect.clearSelection();
 		}
@@ -342,38 +410,41 @@
 	$effect(() => {
 		function handleDocumentClick(event) {
 			if (multiSelect.selectedItems.length === 0) return;
-			
+
 			// Preserve selection on /new-study page with groupId parameter
 			if ($page.url.pathname === '/new-study' && $page.url.searchParams.get('groupId')) {
 				return;
 			}
-			
+
 			// Preserve selection on /new-study-group page with parentGroupId parameter
-			if ($page.url.pathname === '/new-study-group' && $page.url.searchParams.get('parentGroupId')) {
+			if (
+				$page.url.pathname === '/new-study-group' &&
+				$page.url.searchParams.get('parentGroupId')
+			) {
 				return;
 			}
-			
+
 			// Preserve selection when interacting with Actions menu
 			const clickedOnActionsButton = event.target.closest('[popovertarget="MenuActions"]');
 			const clickedInActionsMenu = event.target.closest('#MenuActions');
 			const clickedInModal = event.target.closest('[role="dialog"]');
-			
+
 			if (clickedOnActionsButton || clickedInActionsMenu || clickedInModal) {
 				return;
 			}
-			
+
 			const container = document.querySelector('.studies-container');
 			if (!container) return;
-			
+
 			const clickedInsideContainer = container.contains(event.target);
-			
+
 			if (!clickedInsideContainer) {
 				multiSelect.clearSelection();
 			}
 		}
-		
+
 		document.addEventListener('click', handleDocumentClick);
-		
+
 		return () => {
 			document.removeEventListener('click', handleDocumentClick);
 		};
@@ -405,26 +476,49 @@
 
 	/**
 	 * Auto-select active group or study on page load, or clear selection on dashboard.
-	 * 
+	 *
 	 * For studies: only auto-selects when navigating to a NEW study (ID changed).
 	 * If the user then interacts with content inside the study, handleDocumentClick
 	 * clears the selection — and since the study ID hasn't changed, the $effect
 	 * re-runs but skips the auto-select, leaving the study in "active only" (gray) state.
 	 */
 	$effect(() => {
-		if (activeGroupId) {
+		if (activeSeriesId) {
+			// Checked BEFORE the study branch. A series page has no active study, so the order is
+			// not strictly load-bearing today — but a series selection must never be replaceable by
+			// a part's, and stating the precedence here keeps that true if the routes ever overlap.
+			const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
+			const seriesItem = flatList.find(
+				(item) => item.type === 'series' && item.id === activeSeriesId
+			);
+
+			if (seriesItem && !multiSelect.isItemSelected('series', activeSeriesId)) {
+				multiSelect.selectedItems = [
+					{
+						type: 'series',
+						id: activeSeriesId,
+						data: seriesItem.data,
+						index: seriesItem.index
+					}
+				];
+				multiSelect.lastSelectedIndex = seriesItem.index;
+				multiSelect.updateToolbarSelection();
+			}
+		} else if (activeGroupId) {
 			// Find the group in the flattened list
 			const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-			const groupItem = flatList.find(item => item.type === 'group' && item.id === activeGroupId);
-			
+			const groupItem = flatList.find((item) => item.type === 'group' && item.id === activeGroupId);
+
 			if (groupItem && !multiSelect.isItemSelected('group', activeGroupId)) {
 				// Select the active group
-				multiSelect.selectedItems = [{
-					type: 'group',
-					id: activeGroupId,
-					data: groupItem.data,
-					index: groupItem.index
-				}];
+				multiSelect.selectedItems = [
+					{
+						type: 'group',
+						id: activeGroupId,
+						data: groupItem.data,
+						index: groupItem.index
+					}
+				];
 				multiSelect.lastSelectedIndex = groupItem.index;
 				multiSelect.updateToolbarSelection();
 			}
@@ -435,16 +529,20 @@
 			if (activeStudyId !== previousActiveStudyId) {
 				previousActiveStudyId = activeStudyId;
 				const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-				const studyItem = flatList.find(item => item.type === 'study' && item.id === activeStudyId);
-				
+				const studyItem = flatList.find(
+					(item) => item.type === 'study' && item.id === activeStudyId
+				);
+
 				if (studyItem) {
 					// Select the active study
-					multiSelect.selectedItems = [{
-						type: 'study',
-						id: activeStudyId,
-						data: studyItem.data,
-						index: studyItem.index
-					}];
+					multiSelect.selectedItems = [
+						{
+							type: 'study',
+							id: activeStudyId,
+							data: studyItem.data,
+							index: studyItem.index
+						}
+					];
 					multiSelect.lastSelectedIndex = studyItem.index;
 					multiSelect.updateToolbarSelection();
 				}
@@ -470,32 +568,43 @@
 			$toolbarState.hasActiveHeadingOrNoteEditor &&
 			$toolbarState.activeHeadingOrNoteType === 'connection-note';
 
-		if (($toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.hasActiveSegment || $toolbarState.hasActiveConnection || isConnectionNoteEditing)
-			&& multiSelect.selectedItems.length > 0) {
+		if (
+			($toolbarState.hasActiveColumn ||
+				$toolbarState.hasActiveSection ||
+				$toolbarState.hasActiveSegment ||
+				$toolbarState.hasActiveConnection ||
+				isConnectionNoteEditing) &&
+			multiSelect.selectedItems.length > 0
+		) {
 			multiSelect.clearSelection();
 		}
 	});
 
-	/**
-	 * Focus search input when panel opens
+	/*
+	 * ⚠️ NO AUTOFOCUS ON THE SEARCH FIELD. Deliberately removed, and it must not come back.
+	 *
+	 * This used to be an `$effect` labelled "focus search input when panel opens" that called
+	 * `searchInputRef.focus()` behind a 100ms timeout. The label described an intent the code could
+	 * not honour: an `$effect` re-runs whenever ANY dependency changes, and it read
+	 * `searchInputRef` — a `$bindable` that Svelte reassigns on every re-render of `bind:this`.
+	 *
+	 * So it fired on every selection change, route change and `invalidate('app:studies')`, not on
+	 * the open transition. The 100ms delay turned that into focus THEFT rather than a default: a
+	 * click landed in some other field, then the pending timeout pulled the caret into the Finder's
+	 * search box. Typing in the Title field on New Study or Edit Series was affected too, since
+	 * both open this panel on mount.
+	 *
+	 * The search field now takes focus only when the user clicks it. Keyboard navigation is
+	 * unaffected — `focusItem()` in `useKeyboardNavigation` is a separate mechanism driven by an
+	 * actual keypress.
 	 */
-	$effect(() => {
-		if (isOpen && searchInputRef) {
-			// Small delay to allow transition
-			const timeoutId = setTimeout(() => {
-				searchInputRef?.focus();
-			}, 100);
-			
-			return () => clearTimeout(timeoutId);
-		}
-	});
 
 	/**
 	 * Handle keyboard resize
 	 */
 	function handleResizeKeyDown(event) {
 		const step = 10; // pixels to resize per keypress
-		
+
 		if (event.key === 'ArrowLeft') {
 			event.preventDefault();
 			panelResize.adjustWidth(-step);
@@ -508,10 +617,11 @@
 
 <!-- Drag ghost -->
 {#if dragDrop.isDragging && (dragDrop.draggedStudies.length > 0 || dragDrop.draggedGroups.length > 0)}
-	<div 
-		class="drag-ghost" 
+	<div
+		class="drag-ghost"
 		class:multi={dragDrop.draggedStudies.length + dragDrop.draggedGroups.length > 1}
-		style="left: {(dragDrop.currentMouseX + 6) / 10}rem; top: {(dragDrop.currentMouseY + 6) / 10}rem;"
+		style="left: {(dragDrop.currentMouseX + 6) / 10}rem; top: {(dragDrop.currentMouseY + 6) /
+			10}rem;"
 	>
 		{#if dragDrop.draggedStudies.length + dragDrop.draggedGroups.length > 1}
 			<div class="drag-count">{dragDrop.draggedStudies.length + dragDrop.draggedGroups.length}</div>
@@ -525,32 +635,32 @@
 			</div>
 		{:else}
 			<!-- Dragging studies -->
-			<StudyItem
-				study={dragDrop.draggedStudies[0]}
-				ghost={true}
-				{formatPassageReference}
-			/>
+			<StudyItem study={dragDrop.draggedStudies[0]} ghost={true} {formatPassageReference} />
 		{/if}
 	</div>
 {/if}
 
-<aside class="studies-panel" class:open={isOpen} class:resizing={isResizing} style:width="{isOpen ? panelWidth : 0}px">
+<aside
+	class="studies-panel"
+	class:open={isOpen}
+	class:resizing={isResizing}
+	style:width="{isOpen ? panelWidth : 0}px"
+>
 	<div class="panel-content" style:width="{panelWidth}px">
 		<div class="panel-header">
-			<Input 
-				bind:inputElement={searchInputRef}
-				id="search-studies" 
-				name="search" 
-				type="search" 
+			<Input
+				id="search-studies"
+				name="search"
+				type="search"
 				placeholder="Search"
 				aria-label="Search studies"
 				bind:value={searchQuery}
 			/>
 		</div>
-		
+
 		<div class="panel-scrollable" onclick={handlePanelClick}>
 			{#if studies.length === 0 && groups.length === 0}
-				<p class="empty-message">No studies yet.<br>Create one to get started.</p>
+				<p class="empty-message">No studies yet.<br />Create one to get started.</p>
 			{:else if filteredGroups.length === 0 && filteredUngroupedStudies.length === 0 && searchQuery.trim() === ''}
 				<!-- Fallback -->
 				<ul class="studies-list">
@@ -563,7 +673,6 @@
 								isActive={study.id === activeStudyId}
 								{formatPassageReference}
 							/>
-
 						</li>
 					{/each}
 				</ul>
@@ -585,18 +694,29 @@
 									onStudyMouseDown={handleStudyMouseDown}
 									onStudyClick={handleStudyClick}
 									isStudySelected={(studyId) => multiSelect.isItemSelected('study', studyId)}
-									getStudySelectionPosition={(studyId) => multiSelect.getSelectionPosition('study', studyId)}
+									getStudySelectionPosition={(studyId) =>
+										multiSelect.getSelectionPosition('study', studyId)}
 									isStudyActive={(studyId) => studyId === activeStudyId}
 									isStudyBeingDragged={dragDrop.isStudyBeingDragged}
 									isDragging={dragDrop.isDragging}
 									dropTargetSeriesId={dragDrop.dropTargetSeriesId}
 									{formatPassageReference}
 									isGroupSelected={(groupId) => multiSelect.isItemSelected('group', groupId)}
-									getGroupSelectionPosition={(groupId) => multiSelect.getSelectionPosition('group', groupId)}
+									getGroupSelectionPosition={(groupId) =>
+										multiSelect.getSelectionPosition('group', groupId)}
 									isGroupActive={(groupId) => groupId === activeGroupId}
 									isSeriesSelected={(seriesId) => multiSelect.isItemSelected('series', seriesId)}
-									getSeriesSelectionPosition={(seriesId) => multiSelect.getSelectionPosition('series', seriesId)}
+									getSeriesSelectionPosition={(seriesId) =>
+										multiSelect.getSelectionPosition('series', seriesId)}
 									isSeriesActive={(seriesId) => {
+										// Active when the SERIES' own page is open, exactly as
+										// `isGroupActive` is for a group — that is what renders the
+										// row in solid blue rather than the pale selected blue.
+										// Reading a PART lights it too: the series is still the
+										// thing on screen. The landing-page case did not exist when
+										// this was written, so the row could only ever reach the
+										// paler `.selected` state.
+										if (seriesId === activeSeriesId) return true;
 										const s = item.data.series?.find((x) => x.id === seriesId);
 										return s?.parts?.some((p) => p.id === activeStudyId) || false;
 									}}
@@ -605,7 +725,9 @@
 									forceExpanded={searchQuery.trim() !== ''}
 									onfocus={() => {
 										const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-										const itemIndex = flatList.findIndex(i => i.type === 'group' && i.id === item.data.id);
+										const itemIndex = flatList.findIndex(
+											(i) => i.type === 'group' && i.id === item.data.id
+										);
 										if (itemIndex !== -1) keyboardNav.updateFocusedIndex(itemIndex);
 									}}
 								/>
@@ -615,14 +737,17 @@
 									tabindex={index === 0 ? 0 : -1}
 									isSelected={multiSelect.isItemSelected('series', item.data.id)}
 									selectionPosition={multiSelect.getSelectionPosition('series', item.data.id)}
-									isActive={item.data.parts?.some((p) => p.id === activeStudyId) || false}
+									isActive={item.data.id === activeSeriesId ||
+										item.data.parts?.some((p) => p.id === activeStudyId) ||
+										false}
 									onToggleCollapse={toggleSeriesCollapse}
 									onSeriesHeaderClick={handleSeriesHeaderClick}
 									onSeriesMouseDown={null}
 									onStudyMouseDown={handleStudyMouseDown}
 									onStudyClick={handleStudyClick}
 									isStudySelected={(studyId) => multiSelect.isItemSelected('study', studyId)}
-									getStudySelectionPosition={(studyId) => multiSelect.getSelectionPosition('study', studyId)}
+									getStudySelectionPosition={(studyId) =>
+										multiSelect.getSelectionPosition('study', studyId)}
 									isStudyActive={(studyId) => studyId === activeStudyId}
 									isStudyBeingDragged={dragDrop.isStudyBeingDragged}
 									isDragging={dragDrop.isDragging}
@@ -646,7 +771,9 @@
 										onClick={handleStudyClick}
 										onfocus={() => {
 											const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-											const itemIndex = flatList.findIndex(i => i.type === 'study' && i.id === item.data.id);
+											const itemIndex = flatList.findIndex(
+												(i) => i.type === 'study' && i.id === item.data.id
+											);
 											if (itemIndex !== -1) keyboardNav.updateFocusedIndex(itemIndex);
 										}}
 									/>
@@ -659,7 +786,7 @@
 		</div>
 	</div>
 	{#if isOpen}
-		<div 
+		<div
 			class="resize-handle"
 			tabindex="0"
 			role="separator"
@@ -788,7 +915,7 @@
 
 	.drag-ghost.multi::before,
 	.drag-ghost.multi::after {
-		content: "";
+		content: '';
 		position: absolute;
 		top: 0.5rem;
 		right: -0.5rem;
@@ -801,10 +928,10 @@
 	}
 
 	.drag-ghost.multi::after {
-		top: 1.0rem;
-		right: -1.0rem;
-		bottom: -1.0rem;
-		left: 1.0rem;
+		top: 1rem;
+		right: -1rem;
+		bottom: -1rem;
+		left: 1rem;
 		z-index: 1;
 	}
 
