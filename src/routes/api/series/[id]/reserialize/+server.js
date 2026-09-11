@@ -13,7 +13,7 @@ import {
 	planPartSplit,
 	planPartJoin
 } from '$lib/utils/seriesRestructure.js';
-import { planSeriesParts } from '$lib/utils/seriesPlanning.js';
+import { planSeriesParts, findUnservablePart } from '$lib/utils/seriesPlanning.js';
 import {
 	splitPassageStructure,
 	joinPassageStructure,
@@ -131,6 +131,36 @@ export const POST = async ({ request, params }) => {
 			return json({ error: 'That edit would leave the study with no passages.' }, { status: 400 });
 		}
 
+		const translation = series.translation || 'esv';
+
+		// ── Retrieval backstop, on the PARTS this save will produce ──────────
+		//
+		// `analyze-edit` asks this same question with the same helper, and the review page stands
+		// between the two — but a direct POST reaches here without having asked, and this is the
+		// call that actually writes. COMPLIANCE §1.9: a check belongs at every chokepoint, not the
+		// one that came to mind first. Refused BEFORE the transaction so nothing is half-applied.
+		//
+		// ⚠️ The unit is the PART, never `desiredPassages`. Those arrive recomposed into the
+		// undivided source range — a 28-part Matthew series posts Matthew 1:1–28:20 — so asking
+		// `validatePassagesLimits()` here would refuse every edit to a large series, which is
+		// precisely the defect removed from `analyze-edit`. Do not "restore" it.
+		// `projectExtent()` already omits the deleted parts, so this is the surviving set —
+		// exactly what `applyDivision()` plans against below.
+		const projectedForLimits = projectExtent(parts, extent);
+		const plannedForLimits = planDivisionForLimits({
+			projected: projectedForLimits,
+			translation,
+			chaptersPerPart,
+			chaptersPerPassage
+		});
+		const unservable = findUnservablePart(plannedForLimits ?? projectedForLimits, translation);
+		if (unservable) {
+			return json(
+				{ error: `Part ${unservable.seriesOrder} cannot be loaded: ${unservable.message}` },
+				{ status: 400 }
+			);
+		}
+
 		const result = await commit({
 			seriesId,
 			parts,
@@ -138,7 +168,7 @@ export const POST = async ({ request, params }) => {
 			decisions,
 			title,
 			subtitle,
-			translation: series.translation || 'esv',
+			translation,
 			userId: session.user.id,
 			chaptersPerPart,
 			chaptersPerPassage
@@ -150,6 +180,37 @@ export const POST = async ({ request, params }) => {
 		return json({ error: 'Failed to save changes' }, { status: 500 });
 	}
 };
+
+/**
+ * The parts a requested re-division would produce, for the limit backstop above.
+ *
+ * `null` means no re-division was asked for, so the projected parts stand — the same distinction
+ * `applyDivision()` makes with `wantsDivision`, and it must stay the same one: judging an edit
+ * against a division it did not request would refuse settings the user never chose.
+ *
+ * Deliberately plans and discards. `applyDivision()` plans again inside the transaction because it
+ * needs the diff to drive real splits and joins, and threading a plan computed out here into the
+ * transaction would create a second source of truth that has already gone stale by the time the
+ * staleness check above is the thing guaranteeing it has not. Same inputs, same planner, same
+ * answer; only the plan is thrown away.
+ *
+ * @returns {Array<Object>|null}
+ */
+function planDivisionForLimits({ projected, translation, chaptersPerPart, chaptersPerPassage }) {
+	const wanted = Number(chaptersPerPart);
+	if (!Number.isFinite(wanted) || wanted < 1) return null;
+	if (projected.length === 0) return null;
+
+	const plan = planSeriesParts({
+		passages: recomposePassages(projected),
+		chaptersPerPart: wanted,
+		chaptersPerPassage: Array.isArray(chaptersPerPassage) ? chaptersPerPassage : [],
+		translationId: translation,
+		baseTitle: ''
+	});
+
+	return plan.parts;
+}
 
 /**
  * Apply the edit in ONE transaction.

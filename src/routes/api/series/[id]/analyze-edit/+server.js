@@ -14,8 +14,9 @@ import { eq, and, asc, inArray } from 'drizzle-orm';
 import { analyzeEdit } from '$lib/server/db/passageReconcile.js';
 import { classifyExtent, formatExtentReference, projectExtent } from '$lib/utils/seriesExtent.js';
 import { fingerprintParts, recomposePassages, diffSeams } from '$lib/utils/seriesSeams.js';
-import { planSeriesParts } from '$lib/utils/seriesPlanning.js';
-import { validatePassagesLimits } from '$lib/utils/translationLimits.js';
+// `findUnservablePart` rather than `validatePassagesLimits`: the unit is the PART, never the
+// recomposed source range the edit form is loaded with. See the gate in the handler.
+import { planSeriesParts, findUnservablePart } from '$lib/utils/seriesPlanning.js';
 
 /**
  * Pre-commit impact analysis for editing a SERIES as a whole (SERIES_PLAN §5, §8).
@@ -75,12 +76,20 @@ export const POST = async ({ request, params }) => {
 			return json({ error: 'Series not found' }, { status: 404 });
 		}
 
-		// The provider's per-request limits, checked up front so an over-limit range surfaces here
-		// rather than at fetch time with the form already gone.
-		const limitCheck = validatePassagesLimits(desiredPassages, series.translation || 'esv');
-		if (!limitCheck.valid) {
-			return json({ error: limitCheck.error }, { status: 400 });
-		}
+		// ⚠️ NO per-request limit check on `desiredPassages` here. There was one, and it refused
+		// every edit to a large series: the edit form is loaded with the parts RECOMPOSED into
+		// their undivided source range (see `series/[id]/edit/+page.server.js`), so a 28-part
+		// Matthew series arrives as Matthew 1:1–28:20, and `validatePassagesLimits()` answered
+		// "This passage spans 1071 verses… add it as several smaller passages" — advice the user
+		// had already taken, since the series being edited IS that division. Changing only the
+		// subtitle was unsaveable.
+		//
+		// The limits are per REQUEST and per PAGE, and a part is its own study on its own page
+		// fetched by its own request, so the PARTS are the unit (COMPLIANCE §1.10). That check
+		// cannot run until the parts are known, which is why it now lives below the extent
+		// classification rather than up here. The identical fix was already made on the New
+		// Study action; this chokepoint was missed (COMPLIANCE §1.9).
+		const translation = series.translation || 'esv';
 
 		const parts = await loadPartsWithPassages(db, seriesId, session.user.id);
 		if (parts.length === 0) {
@@ -90,13 +99,39 @@ export const POST = async ({ request, params }) => {
 		const extent = classifyExtent({ parts, desiredPassages });
 		const passageReports = await reportNarrowings(db, extent);
 		const deletedParts = await reportDeletions(db, extent);
-		const divisionReport = describeDivision({
-			parts,
-			extent,
-			translation: series.translation || 'esv',
+		// The parts as they will be once this edit lands: the planned division when the user moved
+		// the stepper, the projected rows when they did not. Computed ONCE and shared with
+		// `describeDivision()` below, so the shape the preview describes and the shape the limit
+		// check judges cannot diverge — "the preview a user approves is the parting they get" (§5).
+		const projected = projectExtent(parts, extent);
+		const plannedParts = planDivision({
+			projected,
+			translation,
 			chaptersPerPart,
 			chaptersPerPassage
 		});
+		const resultingParts = plannedParts ?? projected;
+
+		const divisionReport = describeDivision({ projected, plannedParts });
+
+		// ── Retrieval, asked of the parts this edit will actually produce ─────
+		//
+		// `resultingParts` is the planned division when the user moved the stepper, and the
+		// projected rows otherwise — the same two cases the commit distinguishes, resolved once by
+		// `planDivision()` and shared with the preview, so the two cannot disagree about which
+		// parts they are talking about.
+		//
+		// Refused rather than warned, and refused HERE rather than at fetch time: a part ESV will
+		// not serve becomes a study whose page cannot load, and by then the form is gone. Display
+		// limits are deliberately NOT enforced — those are the owner's obligation and never block
+		// (COMPLIANCE §1.6).
+		const unservable = findUnservablePart(resultingParts, translation);
+		if (unservable) {
+			return json(
+				{ error: `Part ${unservable.seriesOrder} cannot be loaded: ${unservable.message}` },
+				{ status: 400 }
+			);
+		}
 
 		const requiresReview =
 			passageReports.some(
@@ -140,6 +175,40 @@ export const POST = async ({ request, params }) => {
 };
 
 /**
+ * The parts a requested re-division would produce, or `null` when no re-division was asked for.
+ *
+ * `null` is meaningful and is not the same as an empty array: it means "leave the seams alone",
+ * which is what an edit that only changed passages must do. An edit that merely renamed a series
+ * would otherwise be flattened to a uniform division it never requested — and, worse, judged
+ * against parts that do not exist.
+ *
+ * Extracted from `describeDivision()` so the limit gate and the preview read the SAME planned
+ * parts. Planning twice invited the divergence §5 exists to prevent: two calls with the same
+ * inputs agree only until someone changes one of them.
+ *
+ * ## Planned against the PROJECTED parts, exactly as the commit plans it
+ *
+ * `projectExtent()` gives the parts as they will be once the extent change lands, which is what
+ * the commit's own division phase reasons about. Using the pre-edit rows here instead would let
+ * the preview describe a different set of operations from the ones performed.
+ */
+function planDivision({ projected, translation, chaptersPerPart, chaptersPerPassage }) {
+	const wanted = Number(chaptersPerPart);
+	if (!Number.isFinite(wanted) || wanted < 1) return null;
+	if (projected.length === 0) return null;
+
+	const plan = planSeriesParts({
+		passages: recomposePassages(projected),
+		chaptersPerPart: wanted,
+		chaptersPerPassage: Array.isArray(chaptersPerPassage) ? chaptersPerPassage : [],
+		translationId: translation,
+		baseTitle: ''
+	});
+
+	return plan.parts;
+}
+
+/**
  * What a requested re-division would do to the parts — including what it DISCARDS.
  *
  * ## Why this must be reported
@@ -151,31 +220,22 @@ export const POST = async ({ request, params }) => {
  * Splits are reported too, though nothing is lost: the part count changes, and a preview that showed
  * only the destructive half would leave the user unable to check the shape they are about to get.
  *
- * ## Planned against the PROJECTED parts, exactly as the commit plans it
+ * ## Reports only; the planning happened in `planDivision()`
  *
- * `projectExtent()` gives the parts as they will be once the extent change lands, which is what the
- * commit's own division phase reasons about. Using the pre-edit rows here instead would let the
- * preview describe a different set of operations from the ones performed — the divergence §5 exists
- * to prevent ("the preview a user approves is the parting they get").
+ * This function no longer plans. It receives the projected parts and the planned parts and diffs
+ * them, because the limit gate in the handler needs those same planned parts and a second
+ * `planSeriesParts()` call would be a second answer to one question.
  */
-function describeDivision({ parts, extent, translation, chaptersPerPart, chaptersPerPassage }) {
+function describeDivision({ projected, plannedParts }) {
 	const empty = { splits: [], joins: [], refusals: [] };
 
-	const wanted = Number(chaptersPerPart);
-	if (!Number.isFinite(wanted) || wanted < 1) return empty;
+	// No division requested (or nothing to divide): the seams stay exactly as they are, so there
+	// is nothing to report. `planDivision()` has already made that decision — this function does
+	// not re-derive it, because two places deciding "is a re-division wanted?" is two places to
+	// disagree.
+	if (!plannedParts || projected.length === 0) return empty;
 
-	const projected = projectExtent(parts, extent);
-	if (projected.length === 0) return empty;
-
-	const plan = planSeriesParts({
-		passages: recomposePassages(projected),
-		chaptersPerPart: wanted,
-		chaptersPerPassage: Array.isArray(chaptersPerPassage) ? chaptersPerPassage : [],
-		translationId: translation,
-		baseTitle: ''
-	});
-
-	const diff = diffSeams({ parts: projected, plannedParts: plan.parts });
+	const diff = diffSeams({ parts: projected, plannedParts });
 	const titleOf = (id) => projected.find((p) => p.id === id)?.title ?? 'a part';
 
 	return {

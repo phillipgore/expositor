@@ -391,6 +391,62 @@ function verseCountOf(range) {
 }
 
 /**
+ * The first part a translation genuinely cannot serve, or `null` when every part is servable.
+ *
+ * ## Why this is the only unit the request limits may be asked about
+ *
+ * Crossway's caps are per REQUEST and per PAGE, and a part is its own study on its own page
+ * fetched by its own request — so the PARTS are what those clauses govern, never the source
+ * range they were derived from (COMPLIANCE §1.10). Asking `validatePassagesLimits()` about the
+ * recomposed whole instead is the defect recorded twice now: once on the New Study server
+ * action (`verify-series-save-gate.mjs`) and once on the series-EDIT path, where reopening a
+ * 28-part Matthew series and changing only its subtitle was refused with "This passage spans
+ * 1071 verses… add it as several smaller passages" — advice the user had already taken, since
+ * the series they were editing WAS the division. That is COMPLIANCE §1.9: a check belongs at
+ * every chokepoint, on the correct unit, not the one that came to mind first.
+ *
+ * ## Every range of every part, not just the first
+ *
+ * `assessPlan()` above reads `part.passages[0]` because a PLANNED part has exactly one range by
+ * construction. Parts loaded from the database do not: a part can carry several passage rows,
+ * and after `projectExtent()` narrows one it can carry several again. Checking only the first
+ * would let an over-limit second range through — a check that passes because it did not look,
+ * which is the shape COMPLIANCE §1.8 calls the worst kind of failure. So this iterates.
+ *
+ * Returns the OFFENDER rather than a boolean, so the caller can name which part is at fault:
+ * "Part 3 cannot be loaded: …" is actionable in a way that "this series is too large" is not.
+ *
+ * @param {Array<Object>} parts - Parts, each with a `passages` array; `seriesOrder` when known
+ * @param {string} translationId
+ * @returns {{ seriesOrder: number|null, reason: string, message: string|null }|null}
+ */
+export function findUnservablePart(parts, translationId) {
+	for (const [index, part] of (Array.isArray(parts) ? parts : []).entries()) {
+		const ranges = Array.isArray(part?.passages) ? part.passages : [];
+
+		for (const range of ranges) {
+			const support = checkSinglePassageSupport(range, translationId);
+
+			// `canBeSinglePassage === false`, never `!support.canBeSinglePassage`: a wrong or
+			// missing property would be silently falsy and quietly disable this check, which is
+			// the trap `assessPlan()` documents against `supported`.
+			if (support && support.canBeSinglePassage === false) {
+				return {
+					// Fall back to position when a part has no `seriesOrder` — a planned part
+					// carries one, a projected row always does, but a caller assembling parts
+					// by hand should still get a number the user can count to.
+					seriesOrder: part?.seriesOrder ?? index + 1,
+					reason: support.reason,
+					message: support.message
+				};
+			}
+		}
+	}
+
+	return null;
+}
+
+/**
  * Assess a plan for compliance, per SERIES_PLAN §5 and Q33.
  *
  * Two checks, BOTH scoped to a single part:
@@ -484,4 +540,3 @@ function assessPlan(parts, translationId) {
 	// the gate.
 	return warnings;
 }
-
