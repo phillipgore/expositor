@@ -19,6 +19,7 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
+	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 
 	let { data } = $props();
 
@@ -29,6 +30,20 @@
 	});
 
 	let partCount = $derived(data.parts?.length ?? 0);
+
+	/**
+	 * The resume button names its part the way the Finder's part rows do: passage reference plus
+	 * translation, not the part's derived title. `resumePartReference` is built in the loader
+	 * (see the comment there); the badge is appended here because the abbreviation lookup lives
+	 * client-side, alongside every other place that renders one.
+	 */
+	let resumeLabel = $derived.by(() => {
+		if (!data.resumePartReference) return 'Continue reading';
+		const metadata = getTranslationMetadata(data.resumePartTranslation || 'esv');
+		const abbr =
+			metadata?.abbreviation || data.resumePartTranslation?.toUpperCase() || 'ESV';
+		return `Continue: ${data.resumePartReference} [${abbr}]`;
+	});
 
 	// The view the user was last reading in, so resuming returns them to Document or Analyze as
 	// they left it rather than always snapping to one. Same fallback the Finder uses.
@@ -47,11 +62,6 @@
 	{#if data.series.subtitle}
 		<Heading heading="h3" isMuted>{data.series.subtitle}</Heading>
 	{/if}
-
-	<p class="series-count">
-		Series · {partCount}
-		{partCount === 1 ? 'part' : 'parts'}
-	</p>
 
 	{#if data.series.description}
 		<InstructionText>
@@ -75,7 +85,7 @@
 		{#if data.resumePartId}
 			<Button
 				href="/study/{data.resumePartId}/{resumeView}"
-				label={data.resumePartTitle ? `Continue: ${data.resumePartTitle}` : 'Continue reading'}
+				label={resumeLabel}
 				classes="blue"
 			/>
 		{/if}
@@ -100,14 +110,6 @@
 		max-width: initial;
 		margin-bottom: 2.7rem;
 		fill: var(--gray-700);
-	}
-
-	/* Matches the Finder row's own "Series · N parts" phrasing, so the page names the thing the
-	   same way the row that led here does. */
-	.series-count {
-		margin: 0.9rem 0 0;
-		font-size: 1.4rem;
-		color: var(--gray-300);
 	}
 
 	.series-description {

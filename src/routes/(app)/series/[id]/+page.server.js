@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
 import { studySeries, study, passage } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
+import { formatPassageReference } from '$lib/utils/passageFormatting.js';
 import { eq, and, asc, inArray } from 'drizzle-orm';
 
 /**
@@ -86,11 +87,23 @@ export async function load({ params, request, depends }) {
 		const remembered = parts.find((p) => p.id === seriesData.lastPartId);
 		const resumePart = remembered ?? parts[0] ?? null;
 
+		// The resume button names the part by PASSAGE REFERENCE, the same way the Finder's part
+		// rows do (`referenceAsTitle` in StudyItem.svelte). A part's title is derived from its
+		// range at creation, so "Ephesians 1" is a lossy restatement of "Ephesians 1:1-23"; the
+		// reference is the precise form and the one the user just saw in the sidebar. Falls back
+		// to the title when a part somehow has no passages — a button labelled "Continue:" with
+		// nothing after it is worse than a slightly vaguer one.
+		const resumeReference =
+			resumePart?.passages?.length > 0
+				? resumePart.passages.map((p) => formatPassageReference(p)).join(', ')
+				: (resumePart?.title ?? null);
+
 		return {
 			series: seriesData,
 			parts,
 			resumePartId: resumePart?.id ?? null,
-			resumePartTitle: resumePart?.title ?? null,
+			resumePartReference: resumeReference,
+			resumePartTranslation: resumePart?.translation ?? null,
 			invalidateStudies: true
 		};
 	} catch (err) {

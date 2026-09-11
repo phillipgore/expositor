@@ -883,6 +883,19 @@ folder.
 The verse total on hover went for a plainer reason: a tooltip nothing else in the Finder has, on a
 number no decision depends on. Where a verse total *does* drive a decision — the export compliance
 check (§10) — it is computed at that point and stated there, with the consequence attached.
+
+**The series landing page followed.** `/series/[id]` had repeated the suffix as a `Series · N parts`
+line under the heading, on the reasoning that the page should name the thing the way the row that
+led there does. That reasoning still holds — which is why the line went too: the row no longer says
+it. The page's own emptiness case (`This series has no parts left`) already covers the one count
+that changes what the user can do.
+
+Its "Continue" button changed with it: it now reads `Continue: Ephesians 1:1-23 [ESV]` rather than
+`Continue: Ephesians 1`. Same argument as the part rows above — the title is derived from the range,
+so naming the part by its title is a lossier way of saying what the reference says exactly, and it
+is the reference the user just read in the sidebar. The reference is assembled in the page loader
+(`resumePartReference`) so the passages already fetched for the parts list are reused; the
+translation badge is appended in the component, where every other abbreviation lookup happens.
 **Q17. Drag a standalone study into a series?** _Rec: phase 3 — needs invariant checks._
 **Q18. What does clicking the series row do?** _Rec: chevron expands; the title opens part 1._
 
@@ -927,7 +940,7 @@ click opens `/study-group/[id]` — its own page, never one of its studies. A se
 same: `/series/[id]`, with the parts listed and the recomposed passage list behind Edit.
 
 **`lastPartId` is not obsolete.** It still records where the user was, and the series page offers it
-as an explicit "Continue reading Part N" button. What changed is that resuming is a choice the user
+as an explicit "Continue: «reference»" button. What changed is that resuming is a choice the user
 makes rather than a side effect of selecting the series — which is precisely what let the selection
 leak into a part. Q18's answer (resume the last-viewed part) survives; its *trigger* moved.
 
@@ -954,7 +967,7 @@ What survives:
 
 - `seriesContext` itself — the Structure menu's boundary reasoning (§8, §11) and the whole-series
   export check (§10) read it, and both need `parts` with their ranges.
-- `lastPartId` and the series page's "Continue reading Part N" (§6, Q18).
+- `lastPartId` and the series page's "Continue: «reference»" button (§6, Q18).
 - Adjacent-part prefetch (Q20): readers still move through a series in order, they just do it from
   the Finder, so the next part is still the predictable next open.
 
@@ -2162,6 +2175,7 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | In-part prev/next navigation                              | **Built, then removed**                                                              | The Finder already lists every part of an expanded series, in order, with titles visible, and stays open while the study is read. A second view-local navigator duplicated that with a worse affordance — a bare arrow pair showing one part's name at a time — while adding a `<nav>` to the Analyze titling row and a chrome bar above the Document gutter that had to be kept out of both the paginator's measurements and print. Took `SeriesPartNav.svelte`, `seriesContext.previousPart`/`nextPart`, and `⌥←`/`⌥→` with it. `seriesContext` itself stays: §8's boundary reasoning and §10's export check both read it (§7, Q19/Q21/Q22/Q30 now moot) |
 | What titles a part's study page                           | **The series name + series subtitle**, not the part's own                            | Removing the nav removed the only place a part's page named its series. A part's title is *derived from its range*, so heading the page with it restated the passage reference two lines below while the part's actual context — which series it belongs to — appeared nowhere. The part still identifies itself by that reference heading. Display only: `study.title`/`study.subtitle` are untouched in the database and still drive the Finder, export and everything else. Matters most in Document, which prints — a handout headed "Ephesians 1" does not say where it came from (§7) |
 | What a part's Finder row shows                            | **Its passage reference, on one line** (`referenceAsTitle`)                          | Same derived-title problem, other surface: the default two-line row printed "Romans 1" directly above "Romans 1:1-32" — the same fact twice, at double the row height, times 16 or 150 parts. The reference is the more precise of the two, so it is the one that stays. Standalone and grouped studies keep both lines, because their titles are authored rather than derived and carry meaning the reference cannot (§6) |
+| What the series landing page shows                        | **No part count; Continue names the part by reference**                               | `/series/[id]` carried a `Series · N parts` line because the page should name the thing the way the row that led there does — and that reasoning is what removed it, since the row no longer says it (Q16). The emptiness case already covers the one count that changes what the user can do. Its button became `Continue: Ephesians 1:1-23 [ESV]` for the same derived-title reason as the part rows; the reference is built in the page loader from passages it already fetched, so there is no extra query (§6) |
 | Split/Join Part icon names                                | **`series-split` / `series-join`** (was `part-split` / `part-join`)                  | Third naming: `study-split`/`study-join` contradicted §3's "Split Part"/"Join Parts"; `part-split`/`part-join` matched *its* artwork (two books parting) but the drawn icons make the **series** the object, and the id follows the drawing. Still object-then-verb, as the whole registry is (`column-split`, `section-join`, `segment-split`). Both old entries deleted                                                                                                                                                                                   |
 | Split/Join Part icon design                               | **The book metaphor, not a divided page**                                            | Icons are a single fill-only `d` path in a 32×32 viewBox, so the old "vertical dashed rule" needs hand-placed rects that merge at menu size. And it would be a fourth variation on "a divided rectangle" beside the three page-level split icons. The geometry cannot carry the level distinction, so the metaphor must                                                                                                                                                                                                                                     |
 | Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — four entries total for the whole feature (`series`, `series-part`, `series-split`, `series-join`), plus `warning`, and the three placeholders they replaced were deleted so the net registry growth is one. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` were not ours either, and are fixed by repointing at the existing `segment-split` / `segment-join` — no new artwork (trap 13) |
