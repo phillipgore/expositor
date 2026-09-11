@@ -7,7 +7,6 @@
 	import GlossaryBadge from '$lib/componentElements/GlossaryBadge.svelte';
 	import DocumentCommentaryToolbar from '$lib/componentWidgets/DocumentCommentaryToolbar.svelte';
 	import DocumentCommentaryEditor from '$lib/componentWidgets/DocumentCommentaryEditor.svelte';
-	import SeriesPartNav from '$lib/componentWidgets/SeriesPartNav.svelte';
 
 
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
@@ -131,6 +130,20 @@
 		const metadata = getTranslationMetadata(data.study.translation || 'esv');
 		return metadata?.abbreviation || data.study.translation?.toUpperCase() || 'ESV';
 	});
+
+	/**
+	 * The two header lines. For a part of a series they come from the SERIES (§7); for a
+	 * standalone study they are the study's own, exactly as before. Matches the Analyze view,
+	 * which carries the same pair — the two views must not disagree about what a study is
+	 * called.
+	 *
+	 * ⚠️ Read inside `headerContent()`, which is rendered TWICE (measure layer + visible page).
+	 * Both renders read the same derived value, so pagination measures what it lays out.
+	 */
+	let headerTitle = $derived(data.seriesContext?.name ?? data.study.title);
+	let headerSubtitle = $derived(
+		data.seriesContext ? data.seriesContext.subtitle : data.study.subtitle
+	);
 
 	/**
 	 * Flatten a passage's structure (columns → sections → segments) into a single
@@ -2844,9 +2857,13 @@
 
 {#snippet headerContent()}
 	<div class="study-header">
-		<h1 class="study-title">{data.study.title}</h1>
-		{#if data.study.subtitle}
-			<p class="study-subtitle">{data.study.subtitle}</p>
+		<!-- For a part, the series titles the page (§7) — see headerTitle above. This is printed
+		     output, so it matters more here than in Analyze: a printed part headed by its own
+		     generated name ("Ephesians 1", restating the reference two lines down) does not say
+		     which series the handout came from. -->
+		<h1 class="study-title">{headerTitle}</h1>
+		{#if headerSubtitle}
+			<p class="study-subtitle">{headerSubtitle}</p>
 		{/if}
 		{#if data.passages && data.passages.length > 0}
 			<p class="study-references">
@@ -3429,18 +3446,6 @@
 <div class="document-view">
 <DocumentCommentaryToolbar />
 
-<!-- Series part navigation (§7). Deliberately placed in the view's CHROME rather than
-     inside the headerContent() snippet: that snippet is rendered TWICE (once into the
-     off-screen measure layer, once into the visible page), which would duplicate the
-     menu's DOM id and add the control's height to the paginator's measurements —
-     pushing content onto an extra sheet. Here it sits outside the paper entirely, which
-     is also where it belongs conceptually: it is interface, not part of the document. -->
-{#if data.seriesContext}
-	<div class="series-nav-bar">
-		<SeriesPartNav seriesContext={data.seriesContext} view="document" />
-	</div>
-{/if}
-
 <div
 	class="document-gutter"
 	class:hide-verses={!$toolbarState.documentVersesVisible}
@@ -3552,16 +3557,6 @@
 		flex: 1 1 auto;
 		min-height: 0;
 		overflow: hidden;
-	}
-
-	/* Series part navigation bar — chrome above the gutter, right-aligned to echo
-	   the analyze view's placement at the far right of the titling row. It is NOT on
-	   the paper, so it never prints and never enters the paginator's measurements. */
-	.series-nav-bar {
-		display: flex;
-		justify-content: flex-end;
-		flex: 0 0 auto;
-		padding: 0.6rem 2.4rem;
 	}
 
 	/* The gutter is the gray surface the pages float on (Google Docs style). It

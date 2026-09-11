@@ -129,16 +129,21 @@
 		<div class="series-contents" transition:slide={{ duration: 200 }}>
 			<!-- Structurally identical to StudyGroup's studies list, and deliberately so: a series
 			     and a group present the same way in the Finder, and only the ICON distinguishes
-			     them. The parts are NOT numbered here — the ordinal lives on the part's own page
-			     ("Part 3 of 16"), where there is room for it. A number gutter beside each row also
-			     pushed the text and the selection highlight out of line with a grouped study,
-			     which is the misalignment this replaces. -->
+			     them. The parts are NOT numbered here — a number gutter beside each row pushed the
+			     text and the selection highlight out of line with a grouped study, which is the
+			     misalignment this replaces; the order is the list order.
+
+			     `referenceAsTitle` makes each part ONE line showing its range. A part's title is
+			     derived from that range at creation, so the default two-line row printed
+			     "Ephesians 1" directly above "Ephesians 1:1-23" — a duplicate that doubled the
+			     height of every row in the series. -->
 			<ul class="parts-list">
 				{#each series.parts as part (part.id)}
 					<li role="presentation">
 						<StudyItem
 							study={part}
 							iconId="series-part"
+							referenceAsTitle={true}
 							depth={depth + 1}
 							tabindex={-1}
 							isSelected={isStudySelected?.(part.id) || false}

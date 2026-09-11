@@ -75,11 +75,14 @@ export async function load({ params, request, depends }) {
 			.where(eq(passage.studyId, studyId))
 			.orderBy(passage.displayOrder);
 
-		// ── Series context for the header's prev/next + "Part N of M" jump (§7) ──
+		// ── Series context ───────────────────────────────────────────────
 		//
-		// Kept in the LIGHT phase deliberately: the header renders with the shell, and streaming
-		// this would make the part indicator pop in after the title — the layout instability §7
-		// rules out for the arrows ("disabled at the ends, not hidden") arriving by a side door.
+		// In-part navigation was removed: readers move between parts from the Finder, so no
+		// prev/next control ships with the study header. What remains is consumed by the
+		// Structure menu's cross-part boundary reasoning (§8, §11) and the whole-series export
+		// check (§10), both of which need the sibling parts and their ranges.
+		//
+		// Kept in the LIGHT phase deliberately: the menus read it as soon as the shell renders.
 		//
 		// Two small indexed queries, and only for parts: a standalone study pays nothing.
 		let seriesContext = null;
@@ -181,6 +184,11 @@ export async function load({ params, request, depends }) {
 				seriesContext = {
 					id: seriesRow.id,
 					name: seriesRow.name,
+					// The two lines of a part's study header (§7): a part is titled by the series it
+					// belongs to, not by its own generated name, and the series owns the subtitle
+					// beneath it too. `study.subtitle` is left untouched in the database — it is
+					// simply not what a part displays.
+					subtitle: seriesRow.subtitle ?? null,
 					// ⚠️ `partsWithPassages`, not the bare `parts` rows.
 					//
 					// The whole-series export check (§10, Q32) aggregates every part's ranges, and a part
@@ -193,11 +201,6 @@ export async function load({ params, request, depends }) {
 					// 1-based for display ("Part 3 of 16"); the index stays available via parts.
 					position: index + 1,
 					total: parts.length,
-					// Resolved here rather than in the component so "no neighbour" is one null check
-					// instead of arithmetic the header could get wrong at the ends (Q19: no wrapping).
-					previousPart: index > 0 ? parts[index - 1] : null,
-					nextPart: index < parts.length - 1 ? parts[index + 1] : null,
-
 					// Why the five cross-part commands are dead at each edge of THIS part, or null
 					// where there is no neighbour to be dead against (§11 option 1, §8).
 					//
@@ -226,8 +229,8 @@ export async function load({ params, request, depends }) {
 			// ── Adjacent-part prefetch (§11, phase 2) ────────────────────────
 			//
 			// Navigating a series is the one place where the next thing the user opens is predictable:
-			// §7 gives them prev/next and `⌥→`, and readers move through a series in order. Warming the
-			// next part's `cachedText` now makes that first visit as fast as a second one.
+			// the Finder lists the parts in order and readers move through a series in order. Warming
+			// the next part's `cachedText` now makes that first visit as fast as a second one.
 			//
 			// ⚠️ Deliberately NOT awaited, and deliberately outside the streamed content promise. It is
 			// an optimisation for the NEXT page, so making the current one wait for it — or fail with it
@@ -532,7 +535,7 @@ export async function load({ params, request, depends }) {
 		return {
 			study: studyData,
 			passages: passagesData,
-			// null for a standalone study — the header renders no part controls at all.
+			// null for a standalone study — nothing series-aware activates at all.
 			seriesContext,
 
 			// Nested promise → SvelteKit streams this to the client.

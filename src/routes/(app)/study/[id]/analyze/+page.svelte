@@ -10,7 +10,6 @@
 
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
-	import SeriesPartNav from '$lib/componentWidgets/SeriesPartNav.svelte';
 
 	import ConnectionsOverlay from '$lib/componentWidgets/ConnectionsOverlay.svelte';
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
@@ -4092,6 +4091,20 @@
 	});
 
 	/**
+	 * The two header lines. For a part of a series they come from the SERIES (§7); for a
+	 * standalone study they are the study's own, exactly as before.
+	 *
+	 * A part's title is generated from its range, so showing it here restated the passage
+	 * reference heading immediately below while omitting the series the part belongs to —
+	 * the one piece of context a part cannot supply about itself. Display only: nothing here
+	 * writes, and `data.study.title` remains the study's title everywhere else.
+	 */
+	let headerTitle = $derived(data.seriesContext?.name ?? data.study.title);
+	let headerSubtitle = $derived(
+		data.seriesContext ? data.seriesContext.subtitle : data.study.subtitle
+	);
+
+	/**
 	 * Format a passage reference for display
 	 * @param {Object} passage
 	 * @returns {string}
@@ -4452,20 +4465,19 @@
 					     the next real heading is the passage reference (<h2>) below. The
 					     header lives INSIDE the zoom-transformed content, so it scales down
 					     with the rest of the study at every zoom level (it is never hidden). -->
-					<!-- Titling block and, for a part of a series, the part navigation (§7).
-					     The nav sits OUTSIDE the <hgroup> because an <hgroup> may only contain
-					     the heading and its taglines — putting a <nav> in it would corrupt the
-					     accessible outline this comment block exists to protect. -->
-					<div class="study-header-row">
-						<hgroup class="study-header">
-							<Heading heading="h1" classes="h3 heading" hasSub={data.study.subtitle? true : false}>{data.study.title}</Heading>
-							{#if data.study.subtitle}
-								<p class="subheading">{data.study.subtitle}</p>
-							{/if}
-						</hgroup>
-
-						<SeriesPartNav seriesContext={data.seriesContext} view="analyze" />
-					</div>
+					<!-- For a PART, the header titles the series, not the part (§7). A part's own
+					     title is derived from its range, so it repeated the passage reference
+					     heading directly below it while the thing that gives the part its context
+					     — which series it belongs to — appeared nowhere on the page. The series
+					     owns the subtitle line too; the part identifies itself by the reference
+					     heading beneath. `data.study.title` is untouched in the database and is
+					     still what the Finder, export and every other surface reads. -->
+					<hgroup class="study-header">
+						<Heading heading="h1" classes="h3 heading" hasSub={headerSubtitle ? true : false}>{headerTitle}</Heading>
+						{#if headerSubtitle}
+							<p class="subheading">{headerSubtitle}</p>
+						{/if}
+					</hgroup>
 
 
 
@@ -4988,14 +5000,6 @@
 	/* Title on the left, part navigation pushed to the far right (§7). align-items:end
 	   keeps the arrows on the title's baseline-ish line rather than floating beside a
 	   two-line title's centre. */
-	.study-header-row {
-		display: flex;
-		flex-direction: row;
-		align-items: flex-end;
-		justify-content: space-between;
-		gap: 2.6rem;
-	}
-
 	.study-header {
 		display: flex;
 		flex-direction: column;

@@ -10,6 +10,14 @@
 	 * (StudySeries.svelte), so the Finder reads `book` = study, `series-part` = a part,
 	 * `series` = the series row itself. It is a prop rather than a branch here because this
 	 * component draws every study in the app, most of which are not parts.
+	 *
+	 * `referenceAsTitle` collapses the row to a single line showing the passage reference where
+	 * the title would go. Parts only (StudySeries.svelte). A part's title is generated from its
+	 * range at creation — "Ephesians 1" above "Ephesians 1:1-23" says the same thing twice and
+	 * costs a second line per row, which at 16 or 150 parts is the difference between scanning
+	 * the series and scrolling it. The reference is the more precise of the two, so it is the one
+	 * that stays. A standalone study keeps both lines: its title is authored, not derived, and
+	 * carries meaning the reference cannot.
 	 */
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
@@ -17,6 +25,7 @@
 	let {
 		study,
 		iconId = 'book',
+		referenceAsTitle = false,
 		depth = 0,
 		tabindex = -1,
 		isSelected = false,
@@ -42,15 +51,43 @@
 		const metadata = getTranslationMetadata(study.translation || 'esv');
 		return metadata?.abbreviation || study.translation?.toUpperCase() || 'ESV';
 	});
+
+	let hasPassages = $derived(Boolean(study.passages && study.passages.length > 0));
+
+	/**
+	 * The reference line as a single string, for `referenceAsTitle`.
+	 *
+	 * Falls back to the title when a part has no passages. That should not happen — a part is
+	 * created FROM a range — but a row that renders blank is a worse failure than one that
+	 * shows the title it was trying to replace.
+	 */
+	let referenceTitle = $derived(
+		hasPassages ? study.passages.map((p) => formatPassageReference(p)).join(', ') : study.title
+	);
 </script>
 
-{#if ghost}
-	<!-- Ghost mode: purely visual, no interactivity -->
-	<div class="study-item ghost" style:padding-left={paddingLeft}>
-		<Icon {iconId} classes="book-icon" />
-		<div class="study-info">
+<!--
+	One body for all three render modes (ghost / link / button), which differ only in their
+	wrapper element. Duplicating it was already a three-way sync risk before `referenceAsTitle`
+	added a second axis to keep in step.
+-->
+{#snippet studyBody()}
+	<Icon {iconId} classes="book-icon" />
+	<div class="study-info">
+		{#if referenceAsTitle}
+			<!-- Single line: the reference IS the title. The badge rides along rather than
+			     dropping, since which translation a part is in is exactly what a mixed library
+			     needs to show — and the same-translation invariant (§4) makes it consistent
+			     down a series, not noise. -->
+			<div class="study-title reference-title">
+				{referenceTitle}<span
+					class="translation-badge"
+					aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span
+				>
+			</div>
+		{:else}
 			<div class="study-title">{study.title}</div>
-			{#if study.passages && study.passages.length > 0}
+			{#if hasPassages}
 				<div class="study-references">
 					{#each study.passages as passage, i}
 						<div class="study-reference">
@@ -60,7 +97,14 @@
 					<span class="translation-badge" aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span>
 				</div>
 			{/if}
-		</div>
+		{/if}
+	</div>
+{/snippet}
+
+{#if ghost}
+	<!-- Ghost mode: purely visual, no interactivity -->
+	<div class="study-item ghost" style:padding-left={paddingLeft}>
+		{@render studyBody()}
 	</div>
 {:else if asLink}
 	<!-- Link mode: renders as anchor tag -->
@@ -73,20 +117,7 @@
 		style:padding-left={paddingLeft}
 		onclick={(e) => onClick?.(e, study)}
 	>
-		<Icon {iconId} classes="book-icon" />
-		<div class="study-info">
-			<div class="study-title">{study.title}</div>
-			{#if study.passages && study.passages.length > 0}
-				<div class="study-references">
-					{#each study.passages as passage, i}
-						<div class="study-reference">
-							{formatPassageReference(passage)}{#if i < study.passages.length - 1},&nbsp;{/if}
-						</div>
-					{/each}
-					<span class="translation-badge" aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span>
-				</div>
-			{/if}
-		</div>
+		{@render studyBody()}
 	</a>
 {:else}
 	<!-- Button mode: default interactive mode -->
@@ -114,20 +145,7 @@
 			}
 		}}
 	>
-		<Icon {iconId} classes="book-icon" />
-		<div class="study-info">
-			<div class="study-title">{study.title}</div>
-			{#if study.passages && study.passages.length > 0}
-				<div class="study-references">
-					{#each study.passages as passage, i}
-						<div class="study-reference">
-							{formatPassageReference(passage)}{#if i < study.passages.length - 1},&nbsp;{/if}
-						</div>
-					{/each}
-					<span class="translation-badge" aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span>
-				</div>
-			{/if}
-		</div>
+		{@render studyBody()}
 	</button>
 {/if}
 
@@ -218,6 +236,13 @@
 		font-size: 1.4rem;
 		font-weight: 500;
 		margin-bottom: 0.3rem;
+	}
+
+	/* The single-line part row. No second line follows, so the gap that separates title from
+	   reference would otherwise hang off the bottom and misalign the row's text against a
+	   two-line sibling. */
+	.study-title.reference-title {
+		margin-bottom: 0;
 	}
 
 	.study-references {

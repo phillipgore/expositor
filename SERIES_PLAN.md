@@ -36,7 +36,8 @@ at build) was heeded rather than rediscovered. What landed: `seriesPlanning.js` 
 Study form's create-as-series choice. Both entry points go through the same planner and the same
 endpoint, so the preview a user approves is the parting they get.
 
-**Phase 1 is now feature-complete**: creation, the Finder row, prev/next navigation, delete
+**Phase 1 is now feature-complete**: creation, the Finder row (which is also the navigation — the
+in-part prev/next control was built and then removed, §7), delete
 (series and part), the derived run helper, and the disabled-with-a-reason boundary states. Two
 verifier scripts pin the behaviour to this document — `verify-series-runs.mjs` and
 `verify-boundary-reasons.mjs` (24 checks) — and both run against real `bible.json` via
@@ -210,8 +211,9 @@ range containing one very long chapter still yields one long part, which is an i
 respecting chapter boundaries rather than a defect.
 
 **✅ Adjacent-part prefetch is done**, and it is the only decision in the feature that deliberately
-does **not** consult the adjacency predicate: prefetch is about what the user will _open_, which §7 says
-is `seriesOrder`, so a Prison Epistles series prefetches its next part exactly like a Romans one. It
+does **not** consult the adjacency predicate: prefetch is about what the user will _open_, which is
+`seriesOrder` (the Finder's part order, §7), so a Prison Epistles series prefetches its next part
+exactly like a Romans one. It
 warms at most **one** part, skips any part that is even partially cached, is never awaited, and re-reads
 the cache before spending a provider request.
 
@@ -297,8 +299,8 @@ Three reasons, none of them a limit:
    taught — one sitting, one chapter. Nothing to do with verse counts.
 2. **Analyze ergonomics.** Structure, connections, columns and the layout overlay all scale
    with verse count. A 433-verse study is legal but unpleasant to work in.
-3. **Navigability.** 16 sibling studies in the Finder is clutter; one collapsible series with
-   prev/next is not.
+3. **Navigability.** 16 sibling studies in the Finder is clutter; one collapsible series that
+   expands into them is not.
 
 **Q1 — decided.** Reframed from "a workaround for long studies" to **"a series of studies that
 belong together."** Everything below assumes it. Under that framing the verse caps are guardrails
@@ -836,13 +838,30 @@ respect chapter boundaries._
 A series renders as one row with a chevron, like a group:
 
 ```
-▸ 📖 Romans                          Series · 16 parts
+▸ ⦙⦙ Romans
 
-▾ 📖 Romans                          Series · 16 parts
-     1  Romans 1
-     2  Romans 2
-     3  Romans 3    ← current
+▾ ⦙⦙ Romans
+    ⦙ Romans 1:1-32  [ESV]
+    ⦙ Romans 2:1-29  [ESV]
+    ⦙ Romans 3:1-31  [ESV]   ← current
 ```
+
+⚠️ **This sketch previously read `Series · 16 parts` with a numbered gutter (`1  Romans 1`). Both
+are gone**, and the sketch above is what ships. Three corrections, each with its own reason:
+
+1. **No "Series · N parts" suffix.** A group row shows no count, and the two must present
+   identically — see Q16.
+2. **No number gutter.** It sat *outside* the selectable row, so a part's text and its selection
+   highlight both landed right of a grouped study's: two rows of the same kind that did not line
+   up. Parts now render at `depth + 1` through the same markup `StudyGroup` uses, so alignment is
+   shared by construction. Order is conveyed by the list being ordered.
+3. **A part's row shows its REFERENCE, not its title** (`referenceAsTitle` in `StudyItem.svelte`).
+   A part's title is derived from its range at creation, so the default two-line row printed
+   "Romans 1" above "Romans 1:1-32" — the same fact twice, at double the row height, times 16 or
+   150 parts. The reference is the more precise of the two, so it is the one that stays. A
+   standalone study keeps both lines: its title is authored, not derived.
+
+**The icons are the only differentiator** between a series row and a group row (§9).
 
 Reuses `studyGroup`'s `isCollapsed` pattern and `expandGroupAncestors()`, which will need a
 sibling `expandSeriesAncestors()` (or a generalisation) so deep-linking to part 7 expands both
@@ -851,7 +870,19 @@ its series and any enclosing groups.
 **Q13. Can a series live inside a group?** _Rec: yes — `studySeries.groupId`._
 **Q14. Can a series nest, or contain a group?** _Rec: no. Flat sequence only._
 **Q15. Distinct icon, or the group folder icon?** _Rec: distinct — see §9._
-**Q16. Show part count / verse total on the row?** _Rec: part count always; verse total on hover._
+**Q16 — answered: neither. No count on the row.** ⚠️ This read "_part count always; verse total on
+hover_", and the count shipped as a "Series · 16 parts" suffix before being removed.
+
+The recommendation treated the count as free information. It is not: a group row shows no count,
+and a series row carrying one is a visible assertion that a series is a *different kind of thing*
+in the Finder — which is exactly the claim §6 spends its effort denying. The count is also
+redundant the moment it matters: expand the row and the parts are right there, countable and
+individually useful, which "16 parts" is not. Collapsed, it answers a question nobody asks of a
+folder.
+
+The verse total on hover went for a plainer reason: a tooltip nothing else in the Finder has, on a
+number no decision depends on. Where a verse total *does* drive a decision — the export compliance
+check (§10) — it is computed at that point and stated there, with the consequence attached.
 **Q17. Drag a standalone study into a series?** _Rec: phase 3 — needs invariant checks._
 **Q18. What does clicking the series row do?** _Rec: chevron expands; the title opens part 1._
 
@@ -859,7 +890,7 @@ its series and any enclosing groups.
 `user.lastStudyView`." That column cannot do it.** `schema.ts:71` is
 `lastStudyView: text('last_study_view').default('analyze')`, documented one line above as "the last
 study view ('analyze' | 'document')" — a **view mode**, not a study or part identity. Nothing on
-`user`, `study` or `studyGroup` persists a last-viewed part. (§7 uses the same column correctly, so
+`user`, `study` or `studyGroup` persists a last-viewed part. (§7 used the same column correctly, so
 the document read one column two incompatible ways.) **This has a migration consequence:** "open
 the last-viewed part" needs a new column — `studySeries.lastPartId` or a per-user equivalent —
 which phase 1's migration list does not include. So either add it to phase 1 deliberately, or keep
@@ -909,22 +940,48 @@ mutation-tested, including the trap that disabling Edit must **not** disable par
 
 ## 7. Navigation
 
-At the far right of the study header:
+**Removed. The Finder is the navigation.** An in-part `‹ Part 3 of 16 ›` control was built and
+then taken out: the Finder already lists every part of an expanded series, in order, one click
+away, and it stays open while the study is read. A second, view-local navigator duplicated that
+with a worse affordance — a bare arrow pair with no titles visible — while adding a `<nav>` to the
+Analyze titling row and a chrome bar above the Document gutter that both had to be kept out of the
+paginator's measurements and out of print.
 
-```
-[ Romans 3 ▾ ]                              ‹  Part 3 of 16  ›
-```
+What this removes: `SeriesPartNav.svelte`, the `study-header-row` wrapper and `series-nav-bar` bar
+in the two views, and `seriesContext.previousPart` / `nextPart` from the study layout load.
 
-- `‹` / `›` disabled at the ends, not hidden — layout stability.
-- **"Part 3 of 16"** is a dropdown for direct jumps. Essential at 16 parts; mandatory at 150.
-- Keyboard `⌥←` / `⌥→`. Bare arrows belong to text/segment selection.
-- Preserve the current view (Analyze/Document) across navigation. `user.lastStudyView` already
-  persists this; it must not reset when moving between parts.
+What survives:
 
-**Q19. Wrap around at the ends?** _Rec: no._
+- `seriesContext` itself — the Structure menu's boundary reasoning (§8, §11) and the whole-series
+  export check (§10) read it, and both need `parts` with their ranges.
+- `lastPartId` and the series page's "Continue reading Part N" (§6, Q18).
+- Adjacent-part prefetch (Q20): readers still move through a series in order, they just do it from
+  the Finder, so the next part is still the predictable next open.
+
+### The part's header titles the SERIES
+
+Removing the nav removed the only place a part's page named the series it belonged to. That was a
+real loss, and the fix is not to put the control back: **a part's study header shows the series
+name and the series subtitle** (`studySeries.name` / `studySeries.subtitle`, carried on
+`seriesContext`), in both Analyze and Document.
+
+A part's own title is *derived from its range at creation*, so heading the page with it restated
+the passage reference heading two lines below — while the one piece of context a part cannot
+supply about itself, its series, appeared nowhere. The part still identifies itself, by that
+reference heading.
+
+This is **display only**. `study.title` and `study.subtitle` are untouched in the database and
+remain what the Finder, export, and every other surface read; nothing here writes. Standalone
+studies are unaffected — `seriesContext` is null and both lines come from the study, as before.
+
+It matters most in the Document view, which prints: a handout headed "Ephesians 1" does not say
+which series it came from, and "Ephesians/Colossians" does.
+
+**Q19. Wrap around at the ends?** _Moot — no arrows._
 **Q20. Prefetch adjacent parts?** _Rec: yes, phase 2 — next part's cached text on idle._
-**Q21. Keyboard shortcut?** _Rec: `⌥←`/`⌥→`._
-**Q22. Progress indicator?** _Rec: text only, no bar._
+**Q21. Keyboard shortcut?** _Moot — `⌥←`/`⌥→` went with the control. Bare arrows belong to
+text/segment selection, so any future shortcut still may not use them._
+**Q22. Progress indicator?** _Moot — the Finder's part list is the indicator._
 
 ---
 
@@ -1216,7 +1273,7 @@ not go through `_id` as unperformed.
 | Need               | Icon                             | Note                                             |
 | ------------------ | -------------------------------- | ------------------------------------------------ |
 | Expand/collapse    | `chevron-right` / `chevron-down` | Exactly what `StudyGroup.svelte` uses            |
-| Prev/next part     | `caret-left` / `caret-right`     | Q30                                              |
+| ~~Prev/next part~~ | ~~`caret-left` / `caret-right`~~ | No longer needed — in-part nav removed (§7, Q30) |
 | A single study     | **`book`**                       | Already the Finder's study icon (`StudyItem`)    |
 | A group            | `folder` / `folders`             | The precedent for `book`/`books` below           |
 | Move Text Up/Down  | `arrow-up` / `arrow-down`        | §8's five commands need **no** new icons         |
@@ -1288,9 +1345,9 @@ recognisable as one set and cannot be mistaken for `column-split` and friends.
 `folder`/`folders` precedent" — superseded.** Still not a folder variant (a folder is an arbitrary
 container, and §4 rejected modelling a series as one), but no longer a plural-of-`book` either:
 plurality says "several", and the thing that matters is **order**.
-**Q30. Carets or arrows?** _Rec: carets — they read as "step through a sequence" where arrows read
-as "move a thing", and `arrow-up`/`arrow-down` are already Move Text Up/Down, so reusing them for
-navigation would collide with a command._
+**Q30. Carets or arrows?** _Moot — the control they belonged to was removed (§7). The reasoning is
+worth keeping for any future stepper: carets read as "step through a sequence" where arrows read as
+"move a thing", and `arrow-up`/`arrow-down` are already Move Text Up/Down._
 **Q31 — answered, then reversed: there IS a `series-part` icon.** ⚠️ This read "**no**
 `series-part` icon". The reasoning was about **numbering** — a badge showing "3" would need three
 digits inside 32px at 150 parts (Q10) — and that part still holds: **"Part 3 of 16" remains text**,
@@ -1459,7 +1516,8 @@ a pre-move confirmation that can be declined, never a mid-gesture failure._
   `planSeriesParts()` and `POST /api/series`, so the New Study form and "Split into a series…"
   cannot produce differently-shaped parts from the same input
 - Finder series row: chevron, collapse state, expand-on-deep-link
-- Header prev/next and "Part N of M" jump dropdown
+- ~~Header prev/next and "Part N of M" jump dropdown~~ — **built, then removed.** The Finder's
+  expanded part list is the navigation; see §7
 - ✅ The series icon — **as an `icons.json` entry, not a `public/` file** (§9, trap 13). Now
   `series`, not `books`; see §9. ⚠️ This continued "Register `warning` at the same time; §5's
   preview needs it and **it is missing today**" — no longer true. `series`, `series-part`,
@@ -2101,6 +2159,9 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | Icon for a standalone study                               | **`book` — unchanged**                                                               | Reverses the earlier recommendation of `book-open`, which is **not in `icons.json`** and would have rendered as blank space via the documented missing-icon fallback. `StudyItem.svelte` already uses `book` at three call sites, so the old advice was churn dressed as reuse (trap 13)                                                                                                                                                                                                                                                                    |
 | Icon for a series                                         | **`series`** (was `books`)                                                           | ⚠️ Reverses the `folder` → `folders` precedent argument. That justified a *placeholder*; the glyph itself was wrong, because plurality reads as "several studies" — a group — and §4 rejected modelling a series as one. A series is an **ordered** sequence, which purpose-drawn artwork can say and a plural cannot. `books` is deleted from the registry. The Finder reads `book` = study, `series-part` = part, `series` = series, `folder` = container (Q29)                                                                                            |
 | Icon for a part of a series                               | **`series-part`** (was `book`, shared with standalone studies)                       | A part drawn with plain `book` is indistinguishable from a standalone study — the one distinction the Finder exists to draw. Passed as a prop from `StudySeries.svelte` rather than branched inside `StudyItem.svelte`, which renders every study in the app and defaults to `book`. Does **not** carry the number; see the Q31 reversal in §9                                                                                                                                                                                                              |
+| In-part prev/next navigation                              | **Built, then removed**                                                              | The Finder already lists every part of an expanded series, in order, with titles visible, and stays open while the study is read. A second view-local navigator duplicated that with a worse affordance — a bare arrow pair showing one part's name at a time — while adding a `<nav>` to the Analyze titling row and a chrome bar above the Document gutter that had to be kept out of both the paginator's measurements and print. Took `SeriesPartNav.svelte`, `seriesContext.previousPart`/`nextPart`, and `⌥←`/`⌥→` with it. `seriesContext` itself stays: §8's boundary reasoning and §10's export check both read it (§7, Q19/Q21/Q22/Q30 now moot) |
+| What titles a part's study page                           | **The series name + series subtitle**, not the part's own                            | Removing the nav removed the only place a part's page named its series. A part's title is *derived from its range*, so heading the page with it restated the passage reference two lines below while the part's actual context — which series it belongs to — appeared nowhere. The part still identifies itself by that reference heading. Display only: `study.title`/`study.subtitle` are untouched in the database and still drive the Finder, export and everything else. Matters most in Document, which prints — a handout headed "Ephesians 1" does not say where it came from (§7) |
+| What a part's Finder row shows                            | **Its passage reference, on one line** (`referenceAsTitle`)                          | Same derived-title problem, other surface: the default two-line row printed "Romans 1" directly above "Romans 1:1-32" — the same fact twice, at double the row height, times 16 or 150 parts. The reference is the more precise of the two, so it is the one that stays. Standalone and grouped studies keep both lines, because their titles are authored rather than derived and carry meaning the reference cannot (§6) |
 | Split/Join Part icon names                                | **`series-split` / `series-join`** (was `part-split` / `part-join`)                  | Third naming: `study-split`/`study-join` contradicted §3's "Split Part"/"Join Parts"; `part-split`/`part-join` matched *its* artwork (two books parting) but the drawn icons make the **series** the object, and the id follows the drawing. Still object-then-verb, as the whole registry is (`column-split`, `section-join`, `segment-split`). Both old entries deleted                                                                                                                                                                                   |
 | Split/Join Part icon design                               | **The book metaphor, not a divided page**                                            | Icons are a single fill-only `d` path in a 32×32 viewBox, so the old "vertical dashed rule" needs hand-placed rects that merge at menu size. And it would be a fourth variation on "a divided rectangle" beside the three page-level split icons. The geometry cannot carry the level distinction, so the metaphor must                                                                                                                                                                                                                                     |
 | Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — four entries total for the whole feature (`series`, `series-part`, `series-split`, `series-join`), plus `warning`, and the three placeholders they replaced were deleted so the net registry growth is one. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` were not ours either, and are fixed by repointing at the existing `segment-split` / `segment-join` — no new artwork (trap 13) |
