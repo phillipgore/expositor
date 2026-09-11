@@ -134,6 +134,36 @@ assert(
 	)
 );
 
+console.log('\n── the auto-select effect does not re-impose a stale series selection ──');
+
+// ⚠️ Clicking a series' first part left the SERIES highlighted. `goto()` is async, so the effect
+// re-ran while the URL was still `/series/{id}`: `activeSeriesId` was truthy, the series was "not
+// selected" (the part had just replaced it), and the branch selected the series again. It only
+// showed SOMETIMES because the study branch usually repaired it on arrival — unless the part was
+// already `previousActiveStudyId`, in which case that branch skipped and the series stayed lit.
+//
+// The fix is the same ID-changed latch the study branch uses. Asserted as three separate facts
+// because each alone is satisfiable by a broken version: the latch must exist, it must GATE the
+// series selection, and it must be RESET or it fires once per session and never again.
+assert(
+	'the series branch latches on the active series id',
+	/if\s*\(activeSeriesId !== previousActiveSeriesId\)\s*\{\s*\n\s*previousActiveSeriesId = activeSeriesId;/.test(
+		panel
+	)
+);
+assert(
+	'the latch encloses the series selection assignment',
+	// `indexOf` returns -1 when absent, and -1 is less than everything — so both offsets are
+	// required to be real before they are compared, or a deleted latch would read as "enclosing".
+	panel.indexOf('activeSeriesId !== previousActiveSeriesId') >= 0 &&
+		panel.search(/type:\s*'series',\s*\n\s*id: activeSeriesId/) >
+			panel.indexOf('activeSeriesId !== previousActiveSeriesId')
+);
+assert(
+	'and it is reset when another row becomes active',
+	(panel.match(/previousActiveSeriesId = null;/g) ?? []).length >= 2
+);
+
 console.log('\n── Edit routes each row type to its own editor ──');
 
 const toolbar = readFileSync('src/lib/componentWidgets/ToolbarApp.svelte', 'utf8');

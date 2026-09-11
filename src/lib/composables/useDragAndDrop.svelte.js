@@ -23,6 +23,19 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 	let isDragging = $state(false);
 	let draggedStudies = $state([]);
 	let draggedGroups = $state([]);
+	/**
+	 * Series being dragged — filing a SERIES into a group (§4: a series occupies one Finder slot
+	 * the way a study does, and `studySeries.groupId` is the column that records where).
+	 *
+	 * Its own array rather than a flag on `draggedStudies`, because the two take different
+	 * endpoints (`/api/series/[id]` vs `/api/studies/[id]`) and mean different things on an
+	 * ungrouping drop. Conflating them is how a series ends up PATCHed as a study, which would
+	 * silently do nothing: that handler does not know the id.
+	 *
+	 * ⚠️ A series PART is never in here — parts are not draggable at all. See
+	 * `handleStudyMouseDown`.
+	 */
+	let draggedSeries = $state([]);
 	let dragStartX = $state(0);
 	let dragStartY = $state(0);
 	let currentMouseX = $state(0);
@@ -74,10 +87,38 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 	function handleStudyMouseDown(event, study, isStudySelected, getSelectedStudiesCallback) {
 		// Only handle left click
 		if (event.button !== 0) return;
-		
-		// Prevent browser's default drag behavior
+
+		// ⚠️ BEFORE the part guard below, not after it.
+		//
+		// This suppresses the browser's native drag AND, as a side effect, the focus a mousedown
+		// would otherwise give the button — which is the only reason a clicked study does not draw
+		// `.study-item:focus`'s outline. Returning early for a part therefore skipped it, and parts
+		// alone grew a blue outline on click that no other Finder row has. (`StudySeries` documents
+		// the same coupling on its own row for the same reason.)
+		//
+		// Keyboard focus is unaffected: preventDefault suppresses only the pointer's focus, so
+		// Tab still focuses the row and still shows the outline — which is the one case where it
+		// is the only indication of where you are.
 		event.preventDefault();
-		
+
+		// ⚠️ A SERIES PART IS NOT DRAGGABLE. Refused here, at the source, rather than by dropping
+		// the mousedown wire at the one call site that renders parts — because a part reaches this
+		// function two ways: directly from `StudySeries`, and as a member of a MULTI-SELECTION
+		// dragged by its selected sibling. A guard at the call site would only close the first.
+		//
+		// Why it must not move: a part's place is `study.seriesOrder`, and that order is the
+		// series (§4 — "a flat ordered sequence", re-derived from nothing). Dropping a part into a
+		// group would have to answer what the series does about the hole, and §4 already answers
+		// it for deletion — a series that drops to one part DISSOLVES — so the drop is not a
+		// placement change at all; it is a membership change wearing a placement gesture.
+		//
+		// The operations that legitimately remove a part all exist and all state their
+		// consequences first: Delete Part (`describePartDeletion`), Join Parts, and re-editing the
+		// study's extent through the review page. A silent drag is the one route that would not.
+		if (study?.seriesId) {
+			return;
+		}
+
 		// Store currently focused element before drag starts
 		focusedElementBeforeDrag = document.activeElement;
 		
@@ -85,19 +126,60 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 		dragStartX = event.clientX;
 		dragStartY = event.clientY;
 		
-		// Clear any group drags
+		// Clear any group or series drags
 		draggedGroups = [];
+		draggedSeries = [];
 		
 		// Prepare drag list based on selection
 		if (isStudySelected) {
-			// Get all selected studies for dragging
-			draggedStudies = getSelectedStudiesCallback();
+			// Parts filtered OUT of the selection, not merely refused as the grab handle. A user
+			// may select a standalone study and a part together — nothing stops that — and
+			// dragging by the standalone one would otherwise carry the part along into a group,
+			// which is the exact move the guard above refuses when the part is grabbed directly.
+			// The rest of the selection still moves; only the parts stay put.
+			draggedStudies = getSelectedStudiesCallback().filter((s) => !s?.seriesId);
 		} else {
 			// Only drag this study
 			draggedStudies = [study];
 		}
-		
+
+		// Every candidate may have just been filtered away, leaving a drag of nothing that would
+		// still register listeners and still draw a ghost from `draggedStudies[0]` — undefined.
+		if (draggedStudies.length === 0) return;
+
 		// Add document listeners
+		document.addEventListener('mousemove', handleDocumentMouseMove);
+		document.addEventListener('mouseup', handleDocumentMouseUp);
+	}
+
+	/**
+	 * Handle mousedown on a series row.
+	 *
+	 * A series is FILED like a study: §4 gives it one Finder slot of its own and
+	 * `studySeries.groupId` records which group holds it. The "Move to…" menu command could
+	 * already do this; the drag gesture could not, so the two disagreed about whether a series was
+	 * a movable thing.
+	 *
+	 * ⚠️ Single-series drags only, and never mixed with a study or group selection. A series drop
+	 * PATCHes `/api/series/[id]`, a study drop PATCHes `/api/studies/[id]`, and a mixed drag would
+	 * have to fan out to both — the multi-select path for studies exists because they share one
+	 * endpoint and one meaning. Dragging a selected series takes just that series rather than
+	 * silently moving its neighbours through the wrong handler.
+	 */
+	function handleSeriesMouseDown(event, series) {
+		if (event.button !== 0) return;
+
+		event.preventDefault();
+
+		focusedElementBeforeDrag = document.activeElement;
+
+		dragStartX = event.clientX;
+		dragStartY = event.clientY;
+
+		draggedStudies = [];
+		draggedGroups = [];
+		draggedSeries = [series];
+
 		document.addEventListener('mousemove', handleDocumentMouseMove);
 		document.addEventListener('mouseup', handleDocumentMouseUp);
 	}
@@ -141,7 +223,8 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 	 * Handle document mousemove - check if drag threshold exceeded
 	 */
 	function handleDocumentMouseMove(event) {
-		if (draggedStudies.length === 0 && draggedGroups.length === 0) return;
+		if (draggedStudies.length === 0 && draggedGroups.length === 0 && draggedSeries.length === 0)
+			return;
 		
 		currentMouseX = event.clientX;
 		currentMouseY = event.clientY;
@@ -207,6 +290,9 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 	function canProposeSeriesAdd() {
 		return (
 			draggedGroups.length === 0 &&
+			// A SERIES is not added to a series — §4 forbids nesting (Q14), so a series row being
+			// dragged must not light up other series rows as targets on the way past.
+			draggedSeries.length === 0 &&
 			draggedStudies.length === 1 &&
 			!draggedStudies[0]?.seriesId
 		);
@@ -359,6 +445,60 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 	}
 
 	/**
+	 * Was the drop inside the Finder panel at all?
+	 *
+	 * A drop on empty panel space means "file this at the top level"; a drop outside the panel
+	 * means nothing happened and must leave placement alone — otherwise releasing over the study
+	 * canvas silently ungroups whatever was being dragged.
+	 *
+	 * Extracted because the group and study branches below each inlined this, and the series
+	 * branch would have made three copies of one rectangle test.
+	 */
+	function isWithinPanel(event) {
+		const panel = document.querySelector('.studies-panel');
+		if (!panel) return false;
+		const rect = panel.getBoundingClientRect();
+		return (
+			event.clientX >= rect.left &&
+			event.clientX <= rect.right &&
+			event.clientY >= rect.top &&
+			event.clientY <= rect.bottom
+		);
+	}
+
+	/**
+	 * Move a series into a group, or to the top level with a null.
+	 *
+	 * ⚠️ `/api/series/[id]`, NOT `/api/studies/[id]`. A series id means nothing to the study
+	 * handler, which would find no row and report success — a move that silently does nothing,
+	 * which is the failure this gesture existed to fix in the "Move to…" command (see that
+	 * handler's `groupId` branch). The endpoint validates that the destination group belongs to
+	 * this user.
+	 */
+	async function moveSeriesToGroup(seriesId, groupId) {
+		try {
+			const targetGroupId = groupId === 'ungrouped' ? null : groupId;
+
+			const response = await fetch(`/api/series/${seriesId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ groupId: targetGroupId })
+			});
+
+			if (!response.ok) {
+				console.error('Error moving series:', await response.text());
+				return;
+			}
+
+			if (invalidateCallback) {
+				await invalidateCallback();
+			}
+		} catch (error) {
+			console.error('Error moving series:', error);
+		}
+	}
+
+	/**
 	 * Handle document mouseup - finalize drop
 	 */
 	async function handleDocumentMouseUp(event, clearSelectionCallback) {
@@ -367,10 +507,32 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 		document.removeEventListener('mousemove', handleDocumentMouseMove);
 		document.removeEventListener('mouseup', handleDocumentMouseUp);
 		
-		if (draggedStudies.length === 0 && draggedGroups.length === 0) return;
+		if (draggedStudies.length === 0 && draggedGroups.length === 0 && draggedSeries.length === 0)
+			return;
 		
 		if (isDragging) {
 			event.preventDefault();
+
+			// A SERIES drop files the series, and nothing else. Handled before the study and group
+			// branches and returning early, for the same reason the series-add branch below does:
+			// the coordinates under the cursor belong to a group section whenever the destination
+			// is a group, and falling through would run the study branch against a series id.
+			if (draggedSeries.length > 0) {
+				const seriesId = draggedSeries[0].id;
+				const targetGroupId = dropTargetGroupId;
+
+				if (targetGroupId !== null) {
+					await moveSeriesToGroup(seriesId, targetGroupId);
+				} else if (isWithinPanel(event)) {
+					// Dropped on empty panel space — file it back at the top level, matching what
+					// the same gesture does for a group and for a study.
+					await moveSeriesToGroup(seriesId, null);
+				}
+
+				if (clearSelectionCallback) clearSelectionCallback();
+				resetDragState();
+				return;
+			}
 
 			// A drop on a series row proposes an add and nothing else — no group move, no ungrouping.
 			// Returning early matters: the same coordinates sit inside a group section whenever the
@@ -394,18 +556,8 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 				}
 			} else if (draggedGroups.length > 0) {
 				// Dropped outside - ungroup (set parentGroupId to null)
-				const panel = document.querySelector('.studies-panel');
-				if (panel) {
-					const rect = panel.getBoundingClientRect();
-					const isInPanel = 
-						event.clientX >= rect.left &&
-						event.clientX <= rect.right &&
-						event.clientY >= rect.top &&
-						event.clientY <= rect.bottom;
-					
-					if (isInPanel) {
-						await moveGroupsToParent(draggedGroups.map(g => g.id), null);
-					}
+				if (isWithinPanel(event)) {
+					await moveGroupsToParent(draggedGroups.map(g => g.id), null);
 				}
 			}
 			
@@ -414,19 +566,9 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 				await moveStudiesToGroup(draggedStudies.map(s => s.id), dropTargetGroupId);
 			} else if (draggedStudies.length > 0) {
 				// Check if dropped within panel
-				const panel = document.querySelector('.studies-panel');
-				if (panel) {
-					const rect = panel.getBoundingClientRect();
-					const isInPanel = 
-						event.clientX >= rect.left &&
-						event.clientX <= rect.right &&
-						event.clientY >= rect.top &&
-						event.clientY <= rect.bottom;
-					
-					if (isInPanel) {
-						// Ungroup the studies
-						await moveStudiesToGroup(draggedStudies.map(s => s.id), null);
-					}
+				if (isWithinPanel(event)) {
+					// Ungroup the studies
+					await moveStudiesToGroup(draggedStudies.map(s => s.id), null);
 				}
 			}
 			
@@ -460,6 +602,7 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 		isDragging = false;
 		draggedStudies = [];
 		draggedGroups = [];
+		draggedSeries = [];
 		dropTargetGroupId = null;
 		dropTargetSeriesId = null;
 		dragStartX = 0;
@@ -509,6 +652,7 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 		get isDragging() { return isDragging; },
 		get draggedStudies() { return draggedStudies; },
 		get draggedGroups() { return draggedGroups; },
+		get draggedSeries() { return draggedSeries; },
 		get currentMouseX() { return currentMouseX; },
 		get currentMouseY() { return currentMouseY; },
 		get dropTargetGroupId() { return dropTargetGroupId; },
@@ -517,6 +661,7 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 		// Functions
 		handleStudyMouseDown,
 		handleGroupMouseDown,
+		handleSeriesMouseDown,
 		handleDocumentMouseUp,
 		isStudyBeingDragged
 	};

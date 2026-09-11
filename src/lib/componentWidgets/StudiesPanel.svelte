@@ -356,6 +356,18 @@
 	}
 
 	/**
+	 * Handle series mousedown for drag.
+	 *
+	 * A series is filed into a group the way a study is (§4 gives it its own Finder slot, and
+	 * `studySeries.groupId` records where). No selection callback is passed: the composable drags
+	 * exactly the grabbed series, because a series move PATCHes a different endpoint from a study
+	 * move and a mixed selection cannot be sent to one of them.
+	 */
+	function handleSeriesMouseDown(event, series) {
+		dragDrop.handleSeriesMouseDown(event, series);
+	}
+
+	/**
 	 * Handle group mousedown for drag
 	 */
 	function handleGroupMouseDown(event, group) {
@@ -478,6 +490,19 @@
 	let previousActiveStudyId = null;
 
 	/**
+	 * The same latch for series, and it is NOT symmetry for its own sake.
+	 *
+	 * ⚠️ Without it, clicking a series' first part left the SERIES selected. `goto()` is async, so
+	 * when `handleStudyClick` replaced the selection the effect below re-ran while the URL was
+	 * still `/series/{id}` — `activeSeriesId` was therefore still truthy, the series was "not
+	 * selected", and the branch selected it again, discarding the part. The navigation then
+	 * landed and the study branch normally repaired it, which is why this only showed up
+	 * SOMETIMES: on a part that had already been `previousActiveStudyId`, the study branch
+	 * skipped its own auto-select and the stale series selection survived on screen.
+	 */
+	let previousActiveSeriesId = null;
+
+	/**
 	 * Auto-select active group or study on page load, or clear selection on dashboard.
 	 *
 	 * For studies: only auto-selects when navigating to a NEW study (ID changed).
@@ -490,24 +515,34 @@
 			// Checked BEFORE the study branch. A series page has no active study, so the order is
 			// not strictly load-bearing today — but a series selection must never be replaceable by
 			// a part's, and stating the precedence here keeps that true if the routes ever overlap.
-			const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-			const seriesItem = flatList.find(
-				(item) => item.type === 'series' && item.id === activeSeriesId
-			);
+			//
+			// Gated on the ID having CHANGED, exactly as the study branch is. `!isItemSelected(...)`
+			// alone is not the same test: it is also true the instant the user selects something
+			// else while still on the series page — which is precisely what clicking a part does,
+			// since `goto()` has not resolved yet. Re-running then re-imposed the series selection
+			// on top of the part's.
+			if (activeSeriesId !== previousActiveSeriesId) {
+				previousActiveSeriesId = activeSeriesId;
+				const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
+				const seriesItem = flatList.find(
+					(item) => item.type === 'series' && item.id === activeSeriesId
+				);
 
-			if (seriesItem && !multiSelect.isItemSelected('series', activeSeriesId)) {
-				multiSelect.selectedItems = [
-					{
-						type: 'series',
-						id: activeSeriesId,
-						data: seriesItem.data,
-						index: seriesItem.index
-					}
-				];
-				multiSelect.lastSelectedIndex = seriesItem.index;
-				multiSelect.updateToolbarSelection();
+				if (seriesItem && !multiSelect.isItemSelected('series', activeSeriesId)) {
+					multiSelect.selectedItems = [
+						{
+							type: 'series',
+							id: activeSeriesId,
+							data: seriesItem.data,
+							index: seriesItem.index
+						}
+					];
+					multiSelect.lastSelectedIndex = seriesItem.index;
+					multiSelect.updateToolbarSelection();
+				}
 			}
 		} else if (activeGroupId) {
+			previousActiveSeriesId = null;
 			// Find the group in the flattened list
 			const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
 			const groupItem = flatList.find((item) => item.type === 'group' && item.id === activeGroupId);
@@ -526,6 +561,9 @@
 				multiSelect.updateToolbarSelection();
 			}
 		} else if (activeStudyId) {
+			// Cleared on the way out so that navigating BACK to the series page selects the series
+			// again. Without this the latch would fire exactly once per session.
+			previousActiveSeriesId = null;
 			// Only auto-select when first arriving at this study (ID changed).
 			// If it's the same study and selection was cleared by user interaction,
 			// do nothing — let the study remain in "active only" (unselected) state.
@@ -553,6 +591,7 @@
 		} else {
 			// Clear selection when no active item (e.g., on dashboard)
 			previousActiveStudyId = null;
+			previousActiveSeriesId = null;
 			if (multiSelect.selectedItems.length > 0) {
 				multiSelect.clearSelection();
 			}
@@ -619,7 +658,7 @@
 </script>
 
 <!-- Drag ghost -->
-{#if dragDrop.isDragging && (dragDrop.draggedStudies.length > 0 || dragDrop.draggedGroups.length > 0)}
+{#if dragDrop.isDragging && (dragDrop.draggedStudies.length > 0 || dragDrop.draggedGroups.length > 0 || dragDrop.draggedSeries.length > 0)}
 	<div
 		class="drag-ghost"
 		class:multi={dragDrop.draggedStudies.length + dragDrop.draggedGroups.length > 1}
@@ -629,7 +668,18 @@
 		{#if dragDrop.draggedStudies.length + dragDrop.draggedGroups.length > 1}
 			<div class="drag-count">{dragDrop.draggedStudies.length + dragDrop.draggedGroups.length}</div>
 		{/if}
-		{#if dragDrop.draggedGroups.length > 0}
+		{#if dragDrop.draggedSeries.length > 0}
+			<!-- Dragging a series. Shaped like the group ghost rather than the study one, because a
+			     series is being FILED here exactly as a group is, and its count is of parts. The
+			     `series` glyph keeps it distinguishable from a folder mid-drag — the same icon the
+			     Finder row and the series page use (§9, Q29). Never multi: a series drag carries
+			     exactly one series, so no count badge. -->
+			<div class="drag-ghost-group">
+				<Icon iconId={'series'} classes="folder-icon" />
+				<span class="group-name">{dragDrop.draggedSeries[0].name}</span>
+				<span class="item-count">{dragDrop.draggedSeries[0].parts?.length || 0}</span>
+			</div>
+		{:else if dragDrop.draggedGroups.length > 0}
 			<!-- Dragging groups -->
 			<div class="drag-ghost-group">
 				<Icon iconId={'folder'} classes="folder-icon" />
@@ -714,6 +764,7 @@
 									isSeriesActive={(seriesId) => seriesId === activeSeriesId}
 									onToggleSeriesCollapse={toggleSeriesCollapse}
 									onSeriesHeaderClick={handleSeriesHeaderClick}
+									onSeriesMouseDown={handleSeriesMouseDown}
 									forceExpanded={searchQuery.trim() !== ''}
 									onfocus={() => {
 										const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
@@ -732,7 +783,7 @@
 									isActive={item.data.id === activeSeriesId}
 									onToggleCollapse={toggleSeriesCollapse}
 									onSeriesHeaderClick={handleSeriesHeaderClick}
-									onSeriesMouseDown={null}
+									onSeriesMouseDown={handleSeriesMouseDown}
 									onStudyMouseDown={handleStudyMouseDown}
 									onStudyClick={handleStudyClick}
 									isStudySelected={(studyId) => multiSelect.isItemSelected('study', studyId)}

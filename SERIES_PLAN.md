@@ -966,6 +966,59 @@ is the reference the user just read in the sidebar. The reference is assembled i
 (`resumePartReference`) so the passages already fetched for the parts list are reused; the
 translation badge is appended in the component, where every other abbreviation lookup happens.
 **Q17. Drag a standalone study into a series?** _Rec: phase 3 — needs invariant checks._
+
+**Q17 — extended: which Finder rows can be dragged at all?** The question above asked only about
+dragging a study INTO a series. Two neighbouring cases were never asked and had both defaulted to
+the wrong answer.
+
+**A SERIES can be dragged into a group — now it can.** §4 gives a series its own Finder slot and
+`studySeries.groupId` records which group holds it, and the "Move to…" menu command has filed a
+series that way since the endpoint's `groupId` branch was added. The *gesture* could not: both
+`StudySeries` call sites passed `onSeriesMouseDown={null}`. So the app held two views about whether
+a series was a movable thing depending on which affordance the user reached for — and drag is the
+one people try first on a row that looks exactly like the group row beside it.
+
+This is **placement, not membership**: nothing about which studies are parts, or their order,
+changes. It PATCHes `/api/series/[id]`, which already validates that the destination group belongs
+to the user. ⚠️ It must not reuse the study path — a series id sent to `/api/studies/[id]` matches
+no row and reports success, which is a move that silently does nothing. That is precisely the
+failure the `groupId` branch was written to fix, and it would have been reintroduced by sharing the
+`draggedStudies` array instead of giving series their own.
+
+**A PART cannot be dragged anywhere — now it cannot.** It could: a part is rendered by `StudyItem`
+with the same `onStudyMouseDown` wire every study gets, so it could be dropped into a group, which
+sets `study.groupId` on a row whose place is `study.seriesOrder`. A part's place IS its series
+(§4, "a flat ordered sequence"), so that drop is a **membership change wearing a placement
+gesture** — and it performed one silently, while every legitimate route out of a series states its
+consequences first: Delete Part through `describePartDeletion` (including §4's dissolve-at-one-part
+rule), Join Parts, and re-editing the study's extent through the review page.
+
+⚠️ **Refused in the composable, not by withholding the wire in `StudySeries`.** A part reaches the
+drag two ways: grabbed directly, and carried along inside a MULTI-SELECTION grabbed by a standalone
+study elsewhere in the Finder. A guard in `StudySeries` cannot see the second — parts are filtered
+out of the selection instead, so the rest of a mixed selection still moves and only the parts stay
+put. Both routes are pinned and mutation-tested in `verify-series-drag.mjs`; neutering either one
+turns the scan red.
+
+Two smaller consequences, both recorded because they are easy to reintroduce: a dragged series must
+not light up other series rows as drop targets (§4/Q14 — a series never nests in a series), and a
+multi-selection emptied entirely by the part filter must not register listeners or draw a ghost from
+`draggedStudies[0]`, which would be `undefined`.
+
+⚠️ **The refusal must come AFTER `event.preventDefault()`, and that ordering is load-bearing.** The
+first version returned before it, and parts alone grew a blue outline when clicked — a difference no
+other Finder row has. `preventDefault()` on mousedown suppresses the browser's native drag *and, as
+a side effect, the focus the pointer would give the button*; that side effect is the only reason a
+clicked study does not draw `.study-item:focus`. Skipping the call skipped the suppression.
+
+This coupling is invisible from either end: the CSS rule looks like ordinary keyboard-focus styling,
+and the `preventDefault()` looks like it is only about dragging. `StudySeries` had already hit it
+once and documents it on its own row — the same trap, found twice. Keyboard focus is unaffected,
+because `preventDefault()` suppresses only the pointer's focus, so Tab still outlines the row where
+it is the sole indication of position. Pinned by an ORDER assertion in `verify-series-drag.mjs`,
+mutation-tested by swapping the two statements: both orderings refuse the drag equally well, so
+nothing else would have caught it.
+
 **Q18. What does clicking the series row do?** _Rec: chevron expands; the title opens part 1._
 
 ⚠️ **This previously read "the title opens the last-viewed part, falling back to part 1, matching
@@ -1693,6 +1746,15 @@ carry different reasons.
   it does not commit — a gap or a different book only warns, and a warning that is applied without
   being read is not a warning. The drop target is withheld for a multi-selection, a group drag or a
   study already in a series, since all three would refuse on release
+- ✅ **File a SERIES into a group by dragging it — done** (Q17, extended). The series row is now a
+  drag SOURCE as well as a drop target, matching the "Move to…" command that could already do it and
+  the group row it is drawn to resemble. Placement only: `studySeries.groupId` moves, membership and
+  `seriesOrder` do not. ⚠️ Its own `draggedSeries` array and its own endpoint — a series id PATCHed
+  to `/api/studies/[id]` matches no row and reports success
+- ✅ **A series PART is not draggable — done** (Q17, extended). It was, through the ordinary
+  `StudyItem` wire, and a drop into a group set `groupId` on a row whose place is `seriesOrder` —
+  a membership change performed silently. Refused in the composable so the multi-selection route is
+  closed too, not just the direct grab
 - ✅ **Reorder runs — done** (not parts — §4's run rule). `describeRuns()` reports `reorderable:
 false` for a contiguous series, so the UI has what it needs to withhold a handle that could never
   do anything. ✅ **The drag HANDLE is now wired**, in `ReorderRunsModal` — where a row IS a run, so
@@ -2244,8 +2306,10 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | In-part prev/next navigation                              | **Built, then removed**                                                              | The Finder already lists every part of an expanded series, in order, with titles visible, and stays open while the study is read. A second view-local navigator duplicated that with a worse affordance — a bare arrow pair showing one part's name at a time — while adding a `<nav>` to the Analyze titling row and a chrome bar above the Document gutter that had to be kept out of both the paginator's measurements and print. Took `SeriesPartNav.svelte`, `seriesContext.previousPart`/`nextPart`, and `⌥←`/`⌥→` with it. `seriesContext` itself stays: §8's boundary reasoning and §10's export check both read it (§7, Q19/Q21/Q22/Q30 now moot) |
 | What titles a part's study page                           | **The series name + series subtitle**, not the part's own                            | Removing the nav removed the only place a part's page named its series. A part's title is *derived from its range*, so heading the page with it restated the passage reference two lines below while the part's actual context — which series it belongs to — appeared nowhere. The part still identifies itself by that reference heading. Display only: `study.title`/`study.subtitle` are untouched in the database and still drive the Finder, export and everything else. Matters most in Document, which prints — a handout headed "Ephesians 1" does not say where it came from (§7) |
 | What a part's Finder row shows                            | **Its passage reference, on one line** (`referenceAsTitle`)                          | Same derived-title problem, other surface: the default two-line row printed "Romans 1" directly above "Romans 1:1-32" — the same fact twice, at double the row height, times 16 or 150 parts. The reference is the more precise of the two, so it is the one that stays. Standalone and grouped studies keep both lines, because their titles are authored rather than derived and carry meaning the reference cannot (§6) |
+| Which Finder rows can be dragged                          | **A series can (into a group); a part cannot (anywhere)**                            | Both had defaulted rather than been decided. A series occupies its own Finder slot (§4) and "Move to…" could already file it, but `onSeriesMouseDown={null}` meant the gesture could not — two answers to "is a series movable", depending on the affordance reached for. A part's place IS its series (`seriesOrder`), so dragging one into a group is a membership change wearing a placement gesture, performed silently, when every legitimate exit states its consequences first (Delete Part, Join Parts, extent review). ⚠️ The part refusal lives in the composable, not in `StudySeries`: a part also travels inside a multi-selection grabbed by a standalone study, which no guard in that file could see. Series get their own `draggedSeries` array — sharing `draggedStudies` would PATCH `/api/studies/[id]` with a series id, which matches nothing and reports success (Q17) |
 | What a generated part is CALLED                           | **Its full passage reference** — `Romans 1:1-32`, from the book name                 | `partTitle()` is the single source of every part name: two creation previews, Join/Split Part's copy, the review page's deleted-part and discarded-title lists, and the delete-consequence sentences all render it, so fixing any one surface puts it at odds with six others. `Romans 1` also *dropped information that matters at a range's edges* — Rom 1:18–8:39 produced a part titled "Romans 1" that does not begin where Romans 1 begins (Q12). Converges with Split Part, which always named its new part this way. Hyphen via `formatPassageReference`, matching the Finder. Study title no longer leaks in — a citation must open with a book name. **No migration**: `study.title` is user-editable and a rename is indistinguishable from a generated title, so rewriting would destroy renames (§6) |
 | What the series landing page shows                        | **No part count; Continue names the part by reference**                               | `/series/[id]` carried a `Series · N parts` line because the page should name the thing the way the row that led there does — and that reasoning is what removed it, since the row no longer says it (Q16). The emptiness case already covers the one count that changes what the user can do. Its button became `Continue: Ephesians 1:1-23 [ESV]` for the same derived-title reason as the part rows; the reference is built in the page loader from passages it already fetched, so there is no extra query (§6) |
 | Split/Join Part icon names                                | **`series-split` / `series-join`** (was `part-split` / `part-join`)                  | Third naming: `study-split`/`study-join` contradicted §3's "Split Part"/"Join Parts"; `part-split`/`part-join` matched *its* artwork (two books parting) but the drawn icons make the **series** the object, and the id follows the drawing. Still object-then-verb, as the whole registry is (`column-split`, `section-join`, `segment-split`). Both old entries deleted                                                                                                                                                                                   |
 | Split/Join Part icon design                               | **The book metaphor, not a divided page**                                            | Icons are a single fill-only `d` path in a 32×32 viewBox, so the old "vertical dashed rule" needs hand-placed rects that merge at menu size. And it would be a fourth variation on "a divided rectangle" beside the three page-level split icons. The geometry cannot carry the level distinction, so the metaphor must                                                                                                                                                                                                                                     |
 | Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — four entries total for the whole feature (`series`, `series-part`, `series-split`, `series-join`), plus `warning`, and the three placeholders they replaced were deleted so the net registry growth is one. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` were not ours either, and are fixed by repointing at the existing `segment-split` / `segment-join` — no new artwork (trap 13) |
+| Auto-select on a series page                             | **Latched on the active id changing, like the study branch**                         | Clicking a series' first part left the SERIES highlighted. `goto()` is async, so the auto-select effect re-ran while the URL was still `/series/[id]`: the part had just replaced the series in the selection, which made `!isItemSelected('series', ...)` true, so the branch re-imposed the series. Intermittent because the study branch usually repaired it on arrival — unless the part was already `previousActiveStudyId`, in which case that branch skipped its own auto-select and the stale series selection survived. `previousActiveSeriesId` must be RESET in the other branches or it fires once per session

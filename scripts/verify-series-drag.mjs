@@ -108,6 +108,73 @@ assert(
 		panel.includes('dropTargetSeriesId={dragDrop.dropTargetSeriesId}')
 );
 
+console.log('\n── A series is DRAGGABLE into a group; a part is not draggable at all ──');
+
+// A series occupies its own Finder slot (§4) and `studySeries.groupId` records which group holds it.
+// The "Move to…" command could already file a series; the drag gesture could not, so the two
+// disagreed about whether a series was a movable thing.
+assert(
+	'the composable can start a series drag',
+	/function handleSeriesMouseDown\(event, series\)/.test(dragDrop) &&
+		dragDrop.includes('draggedSeries = [series]')
+);
+assert(
+	'the panel wires it to BOTH top-level rows and series filed in groups',
+	panel.includes('onSeriesMouseDown={handleSeriesMouseDown}') &&
+		groupRow.includes('{onSeriesMouseDown}')
+);
+assert(
+	'the row actually calls it on mousedown',
+	seriesRow.includes('onSeriesMouseDown?.(e, series)')
+);
+// ⚠️ The endpoint matters: a series id sent to /api/studies/[id] matches no row and reports
+// success, which is a move that silently does nothing — the exact defect this gesture fixes.
+assert(
+	'a series drop PATCHes the SERIES endpoint, not the study one',
+	/async function moveSeriesToGroup\([\s\S]*?\/api\/series\/\$\{seriesId\}[\s\S]*?'PATCH'[\s\S]*?groupId: targetGroupId/.test(
+		dragDrop
+	)
+);
+assert(
+	'a series drop returns early, so it cannot also run the study branch',
+	/draggedSeries\.length > 0\)\s*\{[\s\S]*?moveSeriesToGroup\([\s\S]*?\breturn;/.test(dragDrop)
+);
+// §4/Q14: a series never nests in a series, so a series drag must not light up series rows.
+assert(
+	'a dragged series cannot propose an add-to-series',
+	/canProposeSeriesAdd\(\)\s*\{[\s\S]*?draggedSeries\.length === 0/.test(dragDrop)
+);
+
+// The part half. A part's place IS its series (`study.seriesOrder`), so a drop into a group is a
+// membership change wearing a placement gesture — and §4 already answers membership loss elsewhere,
+// with its consequences stated (Delete Part, Join Parts, the extent review page).
+assert(
+	'a part grabbed directly refuses to start a drag',
+	/function handleStudyMouseDown\([\s\S]*?if \(study\?\.seriesId\) \{[\s\S]*?return;/.test(dragDrop)
+);
+// ⚠️ ORDER, not just presence. `preventDefault()` suppresses the focus a mousedown gives the
+// button, which is the only reason a clicked study shows no `:focus` outline. Refusing the part
+// BEFORE that call skipped it, and parts alone grew a blue outline on click — a real regression
+// this assertion exists to catch, since both orderings refuse the drag equally well and only one
+// of them looks right.
+assert(
+	'and it does so AFTER preventDefault, so a clicked part draws no focus outline',
+	/function handleStudyMouseDown\([\s\S]*?event\.preventDefault\(\)[\s\S]*?if \(study\?\.seriesId\)/.test(
+		dragDrop
+	)
+);
+// ⚠️ The load-bearing half. A part also reaches the drag via a MULTI-SELECTION grabbed by a
+// standalone study, which the guard above never sees — withholding the mousedown wire in
+// StudySeries would have closed only the direct route and left this one open.
+assert(
+	'and a part inside a multi-selection is filtered out of the drag',
+	/getSelectedStudiesCallback\(\)\.filter\(\(s\) => !s\?\.seriesId\)/.test(dragDrop)
+);
+assert(
+	'a drag emptied by that filter does not register listeners or draw a ghost',
+	/draggedStudies\.length === 0\) return;[\s\S]*?addEventListener\('mousemove'/.test(dragDrop)
+);
+
 console.log('\n── Reorder drag handle: it moves RUNS, through the verified planner (§4) ──');
 
 assert(

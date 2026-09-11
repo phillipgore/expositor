@@ -28,6 +28,16 @@
 	 * It IS a drop target, though: dropping a standalone study on the row proposes adding it as a new
 	 * part (Q17). `isDropTarget` only draws the highlight — the composable decides whether the gesture
 	 * is legal, and the confirm dialog states §4's warnings before anything is written.
+	 *
+	 * And it is a drag SOURCE: the row can be dragged into a group, or back out to the top level.
+	 * §4 gives a series its own Finder slot and `studySeries.groupId` records which group holds it,
+	 * so this is placement, not membership — nothing about which studies are parts, or their order,
+	 * changes. The "Move to…" menu command could already do this; the gesture could not, which left
+	 * the two disagreeing about whether a series was a movable thing.
+	 *
+	 * ⚠️ A PART is not draggable at all, and that is enforced in the composable rather than by
+	 * withholding `onStudyMouseDown` here — a part can also be dragged as part of a multi-selection
+	 * grabbed by a standalone study elsewhere in the Finder, which no guard in this file could see.
 	 */
 	import Icon from '$lib/componentElements/Icon.svelte';
 
@@ -99,7 +109,17 @@
 				{tabindex}
 				data-series-id={series.id}
 				onfocus={(e) => onfocus?.(e)}
-				onclick={(e) => onSeriesHeaderClick?.(e, series)}
+				onclick={(e) => {
+					// A mouseup after a drag is still followed by a click, so without this a series
+					// dropped into a group would ALSO be selected and navigated to on landing —
+					// the row would file itself and then open itself. `StudyItem` guards its own
+					// click the same way, for the same reason.
+					if (isDragging) {
+						e.preventDefault();
+						return;
+					}
+					onSeriesHeaderClick?.(e, series);
+				}}
 				ondblclick={(e) => {
 					e.stopPropagation();
 					onToggleCollapse?.(series.id, series.isCollapsed);

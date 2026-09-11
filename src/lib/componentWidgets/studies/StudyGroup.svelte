@@ -41,6 +41,10 @@
 		isSeriesActive,
 		onToggleSeriesCollapse,
 		onSeriesHeaderClick,
+		// Starts a drag of a series filed in this group. Forwarded rather than nulled: a series
+		// nested in a group must be re-filable by the same gesture as one at the top level,
+		// including out of this group and into another.
+		onSeriesMouseDown,
 		// Which series row (if any) is the current drop target for an "add to series" drag (Q17)
 		dropTargetSeriesId = null,
 		// For search - force expand groups during search
@@ -160,7 +164,7 @@
 							isActive={isSeriesActive?.(series.id) || false}
 							onToggleCollapse={onToggleSeriesCollapse}
 							{onSeriesHeaderClick}
-							onSeriesMouseDown={null}
+							{onSeriesMouseDown}
 							{onStudyMouseDown}
 							{onStudyClick}
 							{isStudySelected}
