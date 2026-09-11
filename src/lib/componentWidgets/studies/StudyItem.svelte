@@ -5,12 +5,18 @@
 	 * Displays a single study with title and passage references.
 	 * Handles selection, dragging, and click/double-click events.
 	 * Can render as button (default), link, or ghost (no interactivity).
+	 *
+	 * `iconId` defaults to `book` — a standalone study. A part of a series passes `series-part`
+	 * (StudySeries.svelte), so the Finder reads `book` = study, `series-part` = a part,
+	 * `series` = the series row itself. It is a prop rather than a branch here because this
+	 * component draws every study in the app, most of which are not parts.
 	 */
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
 
 	let {
 		study,
+		iconId = 'book',
 		depth = 0,
 		tabindex = -1,
 		isSelected = false,
@@ -41,7 +47,7 @@
 {#if ghost}
 	<!-- Ghost mode: purely visual, no interactivity -->
 	<div class="study-item ghost" style:padding-left={paddingLeft}>
-		<Icon iconId={'book'} classes="book-icon" />
+		<Icon {iconId} classes="book-icon" />
 		<div class="study-info">
 			<div class="study-title">{study.title}</div>
 			{#if study.passages && study.passages.length > 0}
@@ -67,7 +73,7 @@
 		style:padding-left={paddingLeft}
 		onclick={(e) => onClick?.(e, study)}
 	>
-		<Icon iconId={'book'} classes="book-icon" />
+		<Icon {iconId} classes="book-icon" />
 		<div class="study-info">
 			<div class="study-title">{study.title}</div>
 			{#if study.passages && study.passages.length > 0}
@@ -108,7 +114,7 @@
 			}
 		}}
 	>
-		<Icon iconId={'book'} classes="book-icon" />
+		<Icon {iconId} classes="book-icon" />
 		<div class="study-info">
 			<div class="study-title">{study.title}</div>
 			{#if study.passages && study.passages.length > 0}

@@ -154,9 +154,12 @@
 	/**
 	 * Track the active series from the current route.
 	 *
-	 * Mirrors `activeGroupId`. A series row is "active" when its own page is open — NOT when one
-	 * of its parts is being read; that is what `isActive` on the row already reports separately,
-	 * and conflating the two is what made a part's activity look like the series'.
+	 * Mirrors `activeGroupId`, and the mirroring is the whole rule: a series row is "active" when
+	 * its OWN page is open, and at no other time. Reading a part does not light the series, just
+	 * as opening a study does not light its group — the active row is the thing on screen, and
+	 * the part is already lighting itself. An earlier version OR'd in
+	 * `parts.some(p => p.id === activeStudyId)`, which left the series stuck in solid blue while
+	 * you read a part and made the container look like the selection.
 	 */
 	let activeSeriesId = $derived.by(() => {
 		if ($page.url.pathname.startsWith('/series/')) {
@@ -708,18 +711,7 @@
 									isSeriesSelected={(seriesId) => multiSelect.isItemSelected('series', seriesId)}
 									getSeriesSelectionPosition={(seriesId) =>
 										multiSelect.getSelectionPosition('series', seriesId)}
-									isSeriesActive={(seriesId) => {
-										// Active when the SERIES' own page is open, exactly as
-										// `isGroupActive` is for a group — that is what renders the
-										// row in solid blue rather than the pale selected blue.
-										// Reading a PART lights it too: the series is still the
-										// thing on screen. The landing-page case did not exist when
-										// this was written, so the row could only ever reach the
-										// paler `.selected` state.
-										if (seriesId === activeSeriesId) return true;
-										const s = item.data.series?.find((x) => x.id === seriesId);
-										return s?.parts?.some((p) => p.id === activeStudyId) || false;
-									}}
+									isSeriesActive={(seriesId) => seriesId === activeSeriesId}
 									onToggleSeriesCollapse={toggleSeriesCollapse}
 									onSeriesHeaderClick={handleSeriesHeaderClick}
 									forceExpanded={searchQuery.trim() !== ''}
@@ -737,9 +729,7 @@
 									tabindex={index === 0 ? 0 : -1}
 									isSelected={multiSelect.isItemSelected('series', item.data.id)}
 									selectionPosition={multiSelect.getSelectionPosition('series', item.data.id)}
-									isActive={item.data.id === activeSeriesId ||
-										item.data.parts?.some((p) => p.id === activeStudyId) ||
-										false}
+									isActive={item.data.id === activeSeriesId}
 									onToggleCollapse={toggleSeriesCollapse}
 									onSeriesHeaderClick={handleSeriesHeaderClick}
 									onSeriesMouseDown={null}

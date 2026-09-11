@@ -499,7 +499,7 @@
 	<!-- §3: the verb is always qualified by its object at study level — never a bare "Split",
 	     which belongs to columns (column-split.svg). -->
 	<IconButton
-		iconId="part-split"
+		iconId="series-split"
 		label="Split into a Series..."
 		classes="menu-light justify-content-left"
 		role="menuitem"
@@ -512,7 +512,7 @@
 	     "Split into a Series..." because they are different operations on different objects — §3's
 	     rule that the verb is always qualified by its object. -->
 	<IconButton
-		iconId="part-split"
+		iconId="series-split"
 		label="Split Part..."
 		classes="menu-light justify-content-left"
 		role="menuitem"
@@ -522,7 +522,7 @@
 	/>
 
 	<IconButton
-		iconId="part-join"
+		iconId="series-join"
 		label="Join Parts..."
 		classes="menu-light justify-content-left"
 		role="menuitem"
@@ -544,10 +544,10 @@
 	/>
 
 	<!-- The inverse of "Split into a Series...": that makes a series FROM a study, this puts a study
-	     INTO one (Q17). Uses `books` — the series icon (§9) — because the object of the verb is the
-	     series, per §3's rule that the verb is qualified by its object. -->
+	     INTO one (Q17). Uses `series` — the series icon (§9) — because the object of the verb is
+	     the series, per §3's rule that the verb is qualified by its object. -->
 	<IconButton
-		iconId="books"
+		iconId="series"
 		label="Add to Series..."
 		classes="menu-light justify-content-left"
 		role="menuitem"

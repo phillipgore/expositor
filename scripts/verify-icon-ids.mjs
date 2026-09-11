@@ -68,7 +68,18 @@ if (missing.length === 0) {
 console.log('\n── the icons this feature relies on are present by name ──');
 // Named individually so that deleting one from icons.json fails loudly here rather than blanking a
 // button in a menu nobody re-opens.
-for (const id of ['part-split', 'part-join', 'books', 'arrow-up-square', 'book-in']) {
+// `books` / `part-split` / `part-join` were removed when the dedicated series artwork landed —
+// naming the OLD ids here would fail on artwork that was deliberately deleted, so the list tracks
+// the ids actually in use: `series` (the series row), `series-part` (a part of one), and the two
+// verbs.
+for (const id of [
+	'series',
+	'series-part',
+	'series-split',
+	'series-join',
+	'arrow-up-square',
+	'book-in'
+]) {
 	if (known.has(id)) {
 		pass += 1;
 		console.log(`  ✓ ${id}`);

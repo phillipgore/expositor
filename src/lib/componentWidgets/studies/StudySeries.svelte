@@ -10,6 +10,14 @@
 	 * rejected `studyGroup` with `kind: 'series'`: a group is an arbitrary nestable folder, a
 	 * series is a flat ordered sequence with invariants), so this is presentational reuse only.
 	 *
+	 * **The icons are the only differentiator.** The row carried a "Series · N parts" suffix and
+	 * numbered every part in a 3.4rem gutter; both are gone. The suffix was metadata no group row
+	 * shows, and the gutter sat OUTSIDE the selectable row, so a part's text and its selection
+	 * highlight both landed right of a grouped study's — two rows of the same kind that did not
+	 * line up. Parts now render at `depth + 1` through the same list markup StudyGroup uses, so
+	 * the alignment is shared by construction rather than by two numbers being kept in sync.
+	 * `series` / `series-part` carry the distinction instead.
+	 *
 	 * Two things it does NOT do, both by decision rather than omission:
 	 *  - It does not nest. A series contains parts and nothing else (§6, Q14).
 	 *  - It does not offer a per-part reorder handle. Reordering permutes *runs*, not parts, and a
@@ -51,10 +59,6 @@
 	import { slide } from 'svelte/transition';
 
 	let isEffectivelyExpanded = $derived(!series.isCollapsed || forceExpanded);
-
-	// Part count is always shown on the row (Q16). The verse total is deferred to hover and
-	// is not computed here — it would mean summing every part's passages on every render.
-	let partCount = $derived(series.parts?.length ?? 0);
 
 	let isDropTarget = $derived(dropTargetSeriesId === series.id);
 </script>
@@ -100,44 +104,52 @@
 					e.stopPropagation();
 					onToggleCollapse?.(series.id, series.isCollapsed);
 				}}
-				onmousedown={(e) => onSeriesMouseDown?.(e, series)}
+				onmousedown={(e) => {
+					// Suppress the focus a mousedown would otherwise give this button, so a CLICKED
+					// series does not draw the `:focus-within` outline — a group does not, because
+					// `handleGroupMouseDown` preventDefaults for its own reasons (drag start) and
+					// suppresses focus as a side effect. Matching that here rather than deleting the
+					// `:focus-within` rule keeps the outline for KEYBOARD focus, where it is the only
+					// thing showing where you are.
+					e.preventDefault();
+					onSeriesMouseDown?.(e, series);
+				}}
 				aria-label="Select series {series.name}"
 			>
-				<!-- `books`, on the folder/folders precedent (§9, Q29). Registered in icons.json;
-				     a public/*.svg file alone would render as blank space (trap 13). -->
-				<Icon iconId={'books'} classes="books-icon" />
+				<!-- `series` — a dedicated glyph rather than the old `books` plural, which read as
+				     "more than one study" and not "one ordered thing" (§9, Q29). Registered in
+				     icons.json; a public/*.svg file alone would render as blank space (trap 13). -->
+				<Icon iconId={'series'} classes="series-icon" />
 				<span class="series-name">{series.name}</span>
-				<span class="series-count">Series · {partCount} {partCount === 1 ? 'part' : 'parts'}</span>
 			</button>
 		</div>
 	</div>
 
 	{#if isEffectivelyExpanded}
 		<div class="series-contents" transition:slide={{ duration: 200 }}>
+			<!-- Structurally identical to StudyGroup's studies list, and deliberately so: a series
+			     and a group present the same way in the Finder, and only the ICON distinguishes
+			     them. The parts are NOT numbered here — the ordinal lives on the part's own page
+			     ("Part 3 of 16"), where there is room for it. A number gutter beside each row also
+			     pushed the text and the selection highlight out of line with a grouped study,
+			     which is the misalignment this replaces. -->
 			<ul class="parts-list">
-				{#each series.parts as part, i (part.id)}
-					<li class="part-row">
-						<!-- "Part N of M" is text, not a badge: at 150 parts a badge would need
-						     three digits inside 32px (§9, Q31). N is the position in the
-						     displayed order, which is seriesOrder as sorted server-side. -->
-						<span class="part-number" style:padding-left="{depth * 1.4 + 2.2}rem">
-							{i + 1}
-						</span>
-						<div class="part-item">
-							<StudyItem
-								study={part}
-								{depth}
-								tabindex={-1}
-								isSelected={isStudySelected?.(part.id) || false}
-								selectionPosition={getStudySelectionPosition?.(part.id)}
-								isActive={isStudyActive?.(part.id) || false}
-								beingDragged={isStudyBeingDragged?.(part.id) || false}
-								{isDragging}
-								onMouseDown={onStudyMouseDown}
-								onClick={onStudyClick}
-								{formatPassageReference}
-							/>
-						</div>
+				{#each series.parts as part (part.id)}
+					<li role="presentation">
+						<StudyItem
+							study={part}
+							iconId="series-part"
+							depth={depth + 1}
+							tabindex={-1}
+							isSelected={isStudySelected?.(part.id) || false}
+							selectionPosition={getStudySelectionPosition?.(part.id)}
+							isActive={isStudyActive?.(part.id) || false}
+							beingDragged={isStudyBeingDragged?.(part.id) || false}
+							{isDragging}
+							onMouseDown={onStudyMouseDown}
+							onClick={onStudyClick}
+							{formatPassageReference}
+						/>
 					</li>
 				{/each}
 			</ul>
@@ -205,19 +217,14 @@
 		color: var(--white);
 	}
 
-	.series-header.active :global(.books-icon),
-	.series-header.selected.active :global(.books-icon) {
+	.series-header.active :global(.series-icon),
+	.series-header.selected.active :global(.series-icon) {
 		fill: var(--white);
 	}
 
 	.series-header.active .chevron-button :global(.chevron-icon),
 	.series-header.selected.active .chevron-button :global(.chevron-icon) {
 		fill: var(--white);
-	}
-
-	.series-header.active .series-count,
-	.series-header.selected.active .series-count {
-		color: var(--white);
 	}
 
 	.series-info {
@@ -277,7 +284,7 @@
 		outline-offset: 0.1rem;
 	}
 
-	.series-select-button :global(.books-icon) {
+	.series-select-button :global(.series-icon) {
 		fill: var(--gray-300);
 		transition: fill 0.2s;
 	}
@@ -286,37 +293,11 @@
 		flex: 1;
 	}
 
-	.series-count {
-		font-size: 1.2rem;
-		font-weight: 400;
-		color: var(--gray-400);
-		white-space: nowrap;
-	}
-
+	/* Matches StudyGroup's `.studies-list.grouped` exactly — the parts must sit on the same
+	   left edge as a grouped study, since `depth + 1` now does the indenting. */
 	.parts-list {
 		list-style: none;
 		padding-left: 0;
 		margin: 0;
-	}
-
-	.part-row {
-		display: flex;
-		align-items: stretch;
-	}
-
-	.part-number {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		width: 3.4rem;
-		box-sizing: content-box;
-		font-size: 1.2rem;
-		color: var(--gray-400);
-		flex-shrink: 0;
-	}
-
-	.part-item {
-		flex: 1;
-		min-width: 0;
 	}
 </style>

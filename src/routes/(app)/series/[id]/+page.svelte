@@ -36,9 +36,9 @@
 </script>
 
 <div class="container">
-	<!-- `books`, on the folder/folders precedent (§9, Q29). Registered in icons.json; a
-	     public/*.svg file alone would render as blank space (trap 13). -->
-	<Icon iconId="books" isActive={false} classes=""></Icon>
+	<!-- `series` — the dedicated series glyph, matching the Finder row (§9, Q29). Registered in
+	     icons.json; a public/*.svg file alone would render as blank space (trap 13). -->
+	<Icon iconId="series" isActive={false} classes=""></Icon>
 
 	<Heading heading="h1" alignCenter hasSub={data.series.subtitle ? true : false}>
 		{data.series.name}
