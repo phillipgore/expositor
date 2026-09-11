@@ -112,13 +112,21 @@ assert(
 	bothOne.parts.every((p, i) => p.seriesOrder === i + 1)
 );
 
-console.log('\n── parts are named by book, not by number ──');
+console.log('\n── parts are named by reference, not by number ──');
 
 // "Part 2" gave the Finder a list distinguishable only by number; with subdivision it is also
 // ambiguous, since several parts now come from one passage.
-check('an undivided passage is named for its book', asBefore.parts[0].title, 'Revelation 1–22');
-check('a divided one names its own chapters', divided.parts[0].title, 'Revelation 1–11');
-check('and the second book is not mistitled with the first', divided.parts[2].title, 'Matthew 1–7');
+//
+// The name is the part's FULL passage reference, verses included — "Revelation 1–22" named
+// chapters and left the range's own edges unstated. Hyphen, matching `formatPassageReference`,
+// which `partTitle()` now calls rather than formatting a second way.
+check('an undivided passage is named for its book', asBefore.parts[0].title, 'Revelation 1:1-22:21');
+check('a divided one names its own chapters', divided.parts[0].title, 'Revelation 1:1-11:19');
+check(
+	'and the second book is not mistitled with the first',
+	divided.parts[2].title,
+	'Matthew 1:1-7:29'
+);
 assert(
 	'no two parts share a title',
 	new Set(bothOne.parts.map((p) => p.title)).size === bothOne.parts.length

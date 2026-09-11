@@ -112,7 +112,7 @@ check('chapters 1–5 survive untouched', ids(back.keptParts), ['p1', 'p2', 'p3'
 check('chapters 6–8 are DELETED', ids(back.deletedParts), ['p6', 'p7', 'p8']);
 check('nothing is narrowed', back.narrowedParts.length, 0);
 check('and nothing is added', back.addedRanges.length, 0);
-check('the deleted part names what it covered', back.deletedParts[0].reference, 'Matthew 6:1–34');
+check('the deleted part names what it covered', back.deletedParts[0].reference, 'Matthew 6:1-34');
 
 console.log('\n── shrinking from the FRONT deletes the leading parts ──');
 
@@ -129,7 +129,7 @@ console.log('\n── a mid-chapter trim NARROWS the boundary part ──');
 // deleting it would destroy structure anchored in verses the user is keeping.
 const mid = classifyExtent({ parts: eight, desiredPassages: want(1, 1, 5, 20) });
 check('part 5 is narrowed', ids(mid.narrowedParts), ['p5']);
-check('to its surviving verses', mid.narrowedParts[0].reference, 'Matthew 5:1–20');
+check('to its surviving verses', mid.narrowedParts[0].reference, 'Matthew 5:1-20');
 check('parts 1–4 are untouched', ids(mid.keptParts), ['p1', 'p2', 'p3', 'p4']);
 check('parts 6–8 are deleted', ids(mid.deletedParts), ['p6', 'p7', 'p8']);
 assert(
@@ -160,7 +160,7 @@ check('the LAST part absorbs the new chapters', ids(grow.narrowedParts), ['p8'])
 check(
 	'extending its range to the new end',
 	formatExtentReference(grow.narrowedParts[0].changes[0].next),
-	'Matthew 8:1–12:50'
+	'Matthew 8:1-12:50'
 );
 // Nothing left dangling: an unattached range is text no write would ever perform.
 check('and no range is left unattached', grow.addedRanges.length, 0);
@@ -192,7 +192,7 @@ check('extending inside one chapter is detected', ids(inChapter.narrowedParts), 
 check(
 	'and widens the part to the new verse',
 	formatExtentReference(inChapter.narrowedParts[0].changes[0].next),
-	'Matthew 5:1–48'
+	'Matthew 5:1-48'
 );
 check('with nothing unattached', inChapter.addedRanges.length, 0);
 
@@ -209,9 +209,9 @@ const grown5 = bothEnds.narrowedParts.find((n) => n.part.id === 'p5');
 check(
 	'the first grows backwards',
 	formatExtentReference(grown4.changes[0].next),
-	'Matthew 2:1–4:25'
+	'Matthew 2:1-4:25'
 );
-check('the last grows forwards', formatExtentReference(grown5.changes[0].next), 'Matthew 5:1–7:29');
+check('the last grows forwards', formatExtentReference(grown5.changes[0].next), 'Matthew 5:1-7:29');
 check('and nothing is left unattached', bothEnds.addedRanges.length, 0);
 
 console.log('\n── §4: shrinking to a single part dissolves the series ──');

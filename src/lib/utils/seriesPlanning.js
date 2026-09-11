@@ -23,6 +23,10 @@
 
 import { countVersesInRange, getVerseCount, getBook } from './bibleData.js';
 import { checkSinglePassageSupport, validateStudyDisplayLimits } from './translationLimits.js';
+// The SAME formatter the Finder rows, the series page's Continue button and Split Part's
+// `titleForSecondPart` use. A second reference formatter here would be free to disagree with
+// them about where the dash goes — see `partTitle()`.
+import { formatPassageReference } from './passageFormatting.js';
 
 /**
  * Which parting strategy applies to a study's passages.
@@ -96,12 +100,26 @@ export function planSeriesParts({
 	// the app applies on their behalf". So this is reached only when the caller asks by name.
 	const useBalance = balanceByLength && strategy === 'chapters-per-part' && targetParts > 1;
 
+	// ⚠️ The single-passage strategies are named for the BOOK, not for `baseTitle`.
+	//
+	// `partTitle()` now builds a passage reference, and a reference is only a reference if it
+	// begins with a book name. `baseTitle` is the STUDY title — free text the user typed — so
+	// feeding it through produced "The Road to Romans 1:1-32", which reads as a citation of a
+	// book that does not exist. It was survivable while the title was `${baseTitle} ${chapters}`
+	// and is not now.
+	//
+	// `planByPassage` already did this for exactly the adjacent reason (its own comment: a
+	// multi-passage study spans books, so the study title names chapters of an unstated book).
+	// The two strategies now agree, and `baseTitle` survives only as the fallback for a range
+	// whose book id will not resolve.
+	const bookTitle = passages.length > 0 ? bookLabelOf(passages[0]) || baseTitle : baseTitle;
+
 	const parts =
 		strategy === 'passage-per-part'
 			? planByPassage(passages, baseTitle, chaptersPerPassage)
 			: useBalance
-				? planByBalance(passages[0], targetParts, baseTitle)
-				: planByChapters(passages[0], chaptersPerPart, baseTitle);
+				? planByBalance(passages[0], targetParts, bookTitle)
+				: planByChapters(passages[0], chaptersPerPart, bookTitle);
 
 	const totalVerses = parts.reduce((sum, part) => sum + part.verseCount, 0);
 
@@ -158,8 +176,8 @@ function planByPassage(passages, baseTitle, chaptersPerPassage = []) {
 			// (Q12) are handled there, and duplicating that arithmetic is how the two copies
 			// start disagreeing about whether Rom 1:18–8:39 begins at verse 1.
 			// Titled by BOOK, not by the study title: a multi-passage study spans books, so
-			// "Prison Epistles 1–3" is wrong twice over — it names chapters of an unstated book,
-			// and four passages would each restart at chapter 1, giving repeated titles.
+			// "Prison Epistles 1:1-3:21" is wrong twice over — it cites a book that does not
+			// exist, and four passages would each restart at chapter 1, giving repeated titles.
 			for (const sub of planByChapters(range, requested, bookLabelOf(range))) {
 				parts.push(sub);
 			}
@@ -365,16 +383,57 @@ function bookLabelOf(range) {
 }
 
 /**
- * Name a chapter-derived part after the chapters it covers, which is more use in the Finder
- * than "Part 7" alone.
+ * Name a part after the PASSAGE REFERENCE it covers — "Romans 1:1-32", not "Romans 1".
+ *
+ * ## Why the full reference, verses included
+ *
+ * This function is the single source of every part name in the app. The preview lists in
+ * `ManageSerializationModal` and `SplitIntoSeriesModal`, the "Merge **X**" copy in
+ * `JoinPartsModal` and `SplitPartModal`, the review page's deleted-parts and discarded-titles
+ * lists, and `describePartDeletion`'s consequence sentences all render the string produced
+ * here. So a lossy name is lossy in seven places at once, and fixing it at any one of them
+ * puts that surface into disagreement with the other six.
+ *
+ * It WAS lossy. "Romans 1" names a chapter; the part covers `Romans 1:1-32`, and at the range's
+ * own edges the difference is load-bearing — a study of Rom 1:18–8:39 produced a part titled
+ * "Romans 1" that did not start where Romans 1 starts (Q12 allows partial chapters). The verses
+ * were dropped from the name while being preserved everywhere else, which is the one place the
+ * user reads it.
+ *
+ * This also settles a discrepancy rather than creating one: Split Part has always named the part
+ * it creates by full reference (`titleForSecondPart` in `api/series/[id]/split/+server.js`, which
+ * calls `formatPassageReference` directly, with the reason given there — a name derived from
+ * content is stable under reordering and a number is not). Parts created by splitting and parts
+ * created by parting now follow the same rule.
+ *
+ * ⚠️ **HYPHEN, not en dash**, matching `formatPassageReference` — which is what the Finder rows
+ * and the series page's Continue button show, and therefore where a part's name is read most
+ * often. `seriesExtent.js`'s `formatExtentReference` uses an en dash for the review page's
+ * "what is leaving the study" copy; that divergence predates this and is left alone deliberately
+ * rather than half-corrected here.
+ *
+ * ⚠️ **This is a stored title, not a display string.** The preview must show what will be
+ * written (`seriesPlanning`'s header comment: the preview "cannot promise a shape the creation
+ * produces differently"), which is why the fix belongs here rather than in the two modals that
+ * render it. Existing series are NOT migrated: `study.title` is user-editable, and a rename is
+ * indistinguishable from a generated title at the row level, so rewriting them would silently
+ * destroy deliberate renames.
+ *
+ * `order` remains the last-resort fallback for a range with no resolvable book name — a part
+ * titled "undefined 1:1-32" would be worse than "Part 7".
  */
 function partTitle(baseTitle, range, order) {
-	const label =
-		range.fromChapter === range.toChapter
-			? `${range.fromChapter}`
-			: `${range.fromChapter}–${range.toChapter}`;
 	if (!baseTitle) return `Part ${order}`;
-	return `${baseTitle} ${label}`;
+	// Same shape as `formatPassageReference`, taking the book name the caller already resolved:
+	// the planner's ranges carry a scalar book ID (`RO`), not the `bookName` that formatter
+	// reads, so passing a range straight to it would yield "undefined 1:1-32".
+	return formatPassageReference({
+		bookName: baseTitle,
+		fromChapter: range.fromChapter,
+		fromVerse: range.fromVerse,
+		toChapter: range.toChapter,
+		toVerse: range.toVerse
+	});
 }
 
 function verseCountOf(range) {

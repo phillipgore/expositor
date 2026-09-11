@@ -142,9 +142,26 @@ function sameRange(a, b) {
 /**
  * A human reference, for copy that names what is leaving the study.
  *
- * Exported because the review page must say "Matthew 5:21–48 leaves the study" in the user's own
+ * Exported because the review page must say "Matthew 5:21-48 leaves the study" in the user's own
  * vocabulary, and a second formatter would be free to disagree with this one about where the dash
  * goes.
+ *
+ * ## Why this still exists alongside `formatPassageReference`
+ *
+ * It takes a RANGE, not a passage row: `normalise()` above accepts `bookId`/`book`/`bookName` and
+ * the loose shapes the extent planner works in, where `formatPassageReference` requires a
+ * resolved `bookName`. Collapsing the two would mean either widening that formatter — which every
+ * Finder row and part title depends on — or resolving book names at each of this module's three
+ * call sites.
+ *
+ * ⚠️ **It used an EN DASH and now uses a hyphen.** That was the disagreement the comment above
+ * warns against, present in the very function written to prevent it: the review page showed
+ * `Matthew 5:21–48` a line away from part titles reading `Matthew 5:1-20`, two spellings of one
+ * thing on one screen. The hyphen wins because `formatPassageReference` is what the Finder rows,
+ * the series page's Continue button, Split Part's generated title and now every generated part
+ * title use — so it is overwhelmingly the form a user has already read.
+ *
+ * If these two ever do get merged, the dash is no longer the obstacle.
  */
 export function formatExtentReference(range) {
 	const r = normalise(range);
@@ -154,9 +171,9 @@ export function formatExtentReference(range) {
 		return `${book} ${r.fromChapter}:${r.fromVerse}`;
 	}
 	if (r.fromChapter === r.toChapter) {
-		return `${book} ${r.fromChapter}:${r.fromVerse}–${r.toVerse}`;
+		return `${book} ${r.fromChapter}:${r.fromVerse}-${r.toVerse}`;
 	}
-	return `${book} ${r.fromChapter}:${r.fromVerse}–${r.toChapter}:${r.toVerse}`;
+	return `${book} ${r.fromChapter}:${r.fromVerse}-${r.toChapter}:${r.toVerse}`;
 }
 
 /**
