@@ -534,7 +534,7 @@
 	<!-- §4: reordering permutes RUNS, not parts. Disabled with a reason for a contiguous series, which
 	     has exactly one run and nothing to rearrange (§11). -->
 	<IconButton
-		iconId="arrow-up-square"
+		iconId="reorder"
 		label="Reorder Series..."
 		classes="menu-light justify-content-left"
 		role="menuitem"
