@@ -19,6 +19,62 @@
  */
 
 import { analyzeCrossPartJoin, joinAcrossBoundary } from './crossPartJoin.js';
+import { resolveScope } from '$lib/utils/sequenceScope.js';
+import { loadPassageSequence } from './passageSequence.js';
+
+/**
+ * Resolve a Join Down into the equivalent Join Up.
+ *
+ * ## Why Join Down is not its own operation
+ *
+ * Structure here is **anchor-based**: a segment owns a `startingWordId` and runs until the next
+ * anchor begins. A join is therefore not "move content from A to B" but "remove one anchor", and the
+ * item that survives is always the EARLIER of the pair — its anchor is the one left standing.
+ *
+ * So "join X with what follows it" and "join X's successor into X" are not merely similar, they are
+ * the *same write*: delete the successor's anchor. Rather than mirror every piece of arithmetic in
+ * `passageJoin.js` and `crossPartJoin.js` for a second direction — including the cross-part boundary
+ * rule that `probe-cross-part-join.mjs` pins, where the new boundary is the first segment that STAYS —
+ * Join Down resolves the successor here and hands it to the existing, audited backwards path.
+ *
+ * That also means a Join Down and the Join Up a user could perform by selecting the next item cannot
+ * drift apart: there is only one implementation.
+ *
+ * ⚠️ Resolution is server-side, via `resolveScope`, for the reason the module header already gives:
+ * the successor may live in a **different passage or part**, which is precisely the case the user
+ * cannot reach by selecting it, and a client-side guess would be the "client decides" failure this
+ * module exists to prevent.
+ *
+ * @returns {Promise<{ ok: true, itemId: string, passageId: string } | { ok: false, reason: string }>}
+ */
+async function resolveJoinDownTarget({ db, userId, passageId, itemId, granularity }) {
+	if (!passageId) {
+		// Fail closed: without a sequence the successor cannot be resolved, and guessing at it on a
+		// destructive command is worse than refusing.
+		return { ok: false, reason: 'Join Down needs to know which passage this item is in.' };
+	}
+
+	const loaded = await loadPassageSequence(db, userId, passageId);
+	if (!loaded) return { ok: false, reason: 'Passage not found.' };
+
+	const scope = resolveScope({
+		sequence: loaded.sequence,
+		granularity,
+		itemId,
+		direction: 'next'
+	});
+
+	if (!scope.ok) return { ok: false, reason: scope.reason };
+
+	// The successor becomes the item to join BACKWARDS, and it is re-scoped to its own passage: it may
+	// live in a different one, and every downstream site resolves the sequence from the passage id it
+	// is handed. Passing the original passage would silently analyse the wrong seam.
+	return {
+		ok: true,
+		itemId: scope.target.id,
+		passageId: scope.target.passageId
+	};
+}
 
 /**
  * Decide and perform a Join, routing across a boundary when necessary.
@@ -34,6 +90,7 @@ import { analyzeCrossPartJoin, joinAcrossBoundary } from './crossPartJoin.js';
  * @param {'segment'|'section'|'column'} params.granularity
  * @param {'merge'|'delete'} params.decision
  * @param {boolean} params.dryRun
+ * @param {'previous'|'next'} [params.direction='previous'] - 'previous' joins the item into what precedes it (Join Up); 'next' joins what follows it into the item (Join Down), resolved to the same write
  * @param {Function} params.analyzeWithinPassage - `(db, userId, granularity, itemId) => Promise<Object>`
  * @param {Function} params.joinWithinPassage - `(db, userId, itemId, decision) => Promise<void>`
  * @returns {Promise<{ status: number, body: Object }>}
@@ -46,9 +103,20 @@ export async function routeJoin({
 	granularity,
 	decision,
 	dryRun,
+	direction = 'previous',
 	analyzeWithinPassage,
 	joinWithinPassage
 }) {
+	// Join Down is rewritten to the equivalent Join Up BEFORE anything else looks at the request, so
+	// every line below — routing, refusal, boundary arithmetic, the confirm summary — runs on exactly
+	// one direction. See `resolveJoinDownTarget` for why the two are the same write.
+	if (direction === 'next') {
+		const resolved = await resolveJoinDownTarget({ db, userId, passageId, itemId, granularity });
+		if (resolved.ok === false) return { status: 400, body: { error: resolved.reason } };
+		itemId = resolved.itemId;
+		passageId = resolved.passageId;
+	}
+
 	const cross = passageId
 		? await analyzeCrossPartJoin(db, userId, passageId, itemId, granularity)
 		: null;

@@ -24,9 +24,28 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { passageId, sectionId, decision = 'merge', dryRun = false } = await request.json();
+		const {
+			passageId,
+			sectionId,
+			decision = 'merge',
+			dryRun = false,
+			// 'previous' = Join Up (fold this item into what precedes it); 'next' = Join Down (absorb what
+			// follows). `routeJoin` rewrites 'next' into the equivalent backwards join, so this endpoint
+			// stays a thin pass-through rather than gaining a second code path.
+			direction = 'previous'
+		} = await request.json();
 		if (!sectionId) {
 			return json({ error: 'Missing required field: sectionId' }, { status: 400 });
+		}
+
+		// `passageId` is required for BOTH directions, though `routeJoin` still treats it as optional
+		// for older callers. That asymmetry shipped as a live defect: the client briefly sent no
+		// passage at all, and Join Down said so loudly while Join Up quietly took the
+		// optional-passage branch — running a within-passage join while having silently lost the
+		// ability to cross a boundary. A capability that disappears without complaint is worse than
+		// a refusal, so both directions now fail here in the same way.
+		if (!passageId) {
+			return json({ error: 'Missing required field: passageId' }, { status: 400 });
 		}
 
 		const { status, body } = await routeJoin({
@@ -37,6 +56,7 @@ export const POST = async ({ request }) => {
 			granularity: 'section',
 			decision,
 			dryRun,
+			direction,
 			analyzeWithinPassage: analyzeJoin,
 			joinWithinPassage: joinSection
 		});

@@ -399,28 +399,54 @@ export function getPassageToolbarConfig() {
 				id: 'text-operations',
 				buttons: [
 					{
-						// `segment-split` / `segment-join`, NOT the bare `split` / `join` these
-						// read as until now. Neither bare id exists in icons.json, so both
-						// buttons have been rendering blank space: Icon.svelte falls back to an
-						// empty `d` path, warning to the console but throwing nothing. Same
-						// commands as MenuStructure's "Split Segment" / "Join Segment", which
-						// already use the qualified ids — so the menu drew an icon and the
-						// toolbar drew nothing.
+						// `segment-split`, NOT the bare `split` this read as until now. That id
+						// does not exist in icons.json, so the button rendered blank space:
+						// Icon.svelte falls back to an empty `d` path, warning to the console but
+						// throwing nothing. Same command as MenuStructure's "Split Segment", which
+						// already used the qualified id — so the menu drew an icon and the toolbar
+						// drew nothing.
 						//
-						// Do not "fix" this by adding `split` / `join` to the registry. Every id
-						// there is object-then-verb (`column-split`, `section-join`), and a bare
-						// verb at segment level is ambiguous with the column- and section-level
-						// commands sitting beside it. See SERIES_PLAN.md §3 and trap 13.
+						// Do not "fix" this by adding a bare `split` to the registry: a bare verb
+						// at segment level is ambiguous with the column- and section-level Split
+						// commands beside it. See SERIES_PLAN.md §3 and trap 13.
+						//
+						// (The Join half of this note no longer applies — the three per-tier Join
+						// buttons are now the single `join-up` / `join-down` pair below, whose ids
+						// are verb-then-direction because the tier comes from the selection.)
 						iconId: 'segment-split',
 						title: 'Split Segment',
 						disabledCheck: (state) => !state.hasWordSelection
 					},
 					{
-						iconId: 'segment-join',
-						title: 'Join Segment',
-						disabledCheck: (state) => !state.hasActiveSegment
+						// ── Join Up / Join Down, replacing three per-tier Join buttons ──
+						//
+						// There used to be `segment-join` here, `section-join` under 'connections' and
+						// `column-join' under 'columns' — three buttons in three groups, each joining
+						// only backwards. The tier is now inferred from the selection (Column ⊃ Section
+						// ⊃ Segment, matching MenuStructure's `joinGranularity`), so one pair covers all
+						// three tiers in both directions.
+						//
+						// Needs a structural selection AND something to join into: a join folds two
+						// items together, so with no neighbour in that direction the command has no
+						// meaning. `hasJoinPredecessor` / `hasJoinSuccessor` are resolved against the
+						// whole study's structure, so the first item disables Up and the last
+						// disables Down.
+						//
+						// (Cross-part joins can reach beyond a study edge; that extra allowance lives
+						// in MenuStructure, which has the series context this config does not.)
+						iconId: 'join-up',
+						title: 'Join Selected Up',
+						disabledCheck: (state) =>
+							(!state.hasActiveSegment && !state.hasActiveSection && !state.hasActiveColumn) ||
+							!state.hasJoinPredecessor
+					},
+					{
+						iconId: 'join-down',
+						title: 'Join Selected Down',
+						disabledCheck: (state) =>
+							(!state.hasActiveSegment && !state.hasActiveSection && !state.hasActiveColumn) ||
+							!state.hasJoinSuccessor
 					}
-
 				]
 			},
 			{
@@ -452,12 +478,17 @@ export function getPassageToolbarConfig() {
 				id: 'movement',
 				buttons: [
 					{
-						iconId: 'arrow-up',
+						// `text-up` / `text-down`, not the bare `arrow-up` / `arrow-down` these used
+						// to be. The generic arrows are the app's all-purpose direction glyphs (the
+						// series nav uses them), so beside Join Up / Join Down they read as a second
+						// pair of the same command. These two carry a text mark, which is what
+						// actually distinguishes moving TEXT from joining STRUCTURE.
+						iconId: 'text-up',
 						title: 'Move Text Up',
 						disabledCheck: (state) => !state.hasWordSelection
 					},
 					{
-						iconId: 'arrow-down',
+						iconId: 'text-down',
 						title: 'Move Text Down',
 						disabledCheck: (state) => !state.hasWordSelection
 					}
@@ -471,11 +502,8 @@ export function getPassageToolbarConfig() {
 						title: 'Split Section',
 						disabledCheck: (state) => !state.hasActiveSegment
 					},
-					{
-						iconId: 'section-join',
-						title: 'Join Section',
-						disabledCheck: (state) => !state.hasActiveSegment
-					}
+					// Join Section removed — covered by Join Up / Join Down above, which resolve the
+					// section tier from the selection.
 				]
 			},
 			{
@@ -486,11 +514,7 @@ export function getPassageToolbarConfig() {
 						title: 'Split Column',
 						disabledCheck: (state) => !state.canInsertColumn
 					},
-					{
-						iconId: 'column-join',
-						title: 'Join Column',
-						disabledCheck: (state) => !state.hasActiveSegment
-					}
+					// Join Column removed — covered by Join Up / Join Down above.
 				]
 			}
 		],

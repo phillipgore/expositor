@@ -65,6 +65,32 @@ if (missing.length === 0) {
 	for (const entry of missing) console.log(`      ${entry}`);
 }
 
+console.log('\n── no icon id is declared twice ──');
+//
+// A duplicate `_id` is invisible in every way that matters. `icons.json` stays valid JSON, the id
+// resolves, `known.has()` above is satisfied, the build succeeds, and the button renders — just with
+// the WRONG artwork, because `Icon.svelte` resolves via `.find()` and silently keeps the FIRST match.
+// The second declaration is dead weight that looks live.
+//
+// This happened: placeholder `join-up` / `join-down` entries were added mid-file while the real
+// artwork was appended at the end, and the placeholders won. The file looked correct at the point a
+// reader would check (the bottom), which is what makes it worth a gate rather than a convention.
+const seen = new Set();
+const duplicates = new Set();
+for (const icon of icons) {
+	if (seen.has(icon._id)) duplicates.add(icon._id);
+	seen.add(icon._id);
+}
+
+if (duplicates.size === 0) {
+	pass += 1;
+	console.log(`  ✓ all ${known.size} ids are unique`);
+} else {
+	fail += 1;
+	console.log('  ✗ icons.json declares these ids more than once (only the FIRST is ever rendered):');
+	for (const id of duplicates) console.log(`      "${id}"`);
+}
+
 console.log('\n── the icons this feature relies on are present by name ──');
 // Named individually so that deleting one from icons.json fails loudly here rather than blanking a
 // button in a menu nobody re-opens.
@@ -78,7 +104,14 @@ for (const id of [
 	'series-split',
 	'series-join',
 	'arrow-up-square',
-	'book-in'
+	'book-in',
+	// The Structure menu's two command pairs. Named because they are easy to confuse with each other
+	// and with the generic `arrow-up` / `arrow-down`: Join Up/Down act on STRUCTURE, Move Text
+	// Up/Down on WORDS, and the four sit adjacent in the same menu.
+	'join-up',
+	'join-down',
+	'text-up',
+	'text-down'
 ]) {
 	if (known.has(id)) {
 		pass += 1;

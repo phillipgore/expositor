@@ -154,6 +154,8 @@ async function persistPreference(updates) {
  * @property {string|null} activeHeadingOrNoteEditorKey - Unique key of the active editor (e.g. `${segmentId}-${type}`); identifies the specific owning editor so a stale editor's cleanup can't clear another editor's state
 
  * @property {number|null} activePassageIndex - Index of the passage the current selection sits in, or null when unresolved. Needed because the `is…FirstInPassage` flags are per-passage and a study/part may hold several, so "first in passage" is not "first in the study"
+ * @property {boolean} hasJoinPredecessor - Whether an item of the SAME tier as the current selection exists before it, anywhere in this study/part. Drives Join Up: with nothing above it to fold into, the command has no meaning
+ * @property {boolean} hasJoinSuccessor - Whether an item of the same tier exists after the current selection, anywhere in this study/part. Drives Join Down
  * @property {boolean} isWordInFirstSegment - Whether the selected word is in the first segment of its passage
 
  * @property {boolean} isWordInLastSegment - Whether the selected word is in the last segment of its passage
@@ -290,6 +292,17 @@ const defaultState = {
 	// multi-passage part, passage 2's first segment is an internal seam. Anything reasoning about the
 	// part's own edges (SERIES_PLAN §11's boundary reasons) needs this to tell the two apart.
 	activePassageIndex: null,
+	// Whether the current selection has a neighbour of its own tier to join into, in each direction.
+	//
+	// These are about EXISTENCE, not about passage edges. The `is…FirstInPassage` flags above cannot
+	// answer the question Join Up/Down actually asks — they are per-passage, so in a multi-passage
+	// study the second passage's first segment sets the flag while a perfectly good predecessor sits
+	// in the passage above. Resolved against the whole study's structure instead.
+	//
+	// Default FALSE (disabled) so a selection that has not yet been resolved cannot offer a join that
+	// has nowhere to go; the analyze page's always-on effect fills them in.
+	hasJoinPredecessor: false,
+	hasJoinSuccessor: false,
 	isWordInFirstSegment: false,
 
 
@@ -1701,6 +1714,37 @@ export function setActivePassageIndex(index) {
 	toolbarStateStore.update(state => ({
 		...state,
 		activePassageIndex: index
+	}));
+}
+
+/**
+ * Record whether the current selection has a same-tier neighbour to join into, in each direction.
+ *
+ * ## Why this is not derivable from the `is…FirstInPassage` flags
+ *
+ * Those flags answer "does this item lead its PASSAGE?", and Join Up/Down need "does anything of this
+ * tier exist before/after it AT ALL?". The two diverge in both directions, and both divergences are
+ * user-visible bugs:
+ *
+ *   - a study with two passages sets `isFirstInPassage` on passage 2's first segment, though it has a
+ *     perfectly good predecessor one passage up — Join Up was wrongly DISABLED there;
+ *   - there were no `…LastInPassage` flags at all, so Join Down had nothing to consult and fell back
+ *     to guessing from the part index — leaving it wrongly ENABLED on the final item, where the only
+ *     feedback was a server refusal after the click.
+ *
+ * Scope is the STUDY (i.e. this part), which is what the analyze page can actually see. A contiguous
+ * neighbouring part may still offer a cross-part join beyond that edge; the menu layers its series
+ * reasoning on top, and the server remains the authority. So these two flags are a *necessary*
+ * condition for the command, never the whole rule.
+ *
+ * @param {boolean} hasPredecessor - Whether a same-tier item exists before the selection in this study
+ * @param {boolean} hasSuccessor - Whether a same-tier item exists after the selection in this study
+ */
+export function setJoinNeighbours(hasPredecessor, hasSuccessor) {
+	toolbarStateStore.update(state => ({
+		...state,
+		hasJoinPredecessor: hasPredecessor,
+		hasJoinSuccessor: hasSuccessor
 	}));
 }
 

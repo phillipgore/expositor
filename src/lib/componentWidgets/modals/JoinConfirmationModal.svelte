@@ -19,6 +19,10 @@
 	 * ## Props
 	 * @property {boolean} isOpen - Whether the modal is open
 	 * @property {'column'|'section'|'segment'} type - What is being joined
+	 * @property {'previous'|'next'} direction - 'previous' = Join Up (the selected item is folded into
+	 *   the one before it and is deleted); 'next' = Join Down (the item AFTER the selection is folded
+	 *   into it, and the selection survives). Titles the dialog, and decides whose content `summary`
+	 *   describes — for Join Down that is the SUCCESSOR's, since the successor is what gets consumed.
 	 * @property {string} summary - Human summary of affected content (e.g. "headings, note, 2 connections")
 	 * @property {boolean} noteWillTruncate - Whether Merging would exceed the Quick
 	 *   Note character cap (the merged note would be truncated with an ellipsis).
@@ -34,6 +38,7 @@
 	let {
 		isOpen = false,
 		type = 'segment',
+		direction = 'previous',
 		summary = '',
 		noteWillTruncate = false,
 		onConfirm,
@@ -46,6 +51,21 @@
 	let joinError = $state('');
 
 	const TYPE_LABEL = { column: 'Column', section: 'Section', segment: 'Segment' };
+
+	// The title names the direction as well as the tier, because the two joins consume DIFFERENT
+	// items: Join Up deletes the selected item, Join Down deletes the one after it. A dialog headed
+	// only "Join Segment" would look identical in both cases while describing opposite outcomes —
+	// and with no undo (Q35), that is the wrong thing to leave ambiguous on a destructive confirm.
+	//
+	// ⚠️ Deliberately NOT renamed to match the menu's "Join Selected Up/Down". The menu says
+	// "Selected" because it must read correctly BEFORE the user has committed to anything, and a
+	// label that renames itself per selection is unstable. This dialog is the opposite situation:
+	// the choice is made, it is about to destroy something, and "Selected" would be the vaguest
+	// possible word at the one moment the user needs to know exactly WHAT is being consumed. So the
+	// menu is stable and generic; the confirm is specific.
+	let title = $derived(
+		`Join ${TYPE_LABEL[type] || 'Item'} ${direction === 'next' ? 'Down' : 'Up'}`
+	);
 
 	// Reset transient state each time the modal opens.
 
@@ -81,7 +101,7 @@
 
 <Modal
 	{isOpen}
-	title={`Join ${TYPE_LABEL[type] || 'Item'}`}
+	{title}
 	size="small"
 	confirmLabel={joinInProgress ? 'Joining...' : 'Join'}
 	confirmClasses="blue"

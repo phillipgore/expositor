@@ -3,12 +3,16 @@
 	 * MenuStructure Component
 	 * 
 	 * Document structure management menu for organizing content.
-	 * Structural tiers are ordered largest container first (Column ⊃ Section ⊃
-	 * Segment) to match the app's nesting hierarchy and the View menu's ordering.
-	 * Each tier pairs a split action with its inverse join action:
-	 * - Column  — Split Column / Join Column
-	 * - Section — Split Section / Join Section
-	 * - Segment — Split Segment / Join Segment
+	 *
+	 * - Split   — Split Column / Split Section / Split Segment, ordered largest container first
+	 *             (Column ⊃ Section ⊃ Segment) to match the app's nesting hierarchy and the View
+	 *             menu's ordering. Splitting needs an explicit tier because a word selection alone
+	 *             cannot say which level to divide.
+	 * - Join    — Join Selected Up / Join Selected Down. Deliberately NOT one-per-tier: the tier is
+	 *             inferred from the current selection (`joinGranularity`), which the user has already
+	 *             made, so the choice these expose is the one they could not otherwise make —
+	 *             direction. Replaces the former Join Column / Join Section / Join Segment trio,
+	 *             which could only ever join backwards.
 	 * - Text    — Move Text Up / Move Text Down (relocates content between segments)
 	 *
 	 * (Connect, which creates a connection between two selected structural
@@ -107,50 +111,109 @@
 		return atInternalSeam || (atPartStart && seriesContext?.boundaryBefore === null);
 	}
 
-	let joinColumnCrossesBoundary = $derived(
-		$toolbarState.hasActiveColumn && $toolbarState.isActiveColumnFirstInPassage
-	);
-	let canJoinColumnAcross = $derived(canJoinAcross(joinColumnCrossesBoundary));
-
-	let joinColumnReason = $derived(
-		canExplainStart && joinColumnCrossesBoundary && !canJoinColumnAcross
-			? seriesContext.boundaryBefore
-			: null
-	);
-
-	// Join Section and Join Column now cross a boundary too (§8). The availability rule is identical
-	// for all three granularities, so it is factored into `canJoinAcross()` rather than repeated —
-	// three copies of a rule about a destructive command is three chances to disagree.
-	let joinSectionCrossesBoundary = $derived(
-		$toolbarState.hasActiveSection &&
-			!$toolbarState.hasActiveColumn &&
-			$toolbarState.isActiveSectionFirstInPassage
-	);
-	let canJoinSectionAcross = $derived(canJoinAcross(joinSectionCrossesBoundary));
-
-	let joinSectionReason = $derived(
-		canExplainStart && joinSectionCrossesBoundary && !canJoinSectionAcross
-			? seriesContext.boundaryBefore
-			: null
-	);
-
-	// ── All three Joins now work across a boundary (SERIES_PLAN §8, phase 2) ──
+	// ── One pair of Join commands, not three (Join Up / Join Down) ──
 	//
-	// Two distinct situations produce `isActive…FirstInPassage`, and they now have opposite answers:
-	// an INTERNAL passage seam, or a part boundary whose previous part abuts, is joinable — the server
-	// resolves the predecessor across the seam (`crossPartJoin.js`); the very first passage of a series
-	// is not. `canJoinAcross()` above is the single rule; each granularity supplies its own flag.
-	let joinSegmentCrossesBoundary = $derived(
-		$toolbarState.hasActiveSegment && $toolbarState.isActiveSegmentFirstInPassage
+	// There used to be Join Column, Join Section and Join Segment: three buttons, each joining its own
+	// tier and each only ever joining BACKWARDS. That is the wrong axis to expose. The user has already
+	// said which tier they mean by *what they selected* — selecting a column and then hunting for the
+	// button labelled "Column" is asking them to repeat themselves — whereas the thing they could not
+	// say at all was the direction.
+	//
+	// So granularity is inferred from the selection and direction is the choice. Same three server
+	// paths underneath; `handleJoin` in the analyze page maps the resolved granularity to its endpoint.
+	//
+	// Precedence is Column ⊃ Section ⊃ Segment, matching how the tiers nest and how the old buttons'
+	// own guards read (Join Section was disabled while a column was active, so a column selection
+	// already meant "column" everywhere). `null` means nothing structural is selected.
+	let joinGranularity = $derived(
+		$toolbarState.hasActiveColumn
+			? 'column'
+			: $toolbarState.hasActiveSection
+				? 'section'
+				: $toolbarState.hasActiveSegment
+					? 'segment'
+					: null
 	);
-	let canJoinSegmentAcross = $derived(canJoinAcross(joinSegmentCrossesBoundary));
+
+	// ── The primary rule: is there anything to join INTO? ──
+	//
+	// A join folds two items together, so it is meaningless without a neighbour. `hasJoinPredecessor`
+	// / `hasJoinSuccessor` answer exactly that, resolved against the whole study's structure by the
+	// analyze page — NOT from the `is…FirstInPassage` flags, which ask the narrower per-passage
+	// question and are wrong in both directions once a study holds several passages.
+	//
+	// Scope is this study (this part). A neighbouring part may still offer a cross-part join beyond
+	// that edge, which is what `canJoinAcross` / `boundaryAfter` below add back. So: no neighbour in
+	// the study AND no reachable neighbour across the seam ⇒ the command is genuinely dead.
+	let hasPredecessor = $derived($toolbarState.hasJoinPredecessor);
+	let hasSuccessor = $derived($toolbarState.hasJoinSuccessor);
+
+	// Whether the resolved tier's selected item sits at the START of its passage, so a Join Up would
+	// have to reach across the seam. Reads the flag belonging to the tier actually in play — reading
+	// all three at once is what made the old guards disagree with one another.
+	let joinUpCrossesBoundary = $derived(
+		joinGranularity === 'column'
+			? $toolbarState.isActiveColumnFirstInPassage
+			: joinGranularity === 'section'
+				? $toolbarState.isActiveSectionFirstInPassage
+				: joinGranularity === 'segment'
+					? $toolbarState.isActiveSegmentFirstInPassage
+					: false
+	);
+
+	let canJoinUpAcross = $derived(canJoinAcross(joinUpCrossesBoundary));
+
+	// Join Up needs SOMETHING above it: either a predecessor inside this study, or a reachable one
+	// across the leading seam. With neither, there is nothing to fold into and the item is simply the
+	// first thing in the study — so the button is disabled rather than offering a no-op.
+	let joinUpDisabled = $derived(
+		!joinGranularity || isDocument || (!hasPredecessor && !canJoinUpAcross)
+	);
 
 	// The reason is shown only when the command is genuinely dead: an ineligible seam. Previously it
 	// also appeared over a contiguous seam, where it read "not available across parts yet" — now false,
 	// and §11 is explicit that a promise of a later fix must not outlive the fix.
-	let joinSegmentReason = $derived(
-		canExplainStart && joinSegmentCrossesBoundary && !canJoinSegmentAcross
+	//
+	// `!hasPredecessor` guards it too: with a predecessor inside this study the command works, and a
+	// boundary note beside a working button would explain a problem the user does not have.
+	let joinUpReason = $derived(
+		canExplainStart && !hasPredecessor && joinUpCrossesBoundary && !canJoinUpAcross
 			? seriesContext.boundaryBefore
+			: null
+	);
+
+	// ── Join Down: the END edge, and therefore a DIFFERENT seam ──
+	//
+	// ⚠️ Join Down must never reuse `canJoinAcross()`. That helper is start-edge only (it consults
+	// `boundaryBefore`), and using it here would enable Join Down whenever the part's *leading* seam
+	// happened to be contiguous — a different seam entirely, exactly the trap already documented for
+	// Move Text Down above.
+	//
+	// The mirror of Join Up's rule: a successor inside this study, or a reachable one across the
+	// TRAILING seam. `hasSuccessor` is what makes the last item of the study disable properly —
+	// before it existed this had to guess from the part index, which left the button enabled on the
+	// final item and deferred the "Nothing follows this…" to a server refusal after the click.
+	//
+	// Only reached when `hasSuccessor` is already false, which — because that flag spans every passage
+	// of the study — means the selection really is at the END of this part. So the only question left
+	// is whether the NEXT part abuts, and there is deliberately no internal-passage clause here: a
+	// later passage in this study would have set `hasSuccessor` and we would never be asking.
+	// (Join Up's `canJoinAcross()` still needs its internal-seam clause, because it is also consulted
+	// by the per-passage `joinUpCrossesBoundary`, which is genuinely per-passage.)
+	let canJoinDownAcross = $derived(
+		!hasSuccessor && !isDocument && atPartEnd && seriesContext?.boundaryAfter === null
+	);
+
+	let joinDownDisabled = $derived(
+		!joinGranularity || isDocument || (!hasSuccessor && !canJoinDownAcross)
+	);
+
+	// Explain the trailing edge only when it is the boundary that is actually in the way: the user is
+	// at the end of this part, nothing follows inside it, and the seam beyond is ineligible. Without
+	// the `!hasSuccessor` term this note would appear while a perfectly good successor sat below.
+	let joinDownReason = $derived(
+		canExplainEnd && joinGranularity && !hasSuccessor && seriesContext?.boundaryAfter
+			? seriesContext.boundaryAfter
 			: null
 	);
 
@@ -282,25 +345,6 @@
 		}}
 		isDisabled={!$toolbarState.canInsertColumn || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="column-join"
-		label="Join Column"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			// Trigger join column event via custom event
-			window.dispatchEvent(new CustomEvent('join-column'));
-		}}
-		isDisabled={!$toolbarState.hasActiveColumn ||
-			($toolbarState.isActiveColumnFirstInPassage && !canJoinColumnAcross)}
-		ariaLabel={joinColumnReason ? `Join Column — ${joinColumnReason}` : undefined}
-	/>
-	{#if joinColumnReason}
-		<p class="boundary-reason" role="none">{joinColumnReason}</p>
-	{/if}
-
-	<DividerHorizontal />
 
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -318,27 +362,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="section-join"
-		label="Join Section"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			// Trigger join section event via custom event
-			window.dispatchEvent(new CustomEvent('join-section'));
-		}}
-		isDisabled={!$toolbarState.hasActiveSection ||
-			$toolbarState.hasActiveColumn ||
-			($toolbarState.isActiveSectionFirstInPassage && !canJoinSectionAcross)}
-		ariaLabel={joinSectionReason ? `Join Section — ${joinSectionReason}` : undefined}
-	/>
-	{#if joinSectionReason}
-		<p class="boundary-reason" role="none">{joinSectionReason}</p>
-	{/if}
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
 		iconId="segment-split"
 		label="Split Segment"
 		role="menuitem"
@@ -349,29 +372,61 @@
 		}}
 		isDisabled={!$toolbarState.hasWordSelection || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection}
 	/>
+	<DividerHorizontal />
+
+	<!--
+		Join Selected Up / Down replace Join Column, Join Section and Join Segment.
+
+		The tier comes from the selection (see `joinGranularity`), so these two items cover all three
+		tiers in both directions — six operations where there were three.
+
+		"Selected" rather than the resolved tier ("Join Section Up") on purpose: the label is then
+		STABLE. A label that renamed itself as the selection changed made the menu appear to offer
+		different commands depending on what was highlighted, and read as a promise about the tier
+		that the disabled state could contradict. "Selected" says the same true thing in every state —
+		it acts on whatever you have selected — and the icons carry the direction.
+
+		Join Down is NOT a new kind of write: the server resolves it to the equivalent Join Up on the
+		next item (`joinRouting.js`), because a join removes an anchor and the earlier item of the pair
+		always survives. That is also why Join Down leaves the selection intact while Join Up clears it.
+	-->
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-join"
-		label="Join Segment"
+		iconId="join-up"
+		label="Join Selected Up"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			// Trigger join segment event via custom event
-			window.dispatchEvent(new CustomEvent('join-segment'));
+			window.dispatchEvent(new CustomEvent('join-up'));
 		}}
-		isDisabled={!$toolbarState.hasActiveSegment ||
-			($toolbarState.isActiveSegmentFirstInPassage && !canJoinSegmentAcross)}
-		ariaLabel={joinSegmentReason ? `Join Segment — ${joinSegmentReason}` : undefined}
+		isDisabled={joinUpDisabled}
+		ariaLabel={joinUpReason ? `Join Selected Up — ${joinUpReason}` : undefined}
 	/>
-	{#if joinSegmentReason}
-		<p class="boundary-reason" role="none">{joinSegmentReason}</p>
+	{#if joinUpReason}
+		<p class="boundary-reason" role="none">{joinUpReason}</p>
+	{/if}
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="join-down"
+		label="Join Selected Down"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('join-down'));
+		}}
+		isDisabled={joinDownDisabled}
+		ariaLabel={joinDownReason ? `Join Selected Down — ${joinDownReason}` : undefined}
+	/>
+	{#if joinDownReason}
+		<p class="boundary-reason" role="none">{joinDownReason}</p>
 	{/if}
 
 	<DividerHorizontal />
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="arrow-up"
+		iconId="text-up"
 		label="Move Text Up"
 		role="menuitem"
 		handleClick={() => {
@@ -390,7 +445,7 @@
 	{/if}
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="arrow-down"
+		iconId="text-down"
 		label="Move Text Down"
 		role="menuitem"
 		handleClick={() => {

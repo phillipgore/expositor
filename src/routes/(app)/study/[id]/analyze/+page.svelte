@@ -46,7 +46,8 @@
 		getParsedPassage,
 		extractSegmentText
 	} from '$lib/utils/passageText.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours } from '$lib/stores/toolbar.js';
+	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
 
 
 
@@ -1116,6 +1117,30 @@
 		setActivePassageIndex(found);
 	});
 
+	// Resolve whether the current selection has a same-tier neighbour to join into, each way.
+	//
+	// This is what enables/disables Join Up and Join Down. It asks the question those commands
+	// actually pose — "is there anything of this tier before/after me?" — rather than the
+	// per-passage question `is…FirstInPassage` answers, which is wrong in both directions once a
+	// study holds more than one passage (see `setJoinNeighbours` for the two concrete failures).
+	//
+	// Flattening is in READING order across the whole study: passages in display order, then columns,
+	// sections and segments as the structure nests them. That is the same order the server's
+	// `flattenSequence` produces for this study's slice of the sequence, so the button's verdict and
+	// the server's agree.
+	//
+	// Always-on (not gated on a selection shape) for the reason the passage-index effect above is:
+	// a mixed multi-select writes several `setActive*` setters, and a gated effect's else-branch
+	// would clear this while a selection still existed.
+	$effect(() => {
+		const { hasPredecessor, hasSuccessor } = resolveJoinNeighbours(data.passagesWithText, {
+			columnId: activeColumns[0] ?? null,
+			sectionId: activeSections[0] ?? null,
+			segmentId: activeSegments[0]?.segmentId ?? null
+		});
+		setJoinNeighbours(hasPredecessor, hasSuccessor);
+	});
+
 	// Sync active column state to toolbar store
 	$effect(() => {
 
@@ -1901,17 +1926,32 @@
 			handleInsertSegment();
 		};
 
-		// Listen for join column/section/segment events from MenuStructure. Each
-		// resolves the currently-active item and hands off to the join flow, which
-		// dry-runs first and only shows the confirm modal when content is affected.
-		const handleJoinColumnEvent = () => {
-			if (activeColumns.length > 0) handleJoin('column', activeColumns[0]);
+		// Listen for Join Up / Join Down from MenuStructure.
+		//
+		// The menu no longer says WHICH tier to join — it says which DIRECTION — so the tier is
+		// resolved here from the current selection, using the same Column ⊃ Section ⊃ Segment
+		// precedence the menu used to decide the button's label. Resolving it in one place means the
+		// label the user read and the operation that runs cannot disagree.
+		//
+		// Returns null when nothing structural is selected, in which case the command is a no-op (the
+		// menu items are disabled in that state anyway; this is the belt to that pair of braces).
+		const resolveJoinTarget = () => {
+			/** @type {{ type: 'column'|'section'|'segment', id: string }|null} */
+			let target = null;
+			if (activeColumns.length > 0) target = { type: 'column', id: activeColumns[0] };
+			else if (activeSections.length > 0) target = { type: 'section', id: activeSections[0] };
+			else if (activeSegments.length > 0)
+				target = { type: 'segment', id: activeSegments[0].segmentId };
+			return target;
 		};
-		const handleJoinSectionEvent = () => {
-			if (activeSections.length > 0) handleJoin('section', activeSections[0]);
+
+		const handleJoinUpEvent = () => {
+			const target = resolveJoinTarget();
+			if (target) handleJoin(target.type, target.id, 'previous');
 		};
-		const handleJoinSegmentEvent = () => {
-			if (activeSegments.length > 0) handleJoin('segment', activeSegments[0].segmentId);
+		const handleJoinDownEvent = () => {
+			const target = resolveJoinTarget();
+			if (target) handleJoin(target.type, target.id, 'next');
 		};
 
 		
@@ -2192,9 +2232,8 @@
 		window.addEventListener('insert-column', handleInsertColumnEvent);
 		window.addEventListener('insert-section', handleInsertSectionEvent);
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
-		window.addEventListener('join-column', handleJoinColumnEvent);
-		window.addEventListener('join-section', handleJoinSectionEvent);
-		window.addEventListener('join-segment', handleJoinSegmentEvent);
+		window.addEventListener('join-up', handleJoinUpEvent);
+		window.addEventListener('join-down', handleJoinDownEvent);
 		window.addEventListener('move-text-up', handleMoveTextUpEvent);
 
 		window.addEventListener('move-text-down', handleMoveTextDownEvent);
@@ -2252,9 +2291,8 @@
 			window.removeEventListener('insert-column', handleInsertColumnEvent);
 			window.removeEventListener('insert-section', handleInsertSectionEvent);
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
-			window.removeEventListener('join-column', handleJoinColumnEvent);
-			window.removeEventListener('join-section', handleJoinSectionEvent);
-			window.removeEventListener('join-segment', handleJoinSegmentEvent);
+			window.removeEventListener('join-up', handleJoinUpEvent);
+			window.removeEventListener('join-down', handleJoinDownEvent);
 			window.removeEventListener('move-text-up', handleMoveTextUpEvent);
 
 			window.removeEventListener('move-text-down', handleMoveTextDownEvent);
@@ -2283,7 +2321,11 @@
 	// Heads-up flag: the merge would push the resulting Quick Note over the cap,
 	// so it will be truncated. Surfaced by the confirm modal (see analyzeJoin).
 	let joinModalNoteWillTruncate = $state(false);
-	let joinPending = $state(/** @type {{ type: string, id: string } | null} */ (null));
+	let joinPending = $state(
+		/** @type {{ type: 'column'|'section'|'segment', id: string, direction: 'previous'|'next' } | null} */ (
+			null
+		)
+	);
 
 	const JOIN_ENDPOINT = {
 		column: '/api/passages/columns/join',
@@ -2292,40 +2334,25 @@
 	};
 
 	/**
-	 * The passage row that owns a structural item.
+	 * Build the join request body for a given item type/id.
 	 *
-	 * Needed because Join Segment may now cross a passage boundary (SERIES_PLAN §8), and the server
-	 * cannot resolve the sequence without knowing which passage the gesture started in. Returns null
-	 * when the item cannot be located, which makes the request fall back to the within-passage path —
-	 * failing closed rather than guessing at a boundary.
+	 * Throws when the owning passage cannot be resolved, rather than sending the request without one.
+	 * That is not defensiveness for its own sake — it is the exact defect this replaced: a lookup
+	 * returning `undefined` produced `passageId: undefined`, `JSON.stringify` dropped the key, and
+	 * Join Up then ran happily via `routeJoin`'s optional-passage branch while having SILENTLY lost
+	 * the ability to join across a passage or part boundary. Join Down, which needs the id up front,
+	 * was the only reason anyone noticed. Refusing here makes both directions fail the same way.
 	 */
-	function passageIdOf(type, id) {
-		// `passagesWithText`, NOT `passages`: the structure tree is attached to the streamed variant,
-		// which is what the activePassageIndex effect above already reads. Written against `passages`
-		// first, where `structure` is undefined — so every lookup would have missed, `passageId` would
-		// always have been null, and the cross-boundary path would have been silently unreachable while
-		// appearing wired. svelte-check caught it; at runtime it would merely have "not worked".
-		for (const p of data.passagesWithText ?? []) {
-			const columns = p.structure?.columns ?? [];
-			const hit =
-				type === 'column'
-					? columns.some((col) => col.id === id)
-					: type === 'section'
-						? columns.some((col) => col.sections?.some((sec) => sec.id === id))
-						: columns.some((col) =>
-								col.sections?.some((sec) => sec.segments?.some((seg) => seg.id === id))
-							);
-			if (hit) return p.id;
-		}
-		return null;
-	}
-
-	/** Build the join request body for a given item type/id. */
 	function joinBody(type, id, extra = {}) {
 		const key = type === 'column' ? 'columnId' : type === 'section' ? 'sectionId' : 'segmentId';
-		// `passageId` travels for every type so the server can resolve the sequence. Only Join Segment
-		// acts on it today; the other two ignore it until they are generalised in turn.
-		return { [key]: id, passageId: passageIdOf(type, id), ...extra };
+		// `passageId` travels for every type so the server can resolve the sequence — required by the
+		// cross-boundary path, and by Join Down at every granularity, since the successor it resolves
+		// may live in another passage entirely.
+		const passageId = passageIdOfItem(data.passagesWithText, type, id);
+		if (!passageId) {
+			throw new Error(`Could not work out which passage this ${type} belongs to.`);
+		}
+		return { [key]: id, passageId, ...extra };
 	}
 
 	/**
@@ -2334,13 +2361,14 @@
 	 * user can choose Merge (default) or Delete.
 	 * @param {'column'|'section'|'segment'} type
 	 * @param {string} id
+	 * @param {'previous'|'next'} [direction='previous'] - 'previous' = Join Up, 'next' = Join Down
 	 */
-	async function handleJoin(type, id) {
+	async function handleJoin(type, id, direction = 'previous') {
 		try {
 			const dryRes = await fetch(JOIN_ENDPOINT[type], {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(joinBody(type, id, { dryRun: true }))
+				body: JSON.stringify(joinBody(type, id, { dryRun: true, direction }))
 			});
 
 			if (!dryRes.ok) {
@@ -2356,11 +2384,11 @@
 				joinModalType = type;
 				joinModalSummary = summary || '';
 				joinModalNoteWillTruncate = !!noteWillTruncate;
-				joinPending = { type, id };
+				joinPending = { type, id, direction };
 				joinModalOpen = true;
 			} else {
 				// Nothing of value would be folded — join straight away (defaults to merge).
-				await runJoin(type, id, 'merge');
+				await runJoin(type, id, 'merge', direction);
 			}
 		} catch (error) {
 			console.error('Join network error:', error);
@@ -2373,12 +2401,13 @@
 	 * @param {'column'|'section'|'segment'} type
 	 * @param {string} id
 	 * @param {'merge'|'delete'} decision
+	 * @param {'previous'|'next'} [direction='previous'] - 'previous' = Join Up, 'next' = Join Down
 	 */
-	async function runJoin(type, id, decision) {
+	async function runJoin(type, id, decision, direction = 'previous') {
 		const response = await fetch(JOIN_ENDPOINT[type], {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(joinBody(type, id, { decision }))
+			body: JSON.stringify(joinBody(type, id, { decision, direction }))
 		});
 
 		if (!response.ok) {
@@ -2386,12 +2415,28 @@
 			throw new Error(error.error || `Failed to join ${type}`);
 		}
 
-		// Clear all selections — the joined item no longer exists.
-		selectedWord = null;
-		activeSegments = [];
-		activeColumns = [];
-		activeSections = [];
-		suppressHoverCaret = null;
+		// ── Which selection survives depends on the DIRECTION, not on taste ──
+		//
+		// A join removes one anchor and the EARLIER item of the pair survives. So Join Up consumes the
+		// selected item — clearing the selection is mandatory, since keeping a deleted row selected
+		// would leave the toolbar acting on something that no longer exists. Join Down consumes the
+		// item AFTER the selection, and the selected item is precisely what remains.
+		//
+		// Keeping it selected is therefore both correct and the better gesture: repeated Join Down
+		// swallows successive items without forcing a re-select each time. Clearing it here (as the
+		// original unconditional reset did) would have been a small lie about what had been deleted.
+		if (direction === 'previous') {
+			selectedWord = null;
+			activeSegments = [];
+			activeColumns = [];
+			activeSections = [];
+			suppressHoverCaret = null;
+		} else {
+			// The surviving item keeps its structural selection. The word-level caret is still dropped:
+			// its offsets refer to the pre-merge text, which has just grown.
+			selectedWord = null;
+			suppressHoverCaret = null;
+		}
 		await invalidate('app:studies');
 	}
 
@@ -2402,7 +2447,7 @@
 	 */
 	async function confirmJoin(decision) {
 		if (!joinPending) return;
-		await runJoin(joinPending.type, joinPending.id, decision);
+		await runJoin(joinPending.type, joinPending.id, decision, joinPending.direction ?? 'previous');
 		joinModalOpen = false;
 		joinPending = null;
 	}
@@ -4967,14 +5012,18 @@
 	/>
 
 
-	<!-- Join confirmation modal (Structure → Join Column/Section/Segment). Only shown
+	<!-- Join confirmation modal (Structure → Join Up / Join Down). Only shown when the
+	     consumed item carries authored content or affected connections; offers Merge
+	     (fold that content onto the surviving item) or Delete (discard it). Empty items
+	     are joined silently without this modal.
 
-	     when the joined item carries authored content or affected connections; offers
-	     Merge (fold content onto the previous item) or Delete (discard the joined item's
-	     own content). Empty items are joined silently without this modal. -->
+	     `direction` is passed so the dialog can say WHICH way: the two directions consume
+	     different items, so an undirected title would describe one outcome while producing
+	     the other. -->
 	<JoinConfirmationModal
 		isOpen={joinModalOpen}
 		type={joinModalType}
+		direction={joinPending?.direction ?? 'previous'}
 		summary={joinModalSummary}
 		noteWillTruncate={joinModalNoteWillTruncate}
 		onConfirm={confirmJoin}
