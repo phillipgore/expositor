@@ -73,10 +73,11 @@ fire".
 - `npm run probe:split-part` (50 assertions) — Split Part, including the **straddling column**: the
   clone preserves `width` / `leftOffset` / `colour` / `topOffset`, the original column and section keep
   their ids so the near side keeps its identity, and `seriesOrder` is shifted rather than re-derived.
-- `npm run probe:move-text` (27 assertions) — Move Text Up **and** Down: the boundary lands where the
+- `npm run probe:move-text` (39 assertions) — Move Text Up **and** Down: the boundary lands where the
   arithmetic says in both directions, coverage is conserved, the correct anchor moves in each, no
-  segment is left anchored outside its passage range, and a mid-verse caret is refused by the analyzer
-  _and_ the executor with nothing written.
+  segment is left anchored outside its passage range, §10.1 display re-validation rides along with the
+  correct part as receiver per direction, and a mid-verse caret is refused by the analyzer _and_ the
+  executor with nothing written.
 
 - `npm run probe:balance` (14 assertions) — creating a **balanced** series end to end: the rows written
   are the parts the same planner previewed, with a counter-check that the default shape would have been
@@ -187,6 +188,10 @@ user-visible behaviour has changed**:
   derive from **one** boundary word id, so a gap or overlap between them is unrepresentable. Verse
   conservation is enforced rather than assumed, because §10.1's licence to skip the export re-check
   depends on it.
+- `crossPartCommands.js` (42 assertions) — which of the five commands may reach across each edge.
+  Exists because `boundaryBefore === null` is ambiguous between "contiguous seam" and "no neighbouring
+  part", and reading it as the former enabled four commands at the series' outer edges. See the ⚠️
+  below.
 
 **✅ All three Joins work across a boundary** — Join Segment, Join Section and Join Column, **3 of the
 5 commands** — end to end: server (`passageSequence.js` + `crossPartJoin.js`), shared endpoint routing
@@ -225,6 +230,97 @@ outside §8's scope.
 Because the boundary is derived from the caret, the moved verses always land inside the range of the
 part whose segment already covers them, by implicit extent. Traced against real `planBoundaryShift`
 output — an earlier draft of the code comment claimed re-parenting was required, and it was wrong.
+
+⚠️ **The "yet" copy outlived the fix, and that alone disabled all five commands.**
+`getBoundaryDisabledReason()` returned `'Not available across parts yet.'` for a **contiguous** seam —
+correct in phase 1, when the cross-part commands did not exist. Every caller treats a non-null reason
+as "this boundary is ineligible", so once the commands shipped that one string went on greying them
+out at precisely the seams they had just learned to cross, *and* printed the now-false promise
+underneath. The server was complete and correct the whole time; the feature was unreachable from the
+menu. A contiguous seam now returns `null`. §11 already said a promise of a later fix must not outlive
+the fix — this is that rule applied to its own copy, and it is recorded because a stale *string* is far
+easier to miss in review than stale logic.
+
+⚠️ **`boundaryBefore === null` meant two different things, and the menu believed only one of them.**
+The study layout emits `boundaryBefore: index > 0 ? getBoundaryDisabledReason(…) : null`, so `null`
+says both "this seam is contiguous" and "there is no previous part". `MenuStructure` read it purely as
+permission, which left **Join Up and Move Text Up enabled on part 1's first item** — and, mirrored
+through `boundaryAfter`, both Down commands enabled on the **last part's final item**. Clicking bought
+a server round trip and an `alert()`. This is the same defect `setJoinNeighbours` was written to remove
+one level down, reappearing at the series' outer edges, so the rule now lives in
+`crossPartCommands.js` with `verify-cross-part-commands.mjs` pinning all four directions: an edge is
+reachable only when a neighbour **exists** (`position`/`total`, already loaded and previously unread)
+**and** that edge's own seam is contiguous.
+
+⚠️ **Move Text now re-validates display on both parts (§10.1), which it did not when it landed.** The
+three Joins have carried `displayWarnings()` since they shipped; the two moves did not, and that was a
+gap rather than a decision — §10.1 and the §13 table both require re-validation on **any** boundary
+move, and the table's worked example ("tipped past 216 by a few Move Text Up gestures") is a Move Text.
+A join relocates one item once; a move is repeatable a verse at a time, which makes it the *likelier*
+way to drift over the cap. The receiver is the part that **grew**, so it follows `direction`: Up ⇒ the
+earlier part, Down ⇒ the later one. Q41's pre-write refusal came with it, as a 409.
+
+⚠️ **A cross-part Join Down is NOT the equivalent Join Up, and treating it as one moved verses the
+wrong way.** `joinRouting.js` rewrote every Join Down into "the Join Up a user could perform by
+selecting the next item". Within one passage that identity is exact — a join removes one anchor, the
+earlier item of the pair survives, and direction only names which pair is meant. **At a part boundary
+it is false**, because which part the result lives in is the entire point of the gesture. So a Join
+Down on part A's last segment became a Join Up on part B's first: part A *grew*, pulling part B's
+content backwards, which is the opposite of what the user asked for — a data-correctness defect on an
+undo-less command.
+
+The rule the app now implements, stated once and symmetric: **the selected item is what moves.** Join
+Selected Up takes the selection from part B into part A; Join Selected Down takes it from part A into
+part B. In both the selected item keeps its row and the *neighbour* is consumed, which also happens to
+be what the anchor rule predicts — the selected item's anchor is the earlier of the pair in a Join
+Down, so it is the one left standing — and what Join Down already did within a passage (STR-014). Three
+independent rules agree, which is why this shape rather than the mirror-image alternative.
+
+`crossPartJoin.js` therefore carries a second path — `analyzeCrossPartJoinDown` /
+`joinDownAcrossBoundary` — where the boundary lands on the **first moving** segment rather than the
+first that stays, and the cascade-ordering trap applies to the *target's* children instead of the
+selection's. The within-passage rewrite is untouched: it is correct there and audited.
+
+⚠️ **The probe asserted the bug.** `probe-join-direction.mjs` claimed to cover "a Join Down that
+crosses a part boundary", but its only cross-part assertion was that verses move "in the same direction
+as the equivalent Join Up" — the rewrite's own premise restated, so it could only ever pass. It also
+never built a two-part fixture. The equivalence claim is now explicitly **scoped to within-passage**,
+and a real series fixture asserts the placement outcome: after a cross-part Join Down the selection
+lives in part B, part A shrank, part B grew.
+
+⚠️ **A boundary move must re-anchor CONTAINERS, on both sides — and not doing so broke Insert.**
+Segments are handled explicitly by each command; the column and section holding them were not. After a
+cross-part Move Text or Join, a container could be left anchored at a word that was no longer its first
+segment's. Nothing rendered wrongly — extent is implicit, so a container is defined by what it holds —
+which is exactly why it went unnoticed. The damage landed one command later, in `insertSegment()`:
+`section.startingWordId === insertionWordId` matched a word that was the section's anchor but *not* its
+first segment's, so **"Cannot insert segment at the beginning of a section" was raised on the very text
+the user had just moved or joined**, with no way to proceed.
+
+The two commands failed for opposite reasons, which is why a single half-fix did not cover it.
+`crossPartJoin.js` had a private `reanchorFirstOf()` — but it ran on the **donor only**, and only
+corrected an anchor that *preceded* the passage. `crossPartMove.js` had nothing at all, and a Move Text
+Down leaves the receiver's container anchored *after* its first segment, the direction the original
+helper ignored. Now `reanchor.js` owns one rule, called on both passages by both commands, rewriting in
+either direction. ⚠️ **Segments are never re-anchored** — a segment anchor is the user's content
+decision, a container anchor is bookkeeping derived from it.
+
+⚠️ **The probes were green throughout, and that is the lesson.** They asserted structure — no orphans,
+no segment outside its passage range — and every one of those held. The invariant that broke (a leading
+container sits on its first segment) was never stated, and the symptom only appears when a *different*
+command reads the anchors. Both probes now assert the invariant **and** drive a real
+`insertSegment()` against the moved/joined text; disabling the fix makes them fail with the user's exact
+message.
+
+added by analogy with the cross-part Join, which does confirm. The analogy is false: a Join **deletes**
+an item and nothing restores it, whereas a move only relocates a boundary — the user reverses it by
+selecting the split they actually wanted and moving the text again. Not a traditional undo, but a
+complete one: no content is destroyed and no state is unreachable. So the dialog interrupted a
+reversible, repeatable, exploratory gesture in order to assert "this cannot be undone", which was
+simply untrue. Removed. The **dry run stays**, doing the job it is actually good for: surfacing a
+refusal — an ineligible seam, or the mid-verse caret rule — *before* the gesture rather than as an
+`alert()` after it. Q35's no-undo reasoning still governs Split Part, Join Parts and the Joins, where
+something really is destroyed.
 
 **✅ "Balance by length" is done (Q11).** Offered in the Split-into-Series preview beside the
 chapters-per-part stepper, off by default, taking a part **count** (a number whose consequence the
@@ -266,7 +362,7 @@ connections and never destroys them itself. **Q35 (undo) is deliberately left op
 no undo anywhere, so making series the first feature to demand app-wide `⌘Z` inverts the cost.
 Split/Join ship with confirm-before-destroy, the mitigation part delete already uses.
 
-**Last updated:** 2026-08-12
+**Last updated:** 2026-09-12
 
 ⚠️ **This read "ON HOLD. Not scheduled; no code written" — all three clauses are now false.** Left
 visible because the next reader's first question is "has anything shipped?", and a status line that
@@ -1678,6 +1774,15 @@ Two honest options, and the choice belongs with Q34:
    needed, not one:** "not available across parts yet" for a contiguous boundary awaiting phase 2,
    and "these parts aren't adjacent in Scripture" for a boundary that will _never_ be eligible
    (§8). A single "yet" message promises a Prison Epistles user a fix that is never coming.
+
+   ⚠️ **Superseded in part: the "yet" string is gone.** Phase 2 shipped the five commands, so a
+   contiguous boundary is no longer disabled and `getBoundaryDisabledReason()` returns `null` for it
+   — only the never-eligible strings remain. Leaving the "yet" copy in place after the fix landed is
+   what kept all five commands greyed out at working seams; see §8's log. The reasoning above is
+   preserved because the _two-kinds_ distinction it introduced is what made the never-eligible
+   message correct, and that half still stands.
+
+
 2. **Move the scope generalisation into phase 1.** More work up front; no dead commands at any
    point. Also front-loads the `segmentConnection` question (Q23), which phase 1 must touch
    anyway for the migration.

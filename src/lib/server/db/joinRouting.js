@@ -18,7 +18,12 @@
  * @module joinRouting
  */
 
-import { analyzeCrossPartJoin, joinAcrossBoundary } from './crossPartJoin.js';
+import {
+	analyzeCrossPartJoin,
+	joinAcrossBoundary,
+	analyzeCrossPartJoinDown,
+	joinDownAcrossBoundary
+} from './crossPartJoin.js';
 import { resolveScope } from '$lib/utils/sequenceScope.js';
 import { loadPassageSequence } from './passageSequence.js';
 
@@ -107,10 +112,70 @@ export async function routeJoin({
 	analyzeWithinPassage,
 	joinWithinPassage
 }) {
-	// Join Down is rewritten to the equivalent Join Up BEFORE anything else looks at the request, so
-	// every line below — routing, refusal, boundary arithmetic, the confirm summary — runs on exactly
-	// one direction. See `resolveJoinDownTarget` for why the two are the same write.
+	// ── Join Down: rewritten within a passage, its OWN operation across a seam ──
+	//
+	// ⚠️ The rewrite below ("a Join Down is the equivalent Join Up on the successor") is exact WITHIN a
+	// passage — a join removes one anchor, the earlier item survives, and direction only names which
+	// pair is meant. It is **false at a part boundary**, because which PART the result lives in is the
+	// whole point of the gesture there.
+	//
+	// Applying it anyway shipped a real defect: a Join Down on part A's last item became a Join Up on
+	// part B's first, which grew part A and pulled part B's content backwards — the exact opposite of
+	// what the user asked for, moving verses the wrong way across the seam with no undo.
+	//
+	// So the cross-part case is asked FIRST, and handled by its own forward path, where the selected
+	// item survives and moves into the next part.
 	if (direction === 'next') {
+		const crossDown = passageId
+			? await analyzeCrossPartJoinDown(db, userId, passageId, itemId, granularity)
+			: null;
+
+		if (crossDown?.ok && crossDown.crossesBoundary) {
+			if (dryRun) {
+				return {
+					status: 200,
+					body: {
+						success: true,
+						crossesBoundary: true,
+						// Always confirms: it moves verses between parts, and Q35 leaves no undo.
+						needsDecision: true,
+						summary: crossDown.summary,
+						hasTarget: true,
+						noteWillTruncate: false,
+						versesMoved: crossDown.versesMoved,
+						display: crossDown.display
+					}
+				};
+			}
+
+			if (crossDown.display?.blocked) {
+				return {
+					status: 409,
+					body: {
+						error:
+							'Moving this boundary would show more of the book than the licence allows in one part.',
+						display: crossDown.display,
+						blocked: true
+					}
+				};
+			}
+
+			const result = await joinDownAcrossBoundary(
+				db,
+				userId,
+				passageId,
+				itemId,
+				decision,
+				granularity
+			);
+			return { status: 200, body: { success: true, ...result } };
+		}
+
+		if (crossDown && !crossDown.ok) {
+			return { status: 400, body: { error: crossDown.reason } };
+		}
+
+		// Within a passage the rewrite holds, and it is the audited path — see the note above.
 		const resolved = await resolveJoinDownTarget({ db, userId, passageId, itemId, granularity });
 		if (resolved.ok === false) return { status: 400, body: { error: resolved.reason } };
 		itemId = resolved.itemId;

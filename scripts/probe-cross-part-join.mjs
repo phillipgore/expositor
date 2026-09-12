@@ -251,6 +251,73 @@ try {
 		);
 	}
 
+	// ── REGRESSION: insert structure after a join ─────────────────────────────
+	//
+	// Runs HERE, on scenario 1's live fixture — the section join below deletes it.
+	//
+	// The user-visible half of the container-anchor defect: after this join, part B's column and
+	// section were still anchored at 3:1 (where the passage used to begin) while its first surviving
+	// segment now starts at 3:10. A caret anywhere inside that segment then matched
+	// `section.startingWordId === insertionWordId` and `insertSegment()` refused with "Cannot insert
+	// segment at the beginning of a section" — on text the user had just joined.
+	//
+	// Every structural assertion above passed throughout, because nothing was orphaned and nothing
+	// rendered wrongly. Only driving the real insert reveals it.
+	console.log('\n── REGRESSION: structure can still be inserted after a join ──');
+
+	const { insertSegment } = await import('../src/lib/server/db/utils.js');
+
+	const containerDrift = await sql`
+		SELECT col.passage_id,
+		       MIN(col.starting_word_id) AS column_anchor,
+		       MIN(sec.starting_word_id) AS section_anchor,
+		       MIN(s.starting_word_id) AS first_segment_anchor
+		  FROM passage_column col
+		  JOIN passage_section sec ON sec.passage_column_id = col.id
+		  JOIN passage_segment s ON s.passage_section_id = sec.id
+		 WHERE col.passage_id LIKE ${PREFIX + '%'}
+		 GROUP BY col.passage_id
+	`;
+	const drifted = containerDrift.filter(
+		(r) => r.column_anchor !== r.first_segment_anchor || r.section_anchor !== r.first_segment_anchor
+	);
+	check('no container drifted off its first segment', drifted.length, 0);
+	check('and both passages were checked', containerDrift.length, 2);
+
+	// A legal interior caret inside part B's first surviving segment (3:10–3:19) must be accepted.
+	//
+	// ⚠️ For a JOIN the drifted container ends up EARLIER than the first segment, so the caret that
+	// actually collides (3:1) now belongs to the other part and is not something a user can click here.
+	// The drift assertion above is therefore what pins the join half; `probe:move-text` carries the
+	// direct end-to-end reproduction, because a MOVE leaves the container *inside* the segment where
+	// the user is working.
+	let insertError = null;
+	try {
+		await insertSegment(db, owner.id, passB, secB, w(3, 12));
+	} catch (error) {
+		insertError = error.message;
+	}
+	check('inserting a segment into the joined passage succeeds', insertError, null);
+
+	const [insertedRow] = await sql`
+		SELECT COUNT(*)::int AS n FROM passage_segment
+		 WHERE passage_section_id = ${secB} AND starting_word_id = ${w(3, 12)}
+	`;
+	check('and the new segment exists', insertedRow.n, 1);
+
+	// ⚠️ The guard must still refuse a genuine duplicate. The fix restores the container invariant; it
+	// does not loosen the rule that two segments cannot share an anchor.
+	let duplicateError = null;
+	try {
+		await insertSegment(db, owner.id, passB, secB, w(3, 12));
+	} catch (error) {
+		duplicateError = error.message;
+	}
+	assert(
+		'but a duplicate anchor is still refused',
+		/beginning of an existing segment/.test(duplicateError ?? '')
+	);
+
 	// ── Join SECTION across a boundary, on a fresh fixture ────────────────────
 	//
 	// A section join moves SEVERAL segments at once, which is what makes its boundary rule differ from

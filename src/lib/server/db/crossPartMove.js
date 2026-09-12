@@ -36,17 +36,76 @@
  * @module crossPartMove
  */
 
-import { passage, passageSegment } from './schema.js';
+import { passage, passageSegment, study } from './schema.js';
 import { eq } from 'drizzle-orm';
 import { resolveScope } from '$lib/utils/sequenceScope.js';
 import { planBoundaryShift } from '$lib/utils/boundaryMove.js';
-import { compareWordIds } from '$lib/utils/wordIds.js';
 import { loadPassageSequence } from './passageSequence.js';
+import { reanchorPassages } from './reanchor.js';
+import { validateStudyDisplayLimits, getDisplayLimits } from '$lib/utils/translationLimits.js';
 
 /** Is this word id the first word of its verse? */
 function isVerseStart(wordId) {
 	const parts = String(wordId ?? '').split('-');
 	return parts.length === 4 && parseInt(parts[3], 10) === 1;
+}
+
+/**
+ * Display-limit warnings for both affected studies after the proposed shift (§10.1).
+ *
+ * ## ⚠️ Why a MOVE needs this as much as a join does
+ *
+ * `crossPartJoin.js` has carried this since the Joins landed; Move Text shipped without it. That was a
+ * gap, not a decision: §10.1 and the §13 table both say re-validation is **"Required, on both parts"**
+ * for any boundary move, and the plan's own worked example is a Move Text — "a part at Rom 1:1–8:25
+ * (211 verses) tipped past 216 by a few Move Text Up gestures". A join moves a whole item once; a move
+ * is repeatable a verse at a time, which makes it the *likelier* way to drift over the cap, not the
+ * safer one.
+ *
+ * ⚠️ Checked per STUDY, not per passage — the display cap is per page, so a study's other passages
+ * count towards it. Validating only the two changed ranges would under-report on a multi-passage part.
+ *
+ * ## Which side is the "receiver" depends on the DIRECTION
+ *
+ * §8: `direction` names where the CONTENT moved, and the receiver is the part that GREW. Move Text Up
+ * folds words backwards, so the EARLIER part receives; Move Text Down pushes them forwards, so the
+ * LATER part does. Getting this backwards re-checks the part that shrank — which can only ever pass —
+ * and lets the growing one breach silently.
+ *
+ * @param {'up'|'down'} direction
+ */
+async function displayWarnings(dbx, earlierEntry, laterEntry, shift, translationId, direction) {
+	const forStudy = async (studyId, replacement) => {
+		const rows = await dbx.select().from(passage).where(eq(passage.studyId, studyId));
+		const substituted = rows.map((r) => (r.id === replacement.id ? replacement : r));
+		return validateStudyDisplayLimits(substituted, translationId).warnings;
+	};
+
+	const earlier = await forStudy(earlierEntry.studyId, shift.before);
+	const later = await forStudy(laterEntry.studyId, shift.after);
+
+	// Up ⇒ the earlier part grew; Down ⇒ the later part grew.
+	const receiver = direction === 'up' ? earlier : later;
+	const donor = direction === 'up' ? later : earlier;
+
+	// ── Q41: refuse BEFORE writing, never mid-gesture ────────────────────
+	//
+	// Same rule as `crossPartJoin.js`, deliberately kept in step: a block requires BOTH that the
+	// translation enforces blocking AND that this particular move actually warns. Blocking on
+	// enforcement alone would refuse every cross-part move under a 'block' translation, including
+	// compliant ones. Every translation ships 'warn' today, so this is latent — which is exactly why
+	// it is written now rather than left to whoever flips the flag.
+	const enforcement = getDisplayLimits(translationId).enforcement;
+	const blocked = enforcement === 'block' && (receiver.length > 0 || donor.length > 0);
+
+	return {
+		// §10.1: the receiver may breach; the donor's existing warning may now CLEAR, and a stale
+		// warning left on screen is its own bug.
+		receiver,
+		donor,
+		enforcement,
+		blocked
+	};
 }
 
 /**
@@ -111,12 +170,24 @@ export async function analyzeCrossPartMove(
 	});
 	if (!shift.ok) return { ok: false, crossesBoundary: true, reason: shift.error };
 
+	// The receiving study's translation governs the display check: the limit belongs to the licence of
+	// the text being rendered, and both parts of a series carry the same translation by construction.
+	const receivingStudyId = direction === 'up' ? earlier.studyId : later.studyId;
+	const [receivingStudy] = await dbx
+		.select({ translation: study.translation })
+		.from(study)
+		.where(eq(study.id, receivingStudyId))
+		.limit(1);
+
+	const translationId = receivingStudy?.translation ?? 'esv';
+
 	return {
 		ok: true,
 		crossesBoundary: true,
 		reason: null,
 		direction,
 		versesMoved: shift.versesMoved,
+		display: await displayWarnings(dbx, earlier, later, shift, translationId, direction),
 		earlierPassageId: earlier.passageId,
 		laterPassageId: later.passageId,
 		earlierStudyId: earlier.studyId,
@@ -187,6 +258,24 @@ export async function moveTextAcrossBoundary(
 		throw new Error('This move does not cross a boundary; use the standard move.');
 	}
 
+	// ── Q41: refuse BEFORE writing, never mid-gesture ────────────────────
+	//
+	// `blocked` comes from the same analysis the dry run showed the user, so a move the dialog presented
+	// as permissible cannot be refused here, and one it presented as blocked offers no confirm button to
+	// reach this line. Today every `enforcement` is 'warn', so this never fires — it exists so that
+	// flipping the flag produces a clean, explained refusal rather than a half-applied move.
+	//
+	// Thrown with a `blocked` flag attached so the endpoint can answer 409 (well-formed request, the
+	// state is the obstacle) rather than the generic 400 the other reasons take.
+	if (plan.display?.blocked) {
+		const error = new Error(
+			'Moving this boundary would show more of the book than the licence allows in one part.'
+		);
+		error.blocked = true;
+		error.display = plan.display;
+		throw error;
+	}
+
 	const loaded = await loadPassageSequence(dbInstance, userId, passageId);
 	if (!loaded) throw new Error('Passage not found.');
 
@@ -247,12 +336,26 @@ export async function moveTextAcrossBoundary(
 				textCachedAt: null
 			})
 			.where(eq(passage.id, plan.laterPassageId));
+
+		// ⚠️ Both sides, and NOT optional.
+		//
+		// The anchor rewrite above moves a segment; the column and section holding it are untouched, so
+		// one of them is now anchored at a word its first segment no longer starts at. Nothing renders
+		// wrongly — extent is implicit — but the next `insertSegment()` compares the section's anchor
+		// against the caret and refuses with "Cannot insert segment at the beginning of a section",
+		// on text the user has just moved. See `reanchor.js` for the full account.
+		//
+		// Inside the transaction, so a failure here cannot leave the ranges moved and the anchors stale.
+		await reanchorPassages(tx, [plan.earlierPassageId, plan.laterPassageId]);
 	});
 
 	return {
 		crossedBoundary: true,
 		direction,
 		versesMoved: plan.versesMoved,
+		// Travels back so the client can surface a §10.1 warning the move has just CREATED or CLEARED —
+		// a stale on-screen warning is its own bug.
+		display: plan.display,
 		earlierPassageId: plan.earlierPassageId,
 		laterPassageId: plan.laterPassageId
 	};

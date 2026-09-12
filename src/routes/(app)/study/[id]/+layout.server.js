@@ -110,9 +110,9 @@ export async function load({ params, request, depends }) {
 				.orderBy(asc(study.seriesOrder));
 
 			// Passage ranges for every sibling, so the seams around this part can be classified.
-			// §11 option (1) requires the five cross-part commands to be disabled *with a reason*,
-			// and `getBoundaryDisabledReason` cannot tell "not yet" from "never" without the
-			// ranges. One indexed query, and only for parts.
+			// §11 option (1) requires an INELIGIBLE cross-part command to be disabled *with a
+			// reason*, and `getBoundaryDisabledReason` cannot tell an eligible seam from a
+			// permanently dead one without the ranges. One indexed query, and only for parts.
 			// `id` and a cached-text presence flag ride along for adjacent-part prefetch (§11): the
 			// decision needs to know which passages are cold, and `id` is what the warm-up then
 			// updates. Deliberately NOT `cachedText` itself — the column holds the full processed
@@ -201,13 +201,18 @@ export async function load({ params, request, depends }) {
 					// 1-based for display ("Part 3 of 16"); the index stays available via parts.
 					position: index + 1,
 					total: parts.length,
-					// Why the five cross-part commands are dead at each edge of THIS part, or null
-					// where there is no neighbour to be dead against (§11 option 1, §8).
+					// Why the five cross-part commands are dead at each edge of THIS part — or null,
+					// which means EITHER the seam is eligible OR there is no neighbour to be dead
+					// against (§11 option 1, §8).
+					//
+					// ⚠️ That double meaning is load-bearing and has bitten once: consumers must not
+					// read `null` as "go ahead" on its own. `crossPartCommands.js` pairs it with
+					// `position`/`total`, which is what distinguishes the two cases.
 					//
 					// Two edges, not one, and they can disagree: in Prison Epistles, Ephesians →
-					// Philippians is permanently ineligible while a Romans 8 → 9 seam is merely
-					// awaiting phase 2. Resolving both here keeps the honest-vs-"yet" distinction
-					// out of the menu, which has no access to passage ranges.
+					// Philippians is permanently ineligible while a Romans 8 → 9 seam is fully
+					// usable. Resolving both here keeps the classification out of the menu, which
+					// has no access to passage ranges.
 					boundaryBefore:
 						index > 0
 							? getBoundaryDisabledReason(

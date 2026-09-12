@@ -36,6 +36,12 @@
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
+	import {
+		canJoinUpAcross as resolveJoinUpAcross,
+		canJoinDownAcross as resolveJoinDownAcross,
+		canMoveTextUpAcross,
+		canMoveTextDownAcross
+	} from '$lib/utils/crossPartCommands.js';
 	import { page } from '$app/stores';
 
 	let { menuId = 'MenuStructure', view = 'analyze' } = $props();
@@ -96,20 +102,19 @@
 	// halves of each pair must agree about which edge is meant — mixing them (say, an end-edge
 	// guard with a `boundaryBefore` string) would put the wrong neighbour in the sentence.
 	/**
-	 * Is a cross-boundary join available for an item that is first in its passage?
+	 * Everything the seam predicates need, in one object.
 	 *
-	 * One rule, three callers. True at an INTERNAL passage seam — always joinable, and never a series
-	 * matter — or at a part's leading edge whose previous seam is contiguous. False for the first part
-	 * of a series (nothing precedes it) and for a permanently ineligible seam.
-	 *
-	 * `boundaryBefore` is the discriminator already computed for this purpose: null when the preceding
-	 * seam is contiguous (nothing to explain), a sentence when it is ineligible.
+	 * ⚠️ `seriesContext` travels WHOLE rather than as a pre-extracted `boundaryBefore`. The predicates
+	 * need `position` / `total` as well, and those are exactly what this menu used to ignore — reading
+	 * `boundaryBefore === null` as permission when it also means "there is no previous part at all",
+	 * which left Join/Move Up enabled on part 1's first item. See `crossPartCommands.js`.
 	 */
-	function canJoinAcross(isFirstInPassage) {
-		if (!isFirstInPassage || isDocument) return false;
-		const atInternalSeam = passageCount > 1 && activePassageIndex !== 0;
-		return atInternalSeam || (atPartStart && seriesContext?.boundaryBefore === null);
-	}
+	let edgeContext = $derived({
+		seriesContext,
+		passageCount,
+		activePassageIndex,
+		isDocument
+	});
 
 	// ── One pair of Join commands, not three (Join Up / Join Down) ──
 	//
@@ -143,7 +148,7 @@
 	// question and are wrong in both directions once a study holds several passages.
 	//
 	// Scope is this study (this part). A neighbouring part may still offer a cross-part join beyond
-	// that edge, which is what `canJoinAcross` / `boundaryAfter` below add back. So: no neighbour in
+	// that edge, which is what `crossPartCommands.js` / `boundaryAfter` below add back. So: no neighbour
 	// the study AND no reachable neighbour across the seam ⇒ the command is genuinely dead.
 	let hasPredecessor = $derived($toolbarState.hasJoinPredecessor);
 	let hasSuccessor = $derived($toolbarState.hasJoinSuccessor);
@@ -161,7 +166,7 @@
 					: false
 	);
 
-	let canJoinUpAcross = $derived(canJoinAcross(joinUpCrossesBoundary));
+	let canJoinUpAcross = $derived(joinUpCrossesBoundary && resolveJoinUpAcross(edgeContext));
 
 	// Join Up needs SOMETHING above it: either a predecessor inside this study, or a reachable one
 	// across the leading seam. With neither, there is nothing to fold into and the item is simply the
@@ -184,10 +189,10 @@
 
 	// ── Join Down: the END edge, and therefore a DIFFERENT seam ──
 	//
-	// ⚠️ Join Down must never reuse `canJoinAcross()`. That helper is start-edge only (it consults
-	// `boundaryBefore`), and using it here would enable Join Down whenever the part's *leading* seam
-	// happened to be contiguous — a different seam entirely, exactly the trap already documented for
-	// Move Text Down above.
+	// ⚠️ Join Down must never reuse the Join Up predicate. `canJoinUpAcross()` is start-edge only (it
+	// consults `boundaryBefore`), and using it here would enable Join Down whenever the part's *leading*
+	// seam happened to be contiguous — a different seam entirely, exactly the trap already documented
+	// for Move Text Down below.
 	//
 	// The mirror of Join Up's rule: a successor inside this study, or a reachable one across the
 	// TRAILING seam. `hasSuccessor` is what makes the last item of the study disable properly —
@@ -196,13 +201,13 @@
 	//
 	// Only reached when `hasSuccessor` is already false, which — because that flag spans every passage
 	// of the study — means the selection really is at the END of this part. So the only question left
-	// is whether the NEXT part abuts, and there is deliberately no internal-passage clause here: a
-	// later passage in this study would have set `hasSuccessor` and we would never be asking.
-	// (Join Up's `canJoinAcross()` still needs its internal-seam clause, because it is also consulted
-	// by the per-passage `joinUpCrossesBoundary`, which is genuinely per-passage.)
-	let canJoinDownAcross = $derived(
-		!hasSuccessor && !isDocument && atPartEnd && seriesContext?.boundaryAfter === null
-	);
+	// is whether the NEXT part abuts. (`canJoinDownAcross()` still carries an internal-seam clause for
+	// callers that ask the genuinely per-passage question; here it can never fire.)
+	//
+	// ⚠️ The existence of a next part is now part of the rule. Without it, `boundaryAfter === null` also
+	// matched the LAST part of the series — where it means "there is no next part" — leaving this
+	// enabled on the final item of the final part with nothing below it to fold in.
+	let canJoinDownAcross = $derived(!hasSuccessor && resolveJoinDownAcross(edgeContext));
 
 	let joinDownDisabled = $derived(
 		!joinGranularity || isDocument || (!hasSuccessor && !canJoinDownAcross)
@@ -223,9 +228,9 @@
 	// an unrelated in-segment reason — excluded so a note only claims the boundary when the boundary is
 	// genuinely what is in the way.
 	//
-	// ⚠️ Move Down uses the END edge, so it pairs `atPartEnd` with `boundaryAfter`. `canJoinAcross()`
-	// above is start-edge only and must NOT be reused here: doing so would enable Move Down whenever the
-	// part's *leading* seam happened to be contiguous, which is a different seam entirely.
+	// ⚠️ Move Down uses the END edge, so it pairs `atPartEnd` with `boundaryAfter`. The Join Up
+	// predicate is start-edge only and must NOT be reused here: doing so would enable Move Down whenever
+	// the part's *leading* seam happened to be contiguous, which is a different seam entirely.
 	let moveIsWordScoped = $derived(
 		$toolbarState.hasWordSelection &&
 			!$toolbarState.hasActiveColumn &&
@@ -235,20 +240,10 @@
 	let moveUpCrossesBoundary = $derived(moveIsWordScoped && $toolbarState.isWordInFirstSegment);
 	let moveDownCrossesBoundary = $derived(moveIsWordScoped && $toolbarState.isWordInLastSegment);
 
-	// Same shape as canJoinAcross, but per edge: an internal passage seam is always eligible, and a
-	// part edge is eligible when its own seam is contiguous (null reason).
-	let canMoveUpAcross = $derived(
-		moveUpCrossesBoundary &&
-			!isDocument &&
-			((passageCount > 1 && activePassageIndex !== 0) ||
-				(atPartStart && seriesContext?.boundaryBefore === null))
-	);
-	let canMoveDownAcross = $derived(
-		moveDownCrossesBoundary &&
-			!isDocument &&
-			((passageCount > 1 && activePassageIndex !== passageCount - 1) ||
-				(atPartEnd && seriesContext?.boundaryAfter === null))
-	);
+	// Same seam rule as the Joins, per edge — an internal passage seam is always eligible, and a part
+	// edge is eligible only when a neighbouring part EXISTS and its own seam is contiguous.
+	let canMoveUpAcross = $derived(moveUpCrossesBoundary && canMoveTextUpAcross(edgeContext));
+	let canMoveDownAcross = $derived(moveDownCrossesBoundary && canMoveTextDownAcross(edgeContext));
 
 	let moveUpReason = $derived(
 		canExplainStart && moveUpCrossesBoundary && !canMoveUpAcross ? seriesContext.boundaryBefore : null

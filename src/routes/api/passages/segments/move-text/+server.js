@@ -24,7 +24,7 @@ export const POST = async ({ request }) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { passageId, segmentId, insertionWordId, direction } = await request.json();
+		const { passageId, segmentId, insertionWordId, direction, dryRun } = await request.json();
 
 		// Validate inputs
 		if (!passageId || !segmentId || !insertionWordId || !direction) {
@@ -50,6 +50,43 @@ export const POST = async ({ request }) => {
 			insertionWordId,
 			direction
 		);
+
+		// ── The dry run: refuse before the gesture, never after it ──
+		//
+		// ⚠️ This is a PRE-FLIGHT CHECK, not a confirmation step. A cross-part move can be refused for
+		// reasons the client cannot evaluate — the caret must sit at the start of a verse, and the seam
+		// must be eligible — so asking first turns "why did nothing happen?" into a sentence that
+		// explains itself.
+		//
+		// It deliberately does NOT gate a confirm dialog. An earlier version returned
+		// `needsDecision: true` here and the client opened a "cannot be undone" modal, by analogy with
+		// the cross-part Join. The analogy is false: a Join deletes an item and nothing restores it,
+		// whereas a move only relocates a boundary — the user reverses it by moving the text back. The
+		// modal interrupted a reversible, repeatable gesture to assert something untrue, so it is gone.
+		//
+		// `display` still travels: §10.1 requires both parts re-validated, and the caller may surface a
+		// warning the move creates or clears.
+		if (dryRun) {
+			if (cross.ok && cross.crossesBoundary) {
+				return json(
+					{
+						success: true,
+						crossesBoundary: true,
+						versesMoved: cross.versesMoved,
+						display: cross.display
+					},
+					{ status: 200 }
+				);
+			}
+
+			// A refused cross-part move reports its OWN reason here too, so the refusal arrives BEFORE
+			// the gesture rather than after it.
+			if (!cross.ok && cross.crossesBoundary) {
+				return json({ error: cross.reason }, { status: 400 });
+			}
+
+			return json({ success: true, crossesBoundary: false }, { status: 200 });
+		}
 
 		if (cross.ok && cross.crossesBoundary) {
 			const result = await moveTextAcrossBoundary(
@@ -83,6 +120,16 @@ export const POST = async ({ request }) => {
 
 		if (error.message === 'Unauthorized') {
 			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		// ── Q41: a display-limit refusal is 409, not 400 ─────────────────
+		//
+		// The request is well-formed and the STATE is the obstacle, which is the same distinction
+		// `joinRouting.js` draws. `display` rides along so the client can explain which part would
+		// breach rather than repeating a bare sentence. Refused before any write, so nothing is
+		// half-applied.
+		if (error.blocked) {
+			return json({ error: error.message, display: error.display, blocked: true }, { status: 409 });
 		}
 
 		if (

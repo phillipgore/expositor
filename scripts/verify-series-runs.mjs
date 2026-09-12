@@ -164,15 +164,19 @@ const splitRuns = computeRuns(romansMinusEight);
 check('  first block length (parts 1–7)', splitRuns[0].length, 7);
 check('  second block length (parts 9–16)', splitRuns[1].length, 8);
 
-console.log('\n§8/§11 two reason strings — "yet" vs never-applicable');
+console.log('\n§8/§11 reason strings — eligible vs never-applicable');
 
+// ⚠️ This asserted `'Not available across parts yet.'` until the five cross-part commands shipped.
+// A contiguous seam is now ELIGIBLE, and every caller reads a non-null reason as "disable this", so
+// keeping the string would have gone on greying out the commands at precisely the seams where they
+// work. §11: a promise of a later fix must not outlive the fix.
 check(
-	'contiguous seam gets the "yet" string',
+	'contiguous seam has NO reason — it is enabled',
 	getBoundaryDisabledReason(
 		part(1, 'NT', 'RO', 'Romans', 3, 1, 3, 31),
 		part(2, 'NT', 'RO', 'Romans', 4, 1, 4, 25)
 	),
-	'Not available across parts yet.'
+	null
 );
 
 check(

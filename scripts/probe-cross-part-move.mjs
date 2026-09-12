@@ -147,6 +147,50 @@ async function segmentsOutsideTheirRange() {
 	return { outside, total: rows.length };
 }
 
+/**
+ * Every probe passage whose LEADING column or section is not anchored on its own first segment.
+ *
+ * ⚠️ This is the invariant whose absence produced a user-visible bug. Nothing RENDERS wrongly when a
+ * container anchor drifts — extent is implicit — so the segment-vs-range check above stayed green
+ * while `insertSegment()` began refusing with "Cannot insert segment at the beginning of a section"
+ * on text the user had just moved.
+ */
+async function containersOffTheirFirstSegment() {
+	const rows = await sql`
+		SELECT p.id AS passage_id,
+		       col.id AS column_id,
+		       col.starting_word_id AS column_anchor,
+		       (SELECT MIN(sec2.starting_word_id)
+		          FROM passage_section sec2
+		         WHERE sec2.passage_column_id = col.id) AS section_anchor,
+		       (SELECT MIN(s2.starting_word_id)
+		          FROM passage_segment s2
+		          JOIN passage_section sec3 ON s2.passage_section_id = sec3.id
+		          JOIN passage_column col3 ON sec3.passage_column_id = col3.id
+		         WHERE col3.passage_id = p.id) AS first_segment_anchor
+		  FROM passage p
+		  JOIN passage_column col ON col.passage_id = p.id
+		 WHERE p.id LIKE ${PREFIX + '%'}
+	`;
+
+	// Only the LEADING column of each passage is under test; later columns legitimately begin wherever
+	// the user placed them.
+	const byPassage = new Map();
+	for (const row of rows) {
+		const current = byPassage.get(row.passage_id);
+		if (!current || row.column_anchor < current.column_anchor) {
+			byPassage.set(row.passage_id, row);
+		}
+	}
+
+	const drifted = [...byPassage.values()].filter(
+		(r) =>
+			r.column_anchor !== r.first_segment_anchor || r.section_anchor !== r.first_segment_anchor
+	);
+
+	return { drifted, checked: byPassage.size };
+}
+
 try {
 	const [owner] = await sql`SELECT id FROM "user" LIMIT 1`;
 	if (!owner) throw new Error('No user in the dev database; cannot build a fixture.');
@@ -155,6 +199,8 @@ try {
 	const { analyzeCrossPartMove, moveTextAcrossBoundary } = await import(
 		'../src/lib/server/db/crossPartMove.js'
 	);
+	// The real insert path, driven end to end: this is the function that was refusing.
+	const { insertSegment } = await import('../src/lib/server/db/utils.js');
 
 	const passA = id('gA');
 	const passB = id('gB');
@@ -232,6 +278,111 @@ try {
 
 	const downStray = await segmentsOutsideTheirRange();
 	check('still no segment outside its passage range', downStray.outside.length, 0);
+
+	// ── §10.1: display re-validation on BOTH parts ────────────────────────────
+	//
+	// The Joins have carried this since they landed; Move Text shipped without it, which was a gap
+	// rather than a decision — §10.1 and the §13 table both require re-validation on any boundary move,
+	// and the plan's worked example ("tipped past 216 by a few Move Text Up gestures") is a Move Text.
+	//
+	// ⚠️ The RECEIVER is the part that grew, which depends on the direction. Asserting it per direction
+	// is what would catch the receiver/donor pair being swapped — a mistake that reads plausibly either
+	// way and can only ever fail open, since re-checking the part that shrank always passes.
+	console.log('\n── §10.1 display re-validation rides along with the move ──');
+	await buildFixture(owner.id);
+
+	const upDisplay = await analyzeCrossPartMove(db, owner.id, passB, id('gB-s3-1'), w(3, 5), 'up');
+	assert('Move Up reports a display verdict', Boolean(upDisplay.display));
+	assert('with a receiver list', Array.isArray(upDisplay.display.receiver));
+	assert('and a donor list', Array.isArray(upDisplay.display.donor));
+	check('every translation still enforces by warning', upDisplay.display.enforcement, 'warn');
+	check('so a compliant move is NOT blocked', upDisplay.display.blocked, false);
+	check('and it reports how many verses move', upDisplay.versesMoved > 0, true);
+
+	// ⚠️ No `summary` prose, and no `needsDecision`. Both existed to drive a confirm dialog that has
+	// been removed: a move relocates a boundary rather than destroying anything, so it is reversed by
+	// moving the text back, and a "cannot be undone" modal was both an interruption and a falsehood.
+	assert('no confirm-dialog prose is produced', upDisplay.summary === undefined);
+
+	const downDisplay = await analyzeCrossPartMove(
+		db,
+		owner.id,
+		passA,
+		id('gA-s2-1'),
+		w(2, 15),
+		'down'
+	);
+	assert('Move Down reports one too', Boolean(downDisplay.display));
+	check('also unblocked under warn', downDisplay.display.blocked, false);
+	check('and reports its own verse count', downDisplay.versesMoved > 0, true);
+
+	// A within-passage move must NOT pay for any of this: it never reaches the analysis.
+	const localMove = await analyzeCrossPartMove(db, owner.id, passA, id('gA-s2-1'), w(1, 10), 'up');
+	check('a passage-local move does not cross a boundary', localMove.crossesBoundary, false);
+	assert('and carries no display verdict', localMove.display === undefined);
+
+	// ── REGRESSION: insert a segment on text that was just moved ──────────────
+	//
+	// The bug users actually hit. A cross-part move rewrote ONE segment anchor and left the column and
+	// section above it pointing at the old word, so `insertSegment()`'s guard —
+	//
+	//     if (section.startingWordId === insertionWordId) throw 'Cannot insert segment at the …'
+	//
+	// — matched a word that was the section's anchor but NOT its first segment's, and refused every
+	// insert into the moved text. Structural assertions alone never caught it because nothing rendered
+	// wrongly, so this drives the real endpoint function end to end.
+	console.log('\n── REGRESSION: structure can still be inserted after a move ──');
+	await buildFixture(owner.id);
+
+	// ⚠️ Move DOWN specifically, and then insert at the RECEIVER's original anchor.
+	//
+	// This is the exact collision. Part B began at 3:1, so its column and section are anchored there.
+	// Moving text down retreats B's first SEGMENT to 2:15 while the containers stay at 3:1 — a word
+	// that is now in the middle of that segment. Inserting there then hits
+	// `section.startingWordId === insertionWordId` and is refused, even though 3:1 is an ordinary
+	// interior word of the segment and a perfectly legal split point.
+	//
+	// A Move Up with an arbitrary caret does NOT reproduce it: the drifted anchor ends up in the other
+	// part, so nothing the user can click collides with it. Picking the wrong direction here would
+	// leave the probe green against the broken code, which is exactly what the old assertions did.
+	await moveTextAcrossBoundary(db, owner.id, passA, id('gA-s2-1'), w(2, 15), 'down');
+
+	const afterMove = await containersOffTheirFirstSegment();
+	check('no container drifted off its first segment', afterMove.drifted.length, 0);
+	assert('and the check actually looked at both parts', afterMove.checked === 2);
+
+	const [movedSection] = await sql`
+		SELECT sec.id
+		  FROM passage_section sec
+		  JOIN passage_column col ON sec.passage_column_id = col.id
+		 WHERE col.passage_id = ${passB}
+		 ORDER BY sec.starting_word_id
+		 LIMIT 1
+	`;
+
+	let insertError = null;
+	try {
+		await insertSegment(db, owner.id, passB, movedSection.id, w(3, 1));
+	} catch (error) {
+		insertError = error.message;
+	}
+	check('inserting a segment into the moved text succeeds', insertError, null);
+
+	const [inserted] = await sql`
+		SELECT COUNT(*)::int AS n FROM passage_segment
+		 WHERE passage_section_id = ${movedSection.id} AND starting_word_id = ${w(3, 1)}
+	`;
+	check('and the new segment exists', inserted.n, 1);
+
+	// The guard must still REFUSE a genuine duplicate — the fix restores the container invariant, it
+	// does not loosen the rule that two segments cannot share an anchor.
+	let duplicateError = null;
+	try {
+		await insertSegment(db, owner.id, passB, movedSection.id, w(3, 1));
+	} catch (error) {
+		duplicateError = error.message;
+	}
+	assert('but a duplicate anchor is still refused', /beginning of an existing segment/.test(duplicateError ?? ''));
 
 	// ── The mid-verse refusal ─────────────────────────────────────────────────
 	//

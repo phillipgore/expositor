@@ -38,13 +38,13 @@ import {
 	passageSegment,
 	segmentConnection
 } from './schema.js';
-import { eq, asc, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { resolveScope } from '$lib/utils/sequenceScope.js';
 import { planBoundaryShift } from '$lib/utils/boundaryMove.js';
 import { compareWordIds } from '$lib/utils/wordIds.js';
 import { loadPassageSequence } from './passageSequence.js';
+import { reanchorPassages } from './reanchor.js';
 import { foldSegmentContent, reanchorConnectionsOnto } from './passageFold.js';
-import { getBookMeta } from './passageReconcile.js';
 import { validateStudyDisplayLimits, getDisplayLimits } from '$lib/utils/translationLimits.js';
 
 /** Every segment of one passage's tree, in word order. */
@@ -161,6 +161,60 @@ function planBoundaryShiftForJoin(sequence, scope, granularity) {
 }
 
 /**
+ * Where the boundary must land for a join that pushes an item FORWARDS (Join Down across a seam).
+ *
+ * The mirror of `planBoundaryShiftForJoin`, and deliberately a separate function rather than a flag on
+ * it: the two ask different questions of different passages, and folding them together behind a
+ * boolean is how the backwards rule ends up silently applied to a forward gesture — which is the exact
+ * defect this path exists to fix.
+ *
+ * Here the SELECTED item leaves the earlier part and lands in the later one, so the later part must
+ * now begin where that item begins. The new boundary is therefore the anchor of the **first moving**
+ * segment — not the first that stays, which is the backwards rule.
+ *
+ * If nothing stays behind, every verse would leave the earlier part: that is Join Parts, refused here
+ * for the same reason the backwards path refuses its own version of it.
+ */
+function planForwardBoundaryShiftForJoin(sequence, scope, granularity) {
+	const activeEntry = sequence[scope.active.passageIndex];
+	const targetEntry = sequence[scope.target.passageIndex];
+
+	const moving = movingSegmentsFor(activeEntry, granularity, scope.active.id);
+	if (moving.length === 0) {
+		return {
+			ok: false,
+			error: 'That item holds no text, so there is nothing to move into the next part.',
+			before: /** @type {Object|null} */ (null),
+			after: /** @type {Object|null} */ (null),
+			versesMoved: 0,
+			direction: /** @type {'backward'|'forward'|'none'} */ ('none')
+		};
+	}
+
+	const movingIds = new Set(moving.map((s) => s.id));
+	const staying = segmentsOf(activeEntry).filter((s) => !movingIds.has(s.id));
+
+	if (staying.length === 0) {
+		return {
+			ok: false,
+			error: `Joining this ${granularity} would move every verse out of its part. Use Join Parts to merge them instead.`,
+			before: /** @type {Object|null} */ (null),
+			after: /** @type {Object|null} */ (null),
+			versesMoved: 0,
+			direction: /** @type {'backward'|'forward'|'none'} */ ('none')
+		};
+	}
+
+	// `before`/`after` are the EARLIER and LATER passages respectively, which for a forward join are the
+	// active and target passages — the opposite assignment to the backwards path.
+	return planBoundaryShift({
+		before: activeEntry.passage,
+		after: targetEntry.passage,
+		newBoundaryWordId: moving[0].startingWordId
+	});
+}
+
+/**
  * Display-limit warnings for both affected studies after the proposed shift (§10.1).
  *
  * ⚠️ Checked per STUDY, not per passage. The display cap is per page, so a study's other passages count
@@ -272,6 +326,98 @@ export async function analyzeCrossPartJoin(
 		versesMoved: shift.versesMoved,
 		display: await displayWarnings(dbx, targetEntry, activeEntry, shift, translationId),
 		summary: summarize(scope.active.item, granularity)
+	};
+}
+
+/**
+ * Analyse a cross-boundary Join DOWN without writing (drives the confirm modal).
+ *
+ * ## ⚠️ Why Join Down needs its own path at a seam
+ *
+ * `joinRouting.js` rewrites every Join Down into "the equivalent Join Up on the successor", and within
+ * one passage that identity is exact: a join removes one anchor, the earlier item of the pair
+ * survives, and direction only names which pair is meant.
+ *
+ * **At a part boundary the identity breaks**, because which PART the result lives in is the whole
+ * point of the gesture. Rewriting a Join Down on part A's last item into a Join Up on part B's first
+ * item grows part A — the opposite of what the user asked for, moving verses across the seam the wrong
+ * way. That shipped, and this function is the fix.
+ *
+ * ## What survives, and why it is the selected item
+ *
+ * The selected item keeps its row and moves into the later part; the target folds INTO it. Three rules
+ * agree on that, which is what makes it right rather than merely chosen:
+ *
+ *   - the user's stated expectation — "Join Selected Down: the selected item is now in Part B";
+ *   - Join Down's existing within-passage behaviour (manual test STR-014: "the activated segment
+ *     SURVIVES and stays selected"), so the cross-part case is not a special case;
+ *   - the anchor rule itself — the selected item's anchor is EARLIER than the target's, and the
+ *     earlier anchor is always the one left standing.
+ *
+ * So the consumed item here is the TARGET, which is why `summary` describes the target rather than the
+ * active item: the confirm dialog must name what is about to be destroyed.
+ *
+ * @returns {Promise<Object>}
+ */
+export async function analyzeCrossPartJoinDown(
+	dbx,
+	userId,
+	passageId,
+	itemId,
+	/** @type {'segment'|'section'|'column'} */ granularity = 'segment'
+) {
+	const loaded = await loadPassageSequence(dbx, userId, passageId);
+	if (!loaded) return { ok: false, reason: 'Passage not found.' };
+
+	const scope = resolveScope({
+		sequence: loaded.sequence,
+		granularity,
+		itemId,
+		direction: 'next'
+	});
+
+	if (!scope.ok) {
+		return { ok: false, reason: scope.reason, seamKind: scope.seamKind ?? null };
+	}
+
+	if (!scope.crossesBoundary) {
+		return { ok: true, crossesBoundary: false, reason: null };
+	}
+
+	const activeEntry = loaded.sequence[scope.active.passageIndex];
+	const targetEntry = loaded.sequence[scope.target.passageIndex];
+
+	const shift = planForwardBoundaryShiftForJoin(loaded.sequence, scope, granularity);
+	if (!shift.ok) return { ok: false, reason: shift.error };
+
+	// The receiving study is the LATER part here — the selected item is moving into it.
+	const [receivingStudy] = await dbx
+		.select({ translation: study.translation })
+		.from(study)
+		.where(eq(study.id, targetEntry.studyId))
+		.limit(1);
+
+	const translationId = receivingStudy?.translation ?? 'esv';
+
+	return {
+		ok: true,
+		crossesBoundary: true,
+		direction: /** @type {'down'} */ ('down'),
+		reason: null,
+		// The item MOVES from the active passage into the target's, so `from`/`to` name the same
+		// journey they do for a Join Up — but the surviving row is the active one, not the target.
+		fromPassageId: activeEntry.passageId,
+		toPassageId: targetEntry.passageId,
+		fromStudyId: activeEntry.studyId,
+		toStudyId: targetEntry.studyId,
+		granularity,
+		targetItemId: scope.target.id,
+		versesMoved: shift.versesMoved,
+		// ⚠️ The receiver is the LATER part, so the argument order is flipped relative to the backwards
+		// path: `displayWarnings(dbx, receiverEntry, donorEntry, …)` with the shift's own before/after.
+		display: await displayWarnings(dbx, activeEntry, targetEntry, shift, translationId),
+		// The TARGET is what gets consumed, so it is what the confirm dialog must describe.
+		summary: summarize(scope.target.item, granularity)
 	};
 }
 
@@ -466,9 +612,14 @@ export async function joinAcrossBoundary(
 			})
 			.where(eq(passage.id, plan.fromPassageId));
 
-		// The source passage's first column/section may now start after the passage does; re-anchor them
-		// so the invariant "the first item begins where the passage begins" survives.
-		await reanchorFirstOf(tx, plan.fromPassageId, shift.after);
+		// ⚠️ BOTH passages, not just the donor.
+		//
+		// This read `reanchorFirstOf(tx, plan.fromPassageId, shift.after)` — the source only. The
+		// RECEIVER is the passage that grew, and it has just been handed segments whose column and
+		// section anchors were never reconciled with it, so it is the likelier of the two to refuse the
+		// user's next `insertSegment()` with "Cannot insert segment at the beginning of a section".
+		// Fixing only the side whose range moved backwards fixed the less likely half of the bug.
+		await reanchorPassages(tx, [plan.fromPassageId, plan.toPassageId]);
 	});
 
 	return {
@@ -483,79 +634,222 @@ export async function joinAcrossBoundary(
 }
 
 /**
- * Re-anchor a passage's first column and section to its (new) first verse.
+ * Perform a cross-boundary Join DOWN: move the selected item into the NEXT part.
  *
- * After the boundary moves, the source passage begins later than it did, so its leading column and
- * section may still be anchored at a word that now belongs to the other part. `passageJoin.js` keeps
- * the same invariant via `reanchorAndPrune`; this is the narrow version for the one passage whose
- * start changed.
+ * The mirror of `joinAcrossBoundary`, and the reason `analyzeCrossPartJoinDown` exists — see its
+ * header for why a seam-crossing Join Down cannot be rewritten into a Join Up.
+ *
+ * ## What moves, and what is destroyed
+ *
+ * The **selected item keeps its row** and changes parent into the target's container; the **target is
+ * consumed**, its content folded onto the selected item first. That is the opposite assignment to the
+ * backwards path, and it is what makes "Join Selected Down leaves the result in Part B" true.
+ *
+ * ⚠️ The delete-before-re-parent trap applies here exactly as it does backwards, but to the OTHER row:
+ * the target's children must be re-parented onto the surviving (selected) container before the target
+ * is deleted, or `ON DELETE CASCADE` takes them and the join reports success having destroyed the next
+ * part's leading content.
+ *
+ * @param {Object} dbInstance
+ * @param {string} userId
+ * @param {string} passageId
+ * @param {string} itemId - The SELECTED item, which survives and moves forward
+ * @param {'merge'|'delete'} decision
+ * @param {'segment'|'section'|'column'} granularity
+ * @returns {Promise<Object>}
  */
-async function reanchorFirstOf(tx, passageId, newRange) {
-	const firstWordId = firstWordIdOfRange(newRange);
-	if (!firstWordId) return;
-
-	const columns = await tx
-		.select()
-		.from(passageColumn)
-		.where(eq(passageColumn.passageId, passageId))
-		.orderBy(asc(passageColumn.startingWordId));
-
-	if (columns.length === 0) return;
-
-	// The leading column, by word order.
-	const first = columns.reduce((lowest, candidate) =>
-		compareWordIds(candidate.startingWordId, lowest.startingWordId) < 0 ? candidate : lowest
-	);
-
-	const now = new Date();
-
-	// Only move an anchor that now precedes the passage. An anchor already inside the new range is the
-	// user's own structure and must not be dragged to the top.
-	if (compareWordIds(first.startingWordId, firstWordId) < 0) {
-		await tx
-			.update(passageColumn)
-			.set({ startingWordId: firstWordId, updatedAt: now })
-			.where(eq(passageColumn.id, first.id));
+export async function joinDownAcrossBoundary(
+	dbInstance,
+	userId,
+	passageId,
+	itemId,
+	decision = 'merge',
+	granularity = 'segment'
+) {
+	const plan = await analyzeCrossPartJoinDown(dbInstance, userId, passageId, itemId, granularity);
+	if (!plan.ok) throw new Error(plan.reason ?? 'This join is not available.');
+	if (!plan.crossesBoundary) {
+		throw new Error('This join does not cross a boundary; use the standard join.');
 	}
 
-	const sections = await tx
-		.select()
-		.from(passageSection)
-		.where(eq(passageSection.passageColumnId, first.id))
-		.orderBy(asc(passageSection.startingWordId));
+	const loaded = await loadPassageSequence(dbInstance, userId, passageId);
+	if (!loaded) throw new Error('Passage not found.');
 
-	if (sections.length === 0) return;
-
-	const firstSection = sections.reduce((lowest, candidate) =>
-		compareWordIds(candidate.startingWordId, lowest.startingWordId) < 0 ? candidate : lowest
-	);
-
-	if (compareWordIds(firstSection.startingWordId, firstWordId) < 0) {
-		await tx
-			.update(passageSection)
-			.set({ startingWordId: firstWordId, updatedAt: now })
-			.where(eq(passageSection.id, firstSection.id));
+	const scope = resolveScope({ sequence: loaded.sequence, granularity, itemId, direction: 'next' });
+	if (!scope.ok || !scope.crossesBoundary) {
+		throw new Error(scope.reason ?? 'This join is not available.');
 	}
 
-	// The leading SEGMENT is deliberately left alone. After a cross-part join the segment that used to
-	// lead this passage has been removed, so whatever now leads it already begins at or after the new
-	// first verse — moving it earlier would silently extend it over verses the other part now owns.
-	// Its containers are re-anchored above only because a container's anchor is bookkeeping, not content.
+	const shift = planForwardBoundaryShiftForJoin(loaded.sequence, scope, granularity);
+	if (!shift.ok) throw new Error(shift.error);
+
+	const activeEntry = loaded.sequence[scope.active.passageIndex];
+	const targetEntry = loaded.sequence[scope.target.passageIndex];
+	const targetItemId = scope.target.id;
+
+	// The SURVIVOR is the selected item — connections on the consumed target remap onto it.
+	const survivor = {
+		segment:
+			granularity === 'segment'
+				? scope.active.item
+				: firstSegmentOfTarget(scope.active, granularity),
+		section: granularity === 'section' ? scope.active.item : (scope.active.section ?? null),
+		column: granularity === 'column' ? scope.active.item : (scope.active.column ?? null)
+	};
+
+	const movingSegments = movingSegmentsFor(activeEntry, granularity, itemId).map((s) => s.id);
+	const targetSegments = movingSegmentsFor(targetEntry, granularity, targetItemId).map((s) => s.id);
+
+	await dbInstance.transaction(async (tx) => {
+		const now = new Date();
+
+		// 1. Fold the TARGET's content onto the surviving selected item.
+		if (decision === 'merge' && granularity === 'segment' && survivor.segment) {
+			await foldSegmentContent(tx, scope.target.item, survivor.segment);
+		}
+
+		// 2. Ownership moves to the LATER study, because that is where the selected item now lives.
+		const reown = { studyId: plan.toStudyId, seriesId: loaded.seriesId, updatedAt: now };
+		const allAffected = [...movingSegments, ...targetSegments];
+		if (allAffected.length > 0) {
+			await tx
+				.update(segmentConnection)
+				.set(reown)
+				.where(inArray(segmentConnection.fromSegmentId, allAffected));
+			await tx
+				.update(segmentConnection)
+				.set(reown)
+				.where(inArray(segmentConnection.toSegmentId, allAffected));
+		}
+		if (granularity !== 'segment') {
+			const fromColumn =
+				granularity === 'column' ? segmentConnection.fromColumnId : segmentConnection.fromSectionId;
+			const toColumn =
+				granularity === 'column' ? segmentConnection.toColumnId : segmentConnection.toSectionId;
+			for (const affectedId of [itemId, targetItemId]) {
+				await tx.update(segmentConnection).set(reown).where(eq(fromColumn, affectedId));
+				await tx.update(segmentConnection).set(reown).where(eq(toColumn, affectedId));
+			}
+		}
+
+		// Connections anchored to the CONSUMED target remap onto the survivor.
+		await reanchorConnectionsOnto(
+			tx,
+			plan.toStudyId,
+			granularity === 'segment' ? [targetItemId] : [],
+			granularity === 'section' ? [targetItemId] : [],
+			granularity === 'column' ? [targetItemId] : [],
+			survivor,
+			decision === 'delete' ? 'delete' : 'reanchor'
+		);
+
+		await moveSelectedForward(tx, {
+			granularity,
+			itemId,
+			targetItemId,
+			scope,
+			targetEntry,
+			targetSegments,
+			now
+		});
+
+		// 4. The verses follow the structure. The EARLIER part shrinks and the LATER part grows — the
+		//    opposite of the backwards path, which is the entire point of this function.
+		await tx
+			.update(passage)
+			.set({
+				toChapter: shift.before.toChapter,
+				toVerse: shift.before.toVerse,
+				cachedText: null,
+				textCachedAt: null
+			})
+			.where(eq(passage.id, plan.fromPassageId));
+
+		await tx
+			.update(passage)
+			.set({
+				fromChapter: shift.after.fromChapter,
+				fromVerse: shift.after.fromVerse,
+				cachedText: null,
+				textCachedAt: null
+			})
+			.where(eq(passage.id, plan.toPassageId));
+
+		await reanchorPassages(tx, [plan.fromPassageId, plan.toPassageId]);
+	});
+
+	return {
+		crossedBoundary: true,
+		direction: 'down',
+		granularity,
+		versesMoved: shift.versesMoved,
+		movedSegments: movingSegments.length,
+		fromPassageId: plan.fromPassageId,
+		toPassageId: plan.toPassageId,
+		display: plan.display
+	};
 }
 
 /**
- * First word id of a passage range, from either book-field spelling.
+ * Re-parent the selected item into the later part, then consume the target.
  *
- * A local builder rather than `rangeFirstWordId` from `passageReconcile.js`: that module opens the
- * reconciliation engine's whole import graph, and this needs four fields and a book abbreviation.
+ * Split out of `joinDownAcrossBoundary` because the three granularities differ only here, and inlining
+ * three branches inside an already long transaction is how the cascade ordering gets edited wrongly.
+ *
+ * ⚠️ **Re-parent before delete, every branch.** `passage_section.passage_column_id` and
+ * `passage_segment.passage_section_id` are `ON DELETE CASCADE`, so deleting the target first would take
+ * the rows being moved onto it — the next part's leading content — while the join reported success.
  */
-function firstWordIdOfRange(range) {
-	const bookId = range?.bookId ?? range?.book;
-	if (!bookId || !range?.testament) return null;
-	const meta = getBookMeta(range.testament, bookId);
-	const abbr = (meta?.abbr ?? bookId).toUpperCase();
-	const pad = (n) => String(n).padStart(3, '0');
-	return `${abbr}-${pad(range.fromChapter)}-${pad(range.fromVerse)}-001`;
+async function moveSelectedForward(
+	tx,
+	{ granularity, itemId, targetItemId, scope, targetEntry, targetSegments, now }
+) {
+	if (granularity === 'segment') {
+		// The selected segment adopts the target's section, which already lives in the later passage.
+		if (scope.target.section) {
+			await tx
+				.update(passageSegment)
+				.set({ passageSectionId: scope.target.section.id, updatedAt: now })
+				.where(eq(passageSegment.id, itemId));
+		}
+		await tx.delete(passageSegment).where(eq(passageSegment.id, targetItemId));
+		return;
+	}
+
+	if (granularity === 'section') {
+		// The selected section adopts the target's column; the target's segments move onto the selected
+		// section, which is the survivor.
+		if (scope.target.column) {
+			await tx
+				.update(passageSection)
+				.set({ passageColumnId: scope.target.column.id, updatedAt: now })
+				.where(eq(passageSection.id, itemId));
+		}
+		if (targetSegments.length > 0) {
+			await tx
+				.update(passageSegment)
+				.set({ passageSectionId: itemId, updatedAt: now })
+				.where(inArray(passageSegment.id, targetSegments));
+		}
+		await tx.delete(passageSection).where(eq(passageSection.id, targetItemId));
+		return;
+	}
+
+	// Column: the selected column changes PASSAGE, and the target column's sections move onto it.
+	await tx
+		.update(passageColumn)
+		.set({ passageId: targetEntry.passageId, updatedAt: now })
+		.where(eq(passageColumn.id, itemId));
+
+	const targetColumn = (targetEntry.tree ?? []).find((c) => c.id === targetItemId);
+	const sectionIds = (targetColumn?.sections ?? []).map((s) => s.id);
+	if (sectionIds.length > 0) {
+		await tx
+			.update(passageSection)
+			.set({ passageColumnId: itemId, updatedAt: now })
+			.where(inArray(passageSection.id, sectionIds));
+	}
+	await tx.delete(passageColumn).where(eq(passageColumn.id, targetItemId));
 }
 
 /**

@@ -19,13 +19,17 @@
  *
  * ## Why the predicate returns four states, not a boolean
  *
- * §8's table has four rows, and the fourth is undecided (Q40: overlapping parts). A boolean would
+ * §8's table has four rows, and the fourth is overlap (Q40, settled: ineligible). A boolean would
  * have to fold overlap into either "contiguous" or "gap", and both are wrong — overlap is neither.
- * Worse, §8/§11 need to tell *not-implemented* apart from *never-applicable* when explaining a
- * dead boundary: "not available across parts yet" for a contiguous seam awaiting phase 2, and
- * "these parts aren't adjacent in Scripture" for one that will never be eligible. A single "yet"
- * message promises a Prison Epistles user a fix that is never coming (§8). The reason strings need
- * to know *why* a boundary is dead, which a boolean cannot say.
+ * Worse, §8/§11 need to tell an ELIGIBLE boundary apart from the several ways one can be dead, and
+ * to say which, since "these parts aren't adjacent in Scripture" and "these parts overlap" are
+ * different facts a user can act on differently. The reason strings need to know *why* a boundary is
+ * dead, which a boolean cannot say.
+ *
+ * ⚠️ **This used to describe a "not implemented yet" state as one of the two reasons.** A contiguous
+ * seam was the phase-1 case that carried it; the five cross-part commands are now implemented, so
+ * that seam is simply eligible and `getBoundaryDisabledReason()` returns `null` for it. The four
+ * classification states are unchanged — only the copy attached to one of them.
  *
  * @module seriesRuns
  */
@@ -159,22 +163,33 @@ export function isReorderable(parts) {
 }
 
 /**
- * The two reason strings §11 option (1) requires — and it must be two, not one.
+ * Why a cross-part command is unavailable at this boundary — or `null` when it IS available.
  *
  * §8: phase 1's "not available across parts yet" copy is the WRONG string at a permanently
  * ineligible seam, because "yet" promises a Prison Epistles user a fix that is never coming.
  * `null` means the boundary is fine and the caller should not disable anything.
  *
+ * ⚠️ **A contiguous seam now returns `null`, and used to return "Not available across parts yet."**
+ * That string was correct in phase 1, when the five cross-part commands were unimplemented. They
+ * are implemented — all five, both directions, at all three granularities — so the sentence became
+ * a lie that actively DISABLED the feature it was describing: every caller treats a non-null reason
+ * as "ineligible", so Join Up/Down and Move Text Up/Down stayed greyed out at exactly the
+ * boundaries where they now work.
+ *
+ * §11 is explicit that a promise of a later fix must not outlive the fix. This is that rule applied
+ * to its own copy: when the "yet" came true, the "yet" had to go.
+ *
  * @param {Object} before
  * @param {Object} after
- * @returns {string|null}
+ * @returns {string|null} A sentence to show beneath the disabled command, or null when it is enabled
  */
 export function getBoundaryDisabledReason(before, after) {
 	const kind = classifyBoundary(before, after);
 
 	if (kind === 'contiguous') {
-		// Eligible in principle, unimplemented in phase 1. "Yet" is honest here.
-		return 'Not available across parts yet.';
+		// Eligible, and implemented: the commands cross this seam. Nothing to explain, nothing to
+		// disable. See the ⚠️ above before reintroducing a string here.
+		return null;
 	}
 
 	if (kind === 'different-books') {

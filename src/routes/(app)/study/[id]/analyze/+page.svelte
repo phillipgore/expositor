@@ -2417,10 +2417,16 @@
 
 		// ── Which selection survives depends on the DIRECTION, not on taste ──
 		//
-		// A join removes one anchor and the EARLIER item of the pair survives. So Join Up consumes the
-		// selected item — clearing the selection is mandatory, since keeping a deleted row selected
-		// would leave the toolbar acting on something that no longer exists. Join Down consumes the
-		// item AFTER the selection, and the selected item is precisely what remains.
+		// A join removes one anchor and the EARLIER item of the pair survives. Join Up consumes the
+		// SELECTED item, so clearing the selection is mandatory — keeping a deleted row selected would
+		// leave the toolbar acting on something that no longer exists. Join Down consumes the item
+		// AFTER the selection, and the selected item is precisely what remains.
+		//
+		// ⚠️ That holds across a PART boundary too, and it is worth stating because the server reaches
+		// it by a different route there. A cross-part Join Down is NOT rewritten into a Join Up (doing
+		// so grew the wrong part — see `joinRouting.js`); it runs its own forward path in which the
+		// selected item keeps its row and moves into the next part. Either way the selection survives,
+		// so this branch needs no cross-part special case — only the reason for it differs.
 		//
 		// Keeping it selected is therefore both correct and the better gesture: repeated Join Down
 		// swallows successive items without forcing a re-select each time. Clearing it here (as the
@@ -2769,12 +2775,78 @@
 		}
 	}
 
+	// ─── Move Text, within a part or across a part boundary ───────────────────
+	//
+	// ⚠️ **A cross-part move does NOT confirm, and that is a decision.** An earlier version opened a
+	// "this cannot be undone" dialog here, reasoning by analogy with the cross-part Join. The analogy
+	// is false, and so was the sentence: a Join DELETES an item, and nothing restores it. A move only
+	// relocates a boundary, so the user undoes it by selecting the split they actually wanted and
+	// moving the text again. That is not a traditional undo, but it is a complete one — no content is
+	// destroyed and no state is unreachable.
+	//
+	// So the dialog was interrupting a reversible, exploratory gesture to state something untrue. The
+	// commands are meant to be used repeatedly to nudge a boundary into place; a modal on every nudge
+	// is the wrong tax on the wrong operation.
+	//
+	// The dry run stays, because it is doing a different job: it surfaces a refusal — an ineligible
+	// seam, or the mid-verse caret rule — BEFORE the gesture rather than as an `alert()` after it.
+	/**
+	 * Move text up or down, committing directly.
+	 *
+	 * @param {{ passageId: string, segmentId: string, insertionWordId: string, direction: 'up'|'down' }} request
+	 */
+	async function startMoveText(request) {
+		try {
+			// Pre-flight: a cross-part move can be refused for reasons the menu cannot know (the caret
+			// must sit at a verse start, the seam must be eligible). Asking first means the refusal
+			// explains itself instead of arriving after the fact.
+			const dryRes = await fetch('/api/passages/segments/move-text', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ...request, dryRun: true })
+			});
+
+			if (!dryRes.ok) {
+				const error = await dryRes.json();
+				console.error('Move text dry-run error:', error);
+				alert(`Error: ${error.error || 'Failed to move text'}`);
+				return;
+			}
+
+			const response = await fetch('/api/passages/segments/move-text', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(request)
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				console.error(`Move text ${request.direction} error response:`, error);
+				alert(`Error: ${error.error || `Failed to move text ${request.direction}`}`);
+				return;
+			}
+
+			// The caret's offsets refer to the pre-move text, whose segment boundaries have just changed.
+			selectedWord = null;
+			activeSegments = [];
+			activeColumns = [];
+			activeSections = [];
+			suppressHoverCaret = null;
+
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Move text network error:', error);
+			alert(`Error: ${error.message || 'Failed to move text'}`);
+		}
+	}
+
 	/**
 	 * Handle Move Text Up button click.
 	 * Moves all text in the active segment before the caret up into the preceding segment
 	 * by updating the current segment's startingWordId to the caret position.
 	 */
 	async function handleMoveTextUp() {
+
 		console.log('handleMoveTextUp called');
 
 		if (!selectedWord || !data.passagesWithText) {
@@ -2836,40 +2908,12 @@
 
 		console.log('Moving text up: segment', segmentId, 'new start', insertionWordId);
 
-		try {
-			const response = await fetch('/api/passages/segments/move-text', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					passageId: passageText.structure.passageId,
-					segmentId: segmentId,
-					insertionWordId: insertionWordId,
-					direction: 'up'
-				})
-			});
-
-			console.log('Response status:', response.status);
-
-			if (response.ok) {
-				console.log('Text moved up successfully');
-				// Clear selection
-				selectedWord = null;
-				activeSegments = [];
-				activeColumns = [];
-				activeSections = [];
-				suppressHoverCaret = null;
-
-				// Refresh data
-				await invalidate('app:studies');
-			} else {
-				const error = await response.json();
-				console.error('Move text up error response:', error);
-				alert(`Error: ${error.error || 'Failed to move text up'}`);
-			}
-		} catch (error) {
-			console.error('Move text up network error:', error);
-			alert(`Error: ${error.message || 'Failed to move text up'}`);
-		}
+		await startMoveText({
+			passageId: passageText.structure.passageId,
+			segmentId,
+			insertionWordId,
+			direction: 'up'
+		});
 	}
 
 	/**
@@ -2939,40 +2983,12 @@
 
 		console.log('Moving text down: next segment new start', insertionWordId, 'in segment', segmentId);
 
-		try {
-			const response = await fetch('/api/passages/segments/move-text', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					passageId: passageText.structure.passageId,
-					segmentId: segmentId,
-					insertionWordId: insertionWordId,
-					direction: 'down'
-				})
-			});
-
-			console.log('Response status:', response.status);
-
-			if (response.ok) {
-				console.log('Text moved down successfully');
-				// Clear selection
-				selectedWord = null;
-				activeSegments = [];
-				activeColumns = [];
-				activeSections = [];
-				suppressHoverCaret = null;
-
-				// Refresh data
-				await invalidate('app:studies');
-			} else {
-				const error = await response.json();
-				console.error('Move text down error response:', error);
-				alert(`Error: ${error.error || 'Failed to move text down'}`);
-			}
-		} catch (error) {
-			console.error('Move text down network error:', error);
-			alert(`Error: ${error.message || 'Failed to move text down'}`);
-		}
+		await startMoveText({
+			passageId: passageText.structure.passageId,
+			segmentId,
+			insertionWordId,
+			direction: 'down'
+		});
 	}
 
 	/**
