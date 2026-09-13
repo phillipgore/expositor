@@ -26,10 +26,20 @@
  *
  * ## The invariant, stated once
  *
- * For each passage: its leading column and leading section begin exactly where its first segment
- * begins. That is the state every passage is BORN in — `createDefaultPassageStructure()` creates
- * column, section and segment on one `firstWordId` — so this restores a normal condition rather than
- * imposing a new one.
+ * For each passage: every section begins where its first segment begins, every column begins where its
+ * first live section's first segment begins, and **no container is childless**. That is the state
+ * every passage is BORN in — `createDefaultPassageStructure()` creates column, section and segment on
+ * one `firstWordId` — so this restores a normal condition rather than imposing a new one.
+ *
+ * ## ⚠️ The second bug: a childless column renders as a GAP
+ *
+ * A cross-part command re-parents a section or segment into the other part's container. If the row it
+ * left behind was its parent's last child, that parent survives with no children. `passageJoin.js`
+ * deletes such rows via `reanchorAndPrune()` after every within-passage join; the cross-part paths
+ * called only this module, which used to re-anchor and never prune. Because `analyze/+page.svelte`
+ * emits the `.column` div for every row before guarding `{#if column.sections.length > 0}`, and
+ * `.column` has a fixed width, a childless column draws as a blank full-width slot between real
+ * columns. Pruning therefore belongs here, beside the anchor rule, not in a caller.
  *
  * ⚠️ **Segments are never re-anchored here.** A segment's anchor is content: it is where the user put
  * a boundary. A container's anchor is bookkeeping, derived from what it holds. Moving a segment to
@@ -44,17 +54,46 @@ import { eq, asc, inArray } from 'drizzle-orm';
 import { compareWordIds } from '$lib/utils/wordIds.js';
 
 /**
- * Re-anchor one passage's leading column and section onto its first segment.
+ * Re-anchor EVERY column and section in a passage onto its own first child, and delete any container
+ * left without children.
  *
- * Safe to call when nothing has drifted: each update is issued only when the anchor actually differs,
- * so the common case costs reads and no writes.
+ * ## ⚠️ Two defects this replaced, both user-visible
+ *
+ * **1. Childless containers survived a cross-part command, and rendered as a gap.** The within-passage
+ * joins in `passageJoin.js` have always finished with `reanchorAndPrune()`, which deletes a section
+ * with no segments and a column with no live sections. The cross-part paths called only
+ * `reanchorPassages()`, which re-anchored and never pruned — so when a Join Down re-parented the last
+ * section out of its column, that column stayed behind. `analyze/+page.svelte` emits the `.column` div
+ * for every row and only then guards `{#if column.sections.length > 0}`, and `.column` carries a fixed
+ * `width: 27.8rem`, so a childless column draws as a full-width blank slot between real columns.
+ *
+ * **2. The leading anchor was derived from the wrong column.** The previous implementation took the
+ * lowest `startingWordId` across ALL of the passage's segments and stamped it onto the leading column
+ * and that column's leading section. When the passage's earliest segment lived in a *different*
+ * column — entirely possible mid-way through a boundary move — it wrote one column's word id onto
+ * another column's anchor, corrupting the `compareWordIds` ordering that `loadPassageTree()` uses to
+ * sort columns. Every container is now anchored to its OWN first child, which is what
+ * `reanchorAndPrune()` does and what the invariant actually says.
+ *
+ * ## The invariant, stated once
+ *
+ * Every section begins where its first segment begins; every column begins where its first live
+ * section's first segment begins; and no container is childless.
+ *
+ * Idempotent, and safe to call when nothing has drifted: each update is issued only when the anchor
+ * actually differs, so the common case costs reads and no writes.
  *
  * @param {Object} tx - Transaction (or db) handle
  * @param {string} passageId
- * @returns {Promise<{ columnMoved: boolean, sectionMoved: boolean }>}
+ * @returns {Promise<{ columnsReanchored: number, sectionsReanchored: number, columnsDeleted: number, sectionsDeleted: number }>}
  */
 export async function reanchorContainers(tx, passageId) {
-	const unchanged = { columnMoved: false, sectionMoved: false };
+	const result = {
+		columnsReanchored: 0,
+		sectionsReanchored: 0,
+		columnsDeleted: 0,
+		sectionsDeleted: 0
+	};
 
 	const columns = await tx
 		.select()
@@ -62,14 +101,7 @@ export async function reanchorContainers(tx, passageId) {
 		.where(eq(passageColumn.passageId, passageId))
 		.orderBy(asc(passageColumn.startingWordId));
 
-	if (columns.length === 0) return unchanged;
-
-	// ⚠️ Ordered by `compareWordIds`, not by the SQL ordering above. `startingWordId` is a padded
-	// string so lexical order usually agrees with canonical order — but "usually" is not a guarantee
-	// worth resting an anchor rewrite on, and every other site here compares the same way.
-	const leadingColumn = columns.reduce((lowest, candidate) =>
-		compareWordIds(candidate.startingWordId, lowest.startingWordId) < 0 ? candidate : lowest
-	);
+	if (columns.length === 0) return result;
 
 	const sections = await tx
 		.select()
@@ -81,61 +113,86 @@ export async function reanchorContainers(tx, passageId) {
 			)
 		);
 
-	if (sections.length === 0) return unchanged;
-
-	const segments = await tx
-		.select()
-		.from(passageSegment)
-		.where(
-			inArray(
-				passageSegment.passageSectionId,
-				sections.map((section) => section.id)
-			)
-		);
-
-	if (segments.length === 0) return unchanged;
-
-	// Where this passage's structure actually begins, per the user's own segment boundaries.
-	const firstSegment = segments.reduce((lowest, candidate) =>
-		compareWordIds(candidate.startingWordId, lowest.startingWordId) < 0 ? candidate : lowest
-	);
-	const firstWordId = firstSegment.startingWordId;
-
-	const sectionsOfLeadingColumn = sections.filter(
-		(section) => section.passageColumnId === leadingColumn.id
-	);
-	if (sectionsOfLeadingColumn.length === 0) return unchanged;
-
-	const leadingSection = sectionsOfLeadingColumn.reduce((lowest, candidate) =>
-		compareWordIds(candidate.startingWordId, lowest.startingWordId) < 0 ? candidate : lowest
-	);
+	const segments =
+		sections.length > 0
+			? await tx
+					.select()
+					.from(passageSegment)
+					.where(
+						inArray(
+							passageSegment.passageSectionId,
+							sections.map((section) => section.id)
+						)
+					)
+			: [];
 
 	const now = new Date();
-	let columnMoved = false;
-	let sectionMoved = false;
+	const emptySectionIds = [];
+	const emptyColumnIds = [];
 
-	// Rewritten in EITHER direction, which is the part `reanchorFirstOf()` got half-right.
-	//
-	// A join leaves the donor's containers anchored BEFORE the passage now starts; a Move Text Down
-	// pulls the receiver's first segment backwards so its containers are left AFTER it. Only correcting
-	// the "precedes" case — as the original did — fixes joins and leaves moves broken.
-	if (leadingColumn.startingWordId !== firstWordId) {
-		await tx
-			.update(passageColumn)
-			.set({ startingWordId: firstWordId, updatedAt: now })
-			.where(eq(passageColumn.id, leadingColumn.id));
-		columnMoved = true;
+	for (const column of columns) {
+		/** @type {Array<{ section: Object, firstWordId: string }>} */
+		const live = [];
+
+		for (const section of sections.filter((s) => s.passageColumnId === column.id)) {
+			// ⚠️ Ordered by `compareWordIds`, never by insertion or by the SQL ordering.
+			// `startingWordId` is a zero-padded string so lexical order usually agrees with canonical
+			// order — but "usually" is not a guarantee worth resting an anchor rewrite on.
+			const own = segments
+				.filter((seg) => seg.passageSectionId === section.id)
+				.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
+
+			if (own.length === 0) {
+				emptySectionIds.push(section.id);
+				continue;
+			}
+
+			const firstWordId = own[0].startingWordId;
+			live.push({ section, firstWordId });
+
+			if (section.startingWordId !== firstWordId) {
+				await tx
+					.update(passageSection)
+					.set({ startingWordId: firstWordId, updatedAt: now })
+					.where(eq(passageSection.id, section.id));
+				result.sectionsReanchored += 1;
+			}
+		}
+
+		if (live.length === 0) {
+			emptyColumnIds.push(column.id);
+			continue;
+		}
+
+		// This column's OWN first section's own first segment — not the passage's.
+		live.sort((a, b) => compareWordIds(a.firstWordId, b.firstWordId));
+		const columnWordId = live[0].firstWordId;
+
+		// Rewritten in EITHER direction, which is the part the original `reanchorFirstOf()` got only
+		// half-right. A join leaves the donor's containers anchored BEFORE the passage now starts; a
+		// Move Text Down pulls the receiver's first segment backwards so its containers are left
+		// AFTER it. Correcting only the "precedes" case fixes joins and leaves moves broken.
+		if (column.startingWordId !== columnWordId) {
+			await tx
+				.update(passageColumn)
+				.set({ startingWordId: columnWordId, updatedAt: now })
+				.where(eq(passageColumn.id, column.id));
+			result.columnsReanchored += 1;
+		}
 	}
 
-	if (leadingSection.startingWordId !== firstWordId) {
-		await tx
-			.update(passageSection)
-			.set({ startingWordId: firstWordId, updatedAt: now })
-			.where(eq(passageSection.id, leadingSection.id));
-		sectionMoved = true;
+	// Connections referencing removed sections/columns cascade-delete with the rows, so no manual
+	// cleanup is needed here — the same reasoning `reanchorAndPrune()` records.
+	if (emptySectionIds.length > 0) {
+		await tx.delete(passageSection).where(inArray(passageSection.id, emptySectionIds));
+		result.sectionsDeleted = emptySectionIds.length;
+	}
+	if (emptyColumnIds.length > 0) {
+		await tx.delete(passageColumn).where(inArray(passageColumn.id, emptyColumnIds));
+		result.columnsDeleted = emptyColumnIds.length;
 	}
 
-	return { columnMoved, sectionMoved };
+	return result;
 }
 
 /**

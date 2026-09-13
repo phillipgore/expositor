@@ -510,6 +510,61 @@ try {
 	check('part A now ends at 3:19', `${colRangeA.to_chapter}:${colRangeA.to_verse}`, '3:19');
 	check('part B now starts at 3:20', `${colRangeB.from_chapter}:${colRangeB.from_verse}`, '3:20');
 
+	// ── The invariant that the gap-between-columns bug violated ───────────────
+	//
+	// ⚠️ This is the assertion the earlier probes were missing, and the reason the defect shipped
+	// green: every existing check compared SEGMENT rows against ranges, so a childless COLUMN — which
+	// holds no segments by definition — was invisible to all of them. A cross-part join re-parents a
+	// section into the other part's column; if that section was its column's last child, the column
+	// survived empty, and `analyze/+page.svelte` renders it as a blank fixed-width slot between real
+	// columns. Assert on the containers themselves, across BOTH passages of every fixture.
+	console.log('\n── no childless containers survive the join (renders as a gap) ──');
+
+	const childlessSections = await sql`
+		SELECT COUNT(*)::int AS n FROM passage_section sec
+		LEFT JOIN passage_segment s ON s.passage_section_id = sec.id
+		WHERE sec.id LIKE ${PREFIX + '%'} AND s.id IS NULL
+	`;
+	check('no section was left without segments', childlessSections[0].n, 0);
+
+	// ⚠️ Asked as "holds no SEGMENTS", not "holds no sections": a stranded column usually keeps its
+	// now-empty section, and still paints as a blank slot because the renderer's
+	// `{#if column.sections.length > 0}` guard passes and the section inside renders nothing.
+	const emptyColumns = await sql`
+		SELECT COUNT(*)::int AS n FROM passage_column col
+		WHERE col.id LIKE ${PREFIX + '%'}
+		  AND NOT EXISTS (
+			SELECT 1 FROM passage_segment s
+			JOIN passage_section sec ON s.passage_section_id = sec.id
+			WHERE sec.passage_column_id = col.id
+		  )
+	`;
+	check('no column was left holding no text', emptyColumns[0].n, 0);
+
+	// Anchors must name the container's OWN first child. Deriving the leading anchor from the
+	// passage's earliest segment — as the first version of `reanchorContainers()` did — could stamp
+	// one column's word id onto another's, corrupting the ordering `loadPassageTree()` sorts by.
+	const driftedSections = await sql`
+		SELECT COUNT(*)::int AS n FROM passage_section sec
+		WHERE sec.id LIKE ${PREFIX + '%'}
+		  AND sec.starting_word_id <> (
+			SELECT MIN(s.starting_word_id) FROM passage_segment s
+			WHERE s.passage_section_id = sec.id
+		  )
+	`;
+	check('every section is anchored to its own first segment', driftedSections[0].n, 0);
+
+	const driftedColumns = await sql`
+		SELECT COUNT(*)::int AS n FROM passage_column col
+		WHERE col.id LIKE ${PREFIX + '%'}
+		  AND col.starting_word_id <> (
+			SELECT MIN(s.starting_word_id) FROM passage_segment s
+			JOIN passage_section sec ON s.passage_section_id = sec.id
+			WHERE sec.passage_column_id = col.id
+		  )
+	`;
+	check('every column is anchored to its own first segment', driftedColumns[0].n, 0);
+
 	console.log('\n── no orphaned structure anywhere in the fixture ──');
 	const orphans = await sql`
 		SELECT COUNT(*)::int AS n FROM passage_segment s

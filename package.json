@@ -30,7 +30,10 @@
 		"probe:add-part": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-add-to-series.mjs",
 		"probe:reorder": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-reorder.mjs",
 		"probe:eviction": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-cache-eviction.mjs",
-		"probe:conn-count": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-connection-count.mjs"
+		"probe:conn-count": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-connection-count.mjs",
+		"probe:empty-containers": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-empty-containers.mjs",
+		"diagnose:containers": "node --import ./scripts/alias-loader.mjs scripts/diagnose-empty-containers.mjs",
+		"repair:containers": "node --import tsx --import ./scripts/alias-loader.mjs scripts/repair-empty-containers.mjs"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
