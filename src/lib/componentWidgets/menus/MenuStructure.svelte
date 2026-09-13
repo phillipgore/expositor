@@ -40,7 +40,9 @@
 		canJoinUpAcross as resolveJoinUpAcross,
 		canJoinDownAcross as resolveJoinDownAcross,
 		canMoveTextUpAcross,
-		canMoveTextDownAcross
+		canMoveTextDownAcross,
+		canMoveSelectedUpAcross,
+		canMoveSelectedDownAcross
 	} from '$lib/utils/crossPartCommands.js';
 	import { page } from '$app/stores';
 
@@ -253,6 +255,65 @@
 		canExplainEnd && moveDownCrossesBoundary && !canMoveDownAcross ? seriesContext.boundaryAfter : null
 	);
 
+	// ── Move Selected Up / Down (§8) ──
+	//
+	// A different command from BOTH neighbours in this menu, and the distinction is worth stating
+	// because all three use arrows:
+	//
+	//   Join Selected  — two items become one; something is destroyed.
+	//   Move Text      — words change hands between two segments that both survive.
+	//   Move Selected  — the item itself changes container, intact. Nothing is folded or deleted.
+	//
+	// Enablement is deliberately PERMISSIVE here and authoritative on the server. The menu cannot see
+	// which column an item sits in, nor whether it is first or last among its siblings — that is
+	// `itemTransfer.js`'s question, and answering it client-side would mean shipping a second copy of
+	// the ordering rule. So the menu asks only "is a structural item selected, and is a move
+	// conceivable?", and `analyzeItemTransfer` refuses precisely with a reason.
+	//
+	// ⚠️ The series predicates used here are `canMoveSelectedUp/DownAcross`, NOT the Join ones. Those
+	// return true at an internal passage seam, where this command's destination is the adjacent column
+	// INSIDE the part — using them would claim a part-crossing that is not what would happen.
+	let moveSelectedGranularity = $derived(joinGranularity);
+
+	// A move is conceivable when there is anywhere to go: another container in this passage (which the
+	// server resolves) or a reachable neighbouring part. `passageCount > 1` stands in for the former,
+	// since a multi-passage part always has an internal destination.
+	let moveSelectedUpPossible = $derived(
+		Boolean(moveSelectedGranularity) &&
+			!isDocument &&
+			(passageCount > 1 || hasPredecessor || canMoveSelectedUpAcross(edgeContext))
+	);
+	let moveSelectedDownPossible = $derived(
+		Boolean(moveSelectedGranularity) &&
+			!isDocument &&
+			(passageCount > 1 || hasSuccessor || canMoveSelectedDownAcross(edgeContext))
+	);
+
+	let moveSelectedUpDisabled = $derived(!moveSelectedUpPossible);
+	let moveSelectedDownDisabled = $derived(!moveSelectedDownPossible);
+
+	// Explain the part edge only when it is genuinely what is in the way: nothing above inside this
+	// part, and the seam beyond is ineligible.
+	let moveSelectedUpReason = $derived(
+		canExplainStart &&
+			moveSelectedGranularity &&
+			!hasPredecessor &&
+			passageCount === 1 &&
+			seriesContext?.boundaryBefore
+			? seriesContext.boundaryBefore
+			: null
+	);
+	let moveSelectedDownReason = $derived(
+		canExplainEnd &&
+			moveSelectedGranularity &&
+			!hasSuccessor &&
+			passageCount === 1 &&
+			seriesContext?.boundaryAfter
+			? seriesContext.boundaryAfter
+			: null
+	);
+
+
 
 
 	// "Select All" enters a selection mode that only applies to the interactive Analyze
@@ -415,6 +476,53 @@
 	/>
 	{#if joinDownReason}
 		<p class="boundary-reason" role="none">{joinDownReason}</p>
+	{/if}
+
+	<DividerHorizontal />
+
+	<!--
+		Move Selected Up / Down — the NON-destructive pair.
+
+		Where Join Selected folds two items into one, these move the selected item intact into the
+		adjacent container: the next column, or the next part when no column is adjacent. Its anchor,
+		children, commentary and identity all survive, and the mirror command puts it back.
+
+		The destination is resolved SERVER-side (`itemTransfer.js`), because the rule depends on the
+		item's position among its siblings — only the first item of a container may move up, and only
+		the last may move down, since order is derived from `startingWordId` and a middle item would
+		land out of reading order. The menu therefore enables the command whenever a move is
+		conceivable and lets the server refuse with the specific reason.
+	-->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="move-up"
+		label="Move Selected Up"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('move-selected-up'));
+		}}
+		isDisabled={moveSelectedUpDisabled}
+		ariaLabel={moveSelectedUpReason ? `Move Selected Up — ${moveSelectedUpReason}` : undefined}
+	/>
+	{#if moveSelectedUpReason}
+		<p class="boundary-reason" role="none">{moveSelectedUpReason}</p>
+	{/if}
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="move-down"
+		label="Move Selected Down"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('move-selected-down'));
+		}}
+		isDisabled={moveSelectedDownDisabled}
+		ariaLabel={moveSelectedDownReason ? `Move Selected Down — ${moveSelectedDownReason}` : undefined}
+	/>
+	{#if moveSelectedDownReason}
+		<p class="boundary-reason" role="none">{moveSelectedDownReason}</p>
 	{/if}
 
 	<DividerHorizontal />

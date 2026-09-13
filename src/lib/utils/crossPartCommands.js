@@ -191,3 +191,54 @@ export function canMoveTextUpAcross(context) {
 export function canMoveTextDownAcross(context) {
 	return canJoinDownAcross(context);
 }
+
+/**
+ * May a **Move Selected Up** reach past this part's leading edge into the previous PART?
+ *
+ * ## ⚠️ Why this is not `canJoinUpAcross`
+ *
+ * It is that predicate **minus the internal-seam clause**, and the difference is the whole point.
+ * `canJoinUpAcross` returns true at an internal passage seam because a Join there is a legitimate
+ * within-study operation that the old passage-scoped code refused. Move Selected has no such debt: at
+ * an internal seam it is served by the WITHIN-PASSAGE tier (`itemTransfer.js`'s adjacent-column
+ * resolution), which needs no series context at all and must not be overridden by a part-tier answer.
+ *
+ * Reusing the Join predicate here would report "yes, cross into the previous part" for an item whose
+ * real destination is the column immediately beside it — sending a section across a study boundary
+ * while its true neighbour sat one column away. That is the precedence rule of `itemTransfer.js`
+ * inverted, and it would be invisible until a user noticed their section had left the part.
+ *
+ * So this answers only the narrow question the within-passage tier cannot: **the item is at the part's
+ * own outer edge, and there is a reachable part beyond it.**
+ *
+ * @param {EdgeContext} context
+ * @returns {boolean}
+ */
+export function canMoveSelectedUpAcross(context) {
+	if (context.isDocument) return false;
+	return (
+		atPartStart(context) &&
+		hasPreviousPart(context.seriesContext) &&
+		context.seriesContext?.boundaryBefore === null
+	);
+}
+
+/**
+ * May a **Move Selected Down** reach past this part's trailing edge into the next PART?
+ *
+ * The mirror of {@link canMoveSelectedUpAcross}, consulting `boundaryAfter` and the NEXT part. Its own
+ * function rather than a direction argument, for the reason the module header gives: there is no
+ * argument to get backwards.
+ *
+ * @param {EdgeContext} context
+ * @returns {boolean}
+ */
+export function canMoveSelectedDownAcross(context) {
+	if (context.isDocument) return false;
+	return (
+		atPartEnd(context) &&
+		hasNextPart(context.seriesContext) &&
+		context.seriesContext?.boundaryAfter === null
+	);
+}
+

@@ -20,6 +20,8 @@ import {
 	canJoinDownAcross,
 	canMoveTextUpAcross,
 	canMoveTextDownAcross,
+	canMoveSelectedUpAcross,
+	canMoveSelectedDownAcross,
 	hasPreviousPart,
 	hasNextPart
 } from '../src/lib/utils/crossPartCommands.js';
@@ -176,6 +178,36 @@ check('a one-part series has neither', hasPreviousPart({ position: 1, total: 1 }
 check('...in both directions', hasNextPart({ position: 1, total: 1 }), false);
 check('null context has no previous', hasPreviousPart(null), false);
 check('null context has no next', hasNextPart(null), false);
+
+console.log('\n── Move Selected is the Join predicate MINUS the internal-seam clause ──');
+// The trap: at an INTERNAL passage seam a Join may cross, because the old passage-scoped code wrongly
+// refused it. Move Selected must NOT, because there its destination is the adjacent column inside this
+// same part (`itemTransfer.js`), and a part-tier "yes" would send the item across a study boundary
+// while its real neighbour sat one column away.
+const internalSeam = context({
+	position: 2,
+	total: 3,
+	passageCount: 3,
+	activePassageIndex: 1
+});
+check('Join Up crosses an internal seam', canJoinUpAcross(internalSeam), true);
+check('Join Down crosses an internal seam', canJoinDownAcross(internalSeam), true);
+check('Move Selected Up does NOT', canMoveSelectedUpAcross(internalSeam), false);
+check('Move Selected Down does NOT', canMoveSelectedDownAcross(internalSeam), false);
+
+// ...but at the part's own OUTER edge they agree, because there is no nearer container to prefer.
+const outerEdge = context({ position: 2, total: 3 });
+check('at the part edge Move Selected Up reaches back', canMoveSelectedUpAcross(outerEdge), true);
+check('and Move Selected Down reaches forward', canMoveSelectedDownAcross(outerEdge), true);
+
+// The series' outer edges stay closed, exactly as for the Joins.
+check('nothing above part 1', canMoveSelectedUpAcross(context({ position: 1, total: 3 })), false);
+check('nothing below part 3', canMoveSelectedDownAcross(context({ position: 3, total: 3 })), false);
+check('a standalone study has no part tier', canMoveSelectedUpAcross({ seriesContext: null, passageCount: 1, activePassageIndex: 0, isDocument: false }), false);
+check('Move Selected Up is dead on Document', canMoveSelectedUpAcross(context({ position: 2, total: 3, isDocument: true })), false);
+check('Move Selected Down is dead on Document', canMoveSelectedDownAcross(context({ position: 2, total: 3, isDocument: true })), false);
+check('an ineligible seam refuses Move Selected Up', canMoveSelectedUpAcross(context({ position: 2, total: 3, boundaryBefore: INELIGIBLE })), false);
+check('an ineligible seam refuses Move Selected Down', canMoveSelectedDownAcross(context({ position: 2, total: 3, boundaryAfter: INELIGIBLE })), false);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 if (fail > 0) process.exit(1);

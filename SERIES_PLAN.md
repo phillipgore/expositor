@@ -1447,6 +1447,82 @@ of this entry read "not answered, and not guessable" long after the behaviour wa
 consistent — a document disagreeing with its own implementation, which is worse than an open
 question honestly marked.
 
+### Move Selected Up / Down — relocating an item without joining it
+
+✅ **SHIPPED.** The five commands above all destroy something: the three Joins fold one item into
+another and delete the loser, and Move Text Up/Down rewrites an anchor so words change hands. There
+was no way to say _"keep this section exactly as it is, but put it in the next column"_ — or in the
+next part. **Move Selected Up / Down** is that gap, and it is the first structural command in the
+feature that folds nothing and deletes nothing.
+
+**Two tiers, one pair of buttons.** A section at the start of column 2 has an adjacent column to move
+into; the same section at the start of column 1 does not, but may still have a previous part. The
+precedence is fixed in `itemTransfer.js` and resolved once, server-side:
+
+**column-adjacency first; part-adjacency only when no adjacent container exists.** The nearer
+container wins — preferring the part would send a section across a study boundary while an
+empty-handed column sat right beside it.
+
+| Selected | Nearest destination | Falls back to |
+| -------- | ------------------- | ------------- |
+| Segment  | the adjacent **section** (usually in its own column) | the adjacent part |
+| Section  | the adjacent **column** | the adjacent part |
+| Column   | — (a column has no containing column) | the adjacent part, always |
+
+⚠️ **Only EDGE items may move, and this is the rule the whole command rests on.** There is no
+`order` column on `passage_column`, `passage_section` or `passage_segment` — order is **derived** from
+`startingWordId`, and `passageSequence.js` sorts by it at all three tiers. A moved item keeps its
+anchor, so it sorts itself into place: last when moving up, first when moving down. Nothing needs
+renumbering. But that same property means moving a **middle** item tears the reading order apart —
+column 1 holding {1:1, 2:1, 3:1} and column 2 holding {4:1, 5:1} become {1:1, 3:1} and {2:1, 4:1,
+5:1}, which reads 1, 3, 2, 4, 5 with two columns claiming overlapping extents.
+
+**Nothing downstream catches that.** `reanchor.js` re-anchors each column from its own first segment
+and reports success, because each column is internally consistent; only the relationship between them
+is broken. So the refusal lives at the front of `itemTransfer.js`, and `'blocked'` is deliberately a
+distinct state from `'none'` — a middle item has a perfectly good part beyond it and must **not** be
+rescued by the part-tier fallback.
+
+**What it reuses, and what it does not.** The cross-part tier borrows `planBoundaryShift()`, the
+display-limit re-validation of §10.1, the Q41 pre-write block and the connection re-ownership block
+that `crossPartJoin.js` established. It uses neither `foldSegmentContent()` nor
+`reanchorConnectionsOnto()`, because nothing is folded and nothing is deleted. The **within-passage**
+tier moves no verses at all, so it is one `UPDATE` plus the existing re-anchor sweep — no boundary
+shift, no `cachedText` invalidation, no display check.
+
+⚠️ **Connection ownership is still rewritten even though nothing is destroyed.** §8 records that
+`segmentConnection.studyId` becomes *wrong* once structure spans parts. A transfer leaves **both**
+endpoints alive in different parts, which is exactly the case that produces a live connection owned by
+a study containing neither end — the silent wrong-count bug, not a visible failure. This is also
+strategy **(c)** of Q23 arriving as a side effect rather than as a phase.
+
+⚠️ **`topOffset` is cleared when a section changes column.** The field aligns a section against
+sections in *other columns*; after a move that alignment is computed against a column the section no
+longer sits in.
+
+**No confirm dialog, and no success message either.** Every other cross-part command asks first
+because each destroys something. This one is reversible by its mirror, so §11's standing "no undo"
+objection does not apply — and once it has run, the re-rendered page already shows the item in its new
+home, so an alert would report what the user can see. Silence means it worked. **Failures still
+speak**, because a refusal is not self-evident: nothing visibly happens, so the server's reason is
+surfaced verbatim. A display-limit **block** is one of those failures, refused before any write (Q41).
+
+⚠️ **It is not a general undo for the destructive commands, and must not be described as one.** Up
+then Down restores the *part*, not the *parentage*: a segment absorbed into part A's last section
+comes back into part B's *first* section, which may not be where it started, and its original section
+may have been pruned by the empty-container sweep in between. Only a **column** move is a true
+inverse.
+
+Enablement uses `canMoveSelectedUpAcross` / `canMoveSelectedDownAcross` — the Join predicates **minus
+the internal-seam clause**. The Join versions return true at an internal passage seam, where this
+command's destination is the adjacent column *inside* the part; reusing them would claim a
+part-crossing that would not happen. Pinned in `verify-cross-part-commands.mjs`.
+
+Verified in `verify-item-transfer.mjs` (36 assertions, pure) and mutation-tested against a real
+database by `npm run probe:transfer` (29 assertions), which covers the middle-item refusal, the
+`topOffset` clear, range conservation on the within tier, boundary movement on the part tier,
+connection re-ownership, container pruning and column-extent ordering.
+
 ### Split Part / Join Parts
 
 - **Split Part** — divide at the selected boundary, renumber the rest. Validate each result

@@ -1954,6 +1954,21 @@
 			if (target) handleJoin(target.type, target.id, 'next');
 		};
 
+		// ── Move Selected Up / Down (§8) ──
+		//
+		// Same tier resolution as the Joins — the selection says which tier — but a different write:
+		// the item changes container intact instead of being folded into a neighbour. No confirm
+		// modal, because nothing is destroyed and the mirror command undoes it.
+		const handleMoveSelectedUpEvent = () => {
+			const target = resolveJoinTarget();
+			if (target) handleMoveSelected(target.type, target.id, 'up');
+		};
+		const handleMoveSelectedDownEvent = () => {
+			const target = resolveJoinTarget();
+			if (target) handleMoveSelected(target.type, target.id, 'down');
+		};
+
+
 		
 		// Listen for insert heading one event from MenuStructure
 		const handleInsertHeadingOneFromMenuEvent = () => {
@@ -2234,6 +2249,8 @@
 		window.addEventListener('insert-segment', handleInsertSegmentEvent);
 		window.addEventListener('join-up', handleJoinUpEvent);
 		window.addEventListener('join-down', handleJoinDownEvent);
+		window.addEventListener('move-selected-up', handleMoveSelectedUpEvent);
+		window.addEventListener('move-selected-down', handleMoveSelectedDownEvent);
 		window.addEventListener('move-text-up', handleMoveTextUpEvent);
 
 		window.addEventListener('move-text-down', handleMoveTextDownEvent);
@@ -2293,6 +2310,8 @@
 			window.removeEventListener('insert-segment', handleInsertSegmentEvent);
 			window.removeEventListener('join-up', handleJoinUpEvent);
 			window.removeEventListener('join-down', handleJoinDownEvent);
+			window.removeEventListener('move-selected-up', handleMoveSelectedUpEvent);
+			window.removeEventListener('move-selected-down', handleMoveSelectedDownEvent);
 			window.removeEventListener('move-text-up', handleMoveTextUpEvent);
 
 			window.removeEventListener('move-text-down', handleMoveTextDownEvent);
@@ -2332,6 +2351,78 @@
 		section: '/api/passages/sections/join',
 		segment: '/api/passages/segments/join'
 	};
+
+	const TRANSFER_ENDPOINT = {
+		column: '/api/passages/columns/transfer',
+		section: '/api/passages/sections/transfer',
+		segment: '/api/passages/segments/transfer'
+	};
+
+	/**
+	 * Move Selected Up / Down: relocate the selected item intact (SERIES_PLAN §8).
+	 *
+	 * ## Silent on success, deliberately
+	 *
+	 * No confirm modal before, and no confirmation alert after — not even for a cross-part move. Every
+	 * other cross-part command destroys something, so each asks first. This one folds nothing and
+	 * deletes nothing — the item keeps its row, its children, its commentary and its anchor — and the
+	 * opposite command puts it back. §11's standing "no undo" objection does not apply, so a dialog on
+	 * either side would charge the user an interruption to protect them from something reversible, or
+	 * to report something the re-rendered page already shows.
+	 *
+	 * ⚠️ Failures still speak. A refusal is NOT self-evident from the page — nothing visibly happens —
+	 * so the server's reason is surfaced verbatim. That asymmetry is the point: silence means it
+	 * worked, and the only messages are ones the user could not otherwise infer.
+	 *
+	 * ⚠️ A display-limit BLOCK is one of those failures, refused before writing (Q41), and arrives on
+	 * the error path rather than being silently swallowed.
+	 *
+	 * ## The destination is not computed here, on purpose
+	 *
+	 * Whether this item moves to the next column or the next part depends on its position among its
+	 * siblings, which is `itemTransfer.js`'s question. Deciding it client-side would put a second copy
+	 * of the ordering rule in the browser, where it could drift from the one that actually writes.
+	 *
+	 * @param {'column'|'section'|'segment'} type
+	 * @param {string} id
+	 * @param {'up'|'down'} direction
+	 */
+	async function handleMoveSelected(type, id, direction) {
+		try {
+			const response = await fetch(TRANSFER_ENDPOINT[type], {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				// Same body builder as the Joins — it resolves `passageId` from the loaded structure and
+				// throws a legible error when the item cannot be placed.
+				body: JSON.stringify(joinBody(type, id, { direction }))
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				// The server's refusals are written for the user ("Only the last section of its group can
+				// move down…"), so they are shown as-is rather than replaced with a generic failure.
+				alert(error.error || `Failed to move ${type}`);
+				return;
+			}
+
+			// ⚠️ The structural selection SURVIVES. The item still exists and is still what the user is
+			// working on — clearing it would be a small lie about what just happened, and would force a
+			// re-select before the next nudge. Same rule as Join Down (STR-014).
+			//
+			// The word-level caret is still dropped: its offsets refer to the pre-move layout.
+			selectedWord = null;
+			suppressHoverCaret = null;
+			await invalidate('app:studies');
+
+			// ⚠️ No success alert, including for a cross-part move. The re-rendered page IS the
+			// feedback — the item is visibly gone from where it was — and a modal confirming a
+			// reversible action that already succeeded is an interruption charging the user for
+			// nothing. The failure path above still speaks, because a refusal is not self-evident.
+		} catch (error) {
+			console.error('Move Selected error:', error);
+			alert(`Error: ${error.message || `Failed to move ${type}`}`);
+		}
+	}
 
 	/**
 	 * Build the join request body for a given item type/id.
