@@ -115,21 +115,21 @@ try {
 	// ── 2. Within-passage: a section moves to the adjacent column ─────────────
 	console.log('\n── a section moves into the ADJACENT COLUMN, not the next part ──');
 	const plan = await analyzeItemTransfer(db, owner.id, passA, id('secA2'), 'section', 'down');
-	check('the plan resolves to the within-passage tier', plan.tier, 'within');
+	check('the plan stays inside its passage', plan.crossesPassage, false);
 	check('  targeting column 2', plan.targetColumnId, id('colA2'));
 	check('  and moving no verses', plan.versesMoved, 0);
 
 	const rangesBefore = await sql`SELECT id, from_chapter, from_verse, to_chapter, to_verse FROM passage WHERE id IN (${passA}, ${passB}) ORDER BY id`;
 
 	const moved = await transferItem(db, owner.id, passA, id('secA2'), 'section', 'down');
-	check('the move reports the within tier', moved.tier, 'within');
+	check('the move reports no passage crossing', moved.crossesPassage, false);
 
 	const [secA2] = await sql`SELECT passage_column_id, top_offset, starting_word_id FROM passage_section WHERE id = ${id('secA2')}`;
 	check('the section now sits in column 2', secA2.passage_column_id, id('colA2'));
 	check('its anchor is UNCHANGED — order is derived, not stored', secA2.starting_word_id, w(1, 16));
 	check('and its stale topOffset was cleared', secA2.top_offset, null);
 
-	// The load-bearing claim of the within tier: no verses moved, so no range may have changed.
+	// The load-bearing claim of a non-crossing move: no verses moved, so no range may have changed.
 	const rangesAfter = await sql`SELECT id, from_chapter, from_verse, to_chapter, to_verse FROM passage WHERE id IN (${passA}, ${passB}) ORDER BY id`;
 	check('no passage range changed', JSON.stringify(rangesAfter), JSON.stringify(rangesBefore));
 
@@ -141,13 +141,13 @@ try {
 	// ── 3. Cross-part: the verses must follow the structure ───────────────────
 	console.log('\n── a segment at the part edge moves into the NEXT PART ──');
 	const crossPlan = await analyzeItemTransfer(db, owner.id, passA, id('segA4'), 'segment', 'down');
-	check('the plan resolves to the part tier', crossPlan.tier, 'part');
-	check('  crossing a boundary', crossPlan.crossesBoundary, true);
+	check('the plan crosses a passage', crossPlan.crossesPassage, true);
+	check('  and crosses a part', crossPlan.crossesPart, true);
 	check('  into part B', crossPlan.toStudyId, partB);
 	assert('  and moving a positive number of verses', crossPlan.versesMoved > 0);
 
 	const crossed = await transferItem(db, owner.id, passA, id('segA4'), 'segment', 'down');
-	check('the move reports the part tier', crossed.tier, 'part');
+	check('the move reports crossing a part', crossed.crossesPart, true);
 
 	const [segA4] = await sql`
 		SELECT p.id AS passage_id, p.study_id, s.starting_word_id
@@ -204,7 +204,65 @@ try {
 	check('moving part B’s only column up is refused', lastOne.ok, false);
 	assert('and it points at Join Parts', /Join Parts/.test(lastOne.reason ?? ''));
 
-	console.log('\n── ordering survives: no two columns claim overlapping extents ──');
+	// ── 5. Reading order, asserted over the WHOLE series at every tier ────────
+	//
+	// ⚠️ This is the invariant the feature exists to protect, and it is stronger than the per-passage
+	// column check it replaces. Reading order across a part boundary is TOTAL — every item of part A
+	// precedes every item of part B — so flattening the entire series in sequence order must yield
+	// anchors that never go backwards, at all three tiers at once.
+	//
+	// The old check compared columns only, and only within one passage. It would have passed while a
+	// section sat in the wrong column of the right passage, or while a part seam had been crossed in
+	// the wrong direction — both of which this catches.
+	console.log('\n── reading order holds across the whole series, at every tier ──');
+
+	const ordered = await sql`
+		SELECT s.starting_word_id AS seg, sec.starting_word_id AS sec_anchor,
+		       col.starting_word_id AS col_anchor, st.series_order, p.display_order
+		FROM passage_segment s
+		JOIN passage_section sec ON s.passage_section_id = sec.id
+		JOIN passage_column col ON sec.passage_column_id = col.id
+		JOIN passage p ON col.passage_id = p.id
+		JOIN study st ON p.study_id = st.id
+		WHERE s.id LIKE ${PREFIX + '%'}
+		ORDER BY st.series_order, p.display_order, col.starting_word_id,
+		         sec.starting_word_id, s.starting_word_id
+	`;
+
+	// Walking in READING order (part, then passage, then column, section, segment), every segment
+	// anchor must be >= the one before it. Word ids are zero-padded, so string comparison is canonical
+	// comparison here — and both passages are in the same book by construction, which is what makes
+	// that safe (`compareWordIds` ignores the book segment).
+	let regression = 'none';
+	for (let i = 1; i < ordered.length; i += 1) {
+		if (ordered[i].seg < ordered[i - 1].seg) regression = `${ordered[i - 1].seg} → ${ordered[i].seg}`;
+	}
+	check('segment anchors never go backwards in reading order', regression, 'none');
+
+	// The container anchors must agree with their contents: a section's anchor is its first segment's,
+	// a column's is its first section's. `reanchorPassages` guarantees this, and a transfer is exactly
+	// the gesture that can break it.
+	const mismatched = await sql`
+		SELECT sec.id FROM passage_section sec
+		WHERE sec.id LIKE ${PREFIX + '%'}
+		  AND sec.starting_word_id <> (
+			SELECT MIN(s.starting_word_id) FROM passage_segment s
+			WHERE s.passage_section_id = sec.id
+		  )
+	`;
+	check('every section is anchored to its own first segment', mismatched.map((r) => r.id).join(',') || 'none', 'none');
+
+	const badColumns = await sql`
+		SELECT col.id FROM passage_column col
+		WHERE col.id LIKE ${PREFIX + '%'}
+		  AND col.starting_word_id <> (
+			SELECT MIN(sec.starting_word_id) FROM passage_section sec
+			WHERE sec.passage_column_id = col.id
+		  )
+	`;
+	check('every column is anchored to its own first section', badColumns.map((r) => r.id).join(',') || 'none', 'none');
+
+	// And no two columns of one passage may claim overlapping extents (the original check, kept).
 	const cols = await sql`
 		SELECT col.id, col.passage_id, col.starting_word_id
 		FROM passage_column col WHERE col.id LIKE ${PREFIX + '%'}

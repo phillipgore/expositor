@@ -156,6 +156,10 @@ async function persistPreference(updates) {
  * @property {number|null} activePassageIndex - Index of the passage the current selection sits in, or null when unresolved. Needed because the `is…FirstInPassage` flags are per-passage and a study/part may hold several, so "first in passage" is not "first in the study"
  * @property {boolean} hasJoinPredecessor - Whether an item of the SAME tier as the current selection exists before it, anywhere in this study/part. Drives Join Up: with nothing above it to fold into, the command has no meaning
  * @property {boolean} hasJoinSuccessor - Whether an item of the same tier exists after the current selection, anywhere in this study/part. Drives Join Down
+ * @property {boolean} canMoveSelectedUp - Whether Move Selected Up can actually run: the selection is at the START of its OWN CONTAINER (a segment in its section, a section in its column, a column in its part) AND a container exists before it. ⚠️ NOT the same question as `hasJoinPredecessor`, which asks whether any same-tier item exists anywhere — that was true for nearly every selection and left the command enabled with nowhere to go
+ * @property {boolean} canMoveSelectedDown - The trailing mirror of `canMoveSelectedUp`
+ * @property {string|null} moveSelectedUpReason - Why Move Selected Up is unavailable, in the user's words, or null when it is available. NOT shown in the menu — the greyed item is the whole message. Kept because it is the sentence the client and server must agree on, which `verify-transfer-agreement.mjs` checks
+ * @property {string|null} moveSelectedDownReason - The trailing mirror of `moveSelectedUpReason`
  * @property {boolean} isWordInFirstSegment - Whether the selected word is in the first segment of its passage
 
  * @property {boolean} isWordInLastSegment - Whether the selected word is in the last segment of its passage
@@ -303,6 +307,12 @@ const defaultState = {
 	// has nowhere to go; the analyze page's always-on effect fills them in.
 	hasJoinPredecessor: false,
 	hasJoinSuccessor: false,
+	// Default CLOSED: until the analyze page resolves the real rule, Move Selected must not be
+	// offered. The opposite default is how a command ends up live against a stale or absent tree.
+	canMoveSelectedUp: false,
+	canMoveSelectedDown: false,
+	moveSelectedUpReason: null,
+	moveSelectedDownReason: null,
 	isWordInFirstSegment: false,
 
 
@@ -1745,6 +1755,37 @@ export function setJoinNeighbours(hasPredecessor, hasSuccessor) {
 		...state,
 		hasJoinPredecessor: hasPredecessor,
 		hasJoinSuccessor: hasSuccessor
+	}));
+}
+
+/**
+ * Set whether Move Selected Up / Down can actually run, with the reason when they cannot.
+ *
+ * ## ⚠️ Why this is not `setJoinNeighbours`
+ *
+ * Those two flags ask "does another item of this tier exist anywhere in the study?". Move Selected
+ * asks a different and much narrower question: "is this item at the edge of its OWN CONTAINER, and is
+ * there a container beyond it?" — a segment moves between sections, a section between columns, a
+ * column between parts.
+ *
+ * Reusing the join flags shipped as a live defect: in a study of forty segments `hasJoinPredecessor`
+ * is true for all but the first, so both menu items were enabled on essentially every selection,
+ * including a segment sitting mid-section with nowhere to go. The command then failed after a server
+ * round trip — the exact "refusal arrives after the click" failure `crossPartCommands.js` was written
+ * to remove one level up.
+ *
+ * Resolved by `transferNeighbours.js` against the rendered structure; the server re-resolves over the
+ * whole sequence and stays the authority.
+ *
+ * @param {{ canMoveUp: boolean, canMoveDown: boolean, upReason: string|null, downReason: string|null }} verdict
+ */
+export function setMoveSelectedAvailability({ canMoveUp, canMoveDown, upReason, downReason }) {
+	toolbarStateStore.update((state) => ({
+		...state,
+		canMoveSelectedUp: canMoveUp,
+		canMoveSelectedDown: canMoveDown,
+		moveSelectedUpReason: upReason ?? null,
+		moveSelectedDownReason: downReason ?? null
 	}));
 }
 

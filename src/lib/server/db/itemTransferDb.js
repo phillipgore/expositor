@@ -46,9 +46,8 @@ import { compareWordIds } from '$lib/utils/wordIds.js';
 import { isPassageSeamEligible, classifyPassageSeam } from '$lib/utils/sequenceScope.js';
 import { validateStudyDisplayLimits, getDisplayLimits } from '$lib/utils/translationLimits.js';
 import {
-	locateItem,
-	resolveWithinPassage,
-	resolveIntoPassage,
+	locateInSequence,
+	resolveTransfer,
 	wouldEmptyPassage
 } from '$lib/utils/itemTransfer.js';
 
@@ -64,10 +63,13 @@ function segmentsBeneath(located, granularity) {
 /**
  * Where would this item go, and is the move legal? No writes.
  *
- * Resolves the two tiers in `itemTransfer.js`'s fixed order — adjacent container first, adjacent part
- * only as a fallback — and reports the answer as a `tier` so the caller can explain what is about to
- * happen. A `'blocked'` resolution is a refusal that the part tier may NOT rescue: a middle item has a
- * perfectly good part beyond it and must still be refused.
+ * Thin now: `resolveTransfer` owns the whole rule (edge of its container, adjacent container in
+ * reading order), so this adds only what the pure layer cannot see — seam eligibility, whether the
+ * part would be emptied, the boundary arithmetic and the display-limit re-check.
+ *
+ * ⚠️ `crossesPassage` — NOT the granularity — decides whether verses move. A section stepping between
+ * two columns of one passage moves nothing; the same section stepping into the next part's column
+ * moves plenty. The previous version keyed this off a per-tier notion and got both cases wrong.
  *
  * @param {Object} dbx
  * @param {string} userId
@@ -81,57 +83,53 @@ export async function analyzeItemTransfer(dbx, userId, passageId, itemId, granul
 	const loaded = await loadPassageSequence(dbx, userId, passageId);
 	if (!loaded) return { ok: false, reason: 'Passage not found.' };
 
-	const index = loaded.sequence.findIndex((entry) => entry.passageId === passageId);
-	const entry = loaded.sequence[index];
-	if (!entry) return { ok: false, reason: 'Passage not found in its own sequence.' };
+	const plan = resolveTransfer({
+		sequence: loaded.sequence,
+		granularity,
+		itemId,
+		direction
+	});
+	if (!plan.ok) return { ok: false, reason: plan.reason };
 
-	const located = locateItem(entry.tree, granularity, itemId);
-	if (!located) return { ok: false, reason: `That ${granularity} is not in this passage.` };
+	const entry = loaded.sequence[plan.sourcePassageIndex];
+	const target = loaded.sequence[plan.targetPassageIndex];
 
-	// ── Tier 1: an adjacent container inside this passage ──
-	const within = resolveWithinPassage(entry.tree, granularity, itemId, direction);
-	if (within.kind === 'blocked') return { ok: false, reason: within.reason };
-	if (within.kind === 'within') {
+	// A move inside one passage touches no verses, so none of the boundary machinery applies.
+	if (!plan.crossesPassage) {
 		return {
 			ok: true,
-			tier: 'within',
-			crossesBoundary: false,
 			reason: null,
 			granularity,
 			direction,
+			crossesPassage: false,
+			crossesPart: false,
 			passageId,
-			targetColumnId: within.targetColumn?.id ?? null,
-			targetSectionId: within.targetSection?.id ?? null,
+			fromPassageId: entry.passageId,
+			toPassageId: entry.passageId,
+			fromStudyId: entry.studyId,
+			toStudyId: entry.studyId,
+			seriesId: loaded.seriesId ?? null,
+			targetColumnId: plan.targetColumnId,
+			targetSectionId: plan.targetSectionId,
 			versesMoved: 0,
 			display: null
 		};
 	}
 
-	// ── Tier 2: the adjacent part ──
-	const neighbour = loaded.sequence[direction === 'up' ? index - 1 : index + 1];
-	if (!neighbour) {
-		return {
-			ok: false,
-			reason:
-				direction === 'up'
-					? 'Nothing precedes this, so there is nowhere to move it.'
-					: 'Nothing follows this, so there is nowhere to move it.'
-		};
-	}
-
-	// Seam eligibility, borrowed rather than re-implemented (§4's "one concept, several uses"). The
-	// seam is always classified in sequence order — earlier passage first — because contiguity is a
-	// property of the seam, not of the direction it is approached from.
-	const earlier = direction === 'up' ? neighbour.passage : entry.passage;
-	const later = direction === 'up' ? entry.passage : neighbour.passage;
+	// ── Crossing a passage: everything below is about the verses following the structure ──
+	//
+	// Seam eligibility is borrowed, never re-implemented (§4's "one concept, several uses"), and is
+	// classified in SEQUENCE order — earlier passage first — because contiguity is a property of the
+	// seam, not of the direction it is approached from.
+	const earlier = direction === 'up' ? target.passage : entry.passage;
+	const later = direction === 'up' ? entry.passage : target.passage;
 	if (!isPassageSeamEligible(earlier, later)) {
 		const kind = classifyPassageSeam(earlier, later);
 		return { ok: false, reason: reasonForSeam(kind), seamKind: kind };
 	}
 
 	// Emptying a part is Join Parts under another name. `boundaryMove.js` refuses the range version of
-	// this, but it can only see ranges — a passage stripped of all structure keeps a valid range, so
-	// the structural question is asked separately.
+	// this, but it can only see ranges — a passage stripped of all structure keeps a valid range.
 	if (wouldEmptyPassage(entry.tree, granularity)) {
 		return {
 			ok: false,
@@ -139,46 +137,36 @@ export async function analyzeItemTransfer(dbx, userId, passageId, itemId, granul
 		};
 	}
 
-	const shift = planShiftFor(entry, neighbour, located, granularity, direction);
+	const located = locateInSequence(loaded.sequence, granularity, itemId);
+	const shift = planShiftFor(entry, target, located, granularity, direction);
 	if (!shift.ok) return { ok: false, reason: shift.error };
-
-	const into = resolveIntoPassage(neighbour.tree, granularity, direction);
-	if (granularity !== 'column' && !into.targetColumn) {
-		return {
-			ok: false,
-			reason: 'The neighbouring part has no structure to receive this yet. Add a column there first.'
-		};
-	}
 
 	const [receivingStudy] = await dbx
 		.select({ translation: study.translation })
 		.from(study)
-		.where(eq(study.id, neighbour.studyId))
+		.where(eq(study.id, target.studyId))
 		.limit(1);
 	const translationId = receivingStudy?.translation ?? 'esv';
 
 	return {
 		ok: true,
-		tier: 'part',
-		crossesBoundary: true,
 		reason: null,
 		granularity,
 		direction,
+		crossesPassage: true,
+		crossesPart: plan.crossesPart,
 		passageId,
 		fromPassageId: entry.passageId,
-		toPassageId: neighbour.passageId,
+		toPassageId: target.passageId,
 		fromStudyId: entry.studyId,
-		toStudyId: neighbour.studyId,
+		toStudyId: target.studyId,
 		seriesId: loaded.seriesId ?? null,
-		targetColumnId: into.targetColumn?.id ?? null,
-		targetSectionId: into.targetSection?.id ?? null,
+		targetColumnId: plan.targetColumnId,
+		targetSectionId: plan.targetSectionId,
 		versesMoved: shift.versesMoved,
-		// The two new ranges travel with the plan so the commit writes exactly what the dry run
-		// promised, rather than re-deriving them and risking a different answer.
 		shiftBefore: shift.before,
 		shiftAfter: shift.after,
-		display: await displayWarnings(dbx, entry, neighbour, shift, translationId, direction)
-
+		display: await displayWarnings(dbx, entry, target, shift, translationId, direction)
 	};
 }
 
@@ -324,9 +312,12 @@ export async function transferItem(dbInstance, userId, passageId, itemId, granul
 
 	const loaded = await loadPassageSequence(dbInstance, userId, passageId);
 	if (!loaded) throw new Error('Passage not found.');
-	const entry = loaded.sequence.find((e) => e.passageId === passageId);
-	const located = locateItem(entry?.tree ?? [], granularity, itemId);
-	if (!located) throw new Error(`That ${granularity} is not in this passage.`);
+	// Located over the whole SEQUENCE, not `passageId`'s own tree: `segmentsBeneath` needs the item's
+	// children to re-own their connections, and the item is always in the passage the request names —
+	// but resolving it the same way the plan did keeps the two from ever disagreeing about which row
+	// is meant.
+	const located = locateInSequence(loaded.sequence, granularity, itemId);
+	if (!located) throw new Error(`That ${granularity} could not be found.`);
 
 	const movingSegmentIds = segmentsBeneath(located, granularity).map((s) => s.id);
 
@@ -354,16 +345,18 @@ export async function transferItem(dbInstance, userId, passageId, itemId, granul
 				.update(passageSegment)
 				.set({ passageSectionId: plan.targetSectionId, updatedAt: now })
 				.where(eq(passageSegment.id, itemId));
-		} else if (plan.tier === 'part') {
-			// A column moves between PASSAGES; within a passage it has no container to change.
+		} else if (plan.crossesPassage) {
+			// A column's parent IS its passage, so it only has something to change when the move crosses
+			// one. A column moving between two passages of the same part takes this branch too — the
+			// part is unchanged, but the owning passage is not.
 			await tx
 				.update(passageColumn)
 				.set({ passageId: plan.toPassageId, updatedAt: now })
 				.where(eq(passageColumn.id, itemId));
 		}
 
-		// A within-passage move is done bar the sweep: no verses moved, so nothing else can be stale.
-		if (plan.tier === 'within') {
+		// A move inside one passage is done bar the sweep: no verses moved, so nothing else is stale.
+		if (!plan.crossesPassage) {
 			await reanchorPassages(tx, [passageId]);
 			return;
 		}
@@ -428,7 +421,8 @@ export async function transferItem(dbInstance, userId, passageId, itemId, granul
 	});
 
 	return {
-		tier: plan.tier,
+		crossesPassage: plan.crossesPassage,
+		crossesPart: plan.crossesPart,
 		granularity,
 		direction,
 		movedSegments: movingSegmentIds.length,

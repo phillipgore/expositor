@@ -46,8 +46,9 @@
 		getParsedPassage,
 		extractSegmentText
 	} from '$lib/utils/passageText.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
 	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
+	import { resolveTransferNeighbours } from '$lib/utils/transferNeighbours.js';
 
 
 
@@ -1139,6 +1140,30 @@
 			segmentId: activeSegments[0]?.segmentId ?? null
 		});
 		setJoinNeighbours(hasPredecessor, hasSuccessor);
+	});
+
+	// Resolve whether Move Selected Up / Down can actually run (SERIES_PLAN §8).
+	//
+	// ⚠️ A SEPARATE effect from the join one above, asking a different question. The joins need "does
+	// another item of this tier exist?"; Move Selected needs "is this item at the edge of its own
+	// container, and is there a container beyond it?" — and conflating them left both menu items
+	// enabled on nearly every selection, because in a forty-segment study there is almost always
+	// another segment somewhere.
+	//
+	// `seriesContext` travels because the container beyond this study's edge is in the adjacent part,
+	// which the page cannot see; the context describes exactly the two seams it needs.
+	$effect(() => {
+		setMoveSelectedAvailability(
+			resolveTransferNeighbours(
+				data.passagesWithText,
+				{
+					columnId: activeColumns[0] ?? null,
+					sectionId: activeSections[0] ?? null,
+					segmentId: activeSegments[0]?.segmentId ?? null
+				},
+				data.seriesContext ?? null
+			)
+		);
 	});
 
 	// Sync active column state to toolbar store

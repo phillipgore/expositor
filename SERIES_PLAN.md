@@ -1455,19 +1455,24 @@ was no way to say _"keep this section exactly as it is, but put it in the next c
 next part. **Move Selected Up / Down** is that gap, and it is the first structural command in the
 feature that folds nothing and deletes nothing.
 
-**Two tiers, one pair of buttons.** A section at the start of column 2 has an adjacent column to move
-into; the same section at the start of column 1 does not, but may still have a previous part. The
-precedence is fixed in `itemTransfer.js` and resolved once, server-side:
+**One rule, three tiers.** Each tier moves into **its own container's sibling**, never into a
+different kind of container:
 
-**column-adjacency first; part-adjacency only when no adjacent container exists.** The nearer
-container wins — preferring the part would send a section across a study boundary while an
-empty-handed column sat right beside it.
+| Selected | Container        | Lands in the adjacent |
+| -------- | ---------------- | --------------------- |
+| Segment  | its Section      | **Section**           |
+| Section  | its Column       | **Column**            |
+| Column   | its Series Part  | **Part**              |
 
-| Selected | Nearest destination | Falls back to |
-| -------- | ------------------- | ------------- |
-| Segment  | the adjacent **section** (usually in its own column) | the adjacent part |
-| Section  | the adjacent **column** | the adjacent part |
-| Column   | — (a column has no containing column) | the adjacent part, always |
+Adjacency is resolved over the **whole sequence in reading order**, so the neighbouring container may
+sit in the same passage, in another passage of the same part, or in an adjacent part — and the command
+does not care which. A section in the last column of part A moves into part B's **first column**
+because that is the next column in reading order, not because "part" is a fallback tier.
+
+⚠️ **An earlier draft of this section described two tiers** — "column-adjacency first, part-adjacency
+otherwise" — with a precedence rule. That was wrong twice over: it let a section land in a container
+chosen by *part* rather than by reading order, and it made the three tiers inconsistent with one
+another. There is one search, no fallback and no precedence.
 
 ⚠️ **Only EDGE items may move, and this is the rule the whole command rests on.** There is no
 `order` column on `passage_column`, `passage_section` or `passage_segment` — order is **derived** from
@@ -1479,9 +1484,24 @@ column 1 holding {1:1, 2:1, 3:1} and column 2 holding {4:1, 5:1} become {1:1, 3:
 
 **Nothing downstream catches that.** `reanchor.js` re-anchors each column from its own first segment
 and reports success, because each column is internally consistent; only the relationship between them
-is broken. So the refusal lives at the front of `itemTransfer.js`, and `'blocked'` is deliberately a
-distinct state from `'none'` — a middle item has a perfectly good part beyond it and must **not** be
-rescued by the part-tier fallback.
+is broken. So the refusal lives at the front of `itemTransfer.js`, and it is independent of
+container-adjacency: a middle item with a perfectly good neighbouring container is **still** refused.
+
+⚠️ **Container-edge is asked of the PART for a column.** A part may hold several passages, so a column
+that is the only one in its passage is not thereby the last of its part. Asking the per-passage
+question would let it move in both directions while a column of the same part sat beside it — caught
+by the multi-passage case in `verify-item-transfer.mjs`.
+
+**Reading order holds for free at a part seam.** Reading order across a part boundary is *total*:
+every item of part A precedes every item of part B. So the container adjacent to part A's last item is
+necessarily part B's **first** container, at its outer edge — never mid-stack. "Adjacent in reading
+order" and "at the receiving part's edge" name the same position there, so the cross-part case needs
+no special handling at any tier.
+
+**What decides whether verses move is `crossesPassage`, not the tier.** A section stepping between two
+columns of one passage moves nothing — no boundary shift, no `cachedText` invalidation, no display
+re-check. The same section stepping into the next part's column moves plenty. Keying that off
+granularity gets it wrong in both directions.
 
 **What it reuses, and what it does not.** The cross-part tier borrows `planBoundaryShift()`, the
 display-limit re-validation of §10.1, the Q41 pre-write block and the connection re-ownership block
@@ -1513,15 +1533,38 @@ comes back into part B's *first* section, which may not be where it started, and
 may have been pruned by the empty-container sweep in between. Only a **column** move is a true
 inverse.
 
-Enablement uses `canMoveSelectedUpAcross` / `canMoveSelectedDownAcross` — the Join predicates **minus
-the internal-seam clause**. The Join versions return true at an internal passage seam, where this
-command's destination is the adjacent column *inside* the part; reusing them would claim a
-part-crossing that would not happen. Pinned in `verify-cross-part-commands.mjs`.
+**Enablement is resolved on BOTH sides, and that duplication is deliberate.** The menu originally
+enabled both commands whenever a move was *conceivable*, deferring the real rule to the server. That
+shipped as a live defect: the guard was `hasJoinPredecessor`, which asks "is there another segment
+anywhere in this study?" — true for every selection but the first. In a forty-segment study both items
+were live on essentially every click, including a segment sitting mid-section with nowhere to go, and
+the refusal only arrived after a server round trip. That is the exact "feedback after the click"
+failure `crossPartCommands.js` was written to remove one level up.
 
-Verified in `verify-item-transfer.mjs` (36 assertions, pure) and mutation-tested against a real
-database by `npm run probe:transfer` (29 assertions), which covers the middle-item refusal, the
-`topOffset` clear, range conservation on the within tier, boundary movement on the part tier,
-connection re-ownership, container pruning and column-extent ordering.
+So `transferNeighbours.js` now answers the same container question in the browser, against
+`passagesWithText`, and publishes `canMoveSelectedUp` / `canMoveSelectedDown` plus the refusal text to
+the toolbar store. The menu shows no explanatory note under either item — unlike the part-seam
+commands, whose refusal depends on data the user cannot see, the container rule is legible from the
+structure on screen, so the greyed item is the whole message. The refusal sentence is still computed:
+it is what the two implementations are pinned to. ⚠️ **Two implementations of one rule drift silently**, so three things hold them
+together: the refusal *sentences* come from shared builders in `itemTransfer.js`
+(`notAtEdgeReason`, `noContainerReason`); `verify-transfer-agreement.mjs` runs both over identical
+fixtures and asserts the same verdict *and* the same sentence at all three tiers in both directions;
+and the client remains a **necessary** condition only — the server re-resolves over the full sequence
+and stays the authority, so a disagreement costs a refusal, never a wrong write.
+
+⚠️ The client sees only its own part, so the container beyond the study's edge is invisible to it.
+`seriesContext` supplies exactly what is missing: `position`/`total` say whether a neighbouring part
+exists, and `boundaryBefore`/`boundaryAfter` say whether its seam is usable. Both are required —
+reading the boundary string alone repeats the null-means-two-things bug, since `null` means both
+"contiguous" and "no such part".
+
+Verified in `verify-item-transfer.mjs` (56 assertions, pure) and mutation-tested against a real
+database by `npm run probe:transfer` (32 assertions), which covers the middle-item refusal, the
+`topOffset` clear, range conservation on a non-crossing move, boundary movement when a part is
+crossed, connection re-ownership, container pruning, and — the invariant the feature exists to
+protect — that flattening the **whole series** in reading order yields segment anchors that never go
+backwards, with every section and column anchored to its own first child.
 
 ### Split Part / Join Parts
 

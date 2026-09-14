@@ -40,9 +40,7 @@
 		canJoinUpAcross as resolveJoinUpAcross,
 		canJoinDownAcross as resolveJoinDownAcross,
 		canMoveTextUpAcross,
-		canMoveTextDownAcross,
-		canMoveSelectedUpAcross,
-		canMoveSelectedDownAcross
+		canMoveTextDownAcross
 	} from '$lib/utils/crossPartCommands.js';
 	import { page } from '$app/stores';
 
@@ -264,54 +262,26 @@
 	//   Move Text      — words change hands between two segments that both survive.
 	//   Move Selected  — the item itself changes container, intact. Nothing is folded or deleted.
 	//
-	// Enablement is deliberately PERMISSIVE here and authoritative on the server. The menu cannot see
-	// which column an item sits in, nor whether it is first or last among its siblings — that is
-	// `itemTransfer.js`'s question, and answering it client-side would mean shipping a second copy of
-	// the ordering rule. So the menu asks only "is a structural item selected, and is a move
-	// conceivable?", and `analyzeItemTransfer` refuses precisely with a reason.
+	// The rule is one sentence at all three tiers: **be at the edge of your container, and have an
+	// adjacent container of the same kind to land in** — a segment moves between sections, a section
+	// between columns, a column between parts.
 	//
-	// ⚠️ The series predicates used here are `canMoveSelectedUp/DownAcross`, NOT the Join ones. Those
-	// return true at an internal passage seam, where this command's destination is the adjacent column
-	// INSIDE the part — using them would claim a part-crossing that is not what would happen.
+	// ⚠️ These read `canMoveSelectedUp/Down` from the store, NOT `hasJoinPredecessor`/`hasJoinSuccessor`.
+	// Those answer a same-tier question ("is there another segment anywhere in this study?"), which is
+	// true for all but the first item — so both commands were enabled on essentially every selection,
+	// including a segment mid-section with nowhere to go, and only failed after a server round trip.
+	// `transferNeighbours.js` answers the container question instead, and supplies the refusal text.
 	let moveSelectedGranularity = $derived(joinGranularity);
 
-	// A move is conceivable when there is anywhere to go: another container in this passage (which the
-	// server resolves) or a reachable neighbouring part. `passageCount > 1` stands in for the former,
-	// since a multi-passage part always has an internal destination.
-	let moveSelectedUpPossible = $derived(
-		Boolean(moveSelectedGranularity) &&
-			!isDocument &&
-			(passageCount > 1 || hasPredecessor || canMoveSelectedUpAcross(edgeContext))
+	let moveSelectedUpDisabled = $derived(
+		!moveSelectedGranularity || isDocument || !$toolbarState.canMoveSelectedUp
 	);
-	let moveSelectedDownPossible = $derived(
-		Boolean(moveSelectedGranularity) &&
-			!isDocument &&
-			(passageCount > 1 || hasSuccessor || canMoveSelectedDownAcross(edgeContext))
+	let moveSelectedDownDisabled = $derived(
+		!moveSelectedGranularity || isDocument || !$toolbarState.canMoveSelectedDown
 	);
 
-	let moveSelectedUpDisabled = $derived(!moveSelectedUpPossible);
-	let moveSelectedDownDisabled = $derived(!moveSelectedDownPossible);
-
-	// Explain the part edge only when it is genuinely what is in the way: nothing above inside this
-	// part, and the seam beyond is ineligible.
-	let moveSelectedUpReason = $derived(
-		canExplainStart &&
-			moveSelectedGranularity &&
-			!hasPredecessor &&
-			passageCount === 1 &&
-			seriesContext?.boundaryBefore
-			? seriesContext.boundaryBefore
-			: null
-	);
-	let moveSelectedDownReason = $derived(
-		canExplainEnd &&
-			moveSelectedGranularity &&
-			!hasSuccessor &&
-			passageCount === 1 &&
-			seriesContext?.boundaryAfter
-			? seriesContext.boundaryAfter
-			: null
-	);
+	// Move Selected states its verdict through the disabled state alone — no explanatory note. The
+	// rule ("be at the edge of your container") is short enough to be learned from the greyed item.
 
 
 
@@ -503,11 +473,7 @@
 			window.dispatchEvent(new CustomEvent('move-selected-up'));
 		}}
 		isDisabled={moveSelectedUpDisabled}
-		ariaLabel={moveSelectedUpReason ? `Move Selected Up — ${moveSelectedUpReason}` : undefined}
 	/>
-	{#if moveSelectedUpReason}
-		<p class="boundary-reason" role="none">{moveSelectedUpReason}</p>
-	{/if}
 
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -519,11 +485,7 @@
 			window.dispatchEvent(new CustomEvent('move-selected-down'));
 		}}
 		isDisabled={moveSelectedDownDisabled}
-		ariaLabel={moveSelectedDownReason ? `Move Selected Down — ${moveSelectedDownReason}` : undefined}
 	/>
-	{#if moveSelectedDownReason}
-		<p class="boundary-reason" role="none">{moveSelectedDownReason}</p>
-	{/if}
 
 	<DividerHorizontal />
 
