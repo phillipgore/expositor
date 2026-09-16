@@ -510,9 +510,15 @@
 
 	<!-- Split Part / Join Parts act on a part of an existing series (§8). Separate items from
 	     "Split into a Series…" because they are different operations on different objects — §3's
-	     rule that the verb is always qualified by its object. -->
+	     rule that the verb is always qualified by its object.
+
+	     That rule also chooses the artwork. These two carry `series-part-split` / `series-part-join`
+	     — the single-part rectangle — not the books-and-squares `series-split` above, whose object is
+	     the whole series. Both items rendered `series-split` until the part artwork landed, which put
+	     one glyph on two adjacent items with different objects: the exact confusion §9 draws the two
+	     icon families to prevent. -->
 	<IconButton
-		iconId="series-split"
+		iconId="series-part-split"
 		label="Split Part…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
@@ -522,7 +528,7 @@
 	/>
 
 	<IconButton
-		iconId="series-join"
+		iconId="series-part-join"
 		label="Join Parts…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
@@ -534,7 +540,7 @@
 	<!-- §4: reordering permutes RUNS, not parts. Disabled with a reason for a contiguous series, which
 	     has exactly one run and nothing to rearrange (§11). -->
 	<IconButton
-		iconId="reorder"
+		iconId="series-reorder"
 		label="Reorder Series…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
@@ -544,10 +550,12 @@
 	/>
 
 	<!-- The inverse of "Split into a Series…": that makes a series FROM a study, this puts a study
-	     INTO one (Q17). Uses `series` — the series icon (§9) — because the object of the verb is
-	     the series, per §3's rule that the verb is qualified by its object. -->
+	     INTO one (Q17). Uses `series-add` — a part rectangle with a plus — not the bare `series`
+	     glyph it used to carry. `series` is the NOUN: it marks the series' own Finder row and the
+	     series page heading, so a menu item wearing it read as "a series" rather than "add one more
+	     to a series". The verb needs the verb artwork (§9). -->
 	<IconButton
-		iconId="series"
+		iconId="series-add"
 		label="Add to Series…"
 		classes="menu-light justify-content-left"
 		role="menuitem"

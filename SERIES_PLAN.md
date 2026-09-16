@@ -1640,22 +1640,25 @@ title, concatenate commentary under sub-headings, warn before discarding anythin
 ## 9. Icons
 
 ⚠️ **`src/lib/data/icons.json` is the source of truth, not `public/*.svg`.** `Icon.svelte`
-renders from a registry of **140 entries** (an **array** of `{ _id, viewBox, d }` objects — not a
-keyed map; see the note below), each a single `d` path plus a `viewBox`; the **145 files** in
+renders from a registry of **152 entries** (an **array** of `{ _id, viewBox, d }` objects — not a
+keyed map; see the note below), each a single `d` path plus a `viewBox`; the **160 files** in
 `public/` are **not** what gets rendered and the two sets do not match. An earlier version of this
 section listed icons by reading the directory, which is how it came to recommend one that cannot
 be rendered. See trap 13 — the mismatch is a **latent** source of silent bugs; the last two shipped
 instances are now fixed, so there are none live today.
 
-⚠️ **Counts corrected three times, and the live-bug count is now zero.** This read "136 entries",
-"142 files" and "**three**" live bugs; then 140/145 and two. Phase 1 registered `books`,
+⚠️ **Counts corrected four times, and the live-bug count is now zero.** This read "136 entries",
+"142 files" and "**three**" live bugs; then 140/145 and two; then 142/145. Phase 1 registered `books`,
 `part-split`, `part-join` and `warning` (fixing `StudyGroup.svelte:94`), and the last two — `split`
 and `join` at `src/lib/utils/toolbarConfig.js:402`/`:407` — were fixed by **repointing them at the
 existing `segment-split` / `segment-join`**, not by adding entries. A later pass then **replaced**
 `books` / `part-split` / `part-join` with purpose-drawn `series`, `series-part`, `series-split` and
 `series-join`, deleting the three superseded entries rather than leaving duplicate artwork behind
-(trap 13). The registry is **142 entries** and **no referenced-but-unregistered id is live today**.
-Re-count before quoting these figures; they have moved three times.
+(trap 13). A **later pass again** re-drew `series` / `series-part` / `series-split` (the index
+squares moved to a right-hand column) and added a **second verb family** — `series-part-split`,
+`series-part-join`, `series-add` — for the commands whose object is one **part** rather than the
+whole series. The registry is **152 entries** and **no referenced-but-unregistered id is live
+today**. Re-count before quoting these figures; they have moved four times.
 
 ⚠️ **`icons.json` is an array, not an object — checking membership with `in` silently lies.**
 While verifying this section I probed the registry with `'warning' in icons`, which tests _array
@@ -1680,8 +1683,10 @@ not go through `_id` as unperformed.
 
 ⚠️ **`book-open` does not exist and was the previous recommendation.** This section used to list
 it as reusable and then propose it for standalone studies — the section's main visual decision,
-resting on an icon absent from the registry. `public/book-open.svg` exists, which is what made it
-look available. Two consequences worth keeping:
+resting on an icon absent from the registry. `public/book-open.svg` existed, which is what made it
+look available. ⚠️ **That file has since been deleted**, and `public/book.svg` added in its place,
+matching the registered `book` path exactly — so the trap that produced this recommendation is now
+closed at the source rather than only documented. Two consequences worth keeping:
 
 - **`Icon.svelte` falls back to an empty path, so it would have rendered nothing and thrown
   nothing.** A blank space in the Finder. ⚠️ Earlier wording added "no console error" — wrong:
@@ -1693,26 +1698,62 @@ look available. Two consequences worth keeping:
   existing element this feature has no reason to touch. **Withdrawn** — a standalone study keeps
   `book`.
 
-**Four icons, and that is the whole cost.** ⚠️ **All four are now registered**, along with
-`warning`, and the three earlier stand-ins (`books`, `part-split`, `part-join`) have been
-**deleted** — purpose-drawn artwork replaced them, and keeping both would leave two glyphs meaning
-"series" in a 142-entry registry (trap 13).
+**⚠️ "Four icons, and that is the whole cost" — superseded; there are seven, in two families.**
+All are registered, along with `warning`, and the three earlier stand-ins (`books`, `part-split`,
+`part-join`) have been **deleted** — purpose-drawn artwork replaced them, and keeping both would
+leave two glyphs meaning "series" in the registry (trap 13).
 
-| Id             | Purpose                     | Design                                                                       |
-| -------------- | --------------------------- | ---------------------------------------------------------------------------- |
-| `series`       | A series in the Finder      | An open pair of books over three squares — the ordered sequence made explicit |
-| `series-part`  | One part, inside a series   | The same books over a **single** square: one member of that sequence          |
-| `series-split` | Split into a Series / Split Part | The squares with one divided — a sequence gaining a seam                 |
-| `series-join`  | Join Parts                  | The squares with a converging mark — mirror of the above                      |
+The four-icon estimate was not merely undercounted; it was built on a conflation. It gave **one**
+split glyph to both "Split into a Series…" and "Split Part…", which is visible in the row below as
+originally written: a single `series-split` cell naming two commands. Those commands take different
+objects, and §3's whole point is that the verb is qualified by its object. Two menu items sitting
+two rows apart wearing the same glyph is precisely the confusion the qualified-verb rule exists to
+prevent, so the artwork had to split into two families.
+
+**Family 1 — the series** (an open pair of books beside a right-hand column of index squares):
+
+| Id             | Purpose                   | Design                                                                        |
+| -------------- | ------------------------- | ----------------------------------------------------------------------------- |
+| `series`       | A series in the Finder    | The books beside **three** squares — the ordered sequence made explicit        |
+| `series-part`  | One part, inside a series | The same books beside a **single** square: one member of that sequence         |
+| `series-split` | Split into a Series       | The three squares with the last **hollowed** — a sequence gaining a seam       |
+| `series-join`  | _(unused — see below)_    | The squares with a converging mark — mirror of the above                       |
+
+**Family 2 — one part** (a single rounded rectangle, the same shape a part occupies in family 1's
+square column, enlarged so a second mark fits beside it):
+
+| Id                  | Purpose        | Design                                                              |
+| ------------------- | -------------- | --------------------------------------------------------------------- |
+| `series-part-split` | Split Part…    | One part above a second, the lower one hollowed — a part becoming two   |
+| `series-part-join`  | Join Parts…    | One part above a converging triangle — two parts becoming one           |
+| `series-add`        | Add to Series… | One part above a plus — an existing study joining a sequence            |
+
+The two families are deliberately non-confusable at menu size: books-plus-squares versus a bare
+rounded rectangle. That is the same "the geometry cannot carry the level distinction, so the
+metaphor must" argument made below for books-versus-pages, applied one level down.
+
+⚠️ **`series-join` has no call site today.** `Join Parts…` — the only command it was drawn for —
+now renders `series-part-join`, because the parts are its object, not the series. The entry is
+**kept, not deleted**, against the trap-13 instinct: unlike `books`/`part-split`/`part-join` it is
+not superseded artwork for a live command, it is artwork for a series-level join that has not been
+specified. `scripts/verify-icon-ids.mjs` names it explicitly so the situation is asserted rather
+than merely tolerated. If a series-level join is ruled out, delete the entry, the verifier line and
+`public/series-join.svg` together.
 
 **Naming follows the established object-then-verb rule**, which the whole registry obeys:
 `column-split`/`column-join`, `section-split`/`section-join`, `segment-split`/`segment-join`. So
-the verbs are **`series-split` / `series-join`**.
+the series-level verbs are **`series-split` / `series-join`** and the part-level ones extend the
+same rule one noun deeper: **`series-part-split` / `series-part-join`**. `series-add` is the odd
+one out — object-then-verb gives `series-add`, and the object really is the series (a study is
+added *to* one), even though the drawing shows the part being added.
 
-⚠️ **These were `study-split` / `study-join`, then `part-split` / `part-join`, now
-`series-split` / `series-join`.** The first contradicted §3 ("Part", not "Study"). The second was
-correct for its artwork — two *books* separating — but the drawn icons make the **series** the
-object, and the id follows the drawing. Both old entries are gone from `icons.json`.
+⚠️ **These were `study-split` / `study-join`, then `part-split` / `part-join`, then
+`series-split` / `series-join`, and are now split across both.** The first contradicted §3 ("Part",
+not "Study"). The second was correct for its artwork — two *books* separating — but the drawn icons
+make the **series** the object, and the id follows the drawing. Both old entries are gone from
+`icons.json`. The fourth pass did not rename anything: it **added** `series-part-split` /
+`series-part-join`, because the previous three passes had all assumed one pair of verbs would serve
+both levels, and that assumption — not the names — was the error.
 
 **Why a dedicated `series` glyph and not `books`.** The old argument was the `folder` → `folders`
 precedent: a singular/plural pair already in the registry, so `book` → `books` reuses a convention
@@ -1981,8 +2022,10 @@ carry different reasons.
 
 **Phase 2 — restructuring**
 
-- ✅ **Split Part / Join Parts — done** (+ the `series-split` / `series-join` icons — §9's names;
-  these shipped as `part-split` / `part-join` and were renamed with the drawn artwork). Planning
+- ✅ **Split Part / Join Parts — done** (+ the `series-part-split` / `series-part-join` icons — §9's
+  names; these shipped as `part-split` / `part-join`, were renamed to `series-split` /
+  `series-join` with the drawn artwork, and then moved again to the part-level family when it
+  turned out the series-level verbs were a different pair). Planning
   layer, structure transfer, both endpoints with a shared `dryRun` path, and both confirm modals.
   **Both exercised against a real database** (`probe:split-part`, `probe:join-parts`).
 - **Generalise all five commands from passage scope to sequence scope** — Join Column, Join
@@ -2297,20 +2340,26 @@ the code states what it does, not why the obvious alternative fails.
     instead. If you find yourself adding a `run` table, re-read this.
 
 13. **An SVG in `public/` is not an available icon, and asking for a missing one fails silently.**
-    `Icon.svelte` renders from `src/lib/data/icons.json` (140 entries) and falls back to an empty
+    `Icon.svelte` renders from `src/lib/data/icons.json` (152 entries) and falls back to an empty
 
     path for missing icons, so a wrong `iconId` yields blank space **on screen** — though it does
     `console.warn('Icon not found: …')`, so the failure is visible in the console. (This trap
-    previously said "no console error", which was wrong; see §9.) `public/` holds 145 files and the
-    sets do not match: **11 files are unregistered** (including `book-open`, `text-append`,
-    `text-prepend`, `segment-title`) and **6 registered ids have no file** — the latter are all
-    typos: `minus-circle` vs the file `minu-circle`, and `note-positon`/`note-offset` vs the files
-    `note-position`/`note-offest`. §9 recommended `book-open` purely because the file existed.
+    previously said "no console error", which was wrong; see §9.) `public/` holds 160 files and the
+    sets do not match: **14 files are unregistered** (including `books`, `books-open`, `part-split`,
+    `part-join`, `text-append`, `text-prepend`, `segment-title`) and **6 registered ids have no
+    file** — the latter are all typos: `minus-circle` vs the file `minu-circle`, and
+    `note-positon`/`note-offset` vs the files `note-position`/`note-offest`. §9 recommended
+    `book-open` purely because the file existed.
 
-    ⚠️ **Counts corrected: "136 entries", "142 files", "12 unregistered" and "**three** live ids"
-    were all true when written and none are now.** Phase 1 registered `books`, `part-split`,
-    `part-join` and `warning`; `warning` is no longer in either list. A later pass replaced the
-    first three with `series`, `series-part`, `series-split` and `series-join` and deleted them.
+    ⚠️ **Counts corrected twice: "136 entries", "142 files", "12 unregistered" and "**three** live
+    ids", then "140 entries", "145 files", "11 unregistered" — none are now true.** Phase 1
+    registered `books`, `part-split`, `part-join` and `warning`; `warning` is no longer in either
+    list. A later pass replaced the first three with `series`, `series-part`, `series-split` and
+    `series-join` and deleted them **from the registry only** — `public/books.svg`,
+    `public/part-split.svg` and `public/part-join.svg` are still on disk, which is why the
+    unregistered count went **up** while the registry grew. That is the trap restating itself: the
+    deleted-artwork decision was executed in `icons.json` and not in `public/`, so the files that
+    made `book-open` look available are the same kind of files those three are now.
     Re-count before quoting.
 
     ✅ **The last two live ids are fixed, and the fix was not to add them.** `split` and `join` were
@@ -2579,7 +2628,8 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | Which Finder rows can be dragged                          | **A series can (into a group); a part cannot (anywhere)**                            | Both had defaulted rather than been decided. A series occupies its own Finder slot (§4) and "Move to…" could already file it, but `onSeriesMouseDown={null}` meant the gesture could not — two answers to "is a series movable", depending on the affordance reached for. A part's place IS its series (`seriesOrder`), so dragging one into a group is a membership change wearing a placement gesture, performed silently, when every legitimate exit states its consequences first (Delete Part, Join Parts, extent review). ⚠️ The part refusal lives in the composable, not in `StudySeries`: a part also travels inside a multi-selection grabbed by a standalone study, which no guard in that file could see. Series get their own `draggedSeries` array — sharing `draggedStudies` would PATCH `/api/studies/[id]` with a series id, which matches nothing and reports success (Q17) |
 | What a generated part is CALLED                           | **Its full passage reference** — `Romans 1:1-32`, from the book name                 | `partTitle()` is the single source of every part name: two creation previews, Join/Split Part's copy, the review page's deleted-part and discarded-title lists, and the delete-consequence sentences all render it, so fixing any one surface puts it at odds with six others. `Romans 1` also *dropped information that matters at a range's edges* — Rom 1:18–8:39 produced a part titled "Romans 1" that does not begin where Romans 1 begins (Q12). Converges with Split Part, which always named its new part this way. Hyphen via `formatPassageReference`, matching the Finder. Study title no longer leaks in — a citation must open with a book name. **No migration**: `study.title` is user-editable and a rename is indistinguishable from a generated title, so rewriting would destroy renames (§6) |
 | What the series landing page shows                        | **No part count; Continue names the part by reference**                               | `/series/[id]` carried a `Series · N parts` line because the page should name the thing the way the row that led there does — and that reasoning is what removed it, since the row no longer says it (Q16). The emptiness case already covers the one count that changes what the user can do. Its button became `Continue: Ephesians 1:1-23 [ESV]` for the same derived-title reason as the part rows; the reference is built in the page loader from passages it already fetched, so there is no extra query (§6) |
-| Split/Join Part icon names                                | **`series-split` / `series-join`** (was `part-split` / `part-join`)                  | Third naming: `study-split`/`study-join` contradicted §3's "Split Part"/"Join Parts"; `part-split`/`part-join` matched *its* artwork (two books parting) but the drawn icons make the **series** the object, and the id follows the drawing. Still object-then-verb, as the whole registry is (`column-split`, `section-join`, `segment-split`). Both old entries deleted                                                                                                                                                                                   |
+| Split/Join Part icon names                                | **`series-split` / `series-join`** (was `part-split` / `part-join`)                  | Third naming: `study-split`/`study-join` contradicted §3's "Split Part"/"Join Parts"; `part-split`/`part-join` matched *its* artwork (two books parting) but the drawn icons make the **series** the object, and the id follows the drawing. Still object-then-verb, as the whole registry is (`column-split`, `section-join`, `segment-split`). Both old entries deleted. ⚠️ **Superseded by the row below** — these ids survive, but they are no longer what Split Part / Join Parts render                                                                 |
+| Icons for the PART-level commands                         | **`series-part-split` / `series-part-join` / `series-add`** — a second verb family   | Three renamings had all assumed one pair of split/join glyphs could serve both levels, and the assumption, not the names, was wrong. `Split into a Series…` and `Split Part…` sit two rows apart in `MenuActions.svelte` and **both rendered `series-split`** — different objects, one glyph, which is exactly what §3's qualified-verb rule exists to prevent and what §9's own four-icon table had written down as intended. `Add to Series…` wore the bare `series` NOUN for the same reason. The new artwork is a single rounded part-rectangle (split / converging triangle / plus) against family 1's books-plus-squares, so the two levels are non-confusable at menu size. `series-join` is left **registered but unreferenced** for a series-level join that has not been specified; `verify-icon-ids.mjs` names it so that is asserted rather than tolerated |
 | Split/Join Part icon design                               | **The book metaphor, not a divided page**                                            | Icons are a single fill-only `d` path in a 32×32 viewBox, so the old "vertical dashed rule" needs hand-placed rects that merge at menu size. And it would be a fourth variation on "a divided rectangle" beside the three page-level split icons. The geometry cannot carry the level distinction, so the metaphor must                                                                                                                                                                                                                                     |
-| Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — four entries total for the whole feature (`series`, `series-part`, `series-split`, `series-join`), plus `warning`, and the three placeholders they replaced were deleted so the net registry growth is one. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` were not ours either, and are fixed by repointing at the existing `segment-split` / `segment-join` — no new artwork (trap 13) |
+| Icon cost of the five commands                            | **Zero**                                                                             | Move Text Up/Down already use `arrow-up`/`arrow-down`, and the three Joins already have icons. §8's commitment adds no icon work — four entries total for the whole feature (`series`, `series-part`, `series-split`, `series-join`), plus `warning`, and the three placeholders they replaced were deleted so the net registry growth is one. ⚠️ This cell ended "plus registering `warning`, **which is already broken**" — all four are now registered (phase 1), so the whole icon cost of this feature is paid. `split` / `join` were not ours either, and are fixed by repointing at the existing `segment-split` / `segment-join` — no new artwork (trap 13). ⚠️ **"Four entries total" is now seven** and the registry is 152, not 142 — the five commands' cost really was zero, but the part-level verbs above were not foreseen by this count |
 | Auto-select on a series page                             | **Latched on the active id changing, like the study branch**                         | Clicking a series' first part left the SERIES highlighted. `goto()` is async, so the auto-select effect re-ran while the URL was still `/series/[id]`: the part had just replaced the series in the selection, which made `!isItemSelected('series', ...)` true, so the branch re-imposed the series. Intermittent because the study branch usually repaired it on arrival — unless the part was already `previousActiveStudyId`, in which case that branch skipped its own auto-select and the stale series selection survived. `previousActiveSeriesId` must be RESET in the other branches or it fires once per session

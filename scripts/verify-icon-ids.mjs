@@ -96,13 +96,28 @@ console.log('\n── the icons this feature relies on are present by name ─�
 // button in a menu nobody re-opens.
 // `books` / `part-split` / `part-join` were removed when the dedicated series artwork landed —
 // naming the OLD ids here would fail on artwork that was deliberately deleted, so the list tracks
-// the ids actually in use: `series` (the series row), `series-part` (a part of one), and the two
-// verbs.
+// the ids actually in use: `series` (the series row), `series-part` (a part of one), and the verbs.
+//
+// The verbs come in TWO families, and naming both is the point of listing them individually. The
+// books-and-squares pair (`series-split` / `series-join`) takes the whole series as its object; the
+// part-rectangle trio (`series-part-split` / `series-part-join` / `series-add`) takes a single part.
+// `Split into a Series…` and `Split Part…` sit two rows apart in the same menu and both rendered
+// `series-split` until the part artwork landed — a wrong-but-present glyph, which is the one icon
+// defect the "every literal iconId resolves" check above cannot see.
+//
+// ⚠️ `series-join` currently has NO `iconId` call site: `Join Parts…` moved to `series-part-join`,
+// and the series-level join it was drawn for does not exist yet. It is named here deliberately so
+// that if that command arrives the artwork is still present, and so the unreferenced entry is a
+// recorded decision rather than a leftover. Delete both this line and the entry together, or
+// neither.
 for (const id of [
 	'series',
 	'series-part',
 	'series-split',
 	'series-join',
+	'series-part-split',
+	'series-part-join',
+	'series-add',
 	'arrow-up-square',
 	'book-in',
 	// The Structure menu's two command pairs. Named because they are easy to confuse with each other
