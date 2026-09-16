@@ -49,7 +49,7 @@
 	const dragDrop = useDragAndDrop(
 		() => invalidate('app:studies'),
 		// Dropping a standalone study on a series row PROPOSES an add (SERIES_PLAN Q17, phase 3).
-		// It opens the same dialog the "Add to Series..." menu item opens, because §4's invariant
+		// It opens the same dialog the "Add to Series…" menu item opens, because §4's invariant
 		// table only warns for a gap, an overlap or a different book — and a warning nobody reads is
 		// a warning that was not given. The dialog dry-runs through the planner that performs the add.
 		(study, seriesId) => {

@@ -218,7 +218,7 @@
 		{isOpen}
 		title={modalContent.title}
 		size="small"
-		confirmLabel={deleteInProgress ? 'Deleting...' : 'Delete'}
+		confirmLabel={deleteInProgress ? 'Deleting…' : 'Delete'}
 		confirmClasses="red"
 		cancelLabel="Cancel"
 		onConfirm={handleConfirm}

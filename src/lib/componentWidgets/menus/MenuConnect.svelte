@@ -202,7 +202,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note-slide"
-		label="Set Quick Note Slide"
+		label="Set Quick Note Slide…"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -231,7 +231,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note-positon"
-		label="Set Quick Note Position"
+		label="Set Quick Note Position…"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -260,7 +260,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note-offset"
-		label="Set Quick Note Offset"
+		label="Set Quick Note Offset…"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();

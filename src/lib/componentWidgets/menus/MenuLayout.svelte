@@ -53,7 +53,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="column-spacing"
-		label="Set Column Spacing"
+		label="Set Column Spacing…"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -81,7 +81,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="column-width"
-		label="Set Column Width"
+		label="Set Column Width…"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -109,7 +109,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="section-spacing"
-		label="Set Section Spacing"
+		label="Set Section Spacing…"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -137,7 +137,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="segment-height"
-		label="Set Segment Height"
+		label="Set Segment Height…"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();

@@ -141,7 +141,7 @@
 			<FormButtonBar>
 				<Button 
 					type="submit"
-					label={isResending ? "Sending..." : "Resend"}
+					label={isResending ? 'Sending…' : 'Resend'}
 					classes="blue"
 					isDisabled={isResending}
 				/>

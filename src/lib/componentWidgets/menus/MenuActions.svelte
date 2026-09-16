@@ -6,7 +6,7 @@
 	 * Provides keyboard-accessible alternatives to drag-and-drop operations.
 	 * 
 	 * ## Features
-	 * - Move to... submenu with hierarchical group list
+	 * - Move to… submenu with hierarchical group list
 	 * - Remove from Group option (moves to ungrouped)
 	 * - Delete option (with confirmation modal)
 	 * - Dark themed menu
@@ -250,7 +250,7 @@
 
 	// ── Add a standalone study to a series (Q17, phase 3) ─────────────────────
 	//
-	// The inverse of "Split into a Series...": that makes a series FROM a study, this puts a study INTO
+	// The inverse of "Split into a Series…": that makes a series FROM a study, this puts a study INTO
 	// one. Offered for a standalone study only — a study already in a series would have to answer what
 	// happens to the series it leaves (§4: down to one part, that series dissolves), which the endpoint
 	// refuses rather than performs silently.
@@ -478,7 +478,7 @@
 	
 	<IconButton
 		iconId="arrow-right-curve"
-		label="Move to..."
+		label="Move to…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleMoveToClick}
@@ -500,7 +500,7 @@
 	     which belongs to columns (column-split.svg). -->
 	<IconButton
 		iconId="series-split"
-		label="Split into a Series..."
+		label="Split into a Series…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleSplitIntoSeriesClick}
@@ -509,11 +509,11 @@
 	/>
 
 	<!-- Split Part / Join Parts act on a part of an existing series (§8). Separate items from
-	     "Split into a Series..." because they are different operations on different objects — §3's
+	     "Split into a Series…" because they are different operations on different objects — §3's
 	     rule that the verb is always qualified by its object. -->
 	<IconButton
 		iconId="series-split"
-		label="Split Part..."
+		label="Split Part…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleSplitPartClick}
@@ -523,7 +523,7 @@
 
 	<IconButton
 		iconId="series-join"
-		label="Join Parts..."
+		label="Join Parts…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleJoinPartsClick}
@@ -535,7 +535,7 @@
 	     has exactly one run and nothing to rearrange (§11). -->
 	<IconButton
 		iconId="reorder"
-		label="Reorder Series..."
+		label="Reorder Series…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleReorderClick}
@@ -543,12 +543,12 @@
 		title={reorderDisabledReason}
 	/>
 
-	<!-- The inverse of "Split into a Series...": that makes a series FROM a study, this puts a study
+	<!-- The inverse of "Split into a Series…": that makes a series FROM a study, this puts a study
 	     INTO one (Q17). Uses `series` — the series icon (§9) — because the object of the verb is
 	     the series, per §3's rule that the verb is qualified by its object. -->
 	<IconButton
 		iconId="series"
-		label="Add to Series..."
+		label="Add to Series…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleAddToSeriesClick}

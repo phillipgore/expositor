@@ -266,13 +266,19 @@ export function getAppToolbarConfig() {
 					// visual Analyze view (the .analyze-content) to an image/PDF
 					// file. Only meaningful on a study route, where the view page is
 					// mounted to receive the print/export request.
+					//
+					// Also disabled while a SERIES row is selected in the Finder: a
+					// series is a container (SERIES_PLAN §4), not a rendered view — it
+					// has no Document/Analyze output of its own to print or export. A
+					// series PART is a study and keeps Output enabled.
 					type: 'menu',
 					iconId: 'export',
 					menuId: 'MenuExport',
 					underLabel: 'Output',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledCheck: (state) => !state.isStudyRoute
+					disabledCheck: (state) =>
+						!state.isStudyRoute || Boolean(state.selectedItem?.hasSeries)
 				}
 			]
 		},

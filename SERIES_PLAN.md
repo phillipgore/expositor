@@ -515,6 +515,52 @@ naming defect to fix; it is a real conceptual adjacency, recorded so nobody late
 one into the other. They differ in what survives: Join Parts removes a part, a boundary move
 does not.
 
+### The ellipsis rule — a command label promises whether the click commits
+
+The qualified-verb rule above decides _what a command is called_. This one decides _what its
+label promises about pressing it_, and it had been followed by practice without ever being
+written down — which is exactly how seven labels drifted out of it before this section existed.
+
+_Rule: a menu item whose label ends in **`…`** does not perform its action on click — it opens a
+dialog that needs more information first, and the user can still cancel. A label without `…`
+commits on click._
+
+This matters more here than in a typical app because every series command is structural or
+destructive: reparenting, splitting, merging (Join Parts drops connections that "cannot survive
+the merge"), reordering, changing membership. The ellipsis is the label-level promise that **the
+menu click itself is safe** — the only irreversible moment is the confirm button inside the
+dialog. It is the same claim `AddToSeriesModal` makes in its own header when it refuses to skip
+confirmation for a drag that already chose a target: "the drop chose a target, it did not read
+§4's warnings." A structural command never fires blind.
+
+It pairs with the disabled-with-a-reason pattern: the menu never hides a command, it shows it
+greyed with a `title` saying why. **`…` says "this will ask you"; the tooltip says "this cannot
+ask you yet."**
+
+**Two deliberate exceptions**, both because the dialog is _conditional_ rather than guaranteed,
+and a label must describe the usual case:
+
+- **`Export as PNG` / `Export as PDF`** — `guardExport()` opens `ExportComplianceModal` only when
+  there are compliance warnings. Usually it just exports.
+- **`Join Selected Up` / `Join Selected Down`** — `JoinConfirmationModal` appears only when the
+  consumed item carries authored content; empty items are joined silently.
+
+A **pure confirmation takes no ellipsis** — `Delete` opens `DeleteConfirmationModal` and is
+correct without one. The ellipsis means "needs more information", not "asks are-you-sure".
+
+**Typography: the literal `…` (U+2026), never three periods.** It is plain text, not a glyph —
+`IconButton` renders `label` as a text node, so nothing needs importing. (The `"ellipsis"` entry
+in `icons.json` is the three-dot SVG for the overflow `MenuButton`; unrelated, and never the
+right tool for label punctuation. `&hellip;` is also wrong: Svelte escapes text interpolation, so
+the entity would render literally.) One character is what screen readers announce correctly —
+which matters because these labels carry no `aria-label`, so the visible text _is_ the accessible
+name — it kerns properly, it matches the platform menus this app imitates, and it is present in
+every font in the stack. `'Adding…'`, `'Joining…'`, `'Saving…'` and every `Spinner` label already
+used it; the remaining `...` spellings were normalised to match.
+
+A guard, since the rule is a convention a linter cannot infer: `grep -rn 'label="[^"]*\.\.\."' src`
+should return nothing.
+
 ---
 
 ## 4. Data model

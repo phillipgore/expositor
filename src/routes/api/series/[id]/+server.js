@@ -74,7 +74,7 @@ export const PATCH = async ({ request, params }) => {
 		//
 		// This is a PLACEMENT change, not a membership one, so it does not fall foul of the note
 		// above: it never touches which studies are parts, nor their seriesOrder. A series occupies
-		// one Finder slot the way a study does (§4), and the Finder's "Move to..." command had no
+		// one Finder slot the way a study does (§4), and the Finder's "Move to…" command had no
 		// way to move it until this existed — it issued a PATCH that this handler ignored, so the
 		// move reported success and nothing moved.
 		//

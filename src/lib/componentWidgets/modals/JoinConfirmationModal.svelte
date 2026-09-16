@@ -103,7 +103,7 @@
 	{isOpen}
 	{title}
 	size="small"
-	confirmLabel={joinInProgress ? 'Joining...' : 'Join'}
+	confirmLabel={joinInProgress ? 'Joining…' : 'Join'}
 	confirmClasses="blue"
 	cancelLabel="Cancel"
 	onConfirm={handleConfirm}
