@@ -93,7 +93,6 @@
 	onConfirm={handleConfirm}
 	onCancel={handleClose}
 	onClose={handleClose}
-	showCloseButton={false}
 	closeOnBackdropClick={false}
 	focusCancelOnOpen={openedViaKeyboard || blocked}
 >

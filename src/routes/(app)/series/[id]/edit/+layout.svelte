@@ -90,7 +90,6 @@
 	onConfirm={confirmLeave}
 	onCancel={stay}
 	onClose={stay}
-	showCloseButton={false}
 	closeOnBackdropClick={false}
 >
 	<p class="modal-message">

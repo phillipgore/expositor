@@ -10,6 +10,14 @@
 	 * rejected `studyGroup` with `kind: 'series'`: a group is an arbitrary nestable folder, a
 	 * series is a flat ordered sequence with invariants), so this is presentational reuse only.
 	 *
+	 * The row carries its translation badge, the same `[ESV]` a study row shows. It is not
+	 * metadata-for-its-own-sake like the "Series · N parts" suffix that used to sit here: the
+	 * same-translation invariant (§4) makes `studySeries.translation` the authoritative answer for
+	 * the whole series, so one badge on the row says what N badges on the parts would, and it is
+	 * the fact that decides whether a dragged study can join (Q17). A collapsed series showing no
+	 * translation while every study around it shows one is the row's own fact missing, not a row
+	 * kept clean.
+	 *
 	 * **The icons are the only differentiator.** The row carried a "Series · N parts" suffix and
 	 * numbered every part in a 3.4rem gutter; both are gone. The suffix was metadata no group row
 	 * shows, and the gutter sat OUTSIDE the selectable row, so a part's text and its selection
@@ -40,6 +48,7 @@
 	 * grabbed by a standalone study elsewhere in the Finder, which no guard in this file could see.
 	 */
 	import Icon from '$lib/componentElements/Icon.svelte';
+	import { getTranslationAbbreviation } from '$lib/utils/translationConfig.js';
 
 	let {
 		series,
@@ -71,6 +80,15 @@
 	let isEffectivelyExpanded = $derived(!series.isCollapsed || forceExpanded);
 
 	let isDropTarget = $derived(dropTargetSeriesId === series.id);
+
+	/**
+	 * `studySeries.translation` is authoritative (§4), but a part answers for a row loaded without
+	 * that column — every part of a series shares one translation by construction, so part 1 is the
+	 * same answer from a different table rather than a guess.
+	 */
+	let translationAbbr = $derived(
+		getTranslationAbbreviation(series.translation ?? series.parts?.[0]?.translation)
+	);
 </script>
 
 <div
@@ -140,7 +158,14 @@
 				     "more than one study" and not "one ordered thing" (§9, Q29). Registered in
 				     icons.json; a public/*.svg file alone would render as blank space (trap 13). -->
 				<Icon iconId={'series'} classes="series-icon" />
-				<span class="series-name">{series.name}</span>
+				<!-- The badge rides inside the name span so it sits immediately after the title text
+				     rather than being pushed to the row's right edge by `flex: 1` — the same
+				     placement a study row uses, where it trails the reference line. -->
+				<span class="series-name"
+					>{series.name}<span class="translation-badge" aria-label="Translation: {translationAbbr}"
+						>[{translationAbbr}]</span
+					></span
+				>
 			</button>
 		</div>
 	</div>
@@ -316,6 +341,24 @@
 
 	.series-name {
 		flex: 1;
+	}
+
+	/* Same size, colour and offset as StudyItem's badge: a series row and a study row are the same
+	   kind of row in the Finder, so their badges must not read as two different things. The series
+	   NAME is 600 weight (.series-header), which the badge deliberately does not inherit — it is an
+	   annotation on the title, not part of it. */
+	.translation-badge {
+		display: inline-block;
+		margin-left: 0.3rem;
+		font-size: 1.1rem;
+		font-weight: 400;
+		color: var(--gray-300);
+	}
+
+	/* On the solid-blue active row the muted grey would be unreadable, exactly as in StudyItem. */
+	.series-header.active .translation-badge,
+	.series-header.selected.active .translation-badge {
+		color: var(--white);
 	}
 
 	/* Matches StudyGroup's `.studies-list.grouped` exactly — the parts must sit on the same

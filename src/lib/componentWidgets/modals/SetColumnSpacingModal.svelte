@@ -95,7 +95,6 @@
 	{isOpen}
 	title="Set Column Spacing"
 	size="small"
-	showCloseButton={false}
 	confirmLabel="Apply"
 	cancelLabel="Cancel"
 	confirmDisabled={isInvalid}

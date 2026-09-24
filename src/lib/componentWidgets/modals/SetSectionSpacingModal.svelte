@@ -81,7 +81,6 @@
 	{isOpen}
 	title="Set Section Spacing"
 	size="small"
-	showCloseButton={false}
 	confirmLabel="Apply"
 	cancelLabel="Cancel"
 	confirmDisabled={isInvalid}

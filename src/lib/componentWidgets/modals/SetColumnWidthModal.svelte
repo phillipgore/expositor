@@ -98,7 +98,6 @@
 	{isOpen}
 	title="Set Column Width"
 	size="small"
-	showCloseButton={false}
 	confirmLabel="Apply"
 	cancelLabel="Cancel"
 	confirmDisabled={isInvalid}

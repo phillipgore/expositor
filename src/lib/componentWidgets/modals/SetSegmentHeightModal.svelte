@@ -75,7 +75,6 @@
 	{isOpen}
 	title="Set Segment Height"
 	size="small"
-	showCloseButton={false}
 	confirmLabel="Apply"
 	cancelLabel="Cancel"
 	confirmDisabled={isInvalid}

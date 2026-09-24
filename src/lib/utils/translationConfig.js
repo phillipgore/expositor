@@ -111,6 +111,24 @@ export function getTranslationMetadata(translationId) {
 }
 
 /**
+ * The bracketed badge text for a translation — `ESV`, `NET`, and so on.
+ *
+ * Every place that renders a `[ESV]` badge (Finder study rows, Finder series rows, the series
+ * landing page's resume button, the Add to Series dialog) needs the same three-step fallback:
+ * the configured abbreviation, then the raw id upper-cased for a translation not in
+ * translations.json, then ESV for a record with no translation at all. Four copies of that
+ * chain is four chances for one badge to disagree with another about the same study, so it
+ * lives here beside the metadata it reads.
+ *
+ * @param {string|null|undefined} translationId - Translation ID (e.g. 'esv', 'net')
+ * @returns {string} The abbreviation to show in brackets
+ */
+export function getTranslationAbbreviation(translationId) {
+	const metadata = getTranslationMetadata(translationId || 'esv');
+	return metadata?.abbreviation || translationId?.toUpperCase() || 'ESV';
+}
+
+/**
  * Get all translations metadata (safe for client-side)
  * @returns {Array<Object>} Array of translation metadata
  */

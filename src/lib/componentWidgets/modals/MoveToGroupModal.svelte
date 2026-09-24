@@ -139,7 +139,6 @@
 	size="medium"
 	showConfirm={false}
 	showCancel={false}
-	showCloseButton={false}
 	onClose={handleClose}
 >
 	<div class="modal-search">

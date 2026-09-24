@@ -19,7 +19,7 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
-	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
+	import { getTranslationAbbreviation } from '$lib/utils/translationConfig.js';
 
 	let { data } = $props();
 
@@ -39,15 +39,23 @@
 	 */
 	let resumeLabel = $derived.by(() => {
 		if (!data.resumePartReference) return 'Continue reading';
-		const metadata = getTranslationMetadata(data.resumePartTranslation || 'esv');
-		const abbr =
-			metadata?.abbreviation || data.resumePartTranslation?.toUpperCase() || 'ESV';
+		const abbr = getTranslationAbbreviation(data.resumePartTranslation);
 		return `Continue: ${data.resumePartReference} [${abbr}]`;
 	});
 
 	// The view the user was last reading in, so resuming returns them to Document or Analyze as
 	// they left it rather than always snapping to one. Same fallback the Finder uses.
 	let resumeView = $derived(get(toolbarState).lastStudyView || 'analyze');
+
+	/**
+	 * The series' own badge, beside its title — the same annotation the Finder row now carries, so
+	 * navigating from that row to this page does not drop a fact the row was showing.
+	 * `studySeries.translation` is authoritative (§4); part 1 answers for a series row that
+	 * somehow lacks it, since every part shares the one translation by construction.
+	 */
+	let translationAbbr = $derived(
+		getTranslationAbbreviation(data.series.translation ?? data.parts?.[0]?.translation)
+	);
 </script>
 
 <div class="container">
@@ -56,7 +64,10 @@
 	<Icon iconId="series" isActive={false} classes=""></Icon>
 
 	<Heading heading="h1" alignCenter hasSub={data.series.subtitle ? true : false}>
-		{data.series.name}
+		{data.series.name}<span
+			class="translation-badge"
+			aria-label="Translation: {translationAbbr}">[{translationAbbr}]</span
+		>
 	</Heading>
 
 	{#if data.series.subtitle}
@@ -110,6 +121,18 @@
 		max-width: initial;
 		margin-bottom: 2.7rem;
 		fill: var(--gray-700);
+	}
+
+	/* Same annotation as the Finder row and the Document header, scaled to an h1: it stays notably
+	   smaller and lighter than the name so it reads as a note on the title rather than part of it,
+	   and does not inherit the heading's weight. */
+	.translation-badge {
+		display: inline-block;
+		margin-left: 0.5rem;
+		font-size: 1.4rem;
+		font-weight: 400;
+		color: var(--gray-300);
+		vertical-align: middle;
 	}
 
 	.series-description {

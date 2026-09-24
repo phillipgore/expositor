@@ -72,7 +72,6 @@
 	{isOpen}
 	title="Set Quick Note Position"
 	size="small"
-	showCloseButton={false}
 	confirmLabel="Apply"
 	cancelLabel="Cancel"
 	confirmDisabled={isInvalid}

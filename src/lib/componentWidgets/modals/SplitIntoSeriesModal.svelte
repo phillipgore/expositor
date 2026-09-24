@@ -206,7 +206,6 @@
 	{isOpen}
 	title="Split into a Series"
 	size="medium"
-	showCloseButton={false}
 	confirmLabel={isSubmitting ? 'Creating…' : 'Create Series'}
 	cancelLabel="Cancel"
 	confirmDisabled={!canCreate}

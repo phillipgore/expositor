@@ -251,7 +251,6 @@
 	{isOpen}
 	title="Manage Serialization"
 	size="medium"
-	showCloseButton={false}
 	confirmLabel="Done"
 	cancelLabel="Cancel"
 	confirmDisabled={!canConfirm}

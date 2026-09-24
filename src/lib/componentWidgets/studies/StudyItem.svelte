@@ -20,7 +20,7 @@
 	 * carries meaning the reference cannot.
 	 */
 	import Icon from '$lib/componentElements/Icon.svelte';
-	import { getTranslationMetadata } from '$lib/utils/translationConfig.js';
+	import { getTranslationAbbreviation } from '$lib/utils/translationConfig.js';
 
 	let {
 		study,
@@ -47,10 +47,7 @@
 	let paddingLeft = $derived(ungrouped ? '2.2rem' : `${(depth * 1.4) + 2.2}rem`);
 	
 	// Get translation abbreviation
-	let translationAbbr = $derived.by(() => {
-		const metadata = getTranslationMetadata(study.translation || 'esv');
-		return metadata?.abbreviation || study.translation?.toUpperCase() || 'ESV';
-	});
+	let translationAbbr = $derived(getTranslationAbbreviation(study.translation));
 
 	let hasPassages = $derived(Boolean(study.passages && study.passages.length > 0));
 

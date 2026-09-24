@@ -9,6 +9,11 @@
 	 * - Native dialog element with built-in accessibility
 	 * - Flexible slot-based content system
 	 * - Customizable actions (confirm/cancel)
+	 *
+	 * ## Dismissal convention
+	 * This app does NOT use a header close [X] button. Modals are dismissed only via
+	 * the footer Cancel button (or ESC / backdrop click when enabled), so there is no
+	 * `showCloseButton` option.
 	 * - Keyboard support (ESC to close)
 	 * - Optional backdrop click to close
 	 * - Focus management
@@ -31,13 +36,11 @@
 	 * 
 	 * @component
 	 */
-	import Icon from './Icon.svelte';
 	import Button from './buttons/Button.svelte';
 
 	let {
 		isOpen = false,
 		title = '',
-		showCloseButton = true,
 		size = 'medium',
 		closeOnBackdropClick = true,
 		confirmLabel = 'Confirm',
@@ -150,16 +153,9 @@
 	onclose={handleDialogClose}
 >
 	<div class="modal-content" onclick={(e) => e.stopPropagation()}>
-		{#if title || showCloseButton}
+		{#if title}
 			<div class="modal-header">
-				{#if title}
-					<h2 class="modal-title">{title}</h2>
-				{/if}
-				{#if showCloseButton}
-					<button class="modal-close-button" onclick={handleClose} aria-label="Close modal">
-						<Icon iconId="x" />
-					</button>
-				{/if}
+				<h2 class="modal-title">{title}</h2>
 			</div>
 		{/if}
 
@@ -250,32 +246,6 @@
 		font-size: 2.4rem;
 		font-weight: 600;
 		color: var(--black);
-	}
-
-	.modal-close-button {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 3.2rem;
-		height: 3.2rem;
-		padding: 0;
-		background: transparent;
-		border: none;
-		border-radius: 0.4rem;
-		cursor: pointer;
-		color: var(--gray-300);
-		transition: background-color 0.2s, color 0.2s;
-	}
-
-	.modal-close-button:hover {
-		background-color: var(--gray-lighter);
-		color: var(--black);
-	}
-
-	.modal-close-button :global(.icon) {
-		height: 1.6rem;
-		width: 1.6rem;
-		fill: currentColor;
 	}
 
 	.modal-body {

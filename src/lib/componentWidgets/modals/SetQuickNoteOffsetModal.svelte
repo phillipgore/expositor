@@ -63,7 +63,6 @@
 	{isOpen}
 	title="Set Quick Note Offset"
 	size="small"
-	showCloseButton={false}
 	confirmLabel="Apply"
 	cancelLabel="Cancel"
 	confirmDisabled={isInvalid}
