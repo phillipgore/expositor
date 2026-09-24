@@ -71,6 +71,34 @@
 		$toolbarState.selectedItem?.count > 0 || false
 	);
 
+	/**
+	 * Does the selection contain a series PART?
+	 *
+	 * A part's place is `study.seriesOrder`, and that order IS the series (§4). Filing a part into
+	 * a group would be a membership change wearing a placement gesture — the very move the drag
+	 * gesture already refuses at source (`useDragAndDrop.handleStudyMouseDown`). The two routes into
+	 * the same PATCH must agree, so the menu command refuses it too rather than silently reparenting
+	 * a row whose place is not `groupId`.
+	 *
+	 * Refused for the WHOLE selection, not just filtered out of it: unlike the drag — where the
+	 * remaining studies still move and the ghost makes it visible which ones — a modal move gives no
+	 * indication that some of what you picked was left behind. §1d prefers a stated reason to a
+	 * partially-honoured command.
+	 */
+	let selectionIncludesPart = $derived(
+		$toolbarState.selectedItem?.items.some(
+			(item) => item.type === 'study' && Boolean(item.data?.seriesId)
+		) || false
+	);
+
+	let moveToDisabledReason = $derived(
+		!hasSelection
+			? null
+			: selectionIncludesPart
+				? 'A part of a series is filed by its place in the series, not in a group. Use Join Parts or edit the series instead.'
+				: null
+	);
+
 	// Check if any selected items are in groups
 	let hasGroupedItems = $derived(
 		$toolbarState.selectedItem?.items.some(item => {
@@ -409,6 +437,10 @@
 	 * Open move to modal
 	 */
 	function handleMoveToClick() {
+		// Belt and braces: the item is disabled for a part, but the handler is the only thing
+		// standing between a stale selection and a PATCH that would reparent a part.
+		if (selectionIncludesPart) return;
+
 		// Close the Actions menu
 		const menu = document.getElementById(menuId);
 		if (menu && menu.matches(':popover-open')) {
@@ -482,7 +514,8 @@
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleMoveToClick}
-		isDisabled={!hasSelection}
+		isDisabled={!hasSelection || selectionIncludesPart}
+		title={moveToDisabledReason}
 	/>
 	
 	<IconButton
