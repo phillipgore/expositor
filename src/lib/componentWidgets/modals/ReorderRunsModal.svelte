@@ -41,6 +41,7 @@
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import { describeRuns } from '$lib/utils/seriesReorder.js';
+	import { messageForFailure } from '$lib/utils/apiErrors.js';
 
 	let { isOpen = false, series = null, onDone, onClose } = $props();
 
@@ -143,7 +144,12 @@
 				});
 				const result = await response.json();
 				if (!response.ok) {
-					error = result?.error ?? 'Could not reorder the series.';
+					error = messageForFailure(
+						response,
+						result,
+						'Could not reorder the series.',
+						'reorder this series'
+					);
 					return;
 				}
 			}

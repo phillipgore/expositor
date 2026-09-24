@@ -132,7 +132,7 @@ try {
 		'../src/lib/server/db/seriesStructure.js'
 	);
 	const { planPartJoin } = await import('../src/lib/utils/seriesRestructure.js');
-	const { passage, study } = await import('../src/lib/server/db/schema.js');
+	const { passage, study, studySeries } = await import('../src/lib/server/db/schema.js');
 	const { eq } = await import('drizzle-orm');
 
 	const before = await liveSegments();
@@ -329,6 +329,118 @@ try {
 	const [part3Passage] =
 		await sql`SELECT COUNT(*)::int AS n FROM passage WHERE id = ${parts[2].passage}`;
 	check('and its passage row survived the attempted delete', part3Passage.n, 1);
+
+	// ── The non-coalescing join: `deleteEmptied: false` ───────────────────────
+	//
+	// The gapped / cross-book join keeps BOTH passage rows, and this is the path that shipped
+	// broken: the re-parent ran anyway, so the absorbed part's columns were moved onto the
+	// surviving part's passage while its own row stayed behind, empty. Nothing threw. The first
+	// passage rendered a column whose words its text does not contain, and the second rendered
+	// with no structure at all — exactly the symptom reported against a real Ecclesiastes join.
+	//
+	// So the assertion is the negative one: after a `deleteEmptied: false` transfer, every column
+	// must still hang off the passage it started on.
+	console.log('\n── a non-coalescing join leaves structure under its own passage row ──');
+
+	const structureOwners = async () => {
+		const rows = await sql`
+			SELECT col.id, col.passage_id
+			FROM passage_column col
+			WHERE col.id LIKE ${PREFIX + '%'}
+		`;
+		return new Map(rows.map((r) => [r.id, r.passage_id]));
+	};
+
+	const ownersBefore = await structureOwners();
+
+	// ⚠️ Run against `db`, NOT inside a rolled-back transaction. The verification reads go through
+	// the `postgres` client on its own connection, which cannot see another transaction's
+	// uncommitted writes — so a rollback-wrapped version of this would report "nothing moved" even
+	// while the bug was moving everything. Committing for real is what makes the check mean
+	// something, and the fixture is torn down in `finally` regardless.
+	const nonCoalescing = await joinPassageStructure(db, {
+		fromPassageId: parts[2].passage,
+		toPassageId: parts[0].passage,
+		targetStudyId: parts[0].study,
+		seriesId,
+		deleteEmptied: false
+	});
+
+	check('no columns were re-parented', nonCoalescing.movedColumns, 0);
+	check('and no passage row was deleted', nonCoalescing.deletedPassage, false);
+
+	const ownersAfter = await structureOwners();
+	check(
+		'part 3’s column still hangs off part 3’s passage',
+		ownersAfter.get(`${parts[2].passage}-col`),
+		parts[2].passage
+	);
+	assert(
+		'no column changed parent at all',
+		[...ownersBefore].every(([colId, passageId]) => ownersAfter.get(colId) === passageId)
+	);
+
+	const [stillThere] =
+		await sql`SELECT COUNT(*)::int AS n FROM passage WHERE id = ${parts[2].passage}`;
+	check('and part 3’s passage row is still present', stillThere.n, 1);
+
+	// The segments are still reachable through their original passage, which is the property the
+	// renderer depends on and the one that actually failed.
+	const afterNonCoalescing = await liveSegments();
+	check('all six segments are still reachable', afterNonCoalescing.length, 6);
+	check(
+		'and part 3’s segment still resolves to part 3’s passage',
+		afterNonCoalescing.find((s) => s.id === `${parts[2].passage}-s1`)?.passage_id,
+		parts[2].passage
+	);
+
+	// ── Dissolve: the survivor inherits the SERIES' name ──────────────────────
+	//
+	// The series is down to two parts, so the next join dissolves it (§4). The ordering trap is
+	// already covered by the endpoint's comments, but the NAME is the part a user notices: the
+	// series row is about to be deleted, and with it the only copy of the name they typed. The
+	// survivor's own title was auto-generated at creation, so inheriting is what leaves them
+	// holding the study they think they have.
+	//
+	// Performed here as the two writes the endpoint performs in that order, since the endpoint
+	// itself needs an HTTP session.
+	console.log('\n── dissolving down to one part hands over the series’ name ──');
+
+	const [seriesRow] = await sql`SELECT name, subtitle FROM study_series WHERE id = ${seriesId}`;
+	check('the series is named as the fixture built it', seriesRow.name, 'Probe JP series');
+
+	const [survivorBefore] = await sql`SELECT title FROM study WHERE id = ${parts[0].study}`;
+	check('and the survivor still carries its own part title', survivorBefore.title, 'Part 1');
+
+	await db.transaction(async (tx) => {
+		await tx
+			.update(study)
+			.set({
+				seriesId: null,
+				seriesOrder: null,
+				title: seriesRow.name,
+				subtitle: seriesRow.subtitle ?? null
+			})
+			.where(eq(study.id, parts[0].study));
+		await tx.delete(studySeries).where(eq(studySeries.id, seriesId));
+	});
+
+	const [survivorAfter] =
+		await sql`SELECT title, series_id, series_order FROM study WHERE id = ${parts[0].study}`;
+	check('the survivor is now called by the series’ name', survivorAfter.title, 'Probe JP series');
+	check('it is no longer a part', survivorAfter.series_id, null);
+	// Both cleared together or neither — the pairing `schema.ts` says is the writer's job.
+	check('and its order was cleared with its membership', survivorAfter.series_order, null);
+
+	const [seriesGone] =
+		await sql`SELECT COUNT(*)::int AS n FROM study_series WHERE id = ${seriesId}`;
+	check('the series row is gone', seriesGone.n, 0);
+
+	// The cascade check that makes the ordering worth asserting: clearing the back-reference first
+	// is what stops `ON DELETE CASCADE` from taking the survivor along with the series row.
+	const [survivorSurvived] =
+		await sql`SELECT COUNT(*)::int AS n FROM study WHERE id = ${parts[0].study}`;
+	check('and the survivor was not cascaded away with it', survivorSurvived.n, 1);
 } catch (error) {
 	fail += 1;
 	console.log(`\n✗ threw: ${error.message}`);

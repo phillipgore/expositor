@@ -240,5 +240,44 @@ assert(
 );
 assert('and reserialize reports which study that is', reserialize.includes('dissolvedIntoStudyId'));
 
+console.log('\n── and it carries the series’ name, not the part’s ──');
+
+// §4: a one-part series is a study wearing a costume. When the costume comes off, the name the
+// user TYPED is on the series row — a part title was auto-generated at creation ("Part 1",
+// "Ecclesiastes 1:9-11"). Deleting the series row without copying its name first leaves the user
+// holding a study called something they never chose, and destroys the name they did.
+//
+// Asserted on both dissolve paths because they are separate implementations of one rule, and a
+// rule implemented twice is a rule that drifts. Q28's "the earlier part keeps its title" governs a
+// join that leaves a series STANDING; it is not in tension with this.
+assert(
+	'reserialize inherits the series name on dissolve',
+	/inheritedTitle\s*\?\s*\{\s*title:\s*inheritedTitle\s*\}/.test(reserialize)
+);
+// The fallback is the whole point: `seriesUpdates.name` is populated only when the save also
+// edited the title field, so a dissolve without a retitle is the COMMON case and must still
+// inherit. Pinned because the narrower version read correct and failed exactly there.
+assert(
+	'and falls back to the existing name when this save did not retitle',
+	reserialize.includes('seriesUpdates.name ?? existingName') &&
+		reserialize.includes('existingName: series.name')
+);
+
+const joinEndpoint = readFileSync('src/routes/api/series/[id]/join/+server.js', 'utf8');
+assert(
+	'Join Parts has a dissolve-identity helper',
+	joinEndpoint.includes('function dissolvedIdentity')
+);
+assert(
+	'and applies it where it clears the back-reference',
+	/seriesOrder:\s*null,\s*\.\.\.dissolvedIdentity\(series\)/.test(joinEndpoint)
+);
+// The helper must not be reachable only from the response payload — that would report a rename
+// that never happened. Two call sites: the UPDATE and the report.
+assert(
+	'and reports the resulting title',
+	joinEndpoint.includes('dissolvedTitle') && joinEndpoint.includes('dissolvedIntoStudyId')
+);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

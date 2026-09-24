@@ -214,14 +214,19 @@
 		position: relative;
 	}
 
-	/* Matches StudyGroup's drop-target treatment, plus an outline: a series drop means something
-	   different from a group drop (it adds a PART, §4), and a user who has just learned the grey
-	   highlight means "files into here" should be able to see this is not that. */
+	/* Identical to StudyGroup's drop-target treatment, deliberately.
+	 *
+	 * This carried a dashed blue outline on top of the grey, on the reasoning that a series drop
+	 * means something different from a group drop (it adds a PART, §4) and should not be mistaken
+	 * for "files into here". In use that argument does not survive: the grey fill already says
+	 * "this row will receive the drop", which is the only thing a hover state has to communicate,
+	 * and the outline read as a second, competing affordance for one gesture. WHAT the drop does is
+	 * stated where it can actually be stated — the Add to Series confirmation — not inferred from a
+	 * border treatment the user has to have learned. Consistency with the group row is the more
+	 * useful signal here. */
 	.series-section.drop-target {
 		background-color: var(--gray-light);
 		border-radius: 0.3rem;
-		outline: 0.2rem dashed var(--blue);
-		outline-offset: -0.2rem;
 	}
 
 	.series-contents {

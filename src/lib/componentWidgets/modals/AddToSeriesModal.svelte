@@ -55,6 +55,7 @@
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Select from '$lib/componentElements/Select.svelte';
 	import { getTranslationAbbreviation } from '$lib/utils/translationConfig.js';
+	import { messageForFailure } from '$lib/utils/apiErrors.js';
 
 	let {
 		isOpen = false,
@@ -115,7 +116,12 @@
 			if (!response.ok) {
 				// The planner's refusal names both translations, or says the study already belongs
 				// somewhere — more use to the reader than a generic failure.
-				error = result?.error ?? 'Could not add this study to the series.';
+				error = messageForFailure(
+					response,
+					result,
+					'Could not add this study to the series.',
+					'add this study to the series'
+				);
 				return null;
 			}
 			return result;

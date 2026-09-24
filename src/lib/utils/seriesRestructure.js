@@ -21,9 +21,32 @@
  *
  * ## Eligibility is borrowed, never re-implemented
  *
- * Join Parts asks `isBoundaryContiguous()` — the same predicate that governs boundary-move
+ * Join Parts asks `classifyBoundary()` — the same predicate that governs boundary-move
  * eligibility, the delete warning and drag legality (§4: "one concept, two uses", plus the third).
  * A second adjacency rule written here would be a fourth place for the four to disagree.
+ *
+ * ## Joining across a gap: `allowNonContiguous`
+ *
+ * A contiguous join **coalesces** two ranges into one. That is why contiguity was required: there
+ * is no honest single range spanning Romans 1–3 and Romans 8, and inventing one would silently
+ * claim the user studies chapters 4–7, which they excluded.
+ *
+ * But coalescing is the only part that needs contiguity. Two ranges can be carried by ONE part as
+ * two passages — which is not a new shape: §5 decided a gapped study like Romans 1–3 + Romans 8,
+ * or a four-book Prison Epistles study, is a first-class thing a series may be made of. So
+ * `planPartJoin()` takes `allowNonContiguous`, and under it a gap or a book change merges the two
+ * parts while **keeping both ranges separate**.
+ *
+ * ⚠️ It defaults to `false`, and that default is load-bearing rather than cautious.
+ * `api/series/[id]/reserialize` calls this function as an **assertion**: `diffSeams()` only ever
+ * proposes joins inside a run, so a refusal there means the two disagree and it throws. Flipping
+ * the default would silence that check — a cross-run join would quietly succeed instead of failing
+ * loudly, and re-serialization would restructure a series in a way the diff never proposed. Only
+ * the Join Parts endpoint passes `true`, and only because a user asked for it in so many words.
+ *
+ * ⚠️ **Overlap is still refused, under either flag.** Separating the ranges does not cure the
+ * duplication — Rom 1–3 with Rom 3–5 repeats chapter 3 whether it is stored as one range or two.
+ * Q40 settled overlap as ineligible and nothing here reopens it.
  *
  * @module seriesRestructure
  */
@@ -31,7 +54,11 @@
 import { getVerseCount, getBookVerseTotal } from './bibleData.js';
 import { checkSinglePassageSupport, getDistributionLimits } from './translationLimits.js';
 
-import { isBoundaryContiguous, classifyBoundary } from './seriesRuns.js';
+// `classifyBoundary` rather than `isBoundaryContiguous`: the join now branches on WHICH of the
+// four states a seam is in — overlap refuses outright, gap and different-books are gated by
+// `allowNonContiguous`, contiguous coalesces — and the boolean cannot express that. Still the
+// same single predicate (§4), just read at full resolution.
+import { classifyBoundary } from './seriesRuns.js';
 
 /**
  * Normalise a passage row to the shape the range helpers expect.
@@ -216,9 +243,18 @@ export function planPartSplit({ part, afterChapter, atPassageSeam, translationId
  * @param {string} params.partId - The part the user invoked the command on
  * @param {'previous'|'next'} params.direction
  * @param {string} params.translationId
- * @returns {{ ok: boolean, error: string|null, keep: Object|null, absorb: Object|null, passages: Object[], warnings: Object[], discards: string[] }}
+ * @param {boolean} [params.allowNonContiguous=false] - Permit a gap or a book change by keeping
+ *   the two ranges as separate passages of one part. Never permits overlap. See the module
+ *   docblock for why the default must stay `false`.
+ * @returns {{ ok: boolean, error: string|null, keep: Object|null, absorb: Object|null, passages: Object[], warnings: Object[], discards: string[], coalesced: boolean, seamKind: string }}
  */
-export function planPartJoin({ parts, partId, direction, translationId }) {
+export function planPartJoin({
+	parts,
+	partId,
+	direction,
+	translationId,
+	allowNonContiguous = false
+}) {
 	const ordered = sortParts(parts);
 	const index = ordered.findIndex((p) => p.id === partId);
 
@@ -229,7 +265,9 @@ export function planPartJoin({ parts, partId, direction, translationId }) {
 		absorb: null,
 		passages: [],
 		warnings: [],
-		discards: []
+		discards: [],
+		coalesced: false,
+		seamKind: 'gap'
 	});
 
 	if (index === -1) return fail('That part is not in this series.');
@@ -250,19 +288,39 @@ export function planPartJoin({ parts, partId, direction, translationId }) {
 	// Borrowed, not re-derived — see the module docblock. `getBoundaryDisabledReason` is not used
 	// here because its copy is written for a *disabled command*; a join attempt needs to say what
 	// went wrong with this gesture.
-	if (!isBoundaryContiguous(before, after)) {
-		const kind = classifyBoundary(before, after);
-		if (kind === 'different-books') {
-			return fail(
-				`${rangesOf(before).at(-1)?.bookName ?? 'These parts'} and ${rangesOf(after)[0]?.bookName ?? 'the next part'} aren’t adjacent in Scripture, so these parts can’t be joined.`
-			);
+	const seamKind = classifyBoundary(before, after);
+
+	/**
+	 * Why this seam is not contiguous, in the user's terms — WITHOUT the consequence.
+	 *
+	 * ⚠️ One clause, completed two ways. The refusal finishes it with what cannot happen ("so
+	 * joining them would leave a gap"); the warning finishes it with what will ("They will be
+	 * joined as separate passages"). Only the shared diagnosis lives here, because that is the
+	 * part that must never drift: a seam described one way when refused and another when allowed
+	 * is the §11 failure of a boundary named inconsistently. The consequences legitimately differ,
+	 * so they are written at the two call sites rather than forced into one string.
+	 */
+	const describeSeam = () => {
+		if (seamKind === 'different-books') {
+			const left = rangesOf(before).at(-1)?.bookName ?? 'These parts';
+			const right = rangesOf(after)[0]?.bookName ?? 'the next part';
+			return `${left} and ${right} aren’t adjacent in Scripture`;
 		}
-		if (kind === 'overlap') {
-			// Q40 is undecided for boundary *moves*; for a join it is decidable but deliberately
-			// declined, because merging overlapping ranges would silently duplicate verses.
+		return 'These parts aren’t adjacent in Scripture';
+	};
+
+	if (seamKind !== 'contiguous') {
+		// ⚠️ Overlap is refused FIRST and unconditionally, before `allowNonContiguous` is consulted.
+		// Keeping the ranges separate is what rescues a gap, but it does nothing for an overlap:
+		// Rom 1–3 plus Rom 3–5 repeats chapter 3 either way, so the flag must not reach it (Q40).
+		if (seamKind === 'overlap') {
 			return fail('These parts overlap, so joining them would repeat the same verses.');
 		}
-		return fail('These parts aren’t adjacent in Scripture, so joining them would leave a gap.');
+
+		// The refusal completes the clause with what cannot happen.
+		if (!allowNonContiguous) {
+			return fail(`${describeSeam()}, so joining them would leave a gap.`);
+		}
 	}
 
 	// Concatenate, then coalesce the seam: the whole point of a contiguous join is that the two
@@ -273,7 +331,13 @@ export function planPartJoin({ parts, partId, direction, translationId }) {
 	const seamLeft = passages.at(-1);
 	const seamRight = afterRanges[0];
 
+	// ⚠️ `seamKind === 'contiguous'` is part of the condition, not merely implied by it. Same-book
+	// was a sufficient test only while contiguity was enforced above; under `allowNonContiguous` a
+	// Romans 1–3 / Romans 8 seam is same-book AND gapped, so the old test would coalesce it into
+	// "Romans 1–8" and hand the user four chapters they deliberately excluded. That is the silent
+	// data-claiming failure this whole flag exists to avoid.
 	if (
+		seamKind === 'contiguous' &&
 		seamLeft &&
 		seamRight &&
 		seamLeft.book === seamRight.book &&
@@ -295,14 +359,37 @@ export function planPartJoin({ parts, partId, direction, translationId }) {
 	const discards = [];
 	if (after.title) discards.push(after.title);
 
+	const warnings = assessRanges(passages, translationId, 'The joined part');
+
+	// A non-contiguous join is legal but not what "join" usually means, so it says so in the same
+	// words the refusal would have used. Reported as a warning rather than blocking: §5's rule is
+	// that a user may knowingly build a part that will warn, and the user asked for this one.
+	// First in the list — it describes the operation itself, where the others describe the result.
+	if (seamKind !== 'contiguous') {
+		warnings.unshift({
+			severity: 'warning',
+			reason: 'non-contiguous-join',
+			// Completes the same clause with what WILL happen. Stated as fact, not permission —
+			// the user has already asked for the join, so this reports the outcome rather than
+			// posing a question the live Join button has already answered.
+			message: `${describeSeam()}. They will be joined as separate passages.`
+		});
+	}
+
 	return {
 		ok: true,
 		error: null,
 		keep: before,
 		absorb: after,
 		passages,
-		warnings: assessRanges(passages, translationId, 'The joined part'),
-		discards
+		warnings,
+		discards,
+		// Whether the two ranges became one. The endpoint derives the same fact by counting rows
+		// (it must, since only it knows how many passage rows exist), but callers that hold only
+		// the plan — the modal, the verification scripts — would otherwise have to re-derive it
+		// from the seam, which is the duplication this module's docblock warns against.
+		coalesced: seamKind === 'contiguous',
+		seamKind
 	};
 }
 

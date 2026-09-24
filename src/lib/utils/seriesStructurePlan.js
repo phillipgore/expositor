@@ -146,9 +146,14 @@ export function planStructureSplit(tree, boundaryWordId) {
 /**
  * Plan the absorption of one passage's structure into another (Join Parts).
  *
- * Every column re-parents wholesale. There is no straddling case, because the two passages abut
- * rather than overlap — `planPartJoin()` refuses an overlapping boundary precisely so this stays
- * true, and `isBoundaryContiguous()` is the predicate that guarantees it.
+ * Every column re-parents wholesale. There is no straddling case, because the two passages never
+ * overlap — `planPartJoin()` refuses an overlapping boundary precisely so this stays true, and
+ * `classifyBoundary()` is the predicate that guarantees it.
+ *
+ * ⚠️ Note the property relied on is **non-overlap**, not contiguity. A non-contiguous join (§8,
+ * "Joining across a gap") re-parents the absorbed part's columns into a passage that does not abut
+ * the target, and this function is indifferent to that: the columns keep their own passage row,
+ * which simply changes owner. Overlap remains refused under every flag, so the invariant holds.
  *
  * ⚠️ Nothing is merged, folded or deduplicated. The absorbed part's first column becomes an
  * ordinary column of the joined part, sitting after the target's own columns in word order. That

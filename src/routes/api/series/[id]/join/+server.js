@@ -27,6 +27,36 @@ function referenceFor(ranges) {
 }
 
 /**
+ * What a dissolving series hands to the study it leaves behind.
+ *
+ * Only `name` → `title` and `subtitle`. Deliberately NOT `groupId`: a series may live in a group
+ * while its parts carry `groupId: null` (see `api/series/+server.js`, which nulls them so a part is
+ * not rendered both inside the series and beside it), so copying placement here would be the right
+ * idea applied to the wrong column — and on dissolve the survivor is already wherever the series
+ * put it. Nor `description`: `study` has no such column.
+ *
+ * A guard on the name rather than an unconditional copy. `study.title` is `.notNull()`, and while
+ * `study_series.name` is too, a blank-but-present name would otherwise replace a real part title
+ * with an empty string — a worse outcome than the stale title this whole helper exists to avoid.
+ *
+ * @param {{ name?: string|null, subtitle?: string|null }|null|undefined} series
+ * @returns {{ title?: string, subtitle?: string|null }}
+ */
+function dissolvedIdentity(series) {
+	/** @type {{ title?: string, subtitle?: string|null }} */
+	const fields = {};
+	const name = series?.name?.trim();
+	if (name) fields.title = name;
+	// Copied even when null: the series' subtitle is the one that matched the inherited title, so
+	// keeping the part's own would caption the study with a line written for something else.
+	if (series && 'subtitle' in series) {
+		const subtitle = series.subtitle?.trim();
+		fields.subtitle = subtitle ? subtitle : null;
+	}
+	return fields;
+}
+
+/**
  * Load every part of a series with its passages attached.
  *
  * `planPartJoin()` reads `part.passages` to classify the boundary via `isBoundaryContiguous()`, so
@@ -103,7 +133,15 @@ export const POST = async ({ request, params }) => {
 
 		const seriesId = params.id;
 		const body = (await request.json()) ?? {};
-		const { partId, direction, dryRun = false, confirmConnectionLoss = false } = body;
+		const {
+			partId,
+			direction,
+			dryRun = false,
+			confirmConnectionLoss = false,
+			// Opt-in, and only ever sent after the user has SEEN the planner refuse the ordinary
+			// join and chosen the alternative. Absent, this endpoint behaves exactly as before.
+			allowNonContiguous = false
+		} = body;
 
 		if (!partId || typeof partId !== 'string') {
 			return json({ error: 'partId is required' }, { status: 400 });
@@ -133,11 +171,16 @@ export const POST = async ({ request, params }) => {
 		const willDissolve = parts.length === 2;
 		const translationId = parts.find((p) => p.id === partId)?.translation || 'esv';
 
-		const plan = planPartJoin({ parts, partId, direction, translationId });
+		const plan = planPartJoin({ parts, partId, direction, translationId, allowNonContiguous });
 		if (!plan.ok) {
 			// The planner distinguishes different-books from gap from overlap, each with its own
 			// sentence. Passed through unchanged: §11 requires a dead command to say WHY, and never
 			// to promise a fix that is not coming.
+			//
+			// With `allowNonContiguous` sent by the dialog, the only refusals that reach a user
+			// here are the genuinely impossible ones — overlap, or a part with no neighbour in the
+			// chosen direction. A gap no longer lands in this branch at all; it is a warning on a
+			// successful plan.
 			return json({ error: plan.error }, { status: 400 });
 		}
 
@@ -149,8 +192,14 @@ export const POST = async ({ request, params }) => {
 		const absorbPassages = plan.absorb.passages ?? [];
 
 		// Do the two ranges coalesce into one row, or do both survive? `planPartJoin()` coalesces
-		// only when the seam is inside one book. This decides whether a passage row is deleted at
-		// all, which is exactly the case `deleteEmptied` guards.
+		// only across a CONTIGUOUS seam. This decides whether a passage row is deleted at all,
+		// which is exactly the case `deleteEmptied` guards.
+		//
+		// ⚠️ Counted from the rows rather than read from `plan.coalesced`, and the two must agree.
+		// Only this function knows how many passage rows the two parts actually hold, and it is the
+		// row count that determines whether one is left over to delete. Until non-contiguous joins
+		// existed this was always `true` for a same-book seam; it is now genuinely both, so the
+		// `deleteEmptied: false` path below runs for the first time.
 		const coalesces = plan.passages.length < keepPassages.length + absorbPassages.length;
 
 		// ⚠️ The connection count belongs in the DRY RUN, not only in the 409.
@@ -176,6 +225,10 @@ export const POST = async ({ request, params }) => {
 			// Q28: what has nowhere to go. Deliberately short, not padded to look thorough —
 			// structure, notes and commentary are all re-parented intact.
 			discards: plan.discards,
+			// So the dialog can say which of the two outcomes it is about to produce: one merged
+			// range, or one part carrying both ranges as separate passages.
+			coalesced: plan.coalesced,
+			seamKind: plan.seamKind,
 			willDissolve
 		};
 
@@ -188,6 +241,7 @@ export const POST = async ({ request, params }) => {
 			parts,
 			report,
 			seriesId,
+			series,
 			keepPassages,
 			absorbPassages,
 			coalesces,
@@ -214,6 +268,7 @@ async function commitJoin({
 	parts,
 	report,
 	seriesId,
+	series,
 	keepPassages,
 	absorbPassages,
 	coalesces,
@@ -286,11 +341,25 @@ async function commitJoin({
 		// 5. Down to one part: dissolve, exactly as part delete does. ORDER MATTERS —
 		//    `study.series_id` is ON DELETE CASCADE, so the back-reference must be cleared BEFORE
 		//    the series row is removed or the survivor would be destroyed with it.
+		//
+		// ⚠️ The survivor also inherits the SERIES' identity, not just its verses. Q28 says the
+		// earlier part keeps its title, and that is right while a series still exists — but when
+		// the series dissolves there is no longer anything called by the series' name, and the
+		// study the user is left holding would be named "Part 1" (or "Ecclesiastes 1:9-11") while
+		// the name they actually chose is deleted with the series row. The series name is the more
+		// specific of the two: a part title is auto-generated at creation, a series name was typed.
+		// `reserialize` already does this at its own dissolve for the same reason; the two must not
+		// disagree about what a dissolved series leaves behind.
 		let dissolved = false;
 		if (willDissolve) {
 			await tx
 				.update(study)
-				.set({ seriesId: null, seriesOrder: null, updatedAt: now })
+				.set({
+					seriesId: null,
+					seriesOrder: null,
+					...dissolvedIdentity(series),
+					updatedAt: now
+				})
 				.where(eq(study.id, plan.keep.id));
 			await tx.delete(studySeries).where(eq(studySeries.id, seriesId));
 			dissolved = true;
@@ -309,8 +378,13 @@ async function commitJoin({
 	return json({
 		...report,
 		dissolved: result.dissolved,
+		// The name the user is left holding. Reported because the dissolve renames the survivor,
+		// and a client that refetches the tree should not be the only way to discover that.
+		dissolvedIntoStudyId: result.dissolved ? plan.keep.id : null,
+		dissolvedTitle: result.dissolved ? (dissolvedIdentity(series).title ?? plan.keep.title) : null,
 		movedSegments: result.moved.movedSegments,
-		crossPartConnections: result.moved.straddlingConnections.length, brokenConnections: 0
+		crossPartConnections: result.moved.straddlingConnections.length,
+		brokenConnections: 0
 	});
 }
 

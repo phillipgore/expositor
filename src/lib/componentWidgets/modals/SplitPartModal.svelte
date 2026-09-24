@@ -33,6 +33,7 @@
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
+	import { messageForFailure } from '$lib/utils/apiErrors.js';
 
 	let { isOpen = false, part = null, seriesId = null, onDone, onClose } = $props();
 
@@ -125,7 +126,12 @@
 				if (result?.splitPoints) {
 					preview = { ...(preview ?? {}), splitPoints: result.splitPoints };
 				}
-				error = result?.error ?? 'Could not prepare the split.';
+				error = messageForFailure(
+					response,
+					result,
+					'Could not prepare the split.',
+					'split this part'
+				);
 				return dryRun ? { splitPoints: result?.splitPoints } : null;
 			}
 

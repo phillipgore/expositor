@@ -87,8 +87,11 @@ const prison = part('p3', 0, [
 		toVerse: 24
 	},
 	{
+		// 'PH' is bible.json's id for Philippians. Harmless here — `getSplitPoints()` counts
+		// passages and never looks a book up — but corrected so the fixture cannot mislead the
+		// next reader, and so copying it does not reintroduce the lookup failure fixed below.
 		testament: 'NT',
-		book: 'PP',
+		book: 'PH',
 		bookName: 'Philippians',
 		fromChapter: 1,
 		fromVerse: 1,
@@ -159,8 +162,13 @@ const books = [
 	]),
 	part('b', 1, [
 		{
+			// ⚠️ 'PH', not 'PP'. bible.json's `_id` for Philippians is PH; this fixture said PP and
+			// nothing noticed, because until non-contiguous joins existed the different-books case
+			// was refused BEFORE any verse arithmetic ran, so the bad code was never looked up.
+			// Joining as separate passages does reach `assessRanges()`, which turned the silent
+			// typo into "Book not found: PP in NT" on stderr — the fixture was measuring nothing.
 			testament: 'NT',
-			book: 'PP',
+			book: 'PH',
 			bookName: 'Philippians',
 			fromChapter: 1,
 			fromVerse: 1,
@@ -180,7 +188,9 @@ assert(
 	'and the reason names BOTH books readably',
 	(bookJoin.error ?? '').includes('Ephesians') && (bookJoin.error ?? '').includes('Philippians')
 );
-assert('never leaking an internal id', !/\bEP\b|\bPP\b/.test(bookJoin.error ?? ''));
+// 'PH' is the book id now the fixture is correct; testing the old 'PP' typo would have asserted
+// against a string that can no longer occur, which is an assertion that cannot fail.
+assert('never leaking an internal id', !/\bEP\b|\bPH\b/.test(bookJoin.error ?? ''));
 
 // Overlap: declined deliberately, and the reason must say verses would repeat rather than
 // claiming the parts are "not adjacent" — they are, twice over.
@@ -193,6 +203,109 @@ const overlapJoin = planPartJoin({
 });
 check('overlapping parts cannot be joined', overlapJoin.ok, false);
 assert('and the reason names the repetition', (overlapJoin.error ?? '').includes('repeat'));
+
+// --- Joining across a gap, as SEPARATE passages (allowNonContiguous) -----------------------------
+//
+// The refusals above are about coalescing two ranges into one, which a gap makes dishonest. Carrying
+// both ranges in one part is a different operation, and §5 already treats a gapped study
+// (Romans 1–3 + Romans 8) as a first-class shape. These pin that the flag changes ONLY that.
+
+const gapSeparate = planPartJoin({
+	parts: gapped,
+	partId: 'b',
+	direction: 'previous',
+	translationId: 'esv',
+	allowNonContiguous: true
+});
+check('a gap CAN be joined when ranges are kept separate', gapSeparate.ok, true);
+check('both ranges survive as two passages', gapSeparate.passages.length, 2);
+check('and the plan says it did not coalesce', gapSeparate.coalesced, false);
+check('naming the seam it crossed', gapSeparate.seamKind, 'gap');
+
+// The gap is WARNED about, not refused — the dialog shows this in amber beside a live Join button.
+// It must be first, because it describes the operation where the compliance notices describe the
+// result, and it must carry the same sentence the refusal would have used.
+const gapWarning = gapSeparate.warnings[0];
+check('a non-contiguous join warns', gapWarning?.reason, 'non-contiguous-join');
+check('at warning severity, not notice', gapWarning?.severity, 'warning');
+check(
+	'carrying the refusal’s own diagnosis, then the outcome',
+	gapWarning?.message,
+	'These parts aren’t adjacent in Scripture. They will be joined as separate passages.'
+);
+// ⚠️ The diagnosis must be the SAME clause the refusal uses. Asserted by substring against the
+// real refusal rather than a copy of it, so rewording one without the other fails here.
+assert(
+	'and the refusal opens with that identical clause',
+	(gapJoin.error ?? '').startsWith('These parts aren’t adjacent in Scripture')
+);
+// The whole point: the excluded chapters must NOT be swept in.
+check('the first range still ends where it did', gapSeparate.passages[0].toChapter, 3);
+check('and the second still starts where it did', gapSeparate.passages[1].fromChapter, 5);
+check('the earlier part still keeps its identity', gapSeparate.keep.id, 'a');
+
+const bookSeparate = planPartJoin({
+	parts: books,
+	partId: 'b',
+	direction: 'previous',
+	translationId: 'esv',
+	allowNonContiguous: true
+});
+check('different books can be joined as separate passages', bookSeparate.ok, true);
+check('both books survive as two passages', bookSeparate.passages.length, 2);
+check('and it did not coalesce across the book change', bookSeparate.coalesced, false);
+check('naming the seam', bookSeparate.seamKind, 'different-books');
+assert(
+	'the book-change warning names BOTH books readably',
+	(bookSeparate.warnings[0]?.message ?? '').includes('Ephesians') &&
+		(bookSeparate.warnings[0]?.message ?? '').includes('Philippians')
+);
+assert(
+	'never leaking an internal id into the warning',
+	!/\bEP\b|\bPH\b/.test(bookSeparate.warnings[0]?.message ?? '')
+);
+
+// ⚠️ The flag must NOT reach overlap. Keeping the ranges separate does not cure duplication:
+// Rom 1–3 plus Rom 3–5 repeats chapter 3 whether stored as one range or two (Q40, settled).
+const overlapSeparate = planPartJoin({
+	parts: overlapping,
+	partId: 'b',
+	direction: 'previous',
+	translationId: 'esv',
+	allowNonContiguous: true
+});
+check('overlap is STILL refused under the flag', overlapSeparate.ok, false);
+assert(
+	'and still names the repetition, not a gap',
+	(overlapSeparate.error ?? '').includes('repeat')
+);
+
+// A contiguous seam is unaffected by the flag: it must still coalesce into one range, or the
+// ordinary join would silently start producing two-passage parts.
+const contiguousUnderFlag = planPartJoin({
+	parts,
+	partId: 'b',
+	direction: 'previous',
+	translationId: 'esv',
+	allowNonContiguous: true
+});
+check('a contiguous seam still coalesces under the flag', contiguousUnderFlag.passages.length, 1);
+check('and reports that it coalesced', contiguousUnderFlag.coalesced, true);
+// The ordinary join must stay silent, or the amber block would appear on every join and stop
+// meaning anything.
+check(
+	'and raises NO non-contiguous warning',
+	contiguousUnderFlag.warnings.some((w) => w.reason === 'non-contiguous-join'),
+	false
+);
+
+// The default is load-bearing: `reserialize` calls this as an ASSERTION that diffSeams() only
+// proposes in-run joins, and a flipped default would silence that check.
+check(
+	'the flag defaults to OFF — a gap refuses when it is not passed',
+	planPartJoin({ parts: gapped, partId: 'b', direction: 'previous', translationId: 'esv' }).ok,
+	false
+);
 
 // Ends of the sequence have nothing to join to.
 check(

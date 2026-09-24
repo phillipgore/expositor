@@ -251,7 +251,7 @@ export async function splitPassageStructure(
 	const movedSegmentIds = [...plan.movedSegmentIds];
 
 	// 1. Whole columns: one update each carries sections and segments implicitly.
-	if (plan.moveColumns.length > 0) {
+	if (deleteEmptied && plan.moveColumns.length > 0) {
 		await tx
 			.update(passageColumn)
 			.set({ passageId: newPassageId, updatedAt: now })
@@ -374,8 +374,18 @@ export async function inspectPassageJoin(dbx, { fromPassageId }) {
  * behind `assertPassageEmpty()`, which refuses if step one did not do what it claimed.
  *
  * `deleteEmptied` exists for the multi-passage case: when the parts do NOT coalesce (different
- * books, or a part with several passages), `planPartJoin()` keeps both passage rows and only their
- * `studyId` changes, so there is nothing to delete and nothing to guard.
+ * books, a gap, or a part with several passages), `planPartJoin()` keeps both passage rows and only
+ * their `studyId` changes, so there is nothing to delete and nothing to guard.
+ *
+ * ⚠️ **`deleteEmptied: false` must ALSO skip the re-parent**, and getting that wrong is the second
+ * silent-corruption trap in this function. Re-parenting exists only to empty a row that is about to
+ * be deleted. When both rows survive, moving the source's columns onto the destination passage
+ * leaves segments keyed outside their new parent's verse range — a Ecclesiastes 12:13 column
+ * hanging under a Ecclesiastes 1:9–11 passage. Nothing throws: the first passage renders a column
+ * whose words its text does not contain (an empty box), and the second renders with no structure at
+ * all. The structure is already in the right passage; only the passage row's OWNER changes, and the
+ * caller does that. So the re-parent is gated on `deleteEmptied`, which is precisely the question
+ * "is this row going away?".
  *
  * @param {Object} tx
  * @param {Object} params
@@ -397,7 +407,8 @@ export async function joinPassageStructure(
 	const moved = descendantIds(tree, plan.moveColumns);
 
 	// 1. Re-parent every column BEFORE any delete. This is the step whose omission is silent.
-	if (plan.moveColumns.length > 0) {
+	//    Only when the source row is actually going away — see the ⚠️ above.
+	if (deleteEmptied && plan.moveColumns.length > 0) {
 		await tx
 			.update(passageColumn)
 			.set({ passageId: toPassageId, updatedAt: now })
@@ -405,6 +416,9 @@ export async function joinPassageStructure(
 	}
 
 	// 2. Re-own connections whose endpoints all moved; collect the ones now spanning two parts.
+	//    Runs in BOTH branches: the structure changes part either way — by being re-parented onto
+	//    the surviving passage, or by its own passage row changing `studyId` — and `studyId` on a
+	//    connection is wrong in both cases until it is rewritten.
 	const candidates = await loadTouchingConnections(tx, moved);
 	const ownership = planConnectionOwnership(candidates, moved, {
 		studyId: targetStudyId,
@@ -427,7 +441,9 @@ export async function joinPassageStructure(
 	}
 
 	return {
-		movedColumns: plan.moveColumns.length,
+		// Reports what was re-parented, not what was considered. Zero when both passage rows
+		// survive, because nothing changed parent then — see the ⚠️ in the docblock.
+		movedColumns: deleteEmptied ? plan.moveColumns.length : 0,
 		movedSegments: plan.movedSegmentIds.length,
 		reownedConnections: ownership.reown.length,
 		straddlingConnections: ownership.straddling,

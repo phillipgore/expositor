@@ -594,6 +594,7 @@
 <JoinPartsModal
 	isOpen={showJoinPartsModal}
 	part={selectedStudyData}
+	series={selectedPartSeries}
 	seriesId={selectedPartSeries?.id ?? null}
 	onDone={handleRestructured}
 	onClose={() => (showJoinPartsModal = false)}

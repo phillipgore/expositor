@@ -1361,6 +1361,14 @@ is settled.
 | Part 3 ends Eph 6:24, part 4 begins Phil 1:1   | ❌ Different books         |
 | Part 3 is Rom 1–3, part 4 is Rom 3–5 (overlap) | ❌ Overlap — see Q40       |
 
+⚠️ **This table governs the five cross-part structural commands, NOT Join Parts.** The distinction
+was blurred while the two rules happened to coincide, and it is worth stating plainly now that they
+do not. A cross-part op moves an item *across* a seam and needs the seam to have a defined position,
+which a gap does not have. Join Parts merges two *parts*, and needs that only because it
+**coalesces** their ranges into one — which is a property of the merge, not of the seam. Keep the
+ranges apart and the requirement disappears: see "Joining across a gap" in §8. The rows above are
+unchanged and still correct for what they cover.
+
 **A dead boundary must be disabled with a stated reason,** not silently inert. "Parts 3 and 4
 aren't adjacent in Scripture" is a satisfying explanation; a greyed-out button with no tooltip is
 how this gets filed as a bug. The existing guards already disable these commands at the first
@@ -1632,6 +1640,43 @@ is not even per-passage any more:
 about. For ESV, say how many passages the merged part will need and let the user confirm,
 rather than blocking or silently restructuring._
 **Q27. Join Parts with previous, next, or arbitrary?** _Rec: next and previous; not arbitrary._
+
+### Joining across a gap — SETTLED: allowed, as separate passages
+
+**Decided: a gap or a book change no longer refuses Join Parts outright. It refuses the
+*coalescing* join, and offers to merge the parts while keeping both ranges as separate passages.**
+
+The original refusal was right about the thing it was actually protecting. Joining Romans 1–3 to
+Romans 8 by coalescing produces "Romans 1–8", which hands the user four chapters they deliberately
+excluded — a silent claim about their data, the failure mode COMPLIANCE.md §1.8 calls the worst
+kind. But that is an argument against **one range**, not against **one part**. A part holding two
+non-adjacent passages is not a new concept needing new representation: §5 already decided that a
+gapped study (Romans 1–3 + Romans 8) and a four-book Prison Epistles study are first-class shapes a
+series may be built from. The join simply produces one of them.
+
+Three constraints, all pinned by `verify-series-restructure.mjs`:
+
+1. **Warned, not refused, and not double-confirmed.** `planPartJoin()` takes `allowNonContiguous`,
+   defaulting to `false`; the Join Parts dialog always passes `true`. A gap then produces a
+   successful plan carrying a `non-contiguous-join` **warning** — the refusal's own sentence, plus
+   what will happen instead — shown in amber beside a live Join button. Exactly Q26's precedent:
+   neither block nor silently restructure. There is deliberately no second button and no
+   acknowledgement checkbox; invoking Join Parts on two parts IS the request to join them, and a
+   gap changes only how the result is stored. Amber rather than red because the command will run:
+   `--red` in this dialog means it did not.
+2. **The default is load-bearing.** `api/series/[id]/reserialize` calls `planPartJoin()` as an
+   **assertion** that `diffSeams()` only ever proposes in-run joins, and throws on refusal.
+   Flipping the default would silence that check and let a cross-run join succeed quietly.
+3. **Overlap is still refused, under either flag.** Separating the ranges does not cure
+   duplication — Rom 1–3 with Rom 3–5 repeats chapter 3 whether stored as one range or two. Q40
+   stands.
+
+⚠️ **Join Parts no longer guarantees a joined part is one continuous stretch.** Anything relying on
+that must say so itself. Checked when this landed: `classifyBoundary()` reads only the *outer*
+edges of a part, so an internal gap is invisible to it and `computeRuns()` is unaffected;
+`getSplitPoints()` tests `ranges.length > 1` before any chapter arithmetic, so a gapped joined part
+splits cleanly at its passage seam and the scalar-`book` trap (§5) is never reached. The join is
+therefore reversible by Split Part.
 **Q28. What happens to titles/subtitles/commentary on Join Parts?** _Rec: keep the first part's
 title, concatenate commentary under sub-headings, warn before discarding anything._
 
@@ -2598,7 +2643,7 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | Safari choppiness                                         | Out of scope, tracked in §11.1                                                       | A rendering issue; must not shape the data model                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Limit message attribution                                 | `source`-aware                                                                       | `validatePassageLimits` once blamed the provider for our own cap. Any new limit copy must check `source` first                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Which commands work across a part boundary                | **Join Column, Join Section, Join Segment, Move Text Up, Move Text Down — all five** | They are shipped commands with menu items and toolbar buttons, so a user reaches for them at a boundary immediately. Granularity was never ours to choose; Q24's recommendation to skip raw word moves was withdrawn because Move Text _is_ that move                                                                                                                                                                                                                                                                                                       |
-| Which boundaries are eligible                             | **Canonically contiguous only**                                                      | Different books, or a gap between parts, are never joined. The predicate is "does part _n−1_ end at the word before part _n_ begins", a pure function of canonical `startingWordId` order — not "is this part _n−1_". Overlap is a third excluded state rather than a gap, so the refusal names it (Q40, settled)                                                                                                                                                                                                                                                                                                            |
+| Which boundaries are eligible                             | **Canonically contiguous only — for the five cross-part commands**                   | The predicate is "does part _n−1_ end at the word before part _n_ begins", a pure function of canonical `startingWordId` order — not "is this part _n−1_". Overlap is a third excluded state rather than a gap, so the refusal names it (Q40, settled). ⚠️ **Join Parts is no longer governed by this row**: it required contiguity only to coalesce two ranges into one, so a gap or book change now offers to merge the parts while keeping both ranges as separate passages (§8, "Joining across a gap"). Overlap is still refused there too                                                                              |
 | Cross-passage vs cross-part first                         | **Straight to cross-part**                                                           | The cheaper stepping stone was cross-passage-within-one-study, which is broken today and needs the same generalisation. Recorded consequence: it is fixed incidentally only if the helper takes an ordered passage sequence rather than a part pair                                                                                                                                                                                                                                                                                                         |
 | Export re-validation on boundary move                     | **Not needed — provably**                                                            | Boundary moves are verse-conservative: coverage is unchanged, verses only relocate between parts, and `validateExportLimits()`'s verse-identity `Set` is indifferent to which part holds a verse                                                                                                                                                                                                                                                                                                                                                            |
 | Display re-validation on boundary move                    | **Required, on both parts**                                                          | The receiver may cross `min(500, half the book)` — e.g. a part at Rom 1:1–8:25 (211 verses) tipped past 216 by a few Move Text Up gestures — and the donor's existing warning may now clear, which a stale on-screen warning would misreport. ⚠️ This cell read "Rom 1–8 sits at exactly 216": wrong, it is **225**, which already exceeds half of Romans (216.5). See §10.1                                                                                                                                                                                |

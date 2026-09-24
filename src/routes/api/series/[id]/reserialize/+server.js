@@ -168,6 +168,9 @@ export const POST = async ({ request, params }) => {
 			decisions,
 			title,
 			subtitle,
+			// The name already on the row, for the dissolve below to fall back to when this save
+			// did not also retitle the series.
+			existingName: series.name,
 			translation,
 			userId: session.user.id,
 			chaptersPerPart,
@@ -225,6 +228,7 @@ async function commit({
 	decisions,
 	title,
 	subtitle,
+	existingName,
 	translation,
 	userId,
 	chaptersPerPart,
@@ -301,6 +305,8 @@ async function commit({
 		// documents, and for the same reason.
 		let dissolved = false;
 		if (remaining.length === 1) {
+			// The submitted name if this save changed it, otherwise the one already on the row.
+			const inheritedTitle = (seriesUpdates.name ?? existingName ?? '').trim();
 			await tx
 				.update(study)
 				.set({
@@ -308,7 +314,13 @@ async function commit({
 					seriesOrder: null,
 					// The survivor becomes a standalone study and takes the series' title —
 					// otherwise the user's study would silently be left named "Matthew 3".
-					...(seriesUpdates.name ? { title: seriesUpdates.name } : {}),
+					//
+					// ⚠️ Falls back to the series' EXISTING name, not just a submitted one.
+					// `seriesUpdates.name` is set only when this save also edited the title field,
+					// so keying off it alone meant a user who dissolved a series without retitling
+					// it kept the part title and lost the series name to the delete below — the
+					// exact defect this line was written to prevent, surviving in the common case.
+					...(inheritedTitle ? { title: inheritedTitle } : {}),
 					updatedAt: now
 				})
 				.where(eq(study.id, remaining[0].id));
