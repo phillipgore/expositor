@@ -11,7 +11,10 @@ import {
 	rangeFirstWordId,
 	createDefaultStructureTx
 } from '$lib/server/db/passageReconcile.js';
-import { validatePassagesLimits } from '$lib/utils/translationLimits.js';
+import {
+	validatePassagesLimits,
+	validateStudyDisplayLimits
+} from '$lib/utils/translationLimits.js';
 
 /**
  * Get book name from book ID
@@ -192,6 +195,25 @@ export const actions = {
 			if (!limitCheck.valid) {
 				return fail(400, {
 					error: limitCheck.error,
+					title: title.toString()
+				});
+			}
+
+			// The DISPLAY gate, which retrieval above cannot stand in for: a study can be fetchable
+			// passage by passage and still assemble a page the licence does not permit, and under ESV
+			// Crossway answers that page by silently truncating — the study then renders "Error
+			// loading …". Edit is gated on the same terms as creation because an edit can put a study
+			// into exactly that state, and a study that cannot be displayed is not worth saving.
+			//
+			// ⚠️ No series branch here, unlike the New Study action. This form does not offer the
+			// series toggle (converting a standalone study is the Actions menu's job), so `passagesData`
+			// is always the undivided study and the page rule applies to it directly. A part of a
+			// series is edited through the series-edit flow, which re-plans through the reserialize
+			// endpoint instead.
+			const displayCheck = validateStudyDisplayLimits(passagesData, studyTranslation);
+			if (displayCheck.blocked) {
+				return fail(400, {
+					error: `${displayCheck.warnings[0]} Shorten a passage.`,
 					title: title.toString()
 				});
 			}

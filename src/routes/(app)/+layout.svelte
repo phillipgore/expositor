@@ -5,6 +5,7 @@
 	import { navigating } from '$app/stores';
 	import { onMount } from 'svelte';
 	import ToolbarApp from '$lib/componentWidgets/ToolbarApp.svelte';
+	import Popover from '$lib/componentElements/Popover.svelte';
 	import StudiesPanel from '$lib/componentWidgets/StudiesPanel.svelte';
 	import CommentaryPanel from '$lib/componentWidgets/CommentaryPanel.svelte';
 	import NavigationIndicator from '$lib/componentWidgets/NavigationIndicator.svelte';
@@ -184,6 +185,20 @@
 			initialWidth={data.commentaryPanelWidth || 300}
 		/>
 	</div>
+
+	<!--
+		The app-level transient popover: notices ("connection already exists") and failures alike.
+
+		⚠️ Mounted HERE, not on the analyze page where it used to live. `ToolbarApp` above and the
+		panels beside it are OUTSIDE the page slot, so anything they report had no popover in scope
+		and fell back to `window.alert()`. One mount at the layout covers every (app) route, which
+		is the only arrangement where "show the user an error" does not depend on which component
+		happened to raise it.
+
+		Last child so it paints above the panels; it is `position: fixed` and click-through, so it
+		does not participate in the flex layout above.
+	-->
+	<Popover />
 {:else}
 	<div class="redirecting">Redirecting to sign in...</div>
 {/if}

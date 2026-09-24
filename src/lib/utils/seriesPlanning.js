@@ -506,6 +506,57 @@ export function findUnservablePart(parts, translationId) {
 }
 
 /**
+ * The first part that cannot be DISPLAYED, or null.
+ *
+ * The display counterpart to `findUnservablePart()`, and a genuinely different question.
+ * Retrieval asks "will the API return this range?"; this asks "may this much of a book be on one
+ * page?". A part can pass the first and fail the second, and under ESV that combination is the
+ * common one rather than the exotic one: `checkSinglePassageSupport()` refuses a complete book
+ * only when it ALSO exceeds the 500-verse request ceiling, so a part holding all of Ephesians
+ * (155 verses) is reported servable and then comes back silently truncated, rendering
+ * "Error loading Ephesians 1:1-6:24".
+ *
+ * ⚠️ Asked PER PART, never of the parts together. A series is many pages, so the per-page rule has
+ * no meaning for the aggregate — `assessPlan()` says the same thing at more length and forbids
+ * reinstating a series-wide message. This is what keeps whole-book study through Serialization
+ * legitimate: Ephesians at 2 chapters per part is three parts of 45, 53 and 57 verses, every one
+ * of them inside the half-book cap.
+ *
+ * Passes the whole `passages` array to the validator rather than looping ranges the way
+ * `findUnservablePart()` must: the page rule is about what a part displays in TOTAL, and
+ * `validateStudyDisplayLimits()` already aggregates per book across passages and de-duplicates
+ * verse identities for overlapping ranges. Looping here would ask the wrong question once per
+ * range and miss the assembly (COMPLIANCE §1.6).
+ *
+ * Returns the offender so the caller can name it: "Part 3 cannot be displayed: …".
+ *
+ * @param {Array<Object>} parts - Parts, each with a `passages` array; `seriesOrder` when known
+ * @param {string} translationId
+ * @returns {{ seriesOrder: number|null, message: string|null }|null}
+ */
+export function findUndisplayablePart(parts, translationId) {
+	for (const [index, part] of (Array.isArray(parts) ? parts : []).entries()) {
+		const ranges = Array.isArray(part?.passages) ? part.passages : [];
+		if (ranges.length === 0) continue;
+
+		const display = validateStudyDisplayLimits(ranges, translationId);
+
+		// `blocked === true`, never a truthiness test, for the reason the sibling above records:
+		// a renamed or missing property must not quietly disable the check. `blocked` is already
+		// `!compliant && enforcement === 'block'`, so the posture comes from the JSON and this
+		// function holds no opinion of its own.
+		if (display && display.blocked === true) {
+			return {
+				seriesOrder: part?.seriesOrder ?? index + 1,
+				message: display.warnings[0] ?? null
+			};
+		}
+	}
+
+	return null;
+}
+
+/**
  * Assess a plan for compliance, per SERIES_PLAN §5 and Q33.
  *
  * Two checks, BOTH scoped to a single part:

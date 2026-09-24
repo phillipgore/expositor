@@ -3,9 +3,11 @@
  *
  * ## Why this needs its own script
  *
- * Every translation ships `enforcement: 'warn'` today, so the blocking path is **latent** — it cannot
- * be reached through the app, and no probe or verifier would exercise it. That makes it precisely the
- * kind of code that rots: written once, never run, and wrong by the time someone flips the flag.
+ * ESV ships `enforcement: 'block'` for display since 2026-09-24; NET still warns. This path was
+ * latent when the script was written — unreachable through the app, exercised by no probe — which is
+ * precisely the kind of code that rots: written once, never run, and wrong by the time someone flips
+ * the flag. It is now live for ESV, and these assertions inverted when the flag flipped, which is the
+ * service they were built to perform.
  *
  * So the decision is pinned here against a synthetic 'block' translation. The plan says a thrown error
  * "is not a design" and recommends a declinable pre-move confirmation; this asserts the shape that
@@ -42,12 +44,27 @@ function check(label, actual, expected) {
 const isBlocked = (enforcement, receiver, donor) =>
 	enforcement === 'block' && (receiver.length > 0 || donor.length > 0);
 
-console.log('\n── today every translation warns, so the block path is latent ──');
-check('ESV warns', getDisplayLimits('esv').enforcement, 'warn');
+// ⚠️ These two assertions INVERTED on 2026-09-24, when ESV display enforcement flipped to
+// 'block'. They previously read "ESV warns" and "so a breaching move is NOT blocked today", and
+// they failed the moment the JSON changed — which is exactly what they were for. The path this
+// script covers is no longer latent for ESV; it is live, and the rest of the file now describes
+// running code rather than a contingency.
+//
+// The flip was not a licence-posture decision but a correctness one: Crossway enforces the
+// half-book rule server-side by silently truncating, so a study that breaches it renders
+// "Error loading …" instead of text. Blocking at creation refuses a study that cannot work.
+// Whole-book study remains available through Serialization, where the page rule applies per part.
+console.log('\n── ESV blocks; NET still warns, so both postures stay covered ──');
+check('ESV blocks', getDisplayLimits('esv').enforcement, 'block');
 check('NET warns', getDisplayLimits('net').enforcement, 'warn');
 check(
-	'so a breaching move is NOT blocked today',
+	'so a breaching ESV move IS blocked',
 	isBlocked(getDisplayLimits('esv').enforcement, ['over half the book'], []),
+	true
+);
+check(
+	'while the same move under NET is not',
+	isBlocked(getDisplayLimits('net').enforcement, ['over half the book'], []),
 	false
 );
 

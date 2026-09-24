@@ -32,6 +32,7 @@
 	 * @component
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 	import { messageForFailure } from '$lib/utils/apiErrors.js';
 
@@ -233,15 +234,25 @@
 			</ul>
 		{/if}
 
+		<!-- One yellow Alert per message, and the closing reassurance rides on the LAST of them
+		     rather than sitting in its own box. It is the absence of an action, not a finding of
+		     its own — StudyForm makes the same argument for keeping "You can still save it" inside
+		     the alert it qualifies. A separate Alert would also have been a second yellow box
+		     saying nothing was wrong, which is how a wall of alerts starts.
+
+		     No mention of export, matching the other compliance footers; see SplitIntoSeriesModal
+		     for the reasoning. -->
 		{#if complianceMessages.length > 0}
-			<div class="compliance" role="status">
-				{#each complianceMessages as message}
-					<p class="warning">{message}</p>
-				{/each}
-				<!-- No mention of export, matching the other compliance footers; see
-				     SplitIntoSeriesModal for the reasoning. -->
-				<p class="compliance-foot">You can still split this part.</p>
-			</div>
+			{#each complianceMessages as message, i}
+				<Alert
+					color="yellow"
+					look="subtle"
+					message={i === complianceMessages.length - 1
+						? `${message} You can still split this part.`
+						: message}
+					spacingBottom="0.8rem"
+				/>
+			{/each}
 		{/if}
 
 		{#if brokenCount > 0}
@@ -260,7 +271,7 @@
 		{/if}
 
 		{#if error}
-			<p class="error" role="alert">{error}</p>
+			<Alert color="red" look="subtle" message={error} spacingBottom="0rem" />
 		{/if}
 	{/if}
 </Modal>
@@ -321,32 +332,8 @@
 		color: var(--black);
 	}
 
-	.compliance {
-		margin: 0 0 1.2rem;
-		padding: 0.8rem;
-		border-radius: 0.4rem;
-		background: var(--gray-050, #f7f7f7);
-	}
-
-	.warning {
-		margin: 0 0 0.6rem;
-		font-size: 1.3rem;
-		color: var(--black);
-	}
-
-	.compliance-foot {
-		margin: 0;
-		font-size: 1.2rem;
-		color: var(--gray-300);
-	}
-
 	/* Layout AND spacing are the Checkbox element's; the spacing this modal wants is passed
 	   in as `spacingBottom` rather than reached in through `:global`, which was never scoped
-	   to this component and so fought two other copies of the same rule. */
-
-	.error {
-		margin: 0;
-		font-size: 1.3rem;
-		color: var(--red);
-	}
+	   to this component and so fought two other copies of the same rule. The Alerts above take
+	   the same prop, for the same reason. */
 </style>

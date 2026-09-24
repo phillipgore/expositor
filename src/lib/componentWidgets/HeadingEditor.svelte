@@ -1,5 +1,6 @@
 <script>
 	import { tick } from 'svelte';
+	import { showPopoverError } from '$lib/stores/popover.js';
 	import { invalidate } from '$app/navigation';
 	import { slide } from 'svelte/transition';
 	import Input from '$lib/componentElements/Input.svelte';
@@ -112,13 +113,13 @@
 			if (!response.ok) {
 				const error = await response.json();
 				console.error('Auto-save heading error:', error);
-				alert(`Error: ${error.error || 'Failed to auto-save heading'}`);
+				showPopoverError(error.error || 'Failed to auto-save heading');
 			}
 			// Note: We don't call invalidate() here to avoid constant data reloads
 			// The local state is already updated via inputValue binding
 		} catch (error) {
 			console.error('Auto-save heading network error:', error);
-			alert(`Error: ${error.message || 'Failed to auto-save heading'}`);
+			showPopoverError(error.message || 'Failed to auto-save heading');
 		}
 	}
 
@@ -270,7 +271,7 @@
 				isInputMode = true;
 				// Dispatch failure event
 				window.dispatchEvent(new CustomEvent(`remove-heading-${headingType}-failure`));
-				alert(`Error: ${error.error || 'Failed to delete heading'}`);
+				showPopoverError(error.error || 'Failed to delete heading');
 			}
 		} catch (error) {
 			console.error('Delete heading network error:', error);
@@ -279,7 +280,7 @@
 			isInputMode = true;
 			// Dispatch failure event
 			window.dispatchEvent(new CustomEvent(`remove-heading-${headingType}-failure`));
-			alert(`Error: ${error.message || 'Failed to delete heading'}`);
+			showPopoverError(error.message || 'Failed to delete heading');
 		}
 	}
 

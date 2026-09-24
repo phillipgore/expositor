@@ -24,6 +24,11 @@
 	 * ```svelte
 	 * <Alert color="green" message="Changes saved successfully!" />
 	 * ```
+	 *
+	 * Last item in a modal body, where the footer already supplies padding:
+	 * ```svelte
+	 * <Alert color="red" look="subtle" message={error} spacingBottom="0rem" />
+	 * ```
 	 * 
 	 * @typedef {'red' | 'green' | 'yellow' | 'blue' | 'orange' | 'aqua' | 'purple' | 'pink' | 'gray'} AlertColor
 	 * @typedef {'subtle' | ''} AlertLook
@@ -34,15 +39,21 @@
 	 * @property {AlertColor} [color='red'] - Alert color theme
 	 * @property {AlertLook} [look=''] - Visual style variant. 'subtle' adds border and lighter background
 	 * @property {string} [message=''] - Message text to display. Empty string hides alert
+	 * @property {string} [spacingBottom='1.8rem'] - Gap below the alert. The default is the
+	 *   form-page rhythm every existing caller relies on; modals pass a smaller value because the
+	 *   modal footer already supplies padding. Passed in rather than reached in with `:global`,
+	 *   which is not scoped to the calling component - the same reasoning `Checkbox` records for
+	 *   its identically named prop, after three call sites there overwrote one another.
 	 */
 
 	/** @type {AlertProps} */
-	let { color = 'red', look = '', message = '' } = $props();
+	let { color = 'red', look = '', message = '', spacingBottom = '1.8rem' } = $props();
 </script>
 
 {#if message}
 	<div 
 		class="alert {color} {look}" 
+		style="margin-bottom: {spacingBottom};"
 		transition:slide={{ duration: 300 }}
 		role="alert"
 		aria-live="polite"
@@ -55,10 +66,13 @@
 	/* ============================================
 	   BASE ALERT STYLES
 	   ============================================ */
+	/* `margin-bottom` lives on the element's `style` attribute, fed by the `spacingBottom`
+	   prop, so a caller can tighten it without a `:global` rule. Do not reintroduce it here:
+	   a stylesheet declaration would not lose to the inline one, but it would mean two places
+	   claim the same property. */
 	.alert {
 		padding: 1rem;
 		border-radius: 0.3rem;
-		margin-bottom: 1.8rem;
 		line-height: 1.5;
 		width: 100%;
 	}

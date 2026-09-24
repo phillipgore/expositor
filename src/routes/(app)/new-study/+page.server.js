@@ -8,7 +8,8 @@ import bibleData from '$lib/data/bible.json';
 import { expandGroupAncestors, createDefaultPassageStructure } from '$lib/server/db/utils.js';
 import {
 	validatePassagesLimits,
-	checkSinglePassageSupport
+	checkSinglePassageSupport,
+	validateStudyDisplayLimits
 } from '$lib/utils/translationLimits.js';
 import { planSeriesParts } from '$lib/utils/seriesPlanning.js';
 
@@ -249,11 +250,43 @@ export const actions = {
 						title: title.toString()
 					});
 				}
+
+				// DISPLAY, per part. Retrieval above cannot see this: `checkSinglePassageSupport()`
+				// refuses a complete book only when it also exceeds the request ceiling, so a part
+				// holding a whole short book passes there and still breaches the half-book page rule.
+				// Asked per part rather than of `passagesData`, because a part is its own page
+				// (COMPLIANCE §1.10) — asking it of the undivided range would refuse every whole-book
+				// series, which is the case Serialization exists to serve.
+				const undisplayablePart = seriesPlanForLimits.parts
+					.map((part) => ({
+						seriesOrder: part.seriesOrder,
+						...validateStudyDisplayLimits(part.passages, translation.toString())
+					}))
+					.find((result) => result.blocked);
+
+				if (undisplayablePart) {
+					return fail(400, {
+						error: `Part ${undisplayablePart.seriesOrder} cannot be displayed: ${undisplayablePart.warnings[0]} Use fewer chapters per part.`,
+						title: title.toString()
+					});
+				}
 			} else {
 				const limitCheck = validatePassagesLimits(passagesData, translation.toString());
 				if (!limitCheck.valid) {
 					return fail(400, {
 						error: limitCheck.error,
+						title: title.toString()
+					});
+				}
+
+				// The same display gate the form applies, and the reason it exists: a whole Ephesians
+				// ESV study passes every retrieval check and then renders "Error loading Ephesians
+				// 1:1-6:24", because Crossway truncates a complete-book request silently. Blocking here
+				// refuses to create a study that provably cannot be shown.
+				const displayCheck = validateStudyDisplayLimits(passagesData, translation.toString());
+				if (displayCheck.blocked) {
+					return fail(400, {
+						error: `${displayCheck.warnings[0]} Serialize it, or shorten a passage.`,
 						title: title.toString()
 					});
 				}

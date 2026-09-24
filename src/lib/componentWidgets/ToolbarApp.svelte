@@ -51,6 +51,7 @@
 	 */
 
 	import { page } from '$app/stores';
+	import { showPopoverError } from '$lib/stores/popover.js';
 	import { goto } from '$app/navigation';
 	import ButtonGrouped from '$lib/componentElements/buttons/ButtonGrouped.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
@@ -202,11 +203,11 @@
 			} else {
 				const error = await response.json();
 				console.error('Update color error:', error);
-				alert(`Error: ${error.error || 'Failed to update color'}`);
+				showPopoverError(error.error || 'Failed to update color');
 			}
 		} catch (error) {
 			console.error('Update color network error:', error);
-			alert(`Error: ${error.message || 'Failed to update color'}`);
+			showPopoverError(error.message || 'Failed to update color');
 		}
 	}
 

@@ -24,6 +24,7 @@
 	 */
 
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 	import { describePartDeletion, describeSeriesDeletion } from '$lib/utils/seriesRuns.js';
 
 	let { 
@@ -246,10 +247,7 @@
 		{/if}
 
 		{#if deleteError}
-
-			<p class="modal-message error">
-				{deleteError}
-			</p>
+			<Alert color="red" look="subtle" message={deleteError} spacingBottom="0rem" />
 		{/if}
 	</Modal>
 {/if}
@@ -268,14 +266,5 @@
 		font-size: 1.6rem;
 		line-height: 1.75;
 		color: var(--gray-400);
-	}
-
-	p.modal-message.error {
-
-		background-color: var(--red-lighter);
-		color: var(--red-darker);
-		border: 0.1rem solid var(--red-light);
-		border-radius: 0.3rem;
-		padding: 0.3rem 0.9rem;
 	}
 </style>

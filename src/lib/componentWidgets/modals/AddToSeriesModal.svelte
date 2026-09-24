@@ -53,6 +53,7 @@
 	 */
 	import { untrack } from 'svelte';
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 	import Select from '$lib/componentElements/Select.svelte';
 	import { getTranslationAbbreviation } from '$lib/utils/translationConfig.js';
 	import { messageForFailure } from '$lib/utils/apiErrors.js';
@@ -238,9 +239,18 @@
 			/>
 		{/if}
 
-		<!-- Always present so the dialog's height never changes with the selection (see the note
-		     above). `role="alert"` because when it does fill, it has just disabled Add. -->
-		<p class="error" class:is-empty={!errorText} role="alert">{errorText}</p>
+		<!-- The reserved box stays, and the Alert goes INSIDE it. `Alert` renders nothing when its
+		     message is empty and slides in when it fills, which on its own would reintroduce exactly
+		     the height jump the wrapper exists to prevent — the same regression `display: none`
+		     would have caused, arriving by a different route. The wrapper holds the space; the Alert
+		     supplies the styling and the `role="alert"` announcement.
+
+		     This modal reserves space where the others do not because its error is INLINE VALIDATION:
+		     it appears and disappears as the user changes the picker, so the dialog would jump under
+		     the pointer. Elsewhere the error lands once, after a submit, and the slide is fine. -->
+		<div class="error-slot">
+			<Alert color="red" look="subtle" message={errorText} spacingBottom="0rem" />
+		</div>
 	{/if}
 </Modal>
 
@@ -269,18 +279,13 @@
 	   `min-height` reserves one line permanently: the dry run on every selection change can add or
 	   remove this text, and a centred <dialog> that changes height appears to jump. Two lines'
 	   worth is NOT reserved — a refusal long enough to wrap is the rare case, and reserving for it
-	   would leave a visible hole under the picker in the common one. */
-	.error {
-		margin: 0.8rem 0 0;
-		min-height: 1.9rem;
-		font-size: 1.4rem;
-		line-height: 1.35;
-		color: var(--red);
-	}
+	   would leave a visible hole under the picker in the common one.
 
-	/* Keeps the reserved box in the layout while it has nothing to say. `display: none` would
-	   collapse it and restore the jump this exists to prevent. */
-	.error.is-empty {
-		visibility: hidden;
+	   The Alert inside is what collapses; this box holds its place. The height is that of a
+	   one-line subtle Alert: 1rem padding top and bottom, plus one 1.4rem line at line-height
+	   1.5 (2.1rem), which is 4.1rem. If Alert's padding or line-height changes, this follows. */
+	.error-slot {
+		margin: 0.8rem 0 0;
+		min-height: 4.1rem;
 	}
 </style>

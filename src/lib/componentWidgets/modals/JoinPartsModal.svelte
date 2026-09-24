@@ -58,6 +58,7 @@
 	 */
 	import { untrack } from 'svelte';
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 	import { messageForFailure } from '$lib/utils/apiErrors.js';
 	import { formatPassageReference } from '$lib/utils/passageFormatting.js';
@@ -265,24 +266,27 @@
 	{/if}
 
 	<!-- A non-contiguous seam is a WARNING, not a refusal: the join is legal and the Join button
-	     stays live, so this is amber rather than red. Rendering the planner's own `warnings` means
-	     the gap notice and the compliance notices arrive through one path — the gap one is simply
-	     first in the list, because it describes the operation where the others describe the result.
+	     stays live. Rendering the planner's own `warnings` means the gap notice and the compliance
+	     notices arrive through one path — the gap one is simply first in the list, because it
+	     describes the operation where the others describe the result.
+
+	     Yellow, one `Alert` per message. Red is reserved for the error below, which means the
+	     command did not run at all. Same component and same two colours as SplitPartModal,
+	     SplitIntoSeriesModal, StudyForm and ManageSerializationModal, so one reading of the
+	     colour holds everywhere.
 
 	     ⚠️ This is the one preview output besides the connection checkbox that survived the trim.
 	     It earns its place by the same test: it states something the two radio labels do not
 	     imply. "Ephesians 2:3-22" and "Colossians 1:1-29" do not say that joining them leaves the
 	     text between them out. -->
 	{#if preview?.ok && preview.warnings?.length > 0}
-		<div class="warnings" role="status">
-			{#each preview.warnings as warning (warning.reason)}
-				<p class="warning">{warning.message}</p>
-			{/each}
-		</div>
+		{#each preview.warnings as warning (warning.reason)}
+			<Alert color="yellow" look="subtle" message={warning.message} spacingBottom="0.8rem" />
+		{/each}
 	{/if}
 
 	{#if error}
-		<p class="error" role="alert">{error}</p>
+		<Alert color="red" look="subtle" message={error} spacingBottom="0rem" />
 	{/if}
 </Modal>
 
@@ -310,32 +314,6 @@
 
 	/* Layout AND spacing are the Checkbox element's; the spacing this modal wants is passed
 	   in as `spacingBottom` rather than reached in through `:global`, which was never scoped
-	   to this component and so fought two other copies of the same rule. */
-
-	/* Amber, not red: `--red` is reserved for the error below, which means the command did NOT
-	   run. These say it will run, with a consequence worth reading first — the same distinction
-	   GlossaryBadge and the tagged highlights draw with this pair. */
-	.warnings {
-		margin: 0 0 1.2rem;
-		padding: 0.8rem;
-		border-radius: 0.4rem;
-		background: var(--orange-lighter);
-	}
-
-	.warning {
-		margin: 0;
-		font-size: 1.3rem;
-		line-height: 1.5;
-		color: var(--orange-darker);
-	}
-
-	.warning + .warning {
-		margin-top: 0.6rem;
-	}
-
-	.error {
-		margin: 0;
-		font-size: 1.3rem;
-		color: var(--red);
-	}
+	   to this component and so fought two other copies of the same rule. The Alerts above take
+	   the same prop, for the same reason. */
 </style>

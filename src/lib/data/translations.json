@@ -77,7 +77,7 @@
 			},
 			"display": {
 				"appliesTo": "study",
-				"enforcement": "warn",
+				"enforcement": "block",
 				"maxVersesPerPage": 500,
 				"maxBookPortion": 0.5,
 				"shortBookChapterThreshold": 2,

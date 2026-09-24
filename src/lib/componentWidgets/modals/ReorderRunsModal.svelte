@@ -39,6 +39,7 @@
 	 * @component
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import { describeRuns } from '$lib/utils/seriesReorder.js';
 	import { messageForFailure } from '$lib/utils/apiErrors.js';
@@ -236,7 +237,7 @@
 	</ul>
 
 	{#if error}
-		<p class="error" role="alert">{error}</p>
+		<Alert color="red" look="subtle" message={error} spacingBottom="0rem" />
 	{/if}
 </Modal>
 
@@ -340,9 +341,4 @@
 		cursor: default;
 	}
 
-	.error {
-		margin: 0.8rem 0 0;
-		font-size: 1.3rem;
-		color: var(--red);
-	}
 </style>

@@ -276,6 +276,25 @@ export const POST = async ({ request, params }) => {
 			return json({ ...report, dryRun: true });
 		}
 
+		// Both halves, for the reason §10.1 gives for re-checking both: the receiver may gain a
+		// breach and the donor's existing one may clear. A split almost always IMPROVES display
+		// compliance — each half shows less than the whole did — so this rarely fires; it is here
+		// because "rarely" is not "never" and an unservable result must not be written.
+		//
+		// After the dry-run return for the same reason as the join: the preview still shows the
+		// warnings, the commit is what stops.
+		const blockedHalf = firstDisplay.blocked
+			? firstDisplay
+			: secondDisplay.blocked
+				? secondDisplay
+				: null;
+		if (blockedHalf) {
+			return json(
+				{ error: `The result cannot be displayed: ${blockedHalf.warnings[0]}` },
+				{ status: 400 }
+			);
+		}
+
 		// ⚠️ The 409 confirmation gate is GONE, and removing it is the point of phase 3.
 		//
 		// Under strategy (b) a split that crossed a connection destroyed it, so it had to stop and ask —

@@ -13,7 +13,11 @@ import {
 	planPartSplit,
 	planPartJoin
 } from '$lib/utils/seriesRestructure.js';
-import { planSeriesParts, findUnservablePart } from '$lib/utils/seriesPlanning.js';
+import {
+	planSeriesParts,
+	findUnservablePart,
+	findUndisplayablePart
+} from '$lib/utils/seriesPlanning.js';
 import {
 	splitPassageStructure,
 	joinPassageStructure,
@@ -157,6 +161,22 @@ export const POST = async ({ request, params }) => {
 		if (unservable) {
 			return json(
 				{ error: `Part ${unservable.seriesOrder} cannot be loaded: ${unservable.message}` },
+				{ status: 400 }
+			);
+		}
+
+		// Display, after retrieval and on the same parts, in that order because retrieval outranks
+		// display: a part that cannot be fetched has no page, so what it would show there is not yet
+		// a question. Same precedence `assessPlan()` applies.
+		const undisplayable = findUndisplayablePart(
+			plannedForLimits ?? projectedForLimits,
+			translation
+		);
+		if (undisplayable) {
+			return json(
+				{
+					error: `Part ${undisplayable.seriesOrder} cannot be displayed: ${undisplayable.message} Use fewer chapters per part.`
+				},
 				{ status: 400 }
 			);
 		}

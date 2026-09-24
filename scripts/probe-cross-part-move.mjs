@@ -295,8 +295,12 @@ try {
 	assert('Move Up reports a display verdict', Boolean(upDisplay.display));
 	assert('with a receiver list', Array.isArray(upDisplay.display.receiver));
 	assert('and a donor list', Array.isArray(upDisplay.display.donor));
-	check('every translation still enforces by warning', upDisplay.display.enforcement, 'warn');
-	check('so a compliant move is NOT blocked', upDisplay.display.blocked, false);
+	// The fixture is ESV, whose display enforcement flipped to 'block' on 2026-09-24. The posture
+	// assertion moved with it; the one below is the one that matters and is unchanged, because a
+	// COMPLIANT move must still proceed under 'block' — blocking on enforcement alone would turn a
+	// licence ceiling into a ban on the feature.
+	check('ESV now enforces display by blocking', upDisplay.display.enforcement, 'block');
+	check('but a compliant move is still NOT blocked', upDisplay.display.blocked, false);
 	check('and it reports how many verses move', upDisplay.versesMoved > 0, true);
 
 	// ⚠️ No `summary` prose, and no `needsDecision`. Both existed to drive a confirm dialog that has

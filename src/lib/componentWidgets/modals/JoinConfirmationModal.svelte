@@ -34,6 +34,7 @@
 	 * @component
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 
 	let {
 		isOpen = false,
@@ -132,14 +133,17 @@
 	     combined note will be shortened with an ellipsis so the user isn't
 	     surprised. Only relevant while Merge is the chosen decision. -->
 	{#if noteWillTruncate && decision === 'merge'}
-		<p class="truncate-warning">
-			The combined note exceeds the character limit and will be shortened (…) when merged.
-		</p>
+		<Alert
+			color="yellow"
+			look="subtle"
+			message="The combined note exceeds the character limit and will be shortened (…) when merged."
+			spacingBottom="0rem"
+		/>
 	{/if}
 
 
 	{#if joinError}
-		<p class="modal-message error">{joinError}</p>
+		<Alert color="red" look="subtle" message={joinError} spacingBottom="0rem" />
 	{/if}
 </Modal>
 
@@ -182,24 +186,5 @@
 		box-shadow: 0rem 0rem 0rem 0rem;
 	}
 
-	/* Soft amber heads-up that the merged note will be truncated. Informational
-	   (not an error) — the join still succeeds. */
-	.truncate-warning {
-		margin: 0.9rem 0 0;
-		font-size: 1.3rem;
-		line-height: 1.5;
-		color: var(--gray-400);
-		font-style: italic;
-	}
-
-	p.modal-message.error {
-		margin: 1.2rem 0 0;
-		font-size: 1.4rem;
-		background-color: var(--red-lighter);
-		color: var(--red-darker);
-		border: 0.1rem solid var(--red-light);
-		border-radius: 0.3rem;
-		padding: 0.3rem 0.9rem;
-	}
 </style>
 

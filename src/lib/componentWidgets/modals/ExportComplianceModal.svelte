@@ -42,6 +42,7 @@
 	 * @component
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 
 	let {
 		isOpen = false,
@@ -110,19 +111,29 @@
 		{/each}
 	</ul>
 
+	<!-- RED when blocked, YELLOW when not, which is the app-wide rule: red means the action did
+	     not happen and no button will make it happen (Continue is hidden above, via `showConfirm`),
+	     yellow means it will proceed if the user says so. Gated on the same `blocked` flag that
+	     controls the title, the button labels and the confirm handler, so the colour cannot drift
+	     out of step with what the dialog actually does — the failure mode
+	     ManageSerializationModal records beside its own red alert. -->
 	{#if blocked}
-		<p class="note">
-			The {translationLabel} licence does not permit this, so the {artifact} has not been created. Reduce
-			the passages in this study, or use a translation with broader quotation terms.
-		</p>
+		<Alert
+			color="red"
+			look="subtle"
+			message={`The ${translationLabel} licence does not permit this, so the ${artifact} has not been created. Reduce the passages in this study, or use a translation with broader quotation terms.`}
+			spacingBottom="0rem"
+		/>
 	{:else}
 		<!-- Warn-only posture: the study owner is the one bound by the licence, so
 		     the app's job is to make the position visible, not to decide it. Same
 		     reasoning as the display warning (COMPLIANCE.md §1.6). -->
-		<p class="note">
-			You may still continue — this is a limit in the {translationLabel} licence, and complying with
-			it is your responsibility as the study's author.
-		</p>
+		<Alert
+			color="yellow"
+			look="subtle"
+			message={`You may still continue — this is a limit in the ${translationLabel} licence, and complying with it is your responsibility as the study's author.`}
+			spacingBottom="0rem"
+		/>
 	{/if}
 </Modal>
 
@@ -136,7 +147,7 @@
 
 	/* Warning list matches the muted summary text used by JoinConfirmationModal. */
 	.warnings {
-		margin: 0.9rem 0 0;
+		margin: 0.9rem 0 1.2rem;
 		padding-left: 2rem;
 		font-size: 1.4rem;
 		line-height: 1.5;
@@ -147,11 +158,4 @@
 		margin-top: 0.6rem;
 	}
 
-	.note {
-		margin: 1.2rem 0 0;
-		font-size: 1.3rem;
-		line-height: 1.5;
-		color: var(--gray-400);
-		font-style: italic;
-	}
 </style>

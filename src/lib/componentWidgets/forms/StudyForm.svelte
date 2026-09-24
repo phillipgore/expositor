@@ -188,12 +188,13 @@
 	 * they do not permit displaying. Their server cannot see the assembled page,
 	 * which is why this check has to live here.
 	 *
-	 * Advisory by design — it informs and never blocks submission, matching the
-	 * translation's `enforcement: 'warn'` posture. See COMPLIANCE.md.
+	 * Advisory or blocking, per the translation's `enforcement` posture — the assessment
+	 * carries its own `blocked` flag and this form now reads it. See `displayAssessment`
+	 * below and COMPLIANCE.md §1.6.
 	 */
-	let displayComplianceWarnings = $derived(
-		validateStudyDisplayLimits(passages, selectedTranslation).warnings
-	);
+	let displayAssessment = $derived(validateStudyDisplayLimits(passages, selectedTranslation));
+
+	let displayComplianceWarnings = $derived(displayAssessment.warnings);
 
 	/**
 	 * Whether ANY display limit is exceeded — the only thing this form now asks of the
@@ -207,6 +208,24 @@
 	 * and export/print still shows its full text.
 	 */
 	let hasDisplayComplianceIssue = $derived(displayComplianceWarnings.length > 0);
+
+	/**
+	 * Whether the display breach is a REFUSAL rather than a notice.
+	 *
+	 * `blocked` is `!compliant && enforcement === 'block'`, resolved from the translation's own
+	 * JSON, so this is a data-driven posture and not a second opinion held by the form. Under NET
+	 * every display limit is null, the study is compliant unconditionally, and this is always
+	 * false.
+	 *
+	 * ⚠️ This is about whether the study WILL LOAD, not about licence etiquette. Crossway enforces
+	 * the half-book rule server-side and silently: a request for a whole Ephesians returns HTTP 200
+	 * with roughly half the verses and a truncated `canonical` field, and the analyze view then
+	 * shows "Error loading Ephesians 1:1-6:24". `checkSinglePassageSupport()` does NOT catch this —
+	 * it refuses a complete book only when the book also exceeds the 500-verse request ceiling, so
+	 * Ephesians (155), Galatians (149) and Romans (433) all pass retrieval and fail at fetch. The
+	 * display check is the accurate predictor, which is why it is the one that gates Save.
+	 */
+	let displayBlocked = $derived(displayAssessment.blocked);
 
 	// --- One study, or a series? (SERIES_PLAN §5, entry point 1) ------------
 	//
@@ -400,6 +419,27 @@
 	);
 
 	/**
+	 * The same question asked of each PLANNED PART, for the series case.
+	 *
+	 * A part is its own study on its own page fetched by its own request, so the page rule governs
+	 * the parts and not the source range they were derived from (COMPLIANCE §1.10). Whole-book study
+	 * through Serialization is therefore legitimate and must stay possible: Ephesians at 2 chapters
+	 * per part is three parts of 45, 53 and 57 verses, every one of them under half the book.
+	 *
+	 * ⚠️ Deliberately NOT the aggregate across parts. `assessPlan()` emits nothing series-wide and
+	 * its comment forbids reinstating it — a series is many pages, so a per-page rule has no
+	 * meaning for the whole. The export gate owns that boundary.
+	 */
+	let seriesPartDisplayIssues = $derived(
+		(seriesPlan?.parts ?? [])
+			.map((part) => ({
+				seriesOrder: part.seriesOrder,
+				...validateStudyDisplayLimits(part.passages, selectedTranslation)
+			}))
+			.filter((r) => r.blocked)
+	);
+
+	/**
 	 * Whether retrieval problems should BLOCK submission.
 	 *
 	 * ⚠️ Not simply `hasPassageIssues`. That asks "can ESV serve this passage as one study?",
@@ -418,9 +458,30 @@
 	 * Still strict: a part ESV genuinely cannot serve blocks exactly as before. What no longer
 	 * blocks is a range that is only too large *undivided*, which is the case the series
 	 * feature exists to solve.
+	 *
+	 * ## Display now blocks too, on the same series-aware terms
+	 *
+	 * Retrieval alone was not enough, and the gap was user-visible: a whole Ephesians ESV study
+	 * passed every check here and then rendered "Error loading Ephesians 1:1-6:24", because
+	 * Crossway truncates a complete-book request silently and `checkSinglePassageSupport()` only
+	 * refuses complete books that ALSO exceed the 500-verse request cap. Ephesians is 155 verses,
+	 * so it sailed through a check that cannot see the rule it breaks.
+	 *
+	 * `validateStudyDisplayLimits()` does see it, and is the accurate predictor of whether a study
+	 * will load. Blocking on it is therefore not licence etiquette; it is refusing to create a
+	 * study that provably cannot be displayed. The remedy is Serialization, which the alert names.
+	 *
+	 * ⚠️ Series-aware for the SAME reason retrieval is, and the reason is worth restating because
+	 * getting it wrong reproduces the whole-Matthew dead end above: under a series the form's
+	 * passages stay the undivided whole-book range right up to submit, so asking the display
+	 * question of `passages` would refuse every whole-book series at every stepper setting —
+	 * including the settings that produce a perfectly compliant series. The PARTS are what the
+	 * page rule governs. Ephesians at 2 chapters per part is three compliant parts, and must save.
 	 */
 	let submissionBlockedByPassages = $derived(
-		createAsSeries && seriesPlan ? seriesPartIssues.length > 0 : hasPassageIssues
+		createAsSeries && seriesPlan
+			? seriesPartIssues.length > 0 || seriesPartDisplayIssues.length > 0
+			: hasPassageIssues || displayBlocked
 	);
 
 	/**
@@ -950,7 +1011,7 @@
 		since splitting fixes retrieval and does nothing about the portion clause. "More
 		than ESV can load at once" is true of both reasons and prejudges neither.
 	-->
-	{#if submissionBlockedByPassages && !createAsSeries}
+	{#if hasPassageIssues && !createAsSeries}
 		<Alert
 			color="red"
 			look="subtle"
@@ -958,6 +1019,34 @@
 				seriesEligible
 					? `Serialize it, shorten a passage, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`
 					: `Shorten a passage, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`
+			}`}
+		/>
+	{/if}
+
+	<!--
+		The DISPLAY refusal, and a different finding from the retrieval alert above: these verses
+		can be fetched, but not shown together. Separate alert rather than a widened condition on
+		that one, because "more than ESV can load at once" is false here — Ephesians' 155 verses are
+		well inside the 500-verse request cap. The study fails on the half-book PAGE rule instead,
+		which Crossway enforces by silently truncating the response.
+
+		⚠️ "cannot be loaded" is deliberate, and is what separates this from the yellow alert it
+		replaced. This is not a licence courtesy the owner may weigh: a study in this state renders
+		"Error loading Ephesians 1:1-6:24" in the analyze view. Saying "you can still save it" here,
+		as the yellow copy does, would be offering to create something already known to be broken.
+
+		Serialization FIRST, and it is a real remedy rather than a deflection: the page rule governs
+		each part separately, so Ephesians at 2 chapters per part is three compliant parts and a
+		legitimate whole-book study. Only offered when `seriesEligible`, which is already false in
+		plain `edit` mode — there is no series toggle on that form, so naming one would point at a
+		control the user cannot see (the Actions menu owns that conversion).
+	-->
+	{#if displayBlocked && !hasPassageIssues && !createAsSeries}
+		<Alert
+			color="red"
+			look="subtle"
+			message={`This study shows more of a book than ${selectedTranslation.toUpperCase()} allows on one page, so it cannot be loaded. ${
+				seriesEligible ? 'Serialize it, or shorten a passage.' : 'Shorten a passage.'
 			}`}
 		/>
 	{/if}
@@ -1047,7 +1136,7 @@
 		"May a user create a series that will fail export? Yes, knowingly" row in
 		SERIES_PLAN), and a yellow alert offering only fixes reads as a precondition.
 	-->
-	{#if !submissionBlockedByPassages && !createAsSeries && hasDisplayComplianceIssue}
+	{#if !submissionBlockedByPassages && !createAsSeries && hasDisplayComplianceIssue && !displayBlocked}
 		<Alert
 			color="yellow"
 			look="subtle"
@@ -1118,17 +1207,35 @@
 					look="subtle"
 					message={`Some parts have too many verses for ${selectedTranslation.toUpperCase()} to load. Use fewer chapters per part, or switch to ${selectedTranslation === 'esv' ? 'NET' : 'ESV'}.`}
 				/>
-			{:else if seriesDisplayWarnings.length > 0}
+			{:else if seriesPartDisplayIssues.length > 0}
 				<!--
-					Yellow, and a genuinely different finding from the branch above: the parts
-					fetch fine, but one shows more of a book than the licence permits on a page
-					(Galatians at 5 chapters per part — 131 of 149 verses, against a half-book cap
-					of 74). Never blocks; compliance is the study owner's call (§5, COMPLIANCE §1.6).
+					RED, and a genuinely different finding from the branch above: the parts fetch
+					fine, but one shows more of a book than the licence permits on a page (Galatians
+					at 5 chapters per part — 131 of 149 verses, against a half-book cap of 74).
+
+					Red because it BLOCKS, under a translation whose display `enforcement` is
+					'block': `seriesPartDisplayIssues` is one of the two inputs to
+					`submissionBlockedByPassages`, so Save is disabled whenever this shows. Gated on
+					that same derived value rather than on `seriesDisplayWarnings`, which counts
+					PLAN warnings and would stay non-empty under a warn-posture translation where
+					nothing is blocked — a red alert beside an enabled Save.
+
+					The remedy is real and sits directly above: fewer chapters per part makes every
+					part compliant. Whole-book study stays possible through Serialization precisely
+					because the page rule is per part.
 
 					`{:else if}` rather than a second `{#if}`: retrieval outranks display, the same
 					precedence `assessPlan()` applies per part. A part that cannot be fetched has no
 					page, so what it would display there is not yet a question.
 				-->
+				<Alert
+					color="red"
+					look="subtle"
+					message={`Some parts show more of a book than ${selectedTranslation.toUpperCase()} allows on one page, so they cannot be loaded. Use fewer chapters per part.`}
+				/>
+			{:else if seriesDisplayWarnings.length > 0}
+				<!-- Warn-posture translations only: a display finding that does NOT block. Same
+				     copy as before, minus the claim that anything is refused. -->
 				<Alert
 					color="yellow"
 					look="subtle"

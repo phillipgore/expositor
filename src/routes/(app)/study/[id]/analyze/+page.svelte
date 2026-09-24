@@ -4,7 +4,6 @@
 	import { onMount, tick, untrack } from 'svelte';
 
 	import Alert from '$lib/componentElements/Alert.svelte';
-	import Popover from '$lib/componentElements/Popover.svelte';
 	import Spinner from '$lib/componentElements/Spinner.svelte';
 
 
@@ -53,7 +52,7 @@
 
 
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
-	import { showPopover } from '$lib/stores/popover.js';
+	import { showPopover, showPopoverError } from '$lib/stores/popover.js';
 	import messages from '$lib/data/messages.json';
 
 
@@ -2237,7 +2236,7 @@
 				format
 			}).catch((error) => {
 				console.error('Export failed:', error);
-				alert(`Export failed: ${error?.message || 'Unknown error'}`);
+				showPopoverError(`Export failed: ${error?.message || 'Unknown error'}`);
 			});
 		};
 
@@ -2426,7 +2425,7 @@
 				const error = await response.json();
 				// The server's refusals are written for the user ("Only the last section of its group can
 				// move down…"), so they are shown as-is rather than replaced with a generic failure.
-				alert(error.error || `Failed to move ${type}`);
+				showPopoverError(error.error || `Failed to move ${type}`);
 				return;
 			}
 
@@ -2445,7 +2444,7 @@
 			// nothing. The failure path above still speaks, because a refusal is not self-evident.
 		} catch (error) {
 			console.error('Move Selected error:', error);
-			alert(`Error: ${error.message || `Failed to move ${type}`}`);
+			showPopoverError(error.message || `Failed to move ${type}`);
 		}
 	}
 
@@ -2490,7 +2489,7 @@
 			if (!dryRes.ok) {
 				const error = await dryRes.json();
 				console.error('Join dry-run error:', error);
-				alert(`Error: ${error.error || `Failed to join ${type}`}`);
+				showPopoverError(error.error || `Failed to join ${type}`);
 				return;
 			}
 
@@ -2508,7 +2507,7 @@
 			}
 		} catch (error) {
 			console.error('Join network error:', error);
-			alert(`Error: ${error.message || `Failed to join ${type}`}`);
+			showPopoverError(error.message || `Failed to join ${type}`);
 		}
 	}
 
@@ -2675,11 +2674,11 @@
 			} else {
 				const error = await response.json();
 				console.error('Insert column error response:', error);
-				alert(`Error: ${error.error || 'Failed to insert column'}`);
+				showPopoverError(error.error || 'Failed to insert column');
 			}
 		} catch (error) {
 			console.error('Insert column network error:', error);
-			alert(`Error: ${error.message || 'Failed to insert column'}`);
+			showPopoverError(error.message || 'Failed to insert column');
 		}
 	}
 
@@ -2783,11 +2782,11 @@
 			} else {
 				const error = await response.json();
 				console.error('Insert section error response:', error);
-				alert(`Error: ${error.error || 'Failed to insert section'}`);
+				showPopoverError(error.error || 'Failed to insert section');
 			}
 		} catch (error) {
 			console.error('Insert section network error:', error);
-			alert(`Error: ${error.message || 'Failed to insert section'}`);
+			showPopoverError(error.message || 'Failed to insert section');
 		}
 	}
 
@@ -2883,11 +2882,11 @@
 			} else {
 				const error = await response.json();
 				console.error('Insert segment error response:', error);
-				alert(`Error: ${error.error || 'Failed to insert segment'}`);
+				showPopoverError(error.error || 'Failed to insert segment');
 			}
 		} catch (error) {
 			console.error('Insert segment network error:', error);
-			alert(`Error: ${error.message || 'Failed to insert segment'}`);
+			showPopoverError(error.message || 'Failed to insert segment');
 		}
 	}
 
@@ -2925,7 +2924,7 @@
 			if (!dryRes.ok) {
 				const error = await dryRes.json();
 				console.error('Move text dry-run error:', error);
-				alert(`Error: ${error.error || 'Failed to move text'}`);
+				showPopoverError(error.error || 'Failed to move text');
 				return;
 			}
 
@@ -2938,7 +2937,7 @@
 			if (!response.ok) {
 				const error = await response.json();
 				console.error(`Move text ${request.direction} error response:`, error);
-				alert(`Error: ${error.error || `Failed to move text ${request.direction}`}`);
+				showPopoverError(error.error || `Failed to move text ${request.direction}`);
 				return;
 			}
 
@@ -2952,7 +2951,7 @@
 			await invalidate('app:studies');
 		} catch (error) {
 			console.error('Move text network error:', error);
-			alert(`Error: ${error.message || 'Failed to move text'}`);
+			showPopoverError(error.message || 'Failed to move text');
 		}
 	}
 
@@ -5161,11 +5160,6 @@
 		onConfirm={confirmJoin}
 		onClose={() => { joinModalOpen = false; joinPending = null; }}
 	/>
-
-	<!-- Transient, self-dismissing popover (centered on screen). Driven by the shared
-	     popover store; used to tell the user when a connection or connection quick note
-	     they tried to add already exists but is hidden by a View-menu toggle. -->
-	<Popover />
 </div>
 
 

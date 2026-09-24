@@ -1,5 +1,6 @@
 <script>
 	import { tick } from 'svelte';
+	import { showPopoverError } from '$lib/stores/popover.js';
 	import { invalidate } from '$app/navigation';
 	import { slide } from 'svelte/transition';
 	import Textarea from '$lib/componentElements/Textarea.svelte';
@@ -76,13 +77,13 @@
 			if (!response.ok) {
 				const error = await response.json();
 				console.error('Auto-save note error:', error);
-				alert(`Error: ${error.error || 'Failed to auto-save note'}`);
+				showPopoverError(error.error || 'Failed to auto-save note');
 			}
 			// Note: We don't call invalidate() here to avoid constant data reloads
 			// The local state is already updated via inputValue binding
 		} catch (error) {
 			console.error('Auto-save note network error:', error);
-			alert(`Error: ${error.message || 'Failed to auto-save note'}`);
+			showPopoverError(error.message || 'Failed to auto-save note');
 		}
 	}
 
@@ -231,7 +232,7 @@
 				isInputMode = true;
 				// Dispatch failure event
 				window.dispatchEvent(new CustomEvent('remove-note-failure'));
-				alert(`Error: ${error.error || 'Failed to delete note'}`);
+				showPopoverError(error.error || 'Failed to delete note');
 			}
 		} catch (error) {
 			console.error('Delete note network error:', error);
@@ -240,7 +241,7 @@
 			isInputMode = true;
 			// Dispatch failure event
 			window.dispatchEvent(new CustomEvent('remove-note-failure'));
-			alert(`Error: ${error.message || 'Failed to delete note'}`);
+			showPopoverError(error.message || 'Failed to delete note');
 		}
 	}
 

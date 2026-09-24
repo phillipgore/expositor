@@ -236,6 +236,24 @@ export const POST = async ({ request, params }) => {
 			return json({ ...report, dryRun: true });
 		}
 
+		// A join is the one structural operation that can CREATE a display breach out of two
+		// compliant parts: the joined part holds both ranges, and the page cap applies to the sum.
+		// Refused only under a 'block' posture — `display.blocked` is already
+		// `!compliant && enforcement === 'block'`, so a warn-posture translation still joins and
+		// still reports the warning in `report`.
+		//
+		// ⚠️ AFTER the dry-run return, deliberately. The preview must still describe the join and
+		// carry the warning so `JoinPartsModal` can show it; it is the COMMIT that is refused. A
+		// preview that 400s would leave the modal with nothing to render and no way to explain why.
+		if (display.blocked) {
+			return json(
+				{
+					error: `The joined part cannot be displayed: ${display.warnings[0]} Leave these parts separate, or shorten the study.`
+				},
+				{ status: 400 }
+			);
+		}
+
 		return await commitJoin({
 			plan,
 			parts,

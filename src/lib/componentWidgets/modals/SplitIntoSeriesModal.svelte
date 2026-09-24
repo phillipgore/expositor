@@ -31,6 +31,7 @@
 	 * @component
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
+	import Alert from '$lib/componentElements/Alert.svelte';
 	import Input from '$lib/componentElements/Input.svelte';
 	import Stepper from '$lib/componentElements/Stepper.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
@@ -152,6 +153,14 @@
 
 	/** Which parts are individually over a limit, so the list can mark them. */
 	let flaggedOrders = $derived(new Set(partWarnings.map((w) => w.seriesOrder)));
+
+	// Part-scoped findings first, then series-scoped: the same precedence the markup used when
+	// these were two loops inside one panel. Flattened to strings here so the template can tell
+	// which is LAST and append the "you can still create this" sentence to it.
+	let complianceMessages = $derived([
+		...partWarnings.map((w) => w.message),
+		...seriesWarnings.map((w) => w.message)
+	]);
 
 	let averageVerses = $derived(parts.length > 0 ? Math.round(plan.totalVerses / parts.length) : 0);
 
@@ -300,31 +309,36 @@
 			{/each}
 		</ul>
 
-		{#if partWarnings.length > 0 || seriesWarnings.length > 0}
-			<div class="compliance" role="status">
-				{#each partWarnings as warning}
-					<p class="warning">{warning.message}</p>
-				{/each}
-				{#each seriesWarnings as warning}
-					<p class="notice">{warning.message}</p>
-				{/each}
-				<!--
-					⚠️ Says nothing about export, deliberately. This read "…These limits are
-					enforced when you export" until 2026-08-29 — premature (export is an act the
-					user has not chosen here) and imprecise (whole-series export blocks per Q32,
-					per-part export warns, and this cannot know which the user will ask for).
-					Creation surfaces state the position and the
-					remedy; `ExportComplianceModal` owns the export moment, and its header sets
-					out why the two are separate. The sentence that remains is the one doing the
-					work: compliance is the owner's call (COMPLIANCE §1.6), so the modal has to
-					say the series may still be created.
-				-->
-				<p class="compliance-foot">You can still create this series.</p>
-			</div>
+		<!--
+			One yellow Alert per part-scoped warning, then the series-scoped ones. The closing
+			reassurance rides on the LAST alert rather than sitting in its own box: it is the
+			absence of an action, not a finding, and a second yellow box saying nothing is wrong
+			is how a wall of alerts starts.
+
+			⚠️ Says nothing about export, deliberately. This read "…These limits are
+			enforced when you export" until 2026-08-29 — premature (export is an act the
+			user has not chosen here) and imprecise (whole-series export blocks per Q32,
+			per-part export warns, and this cannot know which the user will ask for).
+			Creation surfaces state the position and the remedy; `ExportComplianceModal` owns
+			the export moment, and its header sets out why the two are separate. The sentence
+			that remains is the one doing the work: compliance is the owner's call (COMPLIANCE
+			§1.6), so the modal has to say the series may still be created.
+		-->
+		{#if complianceMessages.length > 0}
+			{#each complianceMessages as message, i}
+				<Alert
+					color="yellow"
+					look="subtle"
+					message={i === complianceMessages.length - 1
+						? `${message} You can still create this series.`
+						: message}
+					spacingBottom="0.8rem"
+				/>
+			{/each}
 		{/if}
 
 		{#if error}
-			<p class="error" role="alert">{error}</p>
+			<Alert color="red" look="subtle" message={error} spacingBottom="0.8rem" />
 		{/if}
 
 		{#if needsConfirmation}
@@ -332,9 +346,14 @@
 				Yes, create {parts.length} parts.
 			</Checkbox>
 		{:else if isLargePartCount}
-			<p class="hint">
-				{parts.length} parts is a lot to navigate. Consider more chapters per part.
-			</p>
+			<!-- Blue, and the same sentence StudyForm renders as a blue Alert for the identical
+			     condition: navigational advice, not a compliance finding. -->
+			<Alert
+				color="blue"
+				look="subtle"
+				message={`${parts.length} parts is a lot to navigate. Consider more chapters per part.`}
+				spacingBottom="0rem"
+			/>
 		{/if}
 	{/if}
 </Modal>
@@ -418,35 +437,10 @@
 		color: var(--red);
 	}
 
-	.compliance {
-		margin: 0 0 1.2rem;
-		padding: 0.8rem;
-		border-radius: 0.4rem;
-		background: var(--gray-050, #f7f7f7);
-	}
-
-	.warning,
-	.notice {
-		margin: 0 0 0.6rem;
-		font-size: 1.3rem;
-		color: var(--black);
-	}
-
-	.compliance-foot {
-		margin: 0;
-		font-size: 1.2rem;
-		color: var(--gray-300);
-	}
-
 	.hint {
 		margin: 0;
 		font-size: 1.2rem;
 		color: var(--gray-300);
 	}
 
-	.error {
-		margin: 0 0 0.8rem;
-		font-size: 1.3rem;
-		color: var(--red);
-	}
 </style>
