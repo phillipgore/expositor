@@ -74,6 +74,12 @@ export function isSeriesEligible(passages) {
  * @param {Array<number>} [options.chaptersPerPassage] - Per-passage chapters-per-part, positionally
  *   matching `passages`. Only used by the `passage-per-part` strategy. `0`/absent means "this
  *   passage stays whole", which is the pre-existing behaviour for every entry.
+ * @param {Array<number>} [options.balancePerPassage] - Per-passage BALANCE targets, positionally
+ *   matching `passages`. `0`/absent means "use this passage's chapters-per-part"; a value above 1
+ *   balances that passage into that many parts instead. A parallel array rather than a widened
+ *   `chaptersPerPassage` of objects: the positional convention is load-bearing across the form's
+ *   hidden input, the action's defensive JSON parsing and four verifier scripts, and changing its
+ *   element type would be a breaking edit to all of them for no gain.
  * @returns {{ strategy: string, parts: Array<Object>, totalVerses: number, warnings: Array<Object> }}
  */
 export function planSeriesParts({
@@ -83,7 +89,8 @@ export function planSeriesParts({
 	baseTitle = '',
 	balanceByLength = false,
 	targetParts = 0,
-	chaptersPerPassage = []
+	chaptersPerPassage = [],
+	balancePerPassage = []
 }) {
 	const strategy = getPartingStrategy(passages);
 
@@ -91,13 +98,20 @@ export function planSeriesParts({
 		return { strategy, parts: [], totalVerses: 0, warnings: [] };
 	}
 
-	// "Balance by length" (§5 option (b), Q11) is an OPT-IN alternative to fixed chapters-per-part, and
-	// only for the chapters-per-part strategy: with one part per passage the seams are already drawn by
-	// the user, so re-balancing them would be the app overriding a choice it was told to respect.
+	// "Balance by length" (§5 option (b), Q11) is an OPT-IN alternative to fixed chapters-per-part.
+	//
+	// ⚠️ This comment used to say balance was "only for the chapters-per-part strategy: with one part
+	// per passage the seams are already drawn by the user, so re-balancing them would be the app
+	// overriding a choice it was told to respect." The premise is right and the conclusion was too
+	// broad, in exactly the way `planByPassage()`'s own docblock already corrects for subdivision:
+	// the user's seams are the ones BETWEEN passages, and balancing never crosses one. Balancing
+	// WITHIN a passage rearranges chapters the user never placed individually, which is the same
+	// licence subdivision already takes. So `balancePerPassage` is honoured there — per passage,
+	// never across the study — while this scalar pair stays single-passage-only.
 	//
 	// §5 is explicit that (a) stays the default — "chapter boundaries are meaningful to readers in a way
 	// equal verse counts are not" — and that (b) is "an option the user may choose, never a re-balancing
-	// the app applies on their behalf". So this is reached only when the caller asks by name.
+	// the app applies on their behalf". So both paths are reached only when the caller asks by name.
 	const useBalance = balanceByLength && strategy === 'chapters-per-part' && targetParts > 1;
 
 	// ⚠️ The single-passage strategies are named for the BOOK, not for `baseTitle`.
@@ -116,7 +130,7 @@ export function planSeriesParts({
 
 	const parts =
 		strategy === 'passage-per-part'
-			? planByPassage(passages, baseTitle, chaptersPerPassage)
+			? planByPassage(passages, baseTitle, chaptersPerPassage, balancePerPassage)
 			: useBalance
 				? planByBalance(passages[0], targetParts, bookTitle)
 				: planByChapters(passages[0], chaptersPerPart, bookTitle);
@@ -154,8 +168,10 @@ export function planSeriesParts({
  * @param {Array<Object>} passages
  * @param {string} baseTitle
  * @param {Array<number>} [chaptersPerPassage] - Positional; `0`/absent leaves that passage whole.
+ * @param {Array<number>} [balancePerPassage] - Positional; `>1` balances that passage into that
+ *   many parts instead of using its chapters-per-part. Never crosses a passage seam — see below.
  */
-function planByPassage(passages, baseTitle, chaptersPerPassage = []) {
+function planByPassage(passages, baseTitle, chaptersPerPassage = [], balancePerPassage = []) {
 	const parts = [];
 
 	passages.forEach((p, index) => {
@@ -169,7 +185,24 @@ function planByPassage(passages, baseTitle, chaptersPerPassage = []) {
 		};
 
 		const requested = Math.floor(Number(chaptersPerPassage?.[index]) || 0);
+		const balanceTarget = Math.floor(Number(balancePerPassage?.[index]) || 0);
 		const spansChapters = range.toChapter > range.fromChapter;
+
+		// Balance takes precedence over chapters-per-part for THIS passage, because it is the more
+		// specific instruction: a caller that set a target asked for that shape by name, and the
+		// chapters value is what the row falls back to when it did not.
+		//
+		// ⚠️ Per passage, never across the study. `planByBalance()` receives ONE contiguous
+		// single-book range, so no part it returns can straddle a seam the user drew — the same
+		// guarantee the chapters branch below relies on, and the reason §5's trap 15 ("the scalar
+		// `book` is not generalised") is still honoured. Balancing the whole study as one sequence
+		// WOULD cross those seams, and is deliberately not offered.
+		if (balanceTarget > 1 && spansChapters) {
+			for (const sub of planByBalance(range, balanceTarget, bookLabelOf(range))) {
+				parts.push(sub);
+			}
+			return;
+		}
 
 		if (requested >= 1 && spansChapters) {
 			// Delegated, not re-implemented: partial-chapter bounds at the range's own edges

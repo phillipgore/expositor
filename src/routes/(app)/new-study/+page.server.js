@@ -113,6 +113,32 @@ export const actions = {
 				chaptersPerPassage = [];
 			}
 
+			// "Balance by length" (§5 option (b), Q11), chosen in ManageSerializationModal. Read here
+			// so the server plans the shape the user approved: without it the series would be rebuilt
+			// with fixed chapters-per-part while the preview had shown balanced parts.
+			//
+			// Parsed defensively, like the array above: a malformed value falls back to "not balanced",
+			// which is the pre-existing shape, rather than aborting a study creation that is otherwise
+			// valid. The planner ignores `targetParts` unless `balanceByLength` is true.
+			const balanceByLength = formData.get('balanceByLength') === 'true';
+			const targetParts = Number(formData.get('targetParts')) || 0;
+
+			// Per-passage balance targets, parsed with the same defensiveness as `chaptersPerPassage`
+			// and falling back to the same empty array, which the planner reads as "no passage is
+			// balanced" — the pre-existing shape.
+			let balancePerPassage = [];
+			try {
+				const rawBalance = formData.get('balancePerPassage');
+				if (typeof rawBalance === 'string' && rawBalance.trim() !== '') {
+					const parsedBalance = JSON.parse(rawBalance);
+					if (Array.isArray(parsedBalance)) {
+						balancePerPassage = parsedBalance.map((n) => Number(n) || 0);
+					}
+				}
+			} catch {
+				balancePerPassage = [];
+			}
+
 
 			// Validate title
 			if (!title || typeof title !== 'string' || title.trim() === '') {
@@ -221,7 +247,12 @@ export const actions = {
 						chaptersPerPart,
 						chaptersPerPassage,
 						translationId: translation.toString(),
-						baseTitle: title.toString()
+						baseTitle: title.toString(),
+						// The limit checks below must run against the parts that will REALLY be built,
+						// so the balance setting belongs here as much as in the creation call.
+						balanceByLength,
+						targetParts,
+						balancePerPassage
 					})
 				: null;
 
@@ -398,7 +429,14 @@ export const actions = {
 					const response = await fetch('/api/series', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ studyId, chaptersPerPart, chaptersPerPassage })
+						body: JSON.stringify({
+							studyId,
+							chaptersPerPart,
+							chaptersPerPassage,
+							balanceByLength,
+							targetParts,
+							balancePerPassage
+						})
 					});
 					if (!response.ok) {
 						const detail = await response.json().catch(() => ({}));

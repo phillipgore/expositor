@@ -45,9 +45,14 @@
 	 * @property {number|string} [max] - Maximum value (for type="number"/range)
 	 * @property {number|string} [step] - Step increment (for type="number"/range)
 	 * @property {(event: KeyboardEvent) => void} [onkeydown] - Keydown event handler
+	 *
+	 * Any further attributes are spread onto the `<input>` — `aria-label`, `aria-describedby`,
+	 * `autocomplete` and friends. The typedef cannot enumerate them, so the annotation below
+	 * widens to allow them; without that, passing a valid ARIA attribute is a type error while
+	 * working perfectly at runtime, which teaches the next reader to distrust the checker.
 	 */
 
-	/** @type {InputProps} */
+	/** @type {InputProps & Record<string, any>} */
 	let { id, name, type = 'text', classes = '', isDisabled = false, isLarge = false, required = false, placeholder, onkeydown = undefined, value = $bindable(''), inputElement = $bindable(null), ...restProps } = $props();
 
 </script>

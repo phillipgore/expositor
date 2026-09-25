@@ -298,6 +298,16 @@
 	/** @type {Record<string, string>} */
 	let chaptersPerPassageInput = $state({});
 
+	// "Balance by length" (§5 option (b), Q11), chosen in ManageSerializationModal and held here
+	// because the FORM is what submits. The modal edits a draft and commits on Done; these are the
+	// committed values, and they must travel to the server or it would re-plan with the default
+	// shape while the user had approved a balanced preview.
+	let balanceByLengthInput = $state(false);
+	let balanceTargetInput = $state(0);
+
+	/** Per-passage balance targets, positional, for a multi-passage study. @type {number[]} */
+	let balancePerPassageInput = $state([]);
+
 	/**
 	 * How many chapters each passage spans, and whether it can be divided at all.
 	 * A one-chapter passage has no internal seam — same rule as `getPartingStrategy`.
@@ -386,7 +396,13 @@
 					chaptersPerPart,
 					chaptersPerPassage,
 					translationId: selectedTranslation,
-					baseTitle: studyTitle
+					baseTitle: studyTitle,
+					// The same balance setting the modal previewed with. Without these the form's own
+					// part count and the "N parts" badge beside the Passages heading would describe a
+					// DIFFERENT parting from the one the user just approved and the server will build.
+					balanceByLength: balanceByLengthInput,
+					targetParts: balanceByLengthInput ? balanceTargetInput : 0,
+					balancePerPassage: balanceByLengthInput ? balancePerPassageInput : []
 				})
 			: null
 	);
@@ -1162,6 +1178,16 @@
 			<!-- The per-passage divisions, in the positional shape the planner takes. Sent so the
 			     server re-plans the parts the user is looking at rather than a default shape. -->
 			<input type="hidden" name="chaptersPerPassage" value={JSON.stringify(chaptersPerPassage)} />
+			<!-- The balance setting, sent for the same reason as the two above: the server re-plans
+			     from these values, so a preview the user approved has to be reproducible from them.
+			     `targetParts` is ignored by the planner unless `balanceByLength` is true. -->
+			<input type="hidden" name="balanceByLength" value={balanceByLengthInput ? 'true' : 'false'} />
+			<input type="hidden" name="targetParts" value={balanceTargetInput} />
+			<input
+				type="hidden"
+				name="balancePerPassage"
+				value={JSON.stringify(balancePerPassageInput)}
+			/>
 
 			<!-- The summary pill this block used to open with now rides on the Passages
 			     heading instead. It is a status readout, not a notice, so stacking it with
@@ -1403,6 +1429,9 @@
 	onConfirm={(settings) => {
 		chaptersInput = settings.chaptersPerPart;
 		chaptersPerPassageInput = settings.chaptersPerPassage;
+		balanceByLengthInput = settings.balanceByLength ?? false;
+		balanceTargetInput = settings.targetParts ?? 0;
+		balancePerPassageInput = settings.balancePerPassage ?? [];
 		isSerializationModalOpen = false;
 	}}
 	onClose={() => (isSerializationModalOpen = false)}

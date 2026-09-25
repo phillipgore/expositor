@@ -71,6 +71,12 @@
 	 *   `Input` surfaces and what both call sites already hold; `numericValue` below is the
 	 *   coerced view used for bound comparisons and arithmetic.
 	 * @property {string} [displayValue] - Render this text instead of an editable field
+ * @property {string} [unit=''] - Short word shown after the field, e.g. 'Chapters'. For a
+ *   caller whose label is carried by a control above the stepper, this is what keeps the
+ *   number's meaning on screen. A plain span, never a second `<label for>` — the field
+ *   already has one accessible name and a second would compete with it.
+ * @property {string} [ariaLabel] - Accessible name for the field, for callers that show no
+ *   visible `label`. Forwarded to `Input`, which spreads unknown props onto the element.
 	 * @property {number} [min=1] - Minimum value
 	 * @property {number} [max] - Maximum value
 	 * @property {number} [step=1] - Amount added or removed per press
@@ -95,6 +101,8 @@
 		label = '',
 		value = $bindable('1'),
 		displayValue,
+		unit = '',
+		ariaLabel = undefined,
 		min = 1,
 		max = undefined,
 		step = 1,
@@ -147,8 +155,10 @@
 <div class="stepper-row {classes} {isInline ? 'inline' : ''}">
 	{#if label}
 		<!--
-			A real `<label for>`, rather than `aria-labelledby`: `Input` does not forward aria
-			attributes, so a labelledby here would have named nothing.
+			A real `<label for>`, rather than `aria-labelledby`. `Input` does spread unknown props
+			onto its element — which is how `ariaLabel` above reaches the field — but a visible label
+			associated by `for` is still the better instrument when there is one to show. Callers
+			with no visible label pass `ariaLabel` instead; passing both would name the field twice.
 		-->
 		<Label forId={id} text={label} classes="dark stepper-label" isInline />
 	{/if}
@@ -175,7 +185,17 @@
 				<span class="stepper-value" aria-live="polite">{displayValue}</span>
 			{:else}
 				<div class="stepper-field">
-					<Input {id} name={name ?? id} type="number" {min} {max} {step} bind:value {isDisabled} />
+					<Input
+						{id}
+						name={name ?? id}
+						type="number"
+						{min}
+						{max}
+						{step}
+						bind:value
+						{isDisabled}
+						aria-label={ariaLabel}
+					/>
 				</div>
 			{/if}
 
@@ -187,6 +207,14 @@
 				isDisabled={isDisabled || isAtMax}
 				ariaLabel={incrementLabel}
 			/>
+
+			<!-- AFTER the plus button, not between the field and it: the minus/field/plus triple is
+			     one control and a word wedged inside it breaks the pairing the two buttons rely on
+			     for their matched optical weight. Still inside `.stepper`, so it travels with the
+			     control rather than drifting toward the summary pill at the far end of the row. -->
+			{#if unit}
+				<span class="stepper-unit">{unit}</span>
+			{/if}
 		</div>
 
 		{#if summary}
@@ -255,6 +283,12 @@
 	/* `Input` is width: 100%, so the width lives on a wrapper rather than the field. */
 	.stepper-field {
 		width: 6.4rem;
+	}
+
+	/* Matches `.stepper-value`: the two occupy the same visual role beside the control. */
+	.stepper-unit {
+		font-size: 1.3rem;
+		color: var(--black);
 	}
 
 	.stepper-value {

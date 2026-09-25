@@ -66,7 +66,10 @@ export const POST = async ({ request }) => {
 			// Per-passage divisions (§5, trap 15). Positional against the study's passages in
 			// `displayOrder`, which is the order they are selected in below — so the array the
 			// New Study preview built lines up with the rows this endpoint plans from.
-			chaptersPerPassage = []
+			chaptersPerPassage = [],
+			// Per-passage balance targets, parallel to `chaptersPerPassage`. `0`/absent means that
+			// passage uses its chapters-per-part instead. Positional, matching `passages`.
+			balancePerPassage = []
 		} = body ?? {};
 
 		if (!studyId || typeof studyId !== 'string') {
@@ -126,6 +129,9 @@ export const POST = async ({ request }) => {
 			targetParts,
 			chaptersPerPassage: Array.isArray(chaptersPerPassage)
 				? chaptersPerPassage.map((n) => Number(n) || 0)
+				: [],
+			balancePerPassage: Array.isArray(balancePerPassage)
+				? balancePerPassage.map((n) => Number(n) || 0)
 				: []
 		});
 

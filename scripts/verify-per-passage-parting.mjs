@@ -307,5 +307,67 @@ const johnNet = checkSeriesExport(
 );
 assert('NET is unaffected', johnNet.compliant);
 
+console.log('\n── balance by length, PER PASSAGE ──');
+
+// §5 option (b) reaches the multi-passage strategy through `balancePerPassage`, a parallel
+// positional array. The rule it must not break is the one this whole file exists for: a part may
+// never straddle a seam the user drew. Balancing rearranges chapters WITHIN a passage — which is the
+// same licence subdivision already takes — and never across one.
+const balanced = planSeriesParts({
+	passages: [REV, MATT],
+	translationId: 'esv',
+	baseTitle: 'NT Study',
+	balancePerPassage: [3, 4]
+});
+check('Revelation into 3 and Matthew into 4 gives seven parts', balanced.parts.length, 7);
+assert(
+	'no balanced part spans two books',
+	balanced.parts.every((p) => p.passages.length === 1)
+);
+check('the first three parts are Revelation', balanced.parts[2].passages[0].book, 'RE');
+check('and the fourth starts Matthew', balanced.parts[3].passages[0].book, 'MT');
+check('Revelation still starts at chapter 1', balanced.parts[0].passages[0].fromChapter, 1);
+check('and Matthew still ends at 28', balanced.parts[6].passages[0].toChapter, 28);
+assert(
+	'orders stay continuous across the balanced series',
+	balanced.parts.every((p, i) => p.seriesOrder === i + 1)
+);
+
+// Balance is MORE SPECIFIC than chapters-per-part, so it wins for the passage that names it — and
+// only for that one. Revelation balances into 3; Matthew, with no target, still divides by 7.
+const mixed = planSeriesParts({
+	passages: [REV, MATT],
+	translationId: 'esv',
+	baseTitle: 'NT Study',
+	chaptersPerPassage: [11, 7],
+	balancePerPassage: [3, 0]
+});
+check('a balanced passage and a chaptered one coexist', mixed.parts.length, 7);
+check('Revelation contributed 3 parts', mixed.parts.filter((p) => p.passages[0].book === 'RE').length, 3);
+check('Matthew contributed 4', mixed.parts.filter((p) => p.passages[0].book === 'MT').length, 4);
+
+// Rule 2 again, for the new array: saying nothing must change nothing.
+check(
+	'an all-zero balance spec is identical to omitting it',
+	planSeriesParts({
+		passages: [REV, MATT],
+		translationId: 'esv',
+		baseTitle: 'NT Study',
+		chaptersPerPassage: [11, 7],
+		balancePerPassage: [0, 0]
+	}).parts.length,
+	6
+);
+
+// A part must hold at least one chapter, so a target above the chapter count is clamped rather
+// than honoured. The modal reads the ACTUAL count back out of the plan for this reason.
+const clamped = planSeriesParts({
+	passages: [REV, MATT],
+	translationId: 'esv',
+	baseTitle: 'NT Study',
+	balancePerPassage: [999, 0]
+});
+check('an impossible target clamps to one part per chapter', clamped.parts.length, 22 + 1);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -32,9 +32,9 @@
 	 */
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
-	import Input from '$lib/componentElements/Input.svelte';
 	import Stepper from '$lib/componentElements/Stepper.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
+	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
 	import { planSeriesParts, getPartingStrategy } from '$lib/utils/seriesPlanning.js';
 
 	let { isOpen = false, study = null, error = null, onCreate, onClose } = $props();
@@ -87,19 +87,35 @@
 	// in a way equal verse counts are not", and balancing is "an option the user may choose, never a
 	// re-balancing the app applies on their behalf". So this is off unless ticked, and the control it
 	// replaces stays visible — the user can see which of the two they are getting.
-	let balanceByLength = $state(false);
+	// Held as a MODE rather than a boolean, because the two strategies are now mutually exclusive
+	// radio options rather than a default plus a modifier. `balanceByLength` is derived from it so
+	// the planner call and `onCreate` payload are untouched — the planner's contract did not change,
+	// only the control that feeds it.
+	/** @type {'chapters' | 'balance'} */
+	let partingMode = $state(/** @type {'chapters' | 'balance'} */ ('chapters'));
+	let balanceByLength = $derived(partingMode === 'balance');
+
+	const PARTING_MODES = [
+		{ id: 'parting-chapters', value: 'chapters', text: 'Chapters per part' },
+		{ id: 'parting-balance', value: 'balance', text: 'Balance by length' }
+	];
 
 	// The part count to balance into. Seeded from whatever the chapters-per-part stepper currently
-	// implies, so ticking the box does not jump to an unrelated shape: the user keeps roughly the number
+	// implies, so switching mode does not jump to an unrelated shape: the user keeps roughly the number
 	// of parts they were already looking at, now evened out.
 	let balanceTargetInput = $state('');
 
 	$effect(() => {
-		if (isOpen) balanceByLength = false;
+		if (isOpen) partingMode = 'chapters';
 	});
 
-	// Seeded when the box is ticked, and left alone afterwards so the user's own number survives a
-	// stepper nudge. Held as a string because `Input` surfaces strings.
+	// Seeded when the mode is selected, and left alone afterwards so the user's own number survives
+	// a stepper nudge. Held as a string because `Input` surfaces strings.
+	//
+	// Cleared on the way back to chapters, which is what makes the seeding happen again on the next
+	// switch rather than restoring a stale number from two modes ago. The chapters value is NOT
+	// cleared in return: it is the default mode and the field the user starts in, so it keeps its
+	// own position across a round trip.
 	$effect(() => {
 		if (balanceByLength && balanceTargetInput === '') {
 			balanceTargetInput = String(Math.max(2, fixedPartCount));
@@ -229,62 +245,75 @@
 		</p>
 	{:else}
 		{#if showStepper}
-			<!-- The summary §5 sketches: "16 parts · avg 27 verses each" -->
-			<Stepper
-				id="chapters-per-part"
-				name="chapters-per-part"
-				label="Chapters per part:"
-				bind:value={chaptersInput}
-				min={1}
-				max={maxChaptersPerPart}
-				onDecrement={stepDown}
-				onIncrement={stepUp}
-				decrementDisabled={chaptersPerPart <= 1}
-				incrementDisabled={chaptersPerPart >= maxChaptersPerPart}
-				decrementLabel="Fewer chapters per part"
-				incrementLabel="More chapters per part"
-				summary={`${parts.length} parts · avg ${averageVerses} verses each`}
-			/>
+			<!-- §5 option (b), Q11, now a RADIO PAIR rather than a checkbox modifying the stepper.
+			     The two are mutually exclusive strategies, and a checkbox said otherwise: it read as
+			     "chapters per part, and also balanced", which is not a shape the planner has. One
+			     stepper serves both, its meaning named by whichever option is selected.
 
-			<!-- §5 option (b), Q11. Offered beside the stepper rather than replacing it, so the user can
-			     see which of the two shapes they are choosing. Off by default: §5 keeps chapter
-			     boundaries as the default because they are meaningful to readers in a way equal verse
-			     counts are not. -->
-			<div class="balance-row">
-				<!-- No bottom spacing: this one sits inline in `.balance-row`, which supplies its
-				     own gap and margin. -->
-				<Checkbox
-					id="balance-by-length"
-					label="Balance by length"
-					bind:checked={balanceByLength}
-					spacingBottom="0rem"
+			     Controlled mode (`bind:value`). The uncontrolled path re-derives the selection from
+			     `isChecked` in an `$effect`, which fights a caller-owned binding and resets it on every
+			     props rebuild — the failure RadioButtons' own docblock records against `createAsSeries`.
+
+			     Chapters is the default: §5 keeps chapter boundaries first because they are meaningful
+			     to readers in a way equal verse counts are not. -->
+			<div class="parting-modes">
+				<RadioButtons
+					RadioButtonProperties={PARTING_MODES}
+					name="parting-mode"
+					isInline
+					bind:value={partingMode}
 				/>
-
-				{#if balanceByLength}
-					<label class="balance-label" for="balance-parts">into</label>
-					<div class="balance-count">
-						<Input
-							id="balance-parts"
-							name="balance-parts"
-							type="number"
-							min={2}
-							max={Math.max(2, totalChapters)}
-							bind:value={balanceTargetInput}
-						/>
-					</div>
-					<span class="balance-label">parts</span>
-				{/if}
 			</div>
 
+			<!--
+				ONE stepper, its meaning following the mode above. The summary §5 sketches —
+				"16 parts · avg 27 verses each" — is the same either way, because it describes the
+				RESULT rather than the input.
+
+				The bounds genuinely differ: chapters-per-part cannot exceed half the span or it
+				yields one part, while a target part count runs up to one part per chapter. So the
+				two values live in separate state and are seeded on switch rather than carried
+				across — clamping 8 chapters into 8 parts would be a different shape wearing the
+				same number.
+
+				No visible `label`: the radio pair directly above already names what the number
+				means, and a second name under it would be the same word twice. `ariaLabel` carries
+				the accessible name instead, so the field is still named for a screen reader.
+			-->
 			{#if balanceByLength}
-				<!-- Said plainly, because the arithmetic cannot always deliver evenness: chapters are
-				     never split, so a range containing one very long chapter still yields one very long
-				     part. Better to say so here than to let the preview look like a broken promise. -->
-				<p class="hint">
-					Parts break on chapter boundaries, so they are evened out as far as whole chapters allow —
-					a single long chapter still makes one long part.
-				</p>
+				<Stepper
+					id="balance-parts"
+					name="balance-parts"
+					ariaLabel="Number of parts"
+					unit={balanceTarget === 1 ? 'Part' : 'Parts'}
+					bind:value={balanceTargetInput}
+					min={2}
+					max={Math.max(2, totalChapters)}
+					decrementDisabled={balanceTarget <= 2}
+					incrementDisabled={balanceTarget >= Math.max(2, totalChapters)}
+					decrementLabel="Fewer parts"
+					incrementLabel="More parts"
+					summary={`${parts.length} parts · avg ${averageVerses} verses each`}
+				/>
+			{:else}
+				<Stepper
+					id="chapters-per-part"
+					name="chapters-per-part"
+					ariaLabel="Chapters per part"
+					unit={chaptersPerPart === 1 ? 'Chapter' : 'Chapters'}
+					bind:value={chaptersInput}
+					min={1}
+					max={maxChaptersPerPart}
+					onDecrement={stepDown}
+					onIncrement={stepUp}
+					decrementDisabled={chaptersPerPart <= 1}
+					incrementDisabled={chaptersPerPart >= maxChaptersPerPart}
+					decrementLabel="Fewer chapters per part"
+					incrementLabel="More chapters per part"
+					summary={`${parts.length} parts · avg ${averageVerses} verses each`}
+				/>
 			{/if}
+
 		{:else}
 			<p class="explain">
 				This study has {passages.length} passages, so it will divide into
@@ -365,31 +394,24 @@
 		color: var(--black);
 	}
 
-	/* The stepper and its summary badge are the Stepper element's own; nothing to add here.
+	/* The stepper, its unit and its summary badge are all the Stepper element's own; nothing to
+	   add here.
 
 	   A previous pass pushed the summary right with `:global(.stepper-row .stepper-summary)`,
 	   commented as being local to this modal. It was not: `:global()` is not scoped to the
 	   component, so that rule applied wherever a Stepper rendered — which is why the New Study
-	   page showed its stats jammed against the far right edge. The summary is a full-width
-	   badge on its own row now, so no alignment override is wanted anywhere. */
+	   page showed its stats jammed against the far right edge. The element now right-aligns its
+	   own badge for stacked layouts, so no override is wanted here. */
 
-	/* "into" / "parts", the words either side of the balance count. */
-	.balance-label {
-		font-size: 1.4rem;
-		color: var(--black);
-	}
-
-	.balance-row {
+	/* Centred, per the design. `RadioButtons` has no centring option of its own and should not
+	   grow one for a single caller, so the wrapper does it here — scoped to this modal, not
+	   reached in with `:global`, which is the mistake the comment above records. */
+	.parting-modes {
 		display: flex;
-		align-items: center;
-		gap: 0.8rem;
-		flex-wrap: wrap;
-		margin-bottom: 0.8rem;
+		justify-content: center;
 	}
 
-	.balance-count {
-		max-width: 7rem;
-	}
+	/* The group's own 1.8rem bottom margin is the gap to the stepper; nothing to add. */
 
 	.parts {
 		list-style: none;
@@ -397,7 +419,7 @@
 		padding: 0;
 		max-height: 24rem;
 		overflow-y: auto;
-		border: 1px solid var(--gray-100);
+		border: 1px solid var(--gray-900);
 		border-radius: 0.4rem;
 	}
 
@@ -407,7 +429,7 @@
 		gap: 0.8rem;
 		padding: 0.6rem 0.8rem;
 		font-size: 1.3rem;
-		border-bottom: 1px solid var(--gray-100);
+		border-bottom: 1px solid var(--gray-900);
 	}
 
 	.parts li:last-child {
@@ -415,7 +437,7 @@
 	}
 
 	.parts li.flagged {
-		background: var(--yellow-50, #fffbea);
+		background: var(--yellow-lighter);
 	}
 
 	.part-order {
@@ -435,12 +457,6 @@
 
 	.flag {
 		color: var(--red);
-	}
-
-	.hint {
-		margin: 0;
-		font-size: 1.2rem;
-		color: var(--gray-300);
 	}
 
 </style>
