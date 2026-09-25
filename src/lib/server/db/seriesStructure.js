@@ -251,7 +251,15 @@ export async function splitPassageStructure(
 	const movedSegmentIds = [...plan.movedSegmentIds];
 
 	// 1. Whole columns: one update each carries sections and segments implicitly.
-	if (deleteEmptied && plan.moveColumns.length > 0) {
+	//
+	// ⚠️ Unconditional, unlike the re-parent in `joinPassageStructure()`. There it is gated on
+	// `deleteEmptied` because a join that keeps both rows must leave each column on its own passage.
+	// A split has no such case: `planStructureSplit()` lists a column here only when it lies wholly
+	// past the boundary, and the passage it sits on has just been narrowed to end BEFORE the
+	// boundary — so the move is always required. `deleteEmptied` is not a parameter of this
+	// function; copying that guard in here threw a ReferenceError inside the transaction, and every
+	// chapter-line split failed as "Failed to split the part".
+	if (plan.moveColumns.length > 0) {
 		await tx
 			.update(passageColumn)
 			.set({ passageId: newPassageId, updatedAt: now })

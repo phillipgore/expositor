@@ -24,16 +24,18 @@
 	 *
 	 * ## Props
 	 * @property {boolean} isOpen
-	 * @property {Object} part - The part being split (`id`, `title`)
+	 * @property {Object} part - The part being split (only `id` is read)
 	 * @property {string} seriesId
 	 * @property {Function} onDone - Called after a successful split
 	 * @property {Function} onClose
 	 *
 	 * @component
 	 */
+	import { untrack } from 'svelte';
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import { messageForFailure } from '$lib/utils/apiErrors.js';
 
 	let { isOpen = false, part = null, seriesId = null, onDone, onClose } = $props();
@@ -47,40 +49,68 @@
 	/** The chosen split point. A string because `<select>` values are strings. */
 	let choice = $state('');
 
-	// Reset per opening: a preview left from a previously selected part would describe a split of a
-	// different part entirely.
+	/**
+	 * Whether this opening's first answer has arrived: the legal points and the first preview, or a
+	 * failure.
+	 *
+	 * Without it, "not loaded yet" and "cannot be divided" were the same state — `preview` is null in
+	 * both, so `kind` reads 'none' in both — and every opening began by telling the user this part
+	 * cannot be divided. It also keeps the body on the spinner until the first preview is in, so the
+	 * dialog changes height once rather than again when the Original / New list arrives.
+	 */
+	let ready = $state(false);
+
+	/**
+	 * Reset per opening: a preview left from a previously selected part would describe a split of a
+	 * different part entirely.
+	 *
+	 * ⚠️ `untrack` is load-bearing, not defensive — the same trap `AddToSeriesModal` and
+	 * `JoinPartsModal` record. `loadPoints()` calls `request()`, which reads `choice` BEFORE its
+	 * first `await`, so that read is tracked and this effect subscribes to the state it resets. When
+	 * the points arrived and `loadPoints()` set `choice`, the effect re-ran, reset `choice` and
+	 * `preview`, and started another load. The body flipped between "This part cannot be divided."
+	 * and the split controls for as long as the dialog was open, and each pass fired more dry runs
+	 * than the last. Keyed on `isOpen` alone, because the open transition is the only thing that
+	 * should re-seed the choice.
+	 */
 	$effect(() => {
-		if (isOpen) {
+		if (!isOpen) return;
+		untrack(() => {
 			preview = null;
 			error = '';
 			choice = '';
 			acknowledgedConnectionLoss = false;
 			submitting = false;
+			ready = false;
 			void loadPoints();
-		}
+		});
 	});
 
 	/**
 	 * Fetch the legal split points, then preview the first one.
 	 *
 	 * Asking with no point selected returns the planner's refusal *plus* `splitPoints`, which is
-	 * exactly what the control needs — so the rejection is useful rather than merely an error.
+	 * exactly what the control needs — so the rejection is useful rather than merely an error. It is
+	 * sent as a `probe` so that expected refusal is not shown as one.
 	 */
 	async function loadPoints() {
-		const points = await request({ dryRun: true });
-		if (!points) return;
+		try {
+			const points = await request({ dryRun: true, probe: true });
+			const found = points?.splitPoints;
+			const first =
+				found?.kind === 'chapter'
+					? found.chapters?.[0]
+					: found?.kind === 'passage'
+						? found.seams?.[0]
+						: null;
 
-		const found = points.splitPoints;
-		const first =
-			found?.kind === 'chapter'
-				? found.chapters?.[0]
-				: found?.kind === 'passage'
-					? found.seams?.[0]
-					: null;
-
-		if (first != null) {
-			choice = String(first);
-			await refresh();
+			if (first != null) {
+				choice = String(first);
+				await refresh();
+			}
+		} finally {
+			// Also on failure: a load that never settles would leave the spinner up for good.
+			ready = true;
 		}
 	}
 
@@ -93,8 +123,12 @@
 		}
 	}
 
-	/** One request shape for both the dry run and the commit, so they cannot diverge. */
-	async function request({ dryRun, confirmConnectionLoss = false }) {
+	/**
+	 * One request shape for both the dry run and the commit, so they cannot diverge.
+	 *
+	 * `probe` marks the opening no-point request, whose refusal is expected — see `loadPoints()`.
+	 */
+	async function request({ dryRun, confirmConnectionLoss = false, probe = false }) {
 		if (!seriesId || !part?.id) return null;
 		loading = dryRun;
 		try {
@@ -126,6 +160,15 @@
 				// Keep any points that came back so the control still works after a rejected point.
 				if (result?.splitPoints) {
 					preview = { ...(preview ?? {}), splitPoints: result.splitPoints };
+				}
+				// The probe's refusal is the expected answer to "which points exist?", not a failure:
+				// the chapter case is followed at once by a real preview, and the single-chapter case
+				// is stated by the body from `splitPoints.reason`. Showing it in red either briefly
+				// flashed "That chapter is not inside this part." or repeated the body's reason. Only a
+				// refusal that brought the points back counts — a 401, a 404 or a part with no passages
+				// has none, and still reports.
+				if (probe && result?.splitPoints) {
+					return { splitPoints: result.splitPoints };
 				}
 				error = messageForFailure(
 					response,
@@ -169,6 +212,7 @@
 	let confirmDisabled = $derived(
 		submitting ||
 			loading ||
+			!ready ||
 			choice === '' ||
 			kind === 'none' ||
 			(brokenCount > 0 && !acknowledgedConnectionLoss)
@@ -194,15 +238,25 @@
 	onCancel={onClose}
 	{onClose}
 >
-	{#if kind === 'none'}
+	<!-- Four states, and the first two are why this is not a plain if/else on `kind`. Before the
+	     answer arrives there are no points, so `kind` reads 'none' — and saying "cannot be divided"
+	     then was a claim nobody had made. Likewise a load that FAILED has no points either: that is
+	     "could not ask", not "the answer is no", so it gets the error rather than a reason. -->
+	{#if !ready}
+		<div class="loading">
+			<Spinner size="sm" inline label="Finding where this part can be divided…" showLabel />
+		</div>
+	{:else if !splitPoints}
+		<Alert
+			color="red"
+			look="subtle"
+			message={error || 'Could not prepare the split.'}
+			spacingBottom="0rem"
+		/>
+	{:else if kind === 'none'}
 		<!-- §11's rule for a dead control: say why, and never imply a fix that is not coming. -->
-		<p class="explain">{splitPoints?.reason ?? 'This part cannot be divided.'}</p>
+		<p class="explain">{splitPoints.reason ?? 'This part cannot be divided.'}</p>
 	{:else}
-		<p class="explain">
-			Divide <strong>{part?.title ?? 'this part'}</strong> into two parts. The later verses move to a
-			new part directly after it; every other part keeps its position.
-		</p>
-
 		<div class="point-row">
 			<label class="point-label" for="split-point">
 				{kind === 'chapter' ? 'Split after chapter' : 'Split before passage'}
@@ -224,11 +278,11 @@
 		{#if preview?.ok}
 			<ul class="halves">
 				<li>
-					<span class="half-label">Keeps</span>
+					<span class="half-label">Original</span>
 					<span class="half-ref">{preview.firstReference}</span>
 				</li>
 				<li>
-					<span class="half-label">New part</span>
+					<span class="half-label">New</span>
 					<span class="half-ref">{preview.secondReference}</span>
 				</li>
 			</ul>
@@ -281,6 +335,12 @@
 		margin: 0 0 1.2rem;
 		font-size: 1.4rem;
 		color: var(--black);
+	}
+
+	/* Same bottom margin as `.explain`, so the one-line placeholder sits where the first line of
+	   the answer will. */
+	.loading {
+		margin: 0 0 1.2rem;
 	}
 
 	.point-row {
