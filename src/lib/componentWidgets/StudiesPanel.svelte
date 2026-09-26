@@ -424,7 +424,9 @@
 	 */
 	$effect(() => {
 		function handleDocumentClick(event) {
-			if (multiSelect.selectedItems.length === 0) return;
+			// A series page still continues with nothing selected, so the series can be re-selected
+			// below (a group page gets this from its unlatched auto-select branch).
+			if (multiSelect.selectedItems.length === 0 && !activeSeriesId) return;
 
 			// Preserve selection on /new-study page with groupId parameter
 			if ($page.url.pathname === '/new-study' && $page.url.searchParams.get('groupId')) {
@@ -454,6 +456,21 @@
 			const clickedInsideContainer = container.contains(event.target);
 
 			if (!clickedInsideContainer) {
+				// On a series page, a click in the main area leaves the series selected, the same
+				// way a group page keeps its group, so Edit/Delete stay available. A group gets this
+				// for free: its auto-select branch has no latch and re-selects on the next effect
+				// run. The series branch IS latched (see `previousActiveSeriesId`: removing the latch
+				// would let a part click be overridden mid-navigation), so nothing would bring the
+				// selection back. Re-selecting here instead of clearing gives the same result without
+				// touching the latch. Clicks inside the Finder never get here, so clicking a part
+				// still replaces the selection normally.
+				if (activeSeriesId) {
+					const alreadyOnlySeries =
+						multiSelect.selectedItems.length === 1 &&
+						multiSelect.isItemSelected('series', activeSeriesId);
+					if (alreadyOnlySeries || selectOnlySeries(activeSeriesId)) return;
+				}
+				if (multiSelect.selectedItems.length === 0) return;
 				multiSelect.clearSelection();
 			}
 		}
@@ -503,6 +520,35 @@
 	let previousActiveSeriesId = null;
 
 	/**
+	 * Make `seriesId` the Finder's only selection and update the toolbar.
+	 *
+	 * Used in two places: the auto-select effect, when the user first arrives on a series page,
+	 * and `handleDocumentClick`, when a click in the main area would otherwise clear the
+	 * selection. Returns false when the series is not a Finder row (e.g. a series with no parts,
+	 * which the layout loader filters out), so the caller can fall back to clearing.
+	 *
+	 * @param {string} seriesId
+	 * @returns {boolean} whether the series was found and selected
+	 */
+	function selectOnlySeries(seriesId) {
+		const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
+		const seriesItem = flatList.find((item) => item.type === 'series' && item.id === seriesId);
+		if (!seriesItem) return false;
+
+		multiSelect.selectedItems = [
+			{
+				type: 'series',
+				id: seriesId,
+				data: seriesItem.data,
+				index: seriesItem.index
+			}
+		];
+		multiSelect.lastSelectedIndex = seriesItem.index;
+		multiSelect.updateToolbarSelection();
+		return true;
+	}
+
+	/**
 	 * Auto-select active group or study on page load, or clear selection on dashboard.
 	 *
 	 * For studies: only auto-selects when navigating to a NEW study (ID changed).
@@ -521,24 +567,14 @@
 			// else while still on the series page — which is precisely what clicking a part does,
 			// since `goto()` has not resolved yet. Re-running then re-imposed the series selection
 			// on top of the part's.
+			// Reset the study latch: the series stays selected while on its page (see
+			// handleDocumentClick), so arriving at a part from here, e.g. via "Continue reading",
+			// must always auto-select the part, even if it was the last study auto-selected.
+			previousActiveStudyId = null;
 			if (activeSeriesId !== previousActiveSeriesId) {
 				previousActiveSeriesId = activeSeriesId;
-				const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-				const seriesItem = flatList.find(
-					(item) => item.type === 'series' && item.id === activeSeriesId
-				);
-
-				if (seriesItem && !multiSelect.isItemSelected('series', activeSeriesId)) {
-					multiSelect.selectedItems = [
-						{
-							type: 'series',
-							id: activeSeriesId,
-							data: seriesItem.data,
-							index: seriesItem.index
-						}
-					];
-					multiSelect.lastSelectedIndex = seriesItem.index;
-					multiSelect.updateToolbarSelection();
+				if (!multiSelect.isItemSelected('series', activeSeriesId)) {
+					selectOnlySeries(activeSeriesId);
 				}
 			}
 		} else if (activeGroupId) {

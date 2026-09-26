@@ -491,6 +491,7 @@
 		const pathname = $page.url.pathname;
 		const studyMatch = pathname.match(/^\/study\/([^/]+)/);
 		const groupMatch = pathname.match(/^\/study-group\/([^/]+)/);
+		const seriesMatch = pathname.match(/^\/series\/([^/]+)/);
 
 		// A series deletion cascades to every part, so viewing any part of a deleted series is
 		// viewing a route that no longer exists. Without this the user is left on a dead
@@ -508,7 +509,12 @@
 				(selectedStudyIds.includes(studyMatch[1]) ||
 					deletedSeriesPartIds.includes(studyMatch[1]) ||
 					selectedGroupIds.length > 0)) ||
-			(groupMatch && selectedGroupIds.length > 0);
+			(groupMatch && selectedGroupIds.length > 0) ||
+			// Viewing the series page (or its editor) of a deleted series. Its loader depends on
+			// `app:studies` and 404s once the series is gone. A deleted group may have held the
+			// series, so that case counts too, as it does for studies.
+			(seriesMatch &&
+				(selectedSeriesIds.includes(seriesMatch[1]) || selectedGroupIds.length > 0));
 
 
 		if (mightBeViewingDeleted) {

@@ -98,9 +98,21 @@ assert(
 	'the same-URL goto guard is present, as for groups and studies',
 	handler.includes('$page.url.pathname !== dest')
 );
+// The one-row selection lives in `selectOnlySeries`, shared by the auto-select effect and the
+// main-area click handler.
+const selectOnly = panel.slice(
+	panel.indexOf('function selectOnlySeries'),
+	panel.indexOf('function selectOnlySeries') + 900
+);
+assert(
+	'selectOnlySeries selects the row as a series',
+	panel.includes('function selectOnlySeries') &&
+		/type:\s*'series',\s*\n\s*id:\s*seriesId/.test(selectOnly) &&
+		selectOnly.includes('multiSelect.updateToolbarSelection()')
+);
 assert(
 	'an active series is auto-selected as a series',
-	/type:\s*'series',\s*\n\s*id:\s*activeSeriesId/.test(panel)
+	/selectOnlySeries\(activeSeriesId\)/.test(panel)
 );
 
 console.log('\n── the Finder never steals focus ──');
@@ -155,13 +167,39 @@ assert(
 	'the latch encloses the series selection assignment',
 	// `indexOf` returns -1 when absent, and -1 is less than everything — so both offsets are
 	// required to be real before they are compared, or a deleted latch would read as "enclosing".
-	panel.indexOf('activeSeriesId !== previousActiveSeriesId') >= 0 &&
-		panel.search(/type:\s*'series',\s*\n\s*id: activeSeriesId/) >
-			panel.indexOf('activeSeriesId !== previousActiveSeriesId')
+	(() => {
+		const latch = panel.indexOf('activeSeriesId !== previousActiveSeriesId');
+		if (latch < 0) return false;
+		// The first selectOnlySeries(activeSeriesId) after the latch must fall inside the latched
+		// block, i.e. before the effect's next branch.
+		const call = panel.indexOf('selectOnlySeries(activeSeriesId)', latch);
+		const nextBranch = panel.indexOf('} else if (activeGroupId)', latch);
+		return call > latch && nextBranch > call;
+	})()
 );
 assert(
 	'and it is reset when another row becomes active',
 	(panel.match(/previousActiveSeriesId = null;/g) ?? []).length >= 2
+);
+
+console.log('\n── clicking the series page keeps the series selected, as a group page does ──');
+
+// ⚠️ A click in the main area used to clear the series selection for good: the document click
+// handler cleared it, and the latched series branch above (unlike the unlatched group branch) never
+// put it back, so Edit and Delete went grey on the series' own page.
+const docClick = panelCode.slice(
+	panelCode.indexOf('function handleDocumentClick'),
+	panelCode.indexOf("document.addEventListener('click', handleDocumentClick)")
+);
+assert(
+	'the main-area click handler re-selects the active series instead of clearing',
+	/if \(activeSeriesId\)\s*\{[\s\S]*selectOnlySeries\(activeSeriesId\)[\s\S]*return;/.test(docClick) &&
+		docClick.indexOf('selectOnlySeries(activeSeriesId)') <
+			docClick.lastIndexOf('multiSelect.clearSelection()')
+);
+assert(
+	'and it does not bail out early on a series page with nothing selected',
+	docClick.includes('multiSelect.selectedItems.length === 0 && !activeSeriesId')
 );
 
 console.log('\n── Edit routes each row type to its own editor ──');
@@ -173,6 +211,11 @@ assert(
 	toolbar.includes('`/study-group/${item.id}/edit`')
 );
 assert('a study still routes to /study/{id}/edit', toolbar.includes('`/study/${item.id}/edit`'));
+assert(
+	"deleting the series being viewed leaves its page before its loader can 404",
+	toolbar.includes('const seriesMatch = pathname.match(/^\\/series\\/([^/]+)/)') &&
+		toolbar.includes('selectedSeriesIds.includes(seriesMatch[1])')
+);
 
 console.log("\n── a part's edit URL redirects to its series ──");
 
