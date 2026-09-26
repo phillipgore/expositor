@@ -28,7 +28,7 @@ import {
 	diffSeams,
 	fingerprintParts
 } from '../src/lib/utils/seriesSeams.js';
-import { planSeriesParts } from '../src/lib/utils/seriesPlanning.js';
+import { planSeriesParts, readDivisionRequest } from '../src/lib/utils/seriesPlanning.js';
 import { computeRuns } from '../src/lib/utils/seriesRuns.js';
 import { describeRuns, planRunReorder } from '../src/lib/utils/seriesReorder.js';
 
@@ -521,6 +521,104 @@ check('and no desired seams', getDesiredSeams([]).length, 0);
 const empty = diffSeams({ parts: [], plannedParts: [] });
 check('so the diff is empty', empty.splits.length + empty.joins.length, 0);
 check('a one-part series has no seams', getCurrentSeams([ro('a', 0, 1, 2)]).length, 0);
+
+console.log('\n── a division request is read ONE way, by both edit endpoints ──');
+
+// `analyze-edit` previews a re-division and `reserialize` applies it. Each used to keep its own
+// test — `Number(chaptersPerPart) >= 1` — and pass only the chapters fields on, so balance by length
+// was dropped at both. They now share `readDivisionRequest()`, pinned here.
+check('no chaptersPerPart means no division', readDivisionRequest({ passages: [] }), null);
+check('neither does a body with none at all', readDivisionRequest(undefined), null);
+check('a zero is not a request', readDivisionRequest({ chaptersPerPart: 0 }), null);
+check(
+	'a chapters request reads as before, balance off',
+	readDivisionRequest({ chaptersPerPart: 2, chaptersPerPassage: [1, 2] }),
+	{ chaptersPerPart: 2, chaptersPerPassage: [1, 2], balanceByLength: false, targetParts: 0, balancePerPassage: [] }
+);
+check(
+	'a balanced request keeps its target and per-passage targets',
+	readDivisionRequest({
+		chaptersPerPart: 1,
+		chaptersPerPassage: [1, 1],
+		balanceByLength: true,
+		targetParts: 3,
+		balancePerPassage: [2, 1]
+	}),
+	{ chaptersPerPart: 1, chaptersPerPassage: [1, 1], balanceByLength: true, targetParts: 3, balancePerPassage: [2, 1] }
+);
+// A stale target left over from an earlier choice must not leak into a chapters request.
+check(
+	'targets are zeroed unless balancing',
+	readDivisionRequest({ chaptersPerPart: 2, balanceByLength: false, targetParts: 3, balancePerPassage: [2] }),
+	{ chaptersPerPart: 2, chaptersPerPassage: [], balanceByLength: false, targetParts: 0, balancePerPassage: [] }
+);
+// Only a real boolean switches balance on. The form and review page send booleans; a string is
+// not a request to balance.
+check('the string "true" does not turn balance on', readDivisionRequest({ chaptersPerPart: 1, balanceByLength: 'true' }).balanceByLength, false);
+
+console.log('\n── re-dividing an existing series BY LENGTH applies the balanced shape ──');
+
+// Romans 1–6 at two chapters per part (romans3, above). Re-divided by length into two parts, the
+// plan the endpoints build from the request must differ from a chapters plan and diff cleanly.
+const balancedRequest = readDivisionRequest({
+	chaptersPerPart: 2,
+	balanceByLength: true,
+	targetParts: 2
+});
+const balancedPlan = planSeriesParts({
+	passages: recomposePassages(romans3),
+	...balancedRequest,
+	translationId: 'esv',
+	baseTitle: ''
+});
+check('balancing Romans 1–6 into two gives two parts', balancedPlan.parts.length, 2);
+const balancedDiff = diffSeams({ parts: romans3, plannedParts: balancedPlan.parts });
+check('the diff has no refusals', balancedDiff.refusals.length, 0);
+// Three parts become two: the division really changes, so the save has work to do. Before the fix
+// the balance fields never reached the planner and this re-planned the unchanged 2-chapter shape.
+assert('and it changes the series rather than reproducing it', balancedDiff.joins.length + balancedDiff.splits.length > 0);
+assert('run shape still preserved', balancedDiff.runShapePreserved);
+
+// The SAME request with balance stripped — what the endpoints used to plan — is the no-op.
+const chaptersOnly = planSeriesParts({
+	passages: recomposePassages(romans3),
+	chaptersPerPart: 2,
+	translationId: 'esv',
+	baseTitle: ''
+});
+const chaptersDiff = diffSeams({ parts: romans3, plannedParts: chaptersOnly.parts });
+check(
+	'whereas dropping balance re-plans the shape it already has',
+	chaptersDiff.joins.length + chaptersDiff.splits.length,
+	0
+);
+
+console.log('\n── per-passage balance re-divides a multi-passage series within its passages ──');
+
+// Philippians (4 ch) + Colossians (4 ch), each one part today. Balance Philippians into 2 and leave
+// Colossians whole (target 1): exactly one split, inside Philippians, and never across the book seam.
+const twoBooks = [book('p', 0, 'PH', 'Philippians', 4, 23), book('c', 1, 'CO', 'Colossians', 4, 18)];
+const perPassage = planSeriesParts({
+	passages: recomposePassages(twoBooks),
+	...readDivisionRequest({
+		chaptersPerPart: 1,
+		chaptersPerPassage: [1, 1],
+		balanceByLength: true,
+		balancePerPassage: [2, 1]
+	}),
+	translationId: 'esv',
+	baseTitle: ''
+});
+check('Philippians into 2 plus Colossians whole gives three parts', perPassage.parts.length, 3);
+// A target of 1 means the passage WHOLE. It used to fall through to chapters-per-part and emit one
+// part per chapter — a row reading "1 part" producing four.
+check('Colossians stays one part', perPassage.parts.filter((p) => p.passages[0].book === 'CO').length, 1);
+assert('no part spans two books', perPassage.parts.every((p) => p.passages.length === 1));
+const perPassageDiff = diffSeams({ parts: twoBooks, plannedParts: perPassage.parts });
+check('one split', perPassageDiff.splits.length, 1);
+check('inside Philippians', perPassageDiff.splits[0]?.partId, 'p');
+check('no joins across the book boundary', perPassageDiff.joins.length, 0);
+check('and Colossians untouched', perPassageDiff.unchangedPartIds, ['c']);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

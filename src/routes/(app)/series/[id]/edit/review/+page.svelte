@@ -139,12 +139,20 @@
 					title: pending.title,
 					subtitle: pending.subtitle,
 					passages: pending.passages,
-					// Present only when the user actually moved the stepper. Absent means "leave the
+					// Present only when the user actually changed the division. Absent means "leave the
 					// seams alone", so a passage-only edit cannot re-divide the series by accident.
+					//
+					// ⚠️ The WHOLE request is forwarded, balance included. This used to copy only the two
+					// chapters fields, so a balanced division survived the analysis — the review listed
+					// its splits and joins — and was then committed as a chapters division: the page
+					// the user approved and the save it made described different series.
 					...(pending.chaptersPerPart != null
 						? {
 								chaptersPerPart: pending.chaptersPerPart,
-								chaptersPerPassage: pending.chaptersPerPassage
+								chaptersPerPassage: pending.chaptersPerPassage,
+								balanceByLength: pending.balanceByLength ?? false,
+								targetParts: pending.targetParts ?? 0,
+								balancePerPassage: pending.balancePerPassage ?? []
 							}
 						: {}),
 					decisions,

@@ -16,7 +16,8 @@ import {
 import {
 	planSeriesParts,
 	findUnservablePart,
-	findUndisplayablePart
+	findUndisplayablePart,
+	readDivisionRequest
 } from '$lib/utils/seriesPlanning.js';
 import {
 	splitPassageStructure,
@@ -72,9 +73,12 @@ export const POST = async ({ request, params }) => {
 			confirmPartDeletion = false,
 			// The requested DIVISION. Absent means "leave the seams alone" — an edit that only
 			// changes passages must not re-divide the series as a side effect.
-			chaptersPerPart = null,
-			chaptersPerPassage = null
+			chaptersPerPart = null
 		} = body;
+		// Read through the SAME helper `analyze-edit` uses, so the commit applies exactly the
+		// division the review previewed — balance and per-passage targets included. This endpoint
+		// used to read only the chapters fields, and a balanced preview was re-built by chapters.
+		const division = readDivisionRequest(body);
 
 		if (!Array.isArray(desiredPassages)) {
 			return json({ error: 'Invalid passages' }, { status: 400 });
@@ -154,8 +158,7 @@ export const POST = async ({ request, params }) => {
 		const plannedForLimits = planDivisionForLimits({
 			projected: projectedForLimits,
 			translation,
-			chaptersPerPart,
-			chaptersPerPassage
+			division
 		});
 		const unservable = findUnservablePart(plannedForLimits ?? projectedForLimits, translation);
 		if (unservable) {
@@ -193,8 +196,7 @@ export const POST = async ({ request, params }) => {
 			existingName: series.name,
 			translation,
 			userId: session.user.id,
-			chaptersPerPart,
-			chaptersPerPassage
+			division
 		});
 
 		return json({ success: true, ...result }, { status: 200 });
@@ -219,15 +221,13 @@ export const POST = async ({ request, params }) => {
  *
  * @returns {Array<Object>|null}
  */
-function planDivisionForLimits({ projected, translation, chaptersPerPart, chaptersPerPassage }) {
-	const wanted = Number(chaptersPerPart);
-	if (!Number.isFinite(wanted) || wanted < 1) return null;
+function planDivisionForLimits({ projected, translation, division }) {
+	if (!division) return null;
 	if (projected.length === 0) return null;
 
 	const plan = planSeriesParts({
 		passages: recomposePassages(projected),
-		chaptersPerPart: wanted,
-		chaptersPerPassage: Array.isArray(chaptersPerPassage) ? chaptersPerPassage : [],
+		...division,
 		translationId: translation,
 		baseTitle: ''
 	});
@@ -251,8 +251,7 @@ async function commit({
 	existingName,
 	translation,
 	userId,
-	chaptersPerPart,
-	chaptersPerPassage
+	division
 }) {
 	const now = new Date();
 
@@ -295,21 +294,22 @@ async function commit({
 		//
 		// Runs after narrowing and deletion because it operates on what survives; running it first
 		// would plan seams for parts that are about to disappear.
-		const division = await applyDivision(tx, {
+		// `divided`, not `division`: that name is the REQUEST passed in below, and shadowing it here
+		// would make this initializer read its own uninitialized binding.
+		const divided = await applyDivision(tx, {
 			seriesId,
 			parts,
 			extent,
 			remaining,
 			translation,
 			userId,
-			chaptersPerPart,
-			chaptersPerPassage,
+			division,
 			now
 		});
 
 		// A split adds parts; the dissolve test below must see the post-division count or a series
 		// that split back up to two parts would be wrongly dissolved.
-		remaining = division.parts;
+		remaining = divided.parts;
 
 		const seriesUpdates = { updatedAt: now };
 		if (typeof title === 'string' && title.trim() !== '') seriesUpdates.name = title.trim();
@@ -355,8 +355,8 @@ async function commit({
 		return {
 			narrowedPassages: narrowedCount,
 			deletedParts: deletedIds.length,
-			splitParts: division.splits,
-			joinedParts: division.joins,
+			splitParts: divided.splits,
+			joinedParts: divided.joins,
 			remainingParts: remaining.length,
 			dissolved,
 			dissolvedIntoStudyId: dissolved ? remaining[0].id : null
@@ -397,14 +397,14 @@ async function applyDivision(
 		remaining,
 		translation,
 		userId,
-		chaptersPerPart,
-		chaptersPerPassage,
+		division,
 		now
 	}
 ) {
 	// No division requested: leave the seams exactly as they are. An edit that only changed passages
-	// must not re-divide the series as a side effect.
-	const wantsDivision = Number.isFinite(Number(chaptersPerPart)) && Number(chaptersPerPart) >= 1;
+	// must not re-divide the series as a side effect. `readDivisionRequest()` returns null for
+	// exactly that case, and is the only place the test lives.
+	const wantsDivision = division !== null;
 	if (!wantsDivision || remaining.length === 0) {
 		return { parts: remaining, splits: 0, joins: 0 };
 	}
@@ -416,10 +416,11 @@ async function applyDivision(
 	);
 	if (projected.length === 0) return { parts: remaining, splits: 0, joins: 0 };
 
+	// The same inputs `planDivisionForLimits()` and `analyze-edit` planned with, so the operations
+	// applied here are the ones the review listed and the limit gate approved.
 	const plan = planSeriesParts({
 		passages: recomposePassages(projected),
-		chaptersPerPart: Number(chaptersPerPart),
-		chaptersPerPassage: Array.isArray(chaptersPerPassage) ? chaptersPerPassage : [],
+		...division,
 		translationId: translation,
 		baseTitle: ''
 	});

@@ -5,7 +5,7 @@ import { studySeries, study, passage } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, and } from 'drizzle-orm';
 import { createDefaultPassageStructure, expandGroupAncestors } from '$lib/server/db/utils.js';
-import { planSeriesParts } from '$lib/utils/seriesPlanning.js';
+import { planSeriesParts, findRefusedPart } from '$lib/utils/seriesPlanning.js';
 import bibleData from '$lib/data/bible.json';
 
 /**
@@ -146,6 +146,28 @@ export const POST = async ({ request }) => {
 		if (plan.parts.length < 2) {
 			return json(
 				{ error: 'That setting produces only one part. Choose fewer chapters per part.' },
+				{ status: 400 }
+			);
+		}
+
+		// Refuse a part that could not be loaded or displayed, the same check `new-study` and
+		// `reserialize` make, via the same helper, in the same order (retrieval before display).
+		//
+		// ⚠️ This endpoint used to make neither. The Split into a Series modal only warned, so a
+		// whole-book ESV study split at too many chapters per part produced a part that rendered
+		// "Error loading Ephesians 4:1-6:24" — created successfully, and unopenable. The modal now
+		// bounds its steppers and gates Create on the same helper; this is the server's own copy
+		// of that refusal, because a client gate is advice and this is the chokepoint
+		// (COMPLIANCE §1.9).
+		//
+		// Per PART, never of the parts together: a series is many pages, and the series-wide
+		// aggregate is the export gate's to enforce.
+		const refused = findRefusedPart(plan.parts, source.translation);
+		if (refused) {
+			const verb = refused.kind === 'retrieval' ? 'loaded' : 'displayed';
+			const remedy = balanceByLength ? 'Use more parts.' : 'Use fewer chapters per part.';
+			return json(
+				{ error: `Part ${refused.seriesOrder} cannot be ${verb}: ${refused.message ?? ''} ${remedy}` },
 				{ status: 400 }
 			);
 		}

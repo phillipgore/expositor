@@ -1414,8 +1414,8 @@ export function setZoomMode(mode, view) {
  * an edit that silently means something different from what it appears to mean.
  *
  * ⚠️ This gates EDIT ONLY. Deleting a part is a deliberate, supported operation with its own §4
- * warning copy (`describePartDeletion` — it explains that the run splits and which commands die at
- * the new seam), so `canDelete` must not borrow this predicate.
+ * confirmation copy (`describePartDeletion` — "Delete Series Part"), so `canDelete` must not
+ * borrow this predicate.
  *
  * @param {object|null} selection
  * @returns {boolean}

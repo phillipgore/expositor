@@ -452,13 +452,14 @@
 			}
 		}
 		// Use bulk delete for multiple items OR when groups are involved
-		// (to ensure proper handling of unselected descendants)
+		// (to ensure proper handling of unselected descendants). Series ids are sent too: without
+		// them a series in a multi-selection was silently skipped while the rest were deleted.
 		else if (count > 1 || selectedGroupIds.length > 0) {
 
 			const response = await fetch('/api/bulk-delete', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ selectedGroupIds, selectedStudyIds })
+				body: JSON.stringify({ selectedGroupIds, selectedStudyIds, selectedSeriesIds })
 			});
 
 			if (!response.ok) {

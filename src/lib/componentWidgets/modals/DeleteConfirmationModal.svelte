@@ -7,7 +7,6 @@
 	 * 
 	 * ## Features
 	 * - Dynamic content based on selection (single/multiple items)
-	 * - Nested item counting for groups
 	 * - Smart preservation warnings for unselected items
 	 * - Error handling with user feedback
 	 * - Loading state during deletion
@@ -37,27 +36,15 @@
 	} = $props();
 
 
+	/**
+	 * Shared by the Study Group and Delete Multiple Items confirmations. True because
+	 * /api/bulk-delete moves unselected groups, studies and series out of a deleted group.
+	 */
+	const PRESERVATION_WARNING =
+		'Unselected items within groups will be preserved and moved to safe locations. This action cannot be undone.';
+
 	let deleteInProgress = $state(false);
 	let deleteError = $state('');
-
-	/**
-	 * Recursively count all nested groups and studies within a group
-	 */
-	function countNestedItems(group) {
-		let nestedGroups = 0;
-		let nestedStudies = group.studies?.length || 0;
-
-		if (group.subgroups && group.subgroups.length > 0) {
-			for (const subgroup of group.subgroups) {
-				nestedGroups += 1;
-				const counts = countNestedItems(subgroup);
-				nestedGroups += counts.groups;
-				nestedStudies += counts.studies;
-			}
-		}
-
-		return { groups: nestedGroups, studies: nestedStudies };
-	}
 
 	/**
 	 * Compute modal content based on selected items
@@ -65,7 +52,7 @@
 	let modalContent = $derived.by(() => {
 		if (!selectedItem) return null;
 
-		const { items, count, hasGroups, hasStudies } = selectedItem;
+		const { items, count } = selectedItem;
 		
 		if (count === 0) return null;
 
@@ -76,63 +63,46 @@
 			// A series: cascades to every part (§4). Handled before the group/study branches
 			// because a series is neither, and falling through would describe it as a study.
 			if (item.type === 'series') {
-				const partCount = item.data.parts?.length ?? item.data.partCount ?? 0;
-				const copy = describeSeriesDeletion(item.data, partCount);
+				const copy = describeSeriesDeletion(item.data);
 
 				return {
 					title: copy.title,
 					message: copy.message,
-					consequences: copy.consequences,
 					itemName: item.data.name,
 					itemType: 'series'
 				};
 			}
 
-			// A part of a series. The warning depends on where the part sits in its run, so the
-			// sibling parts must be supplied; without them we cannot tell a run-splitting delete
-			// from a harmless one and would have to guess. Falling back to the plain study copy is
-			// the honest failure — silence is better than a fabricated consequence.
-			if (item.type === 'study' && item.data.seriesId && Array.isArray(seriesParts)) {
-				const copy = describePartDeletion(seriesParts, item.id);
+			// A part of a series. The copy is one fixed sentence (§4 "Deletion"), so it no longer
+			// depends on the sibling parts — a part is always described as a Series Part, even when
+			// `seriesParts` was not supplied. Without siblings, the part itself is passed so its
+			// title still resolves.
+			if (item.type === 'study' && item.data.seriesId) {
+				const parts = Array.isArray(seriesParts) ? seriesParts : [{ ...item.data, id: item.id }];
+				const copy = describePartDeletion(parts, item.id);
 
 				return {
 					title: copy.title,
 					message: copy.message,
-					consequences: copy.consequences,
 					itemName: item.data.title,
 					itemType: 'part'
 				};
 			}
 
 			if (item.type === 'group') {
-
-				const counts = countNestedItems(item.data);
-				const totalGroups = counts.groups;
-				const totalStudies = counts.studies;
-				
-				let warningParts = [];
-				if (totalGroups > 0) {
-					warningParts.push(`${totalGroups} nested ${totalGroups === 1 ? 'group' : 'groups'}`);
-				}
-				if (totalStudies > 0) {
-					warningParts.push(`${totalStudies} ${totalStudies === 1 ? 'study' : 'studies'}`);
-				}
-				
-				const warning = warningParts.length > 0
-					? `This will permanently delete ${warningParts.join(' and ')}.`
-					: 'This action cannot be undone.';
-
+				// Contents are NOT deleted: /api/bulk-delete moves every unselected group, study and
+				// series inside to the nearest surviving ancestor (see planGroupDeletion()).
 				return {
 					title: 'Delete Study Group',
-					message: `Are you sure you want to delete the study group "${item.data.name}"?`,
-					warning: warning,
+					message: `Are you sure you want to delete the Study Group "${item.data.name}"?`,
+					warning: PRESERVATION_WARNING,
 					itemName: item.data.name,
 					itemType: 'group'
 				};
 			} else {
 				return {
 					title: 'Delete Study',
-					message: `Are you sure you want to delete the study "${item.data.title}"?`,
+					message: `Are you sure you want to delete the Study "${item.data.title}"?`,
 					warning: 'This action cannot be undone.',
 					itemName: item.data.title,
 					itemType: 'study'
@@ -140,28 +110,11 @@
 			}
 		}
 
-		// Multiple items - show only selected counts (smart preservation handles unselected items)
-		const groupItems = items.filter(i => i.type === 'group');
-		const studyItems = items.filter(i => i.type === 'study');
-		
-		const selectedGroupCount = groupItems.length;
-		const selectedStudyCount = studyItems.length;
-
-		let parts = [];
-		if (selectedGroupCount > 0) {
-			parts.push(`${selectedGroupCount} ${selectedGroupCount === 1 ? 'group' : 'groups'}`);
-		}
-		if (selectedStudyCount > 0) {
-			parts.push(`${selectedStudyCount} ${selectedStudyCount === 1 ? 'study' : 'studies'}`);
-		}
-
-		// Warning: Mention that unselected items will be preserved
-		let warning = 'Unselected items within groups will be preserved and moved to safe locations. This action cannot be undone.';
-
+		// Multiple items (smart preservation handles unselected items)
 		return {
 			title: 'Delete Multiple Items',
-			message: `Are you sure you want to delete ${parts.join(' and ')}?`,
-			warning: warning,
+			message: 'Are you sure you want to delete the selected items?',
+			warning: PRESERVATION_WARNING,
 			itemName: `${count} items`,
 			itemType: 'multiple'
 		};
@@ -232,20 +185,6 @@
 			{modalContent.message}{#if modalContent.warning}&nbsp;{modalContent.warning}{/if}
 		</p>
 
-		<!--
-			Series and part deletions carry several distinct consequences (§4 requires the part
-			warning to name three), so they are listed rather than run together into one sentence
-			where the third would be easy to skim past. Existing study/group deletions keep their
-			single `warning` string above and render nothing here.
-		-->
-		{#if modalContent.consequences?.length}
-			<ul class="modal-consequences">
-				{#each modalContent.consequences as consequence}
-					<li>{consequence}</li>
-				{/each}
-			</ul>
-		{/if}
-
 		{#if deleteError}
 			<Alert color="red" look="subtle" message={deleteError} spacingBottom="0rem" />
 		{/if}
@@ -260,11 +199,4 @@
 		color: var(--gray-400);
 	}
 
-	ul.modal-consequences {
-		margin: 0.9rem 0 0;
-		padding-left: 2.1rem;
-		font-size: 1.6rem;
-		line-height: 1.75;
-		color: var(--gray-400);
-	}
 </style>

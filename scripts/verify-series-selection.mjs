@@ -22,7 +22,7 @@
  * (the same argument `verify-series-drag.mjs` and `verify-plan-status.mjs` make).
  *
  * ⚠️ `canDelete` for a part is asserted to remain TRUE. Deleting a part is a supported operation
- * with its own §4 warning copy (`describePartDeletion`), so a fix that disabled Edit by disabling
+ * with its own §4 confirmation copy (`describePartDeletion`), so a fix that disabled Edit by disabling
  * the whole selection would break it — silently, since nothing else tests it.
  *
  * Run: node --import ./scripts/alias-loader.mjs scripts/verify-series-selection.mjs

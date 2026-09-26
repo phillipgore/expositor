@@ -42,7 +42,12 @@
 	import Stepper from '$lib/componentElements/Stepper.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
-	import { planSeriesParts, getPartingStrategy } from '$lib/utils/seriesPlanning.js';
+	import {
+		planSeriesParts,
+		getPartingStrategy,
+		allowedDivisionBounds,
+		findRefusedPart
+	} from '$lib/utils/seriesPlanning.js';
 	import { getBook } from '$lib/utils/bibleData.js';
 
 	let {
@@ -137,8 +142,38 @@
 			: 0
 	);
 
-	// Half the span is the largest setting that still yields the 2 parts a series requires (§4).
-	let maxChaptersPerPart = $derived(totalChapters > 1 ? Math.floor(totalChapters / 2) : 1);
+	// What the translation permits for the single passage: the most chapters one part may hold,
+	// and the fewest parts a balance may produce, before some part shows more of the book than the
+	// licence allows on a page. See `allowedDivisionBounds()`.
+	//
+	// Computed only while open. The modal body is always mounted, and for Psalms this plans a few
+	// hundred candidate divisions — work the form should not repeat on every passage edit while the
+	// dialog is closed and its steppers are not on screen.
+	let singleLimits = $derived(
+		isOpen && strategy === 'chapters-per-part' && passages[0]
+			? allowedDivisionBounds(passages[0], translationId)
+			: null
+	);
+
+	// Half the span is the largest setting that still yields the 2 parts a series requires (§4),
+	// and the translation's own ceiling can be lower still: Ephesians in ESV allows 2 of the 3 that
+	// half its span would. Never below 1, because 1 chapter per part is the stepper's floor; if a
+	// translation ever refused even that, Done's refusal gate below is what stops the save.
+	let maxChaptersPerPart = $derived(
+		Math.max(
+			1,
+			Math.min(
+				totalChapters > 1 ? Math.floor(totalChapters / 2) : 1,
+				singleLimits?.maxChaptersPerPart ?? Infinity
+			)
+		)
+	);
+
+	// The balance floor: 2 for a series (§4), raised to the translation's minimum. Held inside the
+	// span, so a translation that allowed no balance at all still leaves the stepper somewhere to be.
+	let minBalanceParts = $derived(
+		Math.min(Math.max(2, singleLimits?.minBalanceParts ?? 2), Math.max(2, totalChapters))
+	);
 
 	// Parsed and clamped. Falls back to 1 mid-edit so a half-typed field cannot reach the
 	// planner as NaN and blank the preview.
@@ -160,34 +195,71 @@
 	}
 
 	/**
+	 * What the translation permits for each passage, positionally.
+	 *
+	 * Its own derived, keyed only on the passages and the translation, rather than folded into
+	 * `passageParting` below: that one re-runs on every stepper press, and for a long book this
+	 * plans a few hundred candidate divisions. Nothing a stepper does can change what the licence
+	 * allows, so a press must not pay for asking again. Computed only while open, for the same
+	 * reason `singleLimits` is.
+	 */
+	let passageLimits = $derived(
+		isOpen && strategy === 'passage-per-part'
+			? passages.map((p) => allowedDivisionBounds(p, translationId))
+			: []
+	);
+
+	/**
 	 * How many chapters each passage spans, and whether it can be divided at all.
 	 * A one-chapter passage has no internal seam — same rule as `getPartingStrategy`.
 	 */
 	let passageParting = $derived(
-		passages.map((p) => {
+		passages.map((p, index) => {
 			const chapterSpan = (p.toChapter ?? p.fromChapter) - (p.fromChapter ?? 0) + 1;
+			const limits = passageLimits[index] ?? null;
 			const raw = draftPerPassage[p.id];
 			// Absent means "not yet touched", which now seeds to 1 rather than 0. See
 			// `DEFAULT_CHAPTERS_PER_PASSAGE` below for why the undivided default was dropped.
 			const parsed = raw === undefined ? DEFAULT_CHAPTERS_PER_PASSAGE : parseInt(raw, 10);
-			// One short of the span — every setting that genuinely divides this passage.
+			// One short of the span — every setting that genuinely divides this passage — and no
+			// more than the translation lets one part of it hold: Ephesians in ESV stops at 2,
+			// because 3 chapters of it is more than half the book on one page.
 			//
 			// NOT `floor(span / 2)`, which the study-wide stepper uses. There it enforces §4's
 			// "a series needs 2+ parts" by making a single passage yield two. Here that
 			// reasoning does not transfer: the 2-part minimum is a property of the SERIES, and
 			// the other passages contribute parts too.
-			const maxPer = Math.max(0, chapterSpan - 1);
-			const chapters = Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, maxPer) : 0;
+			//
+			// Never below 1 for a divisible passage, since 1 is the floor of the control. The
+			// Done gate is what catches a translation that refused even one chapter.
+			const spanCeiling = Math.max(0, chapterSpan - 1);
+			const maxPer =
+				spanCeiling === 0
+					? 0
+					: Math.max(1, Math.min(spanCeiling, limits?.maxChaptersPerPart ?? spanCeiling));
+			// "Whole" is `0`, and is a setting like any other: offered only where the translation
+			// would show this passage undivided. Colossians in ESV is not; Haggai is.
+			const wholeAllowed = limits?.wholeAllowed ?? true;
+			const requested = Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, maxPer) : 0;
+			// A committed "Whole" that the translation refuses — a translation switched after the
+			// modal was last confirmed — reads as the finest division instead, the one setting
+			// every book allows, rather than as a shape the save will reject.
+			const chapters = requested === 0 && maxPer > 0 && !wholeAllowed ? 1 : requested;
 
 			// The balance target for this row. Seeded from whatever the chapters setting currently
 			// yields, so switching mode keeps roughly the shape the user was already looking at.
-			// A part must hold at least one chapter, so the ceiling is the chapter span itself.
+			// A part must hold at least one chapter, so the ceiling is the chapter span itself;
+			// the floor is the fewest parts the translation allows this passage to be shown in.
 			const chapterParts = chapters > 0 ? Math.ceil(chapterSpan / chapters) : 1;
+			const minBalance = Math.max(
+				1,
+				Math.min(chapterSpan, limits?.minBalanceParts ?? 1)
+			);
 			const rawBalance = draftBalancePerPassage[p.id];
 			const parsedBalance = parseInt(rawBalance, 10);
 			const balanceTarget = Number.isFinite(parsedBalance)
-				? Math.max(1, Math.min(parsedBalance, chapterSpan))
-				: Math.max(1, Math.min(chapterParts, chapterSpan));
+				? Math.max(minBalance, Math.min(parsedBalance, chapterSpan))
+				: Math.max(minBalance, Math.min(chapterParts, chapterSpan));
 
 			const partCount = balanceByLength ? balanceTarget : chapterParts;
 
@@ -213,7 +285,9 @@
 				canDivide: chapterSpan > 1,
 				chapters,
 				maxPer,
+				wholeAllowed,
 				chapterSpan,
+				minBalance,
 				balanceTarget,
 				// ⚠️ The ACTUAL count, read back from the plan rather than the requested target.
 				// `planByBalance()` clamps to the chapter count, so a target above it silently yields
@@ -237,8 +311,10 @@
 		draftBalancePerPassage = { ...draftBalancePerPassage, [id]: String(value) };
 	}
 
+	// Floored at the fewest parts the translation lets this passage be shown in, not at 1:
+	// Ephesians in ESV stops at 3, because 2 balanced parts put 89 of its 155 verses on one page.
 	function stepBalanceDown(entry) {
-		if (entry.balanceTarget > 1) setPassageBalance(entry.id, entry.balanceTarget - 1);
+		if (entry.balanceTarget > entry.minBalance) setPassageBalance(entry.id, entry.balanceTarget - 1);
 	}
 
 	function stepBalanceUp(entry) {
@@ -262,17 +338,29 @@
 	// Seeded when the mode is selected, then left alone so a stepper nudge survives. Cleared on the
 	// way back to chapters, which is what makes the seeding happen again on the next switch rather
 	// than restoring a stale number from two switches ago.
+	//
+	// Seeded inside the translation's bounds, so the field never opens on a number the plan is
+	// silently overriding — a field reading "2" over a preview built from the floor of 3 would be
+	// the control and the part list disagreeing about the same study.
 	$effect(() => {
 		if (balanceByLength && draftBalanceTarget === '') {
-			draftBalanceTarget = String(Math.max(2, fixedPartCount));
+			draftBalanceTarget = String(
+				Math.min(Math.max(minBalanceParts, fixedPartCount), maxBalanceParts)
+			);
 		}
 		if (!balanceByLength) draftBalanceTarget = '';
 	});
 
+	// One part per chapter is the ceiling: a part holds at least one chapter, since chapters are
+	// never split.
+	let maxBalanceParts = $derived(Math.max(minBalanceParts, totalChapters));
+
+	// Clamped to the translation's floor as well as the series' 2, so a number typed into the
+	// field below the floor cannot reach the planner and build a part the save would refuse.
 	let parsedBalanceTarget = $derived.by(() => {
 		const parsed = parseInt(draftBalanceTarget, 10);
-		if (!Number.isFinite(parsed) || parsed < 2) return 2;
-		return Math.min(parsed, Math.max(2, totalChapters));
+		if (!Number.isFinite(parsed) || parsed < minBalanceParts) return minBalanceParts;
+		return Math.min(parsed, maxBalanceParts);
 	});
 
 	// The SAME planner the server action runs, so this preview cannot promise a shape the save
@@ -306,7 +394,24 @@
 	);
 
 	// A series needs 2+ parts (§4): a one-part series is a study wearing a costume.
-	let canConfirm = $derived(parts.length >= 2);
+	let hasEnoughParts = $derived(parts.length >= 2);
+
+	// The first part the save would refuse — too many verses to load, or more of a book than the
+	// translation allows on one page — or null.
+	//
+	// The steppers' bounds already keep every reachable setting clear of this, so in practice it
+	// is always null. It gates Done anyway, as the backstop behind those bounds: the save paths
+	// (`new-study`, `reserialize`) refuse exactly this, via the same helper, and a Done that
+	// approved what Save then rejects is the gap the bounds were added to close. Asking the one
+	// helper rather than re-reading `plan.warnings` keeps "what Done refuses" and "what the server
+	// refuses" the same question.
+	let refusedPart = $derived(findRefusedPart(parts, translationId));
+
+	let canConfirm = $derived(hasEnoughParts && !refusedPart);
+
+	// The remedy follows the mode, because the control that fixes it does: in balance mode the
+	// stepper counts PARTS, and "use fewer chapters per part" names a control that is not on screen.
+	let limitRemedy = $derived(balanceByLength ? 'Use more parts.' : 'Use fewer chapters per part.');
 
 	function stepChaptersDown() {
 		if (parsedChapters > 1) draftChapters = String(parsedChapters - 1);
@@ -323,8 +428,13 @@
 
 	function stepPassageDown(entry) {
 		// Stepping below 1 returns the passage to undivided, which is the only way back to
-		// "one part" once a stepper has been touched.
-		setPassageChapters(entry.id, entry.chapters <= 1 ? 0 : entry.chapters - 1);
+		// "one part" once a stepper has been touched — but only where the translation would show
+		// the passage whole. Colossians in ESV stops at 1 chapter per part.
+		if (entry.chapters <= 1) {
+			if (entry.wholeAllowed) setPassageChapters(entry.id, 0);
+			return;
+		}
+		setPassageChapters(entry.id, entry.chapters - 1);
 	}
 
 	function stepPassageUp(entry) {
@@ -342,7 +452,25 @@
 		// the parting they get", broken by omission.
 		onConfirm?.({
 			chaptersPerPart: String(parsedChapters),
-			chaptersPerPassage: { ...draftPerPassage },
+			// The CLAMPED per-passage values the preview was built from, not the raw draft. The
+			// draft is seeded from the committed values, which can sit outside the bounds (a
+			// translation switched since the modal was last confirmed), and passing it through
+			// would commit a shape other than the one the part list showed.
+			//
+			// A single-chapter passage keeps its draft value. It has no seam, so the planner builds
+			// the same one part from any value; but the form re-derives its positional
+			// `chaptersPerPassage` from these, where '1' and '0' read as 1 and 0, and its "did the
+			// division change?" check compares that array. Rewriting '1' as '0' would make a Done
+			// that changed nothing look like a re-division — re-planning the seams on a
+			// subtitle-only save.
+			chaptersPerPassage: Object.fromEntries(
+				passageParting.map((entry) => [
+					entry.id,
+					entry.canDivide
+						? String(entry.chapters)
+						: (draftPerPassage[entry.id] ?? String(DEFAULT_CHAPTERS_PER_PASSAGE))
+				])
+			),
 			balanceByLength,
 			targetParts: balanceByLength ? parsedBalanceTarget : 0,
 			// Positional, matching `passages`, because that is the shape the planner and the wire
@@ -394,15 +522,17 @@
 			name instead, so the field is still named for a screen reader.
 		-->
 		{#if balanceByLength}
+			<!-- Floored at the fewest parts the translation allows, not at 2: fewer, larger parts
+			     are exactly what shows too much of a book on one page. -->
 			<Stepper
 				id="balance-parts"
 				ariaLabel="Number of parts"
 				unit={parsedBalanceTarget === 1 ? 'Part' : 'Parts'}
 				bind:value={draftBalanceTarget}
-				min={2}
-				max={Math.max(2, totalChapters)}
-				decrementDisabled={parsedBalanceTarget <= 2}
-				incrementDisabled={parsedBalanceTarget >= Math.max(2, totalChapters)}
+				min={minBalanceParts}
+				max={maxBalanceParts}
+				decrementDisabled={parsedBalanceTarget <= minBalanceParts}
+				incrementDisabled={parsedBalanceTarget >= maxBalanceParts}
 				decrementLabel="Fewer parts"
 				incrementLabel="More parts"
 				summary={`${parts.length} parts · avg ${averageVerses} verses each`}
@@ -447,23 +577,40 @@
 					{#if entry.canDivide}
 						<!-- The row's stepper follows the study-wide mode: chapters-per-part, or the
 						     number of parts to balance THIS passage into. One control either way, so
-						     the label column and the right-aligned pill keep their geometry. -->
+						     the label column and the right-aligned pill keep their geometry.
+
+						     The number sits between the buttons and its unit BESIDE them, after the
+						     plus — the same arrangement as the single-passage stepper, so the two
+						     strategies read alike. "Whole" is a word, not a count, so it has no unit.
+
+						     Bounded by what the translation allows for THIS passage: the minus stops
+						     at the fewest parts (balance) or at 1 chapter where "Whole" would be
+						     refused, and the plus stops at the most chapters one part may hold. -->
 						<Stepper
 							id={`passage-parting-${entry.id}`}
 							label={entry.label}
 							isInline
 							classes="passage-parting-stepper"
 							displayValue={balanceByLength
-								? `${entry.balanceTarget} ${entry.balanceTarget === 1 ? 'part' : 'parts'}`
+								? String(entry.balanceTarget)
 								: entry.chapters === 0
 									? 'Whole'
-									: `${entry.chapters} ch`}
+									: String(entry.chapters)}
+							unit={balanceByLength
+								? entry.balanceTarget === 1
+									? 'Part'
+									: 'Parts'
+								: entry.chapters === 0
+									? ''
+									: entry.chapters === 1
+										? 'Chapter'
+										: 'Chapters'}
 							onDecrement={() =>
 								balanceByLength ? stepBalanceDown(entry) : stepPassageDown(entry)}
 							onIncrement={() => (balanceByLength ? stepBalanceUp(entry) : stepPassageUp(entry))}
 							decrementDisabled={balanceByLength
-								? entry.balanceTarget <= 1
-								: entry.chapters === 0}
+								? entry.balanceTarget <= entry.minBalance
+								: entry.chapters === 0 || (entry.chapters <= 1 && !entry.wholeAllowed)}
 							incrementDisabled={balanceByLength
 								? entry.balanceTarget >= entry.chapterSpan
 								: entry.chapters >= entry.maxPer}
@@ -501,21 +648,32 @@
 	</ul>
 
 	<!--
-		Shown, never enforced (§5, COMPLIANCE §1.6). Collapsed to ONE generic line: finer
-		parting multiplies part-scoped warnings — a 50-part series can emit one per part — and a
-		wall of near-identical alerts is read as decoration and scrolled past.
+		Collapsed to ONE generic line: finer parting multiplies part-scoped findings — a 50-part
+		series can emit one per part — and a wall of near-identical alerts is read as decoration
+		and scrolled past.
+
+		⚠️ RED when the save would refuse the part, because Done is then disabled (`refusedPart`
+		gates `canConfirm`). This alert used to be yellow and Done stayed live, so the modal
+		approved a shape that `new-study` and `reserialize` then refused. The steppers are now
+		bounded so no reachable setting produces a refused part; this is the backstop behind
+		those bounds, and in normal use it does not appear.
+
+		Yellow remains only for a translation that states display limits but enforces them as
+		`warn` — shown, not blocking, which is the one case the old wording still describes.
 	-->
-	{#if retrievalWarnings.length > 0}
+	{#if refusedPart}
 		<Alert
 			color="red"
 			look="subtle"
-			message={`Some parts have too many verses for ${translationId.toUpperCase()} to load. Use fewer chapters per part, or switch to ${translationId === 'esv' ? 'NET' : 'ESV'}.`}
+			message={refusedPart.kind === 'retrieval'
+				? `Some parts have too many verses for ${translationId.toUpperCase()} to load. ${limitRemedy}`
+				: `Some parts show more of a book than ${translationId.toUpperCase()} allows on one page. ${limitRemedy}`}
 		/>
 	{:else if displayWarnings.length > 0}
 		<Alert
 			color="yellow"
 			look="subtle"
-			message={`Some parts show more of a book than ${translationId.toUpperCase()} allows on one page. Use fewer chapters per part.`}
+			message={`Some parts show more of a book than ${translationId.toUpperCase()} allows on one page. ${limitRemedy}`}
 		/>
 	{/if}
 
@@ -533,11 +691,11 @@
 		calm note and then found the primary button unresponsive with no colour explaining
 		why, which is exactly the guesswork this alert exists to remove.
 
-		Sharing `canConfirm` with `confirmDisabled` is what keeps the colour honest: there is
-		no second predicate to forget. If Done ever stops being gated on part count, this
-		alert's colour has to be revisited with it.
+		Gated on `hasEnoughParts`, one of the two terms of `canConfirm`, so it still appears only
+		when Done is dead. The other term — a refused part — has its own red alert above. If Done
+		ever stops being gated on part count, this alert's colour has to be revisited with it.
 	-->
-	{#if !canConfirm}
+	{#if !hasEnoughParts}
 		<Alert
 			color="red"
 			look="subtle"

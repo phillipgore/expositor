@@ -112,8 +112,8 @@ export function useDragAndDrop(invalidateCallback, onDropOnSeries = null) {
 		// it for deletion — a series that drops to one part DISSOLVES — so the drop is not a
 		// placement change at all; it is a membership change wearing a placement gesture.
 		//
-		// The operations that legitimately remove a part all exist and all state their
-		// consequences first: Delete Part (`describePartDeletion`), Join Parts, and re-editing the
+		// The operations that legitimately remove a part all exist and all ask first: Delete
+		// Series Part (`describePartDeletion`'s confirmation), Join Parts, and re-editing the
 		// study's extent through the review page. A silent drag is the one route that would not.
 		if (study?.seriesId) {
 			return;

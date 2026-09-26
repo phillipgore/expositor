@@ -173,15 +173,51 @@ assert(
 	'and says plainly that structure survives',
 	reviewPage.includes('Structure, notes and commentary are carried across')
 );
+// ⚠️ The WHOLE request, not just the chapters fields. Sending `{ chaptersPerPart,
+// chaptersPerPassage }` dropped balance by length on the way to the server, so a balanced preview was
+// approved and a chapters division was built.
+// Asserted at EACH of the two send sites, and the old chapters-only spread forbidden outright. A
+// bare `includes()` was satisfied by either site alone, so reverting one of them passed — found by
+// mutation, which is why these are shaped the way they are.
 assert(
-	'the form sends the division for analysis',
-	form.includes('divisionChanged ? { chaptersPerPart, chaptersPerPassage }')
+	'the form sends the whole division for analysis',
+	/passages,\s*\.\.\.\(divisionChanged \? divisionRequest : \{\}\)\s*\}\)/.test(form)
 );
-// ⚠️ Only when the stepper actually moved. Sending it unconditionally would re-divide the series on
+assert(
+	'the chapters-only spread is gone from every send site',
+	!form.includes('divisionChanged ? { chaptersPerPart, chaptersPerPassage }')
+);
+assert(
+	'and the request carries balance as well as chapters',
+	/let divisionRequest = \$derived\(\{[\s\S]*?balanceByLength[\s\S]*?balancePerPassage[\s\S]*?\}\)/.test(form)
+);
+// ⚠️ Only when the user actually changed it. Sending it unconditionally would re-divide the series on
 // every save — including one that changed nothing but the subtitle.
+//
+// Judged against a baseline the form captures from ITSELF on load, not against
+// `initialData.chaptersPerPart`. That comparison missed balance and the per-passage steppers, and
+// on a multi-passage series it read "changed" before the user did anything, because the loader's
+// number and the form's clamped one disagree — so a subtitle-only save re-divided the series.
 assert(
 	'but only when the user actually changed it',
-	form.includes('chaptersPerPart !== initialData.chaptersPerPart')
+	form.includes('JSON.stringify(divisionRequest) !== divisionBaseline')
+);
+assert(
+	'against a baseline captured once, untracked',
+	form.includes('const divisionBaseline = untrack(')
+);
+assert(
+	'never against the loader number, which misreads multi-passage series',
+	!form.includes('chaptersPerPart !== initialData.chaptersPerPart')
+);
+assert(
+	'the pending edit carries the whole division into review',
+	/\.\.\.\(divisionChanged \? divisionRequest : \{\}\),\s*report/.test(form)
+);
+assert(
+	'and the review page forwards balance to the commit',
+	reviewPage.includes('balanceByLength: pending.balanceByLength') &&
+		reviewPage.includes('balancePerPassage: pending.balancePerPassage')
 );
 
 console.log('\n── the commit performs the division it previewed ──');
@@ -189,8 +225,28 @@ console.log('\n── the commit performs the division it previewed ──');
 assert('reserialize accepts the division', reserialize.includes('chaptersPerPart = null'));
 assert(
 	'applies it after the extent change',
-	reserialize.includes('const division = await applyDivision')
+	reserialize.includes('const divided = await applyDivision')
 );
+// Both endpoints read the request through ONE helper, so the preview (analyze-edit) and the commit
+// (reserialize) cannot disagree about whether a division was asked for, or which one.
+for (const [name, source] of [
+	['analyze-edit', analyze],
+	['reserialize', reserialize]
+]) {
+	assert(`${name} reads the division through readDivisionRequest`, source.includes('readDivisionRequest(body)'));
+	// EVERY planning call, not just one. `reserialize` plans twice — once for the limit gate and once
+	// inside the transaction — and a bare `includes('...division,')` was satisfied by either, so
+	// stripping balance from the one that actually applies the division passed. Each call's own
+	// argument block is checked instead.
+	const planCalls = source.match(/planSeriesParts\(\{[\s\S]*?\}\);/g) ?? [];
+	assert(`${name} has a planning call to check`, planCalls.length > 0);
+	assert(
+		`${name} passes every field of it to all ${planCalls.length} planning call(s)`,
+		planCalls.length > 0 && planCalls.every((call) => call.includes('...division'))
+	);
+	// The old per-endpoint test that recognised only chapters-per-part must not come back.
+	assert(`${name} no longer keeps its own chapters-only test`, !source.includes('Number(chaptersPerPart) >= 1'));
+}
 assert(
 	'planning against the projected parts too',
 	reserialize.includes('projectExtent(parts, extent)')

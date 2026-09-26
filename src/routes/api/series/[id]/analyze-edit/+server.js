@@ -16,7 +16,11 @@ import { classifyExtent, formatExtentReference, projectExtent } from '$lib/utils
 import { fingerprintParts, recomposePassages, diffSeams } from '$lib/utils/seriesSeams.js';
 // `findUnservablePart` rather than `validatePassagesLimits`: the unit is the PART, never the
 // recomposed source range the edit form is loaded with. See the gate in the handler.
-import { planSeriesParts, findUnservablePart } from '$lib/utils/seriesPlanning.js';
+import {
+	planSeriesParts,
+	findUnservablePart,
+	readDivisionRequest
+} from '$lib/utils/seriesPlanning.js';
 
 /**
  * Pre-commit impact analysis for editing a SERIES as a whole (SERIES_PLAN §5, §8).
@@ -53,13 +57,17 @@ export const POST = async ({ request, params }) => {
 		}
 
 		const seriesId = params.id;
+		const body = (await request.json()) ?? {};
 		const {
 			passages: desiredPassages,
-			// The requested DIVISION, when the user moved the stepper. Absent means "leave the seams
+			// The requested DIVISION, when the user changed it. Absent means "leave the seams
 			// alone", so a passage-only edit reports no division changes.
-			chaptersPerPart = null,
-			chaptersPerPassage = null
-		} = (await request.json()) ?? {};
+			chaptersPerPart = null
+		} = body;
+		// Read through the SAME helper `reserialize` uses, so the preview and the commit cannot
+		// disagree about whether a division was requested — or which one, now that it may be a
+		// balanced or per-passage shape rather than a single chapters-per-part.
+		const division = readDivisionRequest(body);
 
 		if (!Array.isArray(desiredPassages)) {
 			return json({ error: 'Invalid passages' }, { status: 400 });
@@ -104,12 +112,7 @@ export const POST = async ({ request, params }) => {
 		// `describeDivision()` below, so the shape the preview describes and the shape the limit
 		// check judges cannot diverge — "the preview a user approves is the parting they get" (§5).
 		const projected = projectExtent(parts, extent);
-		const plannedParts = planDivision({
-			projected,
-			translation,
-			chaptersPerPart,
-			chaptersPerPassage
-		});
+		const plannedParts = planDivision({ projected, translation, division });
 		const resultingParts = plannedParts ?? projected;
 
 		const divisionReport = describeDivision({ projected, plannedParts });
@@ -192,15 +195,15 @@ export const POST = async ({ request, params }) => {
  * the commit's own division phase reasons about. Using the pre-edit rows here instead would let
  * the preview describe a different set of operations from the ones performed.
  */
-function planDivision({ projected, translation, chaptersPerPart, chaptersPerPassage }) {
-	const wanted = Number(chaptersPerPart);
-	if (!Number.isFinite(wanted) || wanted < 1) return null;
+function planDivision({ projected, translation, division }) {
+	if (!division) return null;
 	if (projected.length === 0) return null;
 
+	// Every field of the request reaches the planner, balance included. Passing only the chapters
+	// fields is how a balanced preview used to be approved and a chapters shape built.
 	const plan = planSeriesParts({
 		passages: recomposePassages(projected),
-		chaptersPerPart: wanted,
-		chaptersPerPassage: Array.isArray(chaptersPerPassage) ? chaptersPerPassage : [],
+		...division,
 		translationId: translation,
 		baseTitle: ''
 	});

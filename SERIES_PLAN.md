@@ -706,7 +706,16 @@ recommendation, which was justified as "leaving parts as standalone studies inst
 away a user's work." Cascade matches the existing `0009_cascade_delete_studies.sql` precedent, and
 it **dissolves the cross-part-connection problem for series deletion** — the FK collects those rows
 with no special handling. The cost is that one action destroys every part with all its structure,
-notes and commentary, so the confirmation must state the part count and that it cannot be undone.
+notes and commentary, so the confirmation must name the cascade and state that it cannot be undone:
+
+> _Delete Series — Are you sure you want to delete the Series "[series title]" and its parts? This
+> action cannot be undone._
+
+⚠️ **This originally required the confirmation to state the part count** ("This permanently deletes
+all 16 parts, including their structure, notes and commentary."). That requirement is **retired**:
+the four delete confirmations — Study Group, Study, Series, Series Part — now share one plain
+sentence shape, and "and its parts" names the cascade without a number. `describeSeriesDeletion()`
+no longer takes a `partCount`.
 
 ⚠️ **"Outright" was too strong and is narrowed above.** Cascade disposes of connections when a
 series or a part is deleted, under either Q42 option, because the six endpoint FKs cascade
@@ -719,22 +728,60 @@ a neighbour — that would be Join Parts wearing the wrong label. If the part si
 run **splits in two**: delete part 8 of a sixteen-part Romans series and you have parts 1–7 and
 parts 9–16, each internally contiguous, with a gap between them.
 
-Three consequences, all arriving later than the gesture, which is why the warning must name them:
+Three consequences follow, all arriving later than the gesture:
 
 1. **That seam is permanently dead.** Parts 7 and 9 are no longer adjacent, so all five structural
    commands are inert there forever — the _never-applicable_ reason string, not the "yet" one
    (§11).
 2. **Rigid parts become reorderable.** One run became two, so a user may now put 9–16 first.
-   Follows from the run rule, but surprising unless stated.
-3. **The series is now non-contiguous** — exactly the Q7 case, allowed with a warning. Not a new
-   exception.
-
-> _Deleting Part 8 (Romans 8) removes Romans 8 from the series and splits it into two blocks:
-> Parts 1–7 and Parts 9–16. Structural commands will no longer work across that gap._
+3. **The series is now non-contiguous** — exactly the Q7 case, allowed. Not a new exception.
 
 **Deleting down to one part dissolves the series**, leaving a standalone study. The minimum is 2
 (below), so the alternative is blocking the last delete; a one-part series is a study wearing a
 costume, so dissolve rather than refuse.
+
+**Decided: the part confirmation is one fixed sentence and does not list these consequences.**
+
+> _Delete Series Part — Are you sure you want to delete the Series Part "[series part title]"? This
+> action cannot be undone._
+
+⚠️ **This reverses an earlier requirement that the warning must name all three consequences** (and
+the dissolve case), which `describePartDeletion()` rendered as a bulleted list beneath the message —
+e.g. "Deleting Part 8 (Romans 8) removes Romans 8 from the series and splits it into two blocks…".
+The copy now matches the Study, Study Group and Series confirmations exactly, whatever the part's
+position. The behaviour above is unchanged; only the copy stopped describing it.
+`describePartDeletion()` still computes and returns `splitsRun` and `dissolves` (pinned by
+`scripts/verify-series-runs.mjs`), but returns no `consequences`, and the modal no longer renders a
+list. Reintroducing consequence copy means revisiting this decision, not patching the helper.
+
+**Decided: deleting a GROUP preserves a series inside it — the series is moved out, not deleted.**
+Deleting a group deletes only what was selected; every unselected group, study **and series** inside
+it moves to the nearest surviving ancestor group, or the top level. The Study Group and Delete
+Multiple Items confirmations say so:
+
+> _Delete Study Group — Are you sure you want to delete the Study Group "[study group title]"?
+> Unselected items within groups will be preserved and moved to safe locations. This action cannot
+> be undone._
+>
+> _Delete Multiple Items — Are you sure you want to delete the selected items? Unselected items
+> within groups will be preserved and moved to safe locations. This action cannot be undone._
+
+⚠️ **This was a live defect, not a new rule.** `/api/bulk-delete` planned preservation for groups and
+studies only. `study_series.group_id` is `ON DELETE CASCADE`, so a series it did not move was
+destroyed with the group — and every part with it, through `study.series_id` — while the
+confirmation promised preservation. The plan now lives in `planGroupDeletion()`
+(`src/lib/utils/groupDeletion.js`), which moves series before any delete runs; parts are never
+planned individually, since a part moves with its series. The toolbar also now sends
+`selectedSeriesIds` to `bulk-delete`, which previously dropped a series from a multi-selection
+silently. Pinned by `scripts/verify-group-deletion.mjs`.
+
+**`DELETE /api/groups/[id]` was removed**, so `/api/bulk-delete` is the only path that deletes a
+group. The app never called it, but it could still be called directly (console, curl) by a signed-in
+user against their own groups. It broke the preservation rule above: with no body it cascaded
+away everything inside the group, and with a body it moved only direct child groups and studies,
+still cascading series. Removing it rather than fixing it avoids keeping two copies of the rule
+in sync. `PATCH` on the same route (move, collapse) is unchanged; a `DELETE` now gets `405`. Pinned by
+the same verify script.
 
 **Q4. `study_series` table, or `study.seriesParentId`?** _Rec: the table — and the newer work
 strengthens it. Series-level compliance reporting (§5) and series-wide export (Q32) both need a row
@@ -1029,7 +1076,7 @@ are gone**, and the sketch above is what ships. Three corrections, each with its
 The three changes above each fixed one surface that displayed `partTitle()`'s output. That function
 is the single source of every part name in the app — the two creation previews, `JoinPartsModal`
 and `SplitPartModal`'s "Merge **X**" copy, the review page's deleted-part and discarded-title
-lists, and `describePartDeletion`'s consequence sentences all render it — so patching any one
+lists, and `describePartDeletion`'s confirmation sentence all render it — so patching any one
 surface puts it in disagreement with the other six. `partTitle()` now emits `Romans 1:1-32` rather
 than `Romans 1`, and the seven surfaces correct themselves at once.
 
@@ -1131,9 +1178,9 @@ failure the `groupId` branch was written to fix, and it would have been reintrod
 with the same `onStudyMouseDown` wire every study gets, so it could be dropped into a group, which
 sets `study.groupId` on a row whose place is `study.seriesOrder`. A part's place IS its series
 (§4, "a flat ordered sequence"), so that drop is a **membership change wearing a placement
-gesture** — and it performed one silently, while every legitimate route out of a series states its
-consequences first: Delete Part through `describePartDeletion` (including §4's dissolve-at-one-part
-rule), Join Parts, and re-editing the study's extent through the review page.
+gesture** — and it performed one silently, while every legitimate route out of a series asks first:
+Delete Series Part through `describePartDeletion`'s confirmation, Join Parts, and re-editing the
+study's extent through the review page.
 
 ⚠️ **Refused in the composable, not by withholding the wire in `StudySeries`.** A part reaches the
 drag two ways: grabbed directly, and carried along inside a MULTI-SELECTION grabbed by a standalone
@@ -2661,8 +2708,9 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | What may be reordered                                     | **Runs, not parts**                                                                  | A series decomposes into maximal canonically-contiguous runs; runs permute freely, parts within a run are rigid, runs are never interleaved. Reuses §8's adjacency predicate, so one function governs both boundary-move eligibility and drag legality. Consequence: a contiguous Romans series is one run and cannot be reordered at all — teaching Rom 8 first means shaping the study as Rom 1–7 + Rom 8, two runs (Q5)                                                                                                                                  |
 | `seriesOrder` after a mutation                            | **Left alone — canonical order seeds it once**                                       | Re-normalising from canonical order after every mutation, as two earlier passages of this document said to do, would clobber a deliberate arrangement. Explicit, seeded at creation, user-editable within the run rule                                                                                                                                                                                                                                                                                                                                      |
 | Runs: stored or derived?                                  | **Derived, never stored**                                                            | Part delete, Split Part, Join Parts and boundary moves all change run membership — four chances for a stored `runId` to go stale. One helper folding the adjacency predicate over parts in canonical order; three callers                                                                                                                                                                                                                                                                                                                                   |
-| On series delete                                          | **Cascade — everything goes**                                                        | Reverses the earlier `set null` recommendation (Q6). Matches `0009_cascade_delete_studies.sql`, and dissolves the cross-part-connection problem via the FK. Cost: one action destroys every part's structure, notes and commentary, so the confirmation must state the part count and irreversibility                                                                                                                                                                                                                                                       |
-| Deleting a single part                                    | **Allowed, warned; the run splits in two**                                           | The part's verses leave the series entirely — handing them to a neighbour would be Join Parts under the wrong name. Three consequences the warning must name: that seam is permanently dead for all five structural commands, previously-rigid parts become reorderable, and the series is now non-contiguous (Q7). Deleting to one part dissolves the series into a standalone study                                                                                                                                                                       |
+| On series delete                                          | **Cascade — everything goes**                                                        | Reverses the earlier `set null` recommendation (Q6). Matches `0009_cascade_delete_studies.sql`, and dissolves the cross-part-connection problem via the FK. Cost: one action destroys every part's structure, notes and commentary, so the confirmation must name the cascade ("and its parts") and irreversibility. ⚠️ It no longer states the part count — retired with the shared delete copy (§4 "Deletion")                                                                                                                                                  |
+| On group delete (series inside)                           | **Preserved — moved to the nearest surviving group**                                 | Matches how studies and nested groups inside a deleted group are treated, and what the confirmation promises ("Unselected items within groups will be preserved and moved to safe locations"). `study_series.group_id` cascades, so the move must happen before the delete; `planGroupDeletion()` owns it (§4 "Deletion") |
+| Deleting a single part                                    | **Allowed, confirmed; the run splits in two**                                        | The part's verses leave the series entirely — handing them to a neighbour would be Join Parts under the wrong name. Consequences: that seam is permanently dead for all five structural commands, previously-rigid parts become reorderable, and the series is now non-contiguous (Q7). Deleting to one part dissolves the series into a standalone study. ⚠️ The confirmation no longer names these consequences — it is the one fixed "Delete Series Part" sentence shared with the other delete modals (§4 "Deletion") |
 | `segmentConnection.studyId`                               | **Stays `.notNull()`; `seriesId` added nullable (Q42, shipped in `0046`)**           | ⚠️ This read "**Must change; strategy open (Q42)**". Neither branch was taken: cross-part connections cannot be _authored_ (two parts are never on screen together), so they arrive only when a **boundary move** slides under a link drawn inside one part. A `CHECK` would therefore not block a bad gesture — it would decide the fate of already-valid user work mid-move. Under-reporting in `countTouchingConnections()` was real and is now **fixed** (2026-08-10): it filters on `studyId OR seriesId`, the same predicate the layout uses to draw edge stubs, so the Join confirm modal and the rendered page cannot disagree. The deferral said it "belongs to the phase shipping boundary moves" — that phase shipped, which expired the condition, and the fix waited only because nobody re-read the sentence. Proven by `npm run probe:conn-count` (6 checks, real database), mutation-tested by reverting the argument. See §4 |
 | Icon for a standalone study                               | **`book` — unchanged**                                                               | Reverses the earlier recommendation of `book-open`, which is **not in `icons.json`** and would have rendered as blank space via the documented missing-icon fallback. `StudyItem.svelte` already uses `book` at three call sites, so the old advice was churn dressed as reuse (trap 13)                                                                                                                                                                                                                                                                    |
 | Icon for a series                                         | **`series`** (was `books`)                                                           | ⚠️ Reverses the `folder` → `folders` precedent argument. That justified a *placeholder*; the glyph itself was wrong, because plurality reads as "several studies" — a group — and §4 rejected modelling a series as one. A series is an **ordered** sequence, which purpose-drawn artwork can say and a plural cannot. `books` is deleted from the registry. The Finder reads `book` = study, `series-part` = part, `series` = series, `folder` = container (Q29)                                                                                            |
@@ -2670,8 +2718,8 @@ Decisions with live consequences. Reasoning included so they are not relitigated
 | In-part prev/next navigation                              | **Built, then removed**                                                              | The Finder already lists every part of an expanded series, in order, with titles visible, and stays open while the study is read. A second view-local navigator duplicated that with a worse affordance — a bare arrow pair showing one part's name at a time — while adding a `<nav>` to the Analyze titling row and a chrome bar above the Document gutter that had to be kept out of both the paginator's measurements and print. Took `SeriesPartNav.svelte`, `seriesContext.previousPart`/`nextPart`, and `⌥←`/`⌥→` with it. `seriesContext` itself stays: §8's boundary reasoning and §10's export check both read it (§7, Q19/Q21/Q22/Q30 now moot) |
 | What titles a part's study page                           | **The series name + series subtitle**, not the part's own                            | Removing the nav removed the only place a part's page named its series. A part's title is *derived from its range*, so heading the page with it restated the passage reference two lines below while the part's actual context — which series it belongs to — appeared nowhere. The part still identifies itself by that reference heading. Display only: `study.title`/`study.subtitle` are untouched in the database and still drive the Finder, export and everything else. Matters most in Document, which prints — a handout headed "Ephesians 1" does not say where it came from (§7) |
 | What a part's Finder row shows                            | **Its passage reference, on one line** (`referenceAsTitle`)                          | Same derived-title problem, other surface: the default two-line row printed "Romans 1" directly above "Romans 1:1-32" — the same fact twice, at double the row height, times 16 or 150 parts. The reference is the more precise of the two, so it is the one that stays. Standalone and grouped studies keep both lines, because their titles are authored rather than derived and carry meaning the reference cannot (§6) |
-| Which Finder rows can be dragged                          | **A series can (into a group); a part cannot (anywhere)**                            | Both had defaulted rather than been decided. A series occupies its own Finder slot (§4) and "Move to…" could already file it, but `onSeriesMouseDown={null}` meant the gesture could not — two answers to "is a series movable", depending on the affordance reached for. A part's place IS its series (`seriesOrder`), so dragging one into a group is a membership change wearing a placement gesture, performed silently, when every legitimate exit states its consequences first (Delete Part, Join Parts, extent review). ⚠️ The part refusal lives in the composable, not in `StudySeries`: a part also travels inside a multi-selection grabbed by a standalone study, which no guard in that file could see. Series get their own `draggedSeries` array — sharing `draggedStudies` would PATCH `/api/studies/[id]` with a series id, which matches nothing and reports success (Q17) |
-| What a generated part is CALLED                           | **Its full passage reference** — `Romans 1:1-32`, from the book name                 | `partTitle()` is the single source of every part name: two creation previews, Join/Split Part's copy, the review page's deleted-part and discarded-title lists, and the delete-consequence sentences all render it, so fixing any one surface puts it at odds with six others. `Romans 1` also *dropped information that matters at a range's edges* — Rom 1:18–8:39 produced a part titled "Romans 1" that does not begin where Romans 1 begins (Q12). Converges with Split Part, which always named its new part this way. Hyphen via `formatPassageReference`, matching the Finder. Study title no longer leaks in — a citation must open with a book name. **No migration**: `study.title` is user-editable and a rename is indistinguishable from a generated title, so rewriting would destroy renames (§6) |
+| Which Finder rows can be dragged                          | **A series can (into a group); a part cannot (anywhere)**                            | Both had defaulted rather than been decided. A series occupies its own Finder slot (§4) and "Move to…" could already file it, but `onSeriesMouseDown={null}` meant the gesture could not — two answers to "is a series movable", depending on the affordance reached for. A part's place IS its series (`seriesOrder`), so dragging one into a group is a membership change wearing a placement gesture, performed silently, when every legitimate exit asks first (Delete Series Part, Join Parts, extent review). ⚠️ The part refusal lives in the composable, not in `StudySeries`: a part also travels inside a multi-selection grabbed by a standalone study, which no guard in that file could see. Series get their own `draggedSeries` array — sharing `draggedStudies` would PATCH `/api/studies/[id]` with a series id, which matches nothing and reports success (Q17) |
+| What a generated part is CALLED                           | **Its full passage reference** — `Romans 1:1-32`, from the book name                 | `partTitle()` is the single source of every part name: two creation previews, Join/Split Part's copy, the review page's deleted-part and discarded-title lists, and the Delete Series Part confirmation all render it, so fixing any one surface puts it at odds with six others. `Romans 1` also *dropped information that matters at a range's edges* — Rom 1:18–8:39 produced a part titled "Romans 1" that does not begin where Romans 1 begins (Q12). Converges with Split Part, which always named its new part this way. Hyphen via `formatPassageReference`, matching the Finder. Study title no longer leaks in — a citation must open with a book name. **No migration**: `study.title` is user-editable and a rename is indistinguishable from a generated title, so rewriting would destroy renames (§6) |
 | What the series landing page shows                        | **No part count; Continue names the part by reference**                               | `/series/[id]` carried a `Series · N parts` line because the page should name the thing the way the row that led there does — and that reasoning is what removed it, since the row no longer says it (Q16). The emptiness case already covers the one count that changes what the user can do. Its button became `Continue: Ephesians 1:1-23 [ESV]` for the same derived-title reason as the part rows; the reference is built in the page loader from passages it already fetched, so there is no extra query (§6) |
 | Split/Join Part icon names                                | **`series-split` / `series-join`** (was `part-split` / `part-join`)                  | Third naming: `study-split`/`study-join` contradicted §3's "Split Part"/"Join Parts"; `part-split`/`part-join` matched *its* artwork (two books parting) but the drawn icons make the **series** the object, and the id follows the drawing. Still object-then-verb, as the whole registry is (`column-split`, `section-join`, `segment-split`). Both old entries deleted. ⚠️ **Superseded by the row below** — these ids survive, but they are no longer what Split Part / Join Parts render                                                                 |
 | Icons for the PART-level commands                         | **`series-part-split` / `series-part-join` / `series-add`** — a second verb family   | Three renamings had all assumed one pair of split/join glyphs could serve both levels, and the assumption, not the names, was wrong. `Split into a Series…` and `Split Part…` sit two rows apart in `MenuActions.svelte` and **both rendered `series-split`** — different objects, one glyph, which is exactly what §3's qualified-verb rule exists to prevent and what §9's own four-icon table had written down as intended. `Add to Series…` wore the bare `series` NOUN for the same reason. The new artwork is a single rounded part-rectangle (split / converging triangle / plus) against family 1's books-plus-squares, so the two levels are non-confusable at menu size. `series-join` is left **registered but unreferenced** for a series-level join that has not been specified; `verify-icon-ids.mjs` names it so that is asserted rather than tolerated |

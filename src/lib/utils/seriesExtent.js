@@ -32,7 +32,7 @@
  * It classifies each existing part against the new extent — `inside`, `outside`, `partial` — and
  * reports the text that is new. It does NOT decide what happens to structure, notes or commentary
  * in a part that shrinks or disappears: that is `analyzeEdit()`'s job (which offers the user
- * Merge/Delete per item) and `describePartDeletion()`'s (which writes §4's copy for a whole part).
+ * Merge/Delete per item) and `describePartDeletion()`'s (which writes §4's confirmation for a whole part).
  * Deciding here would be a second, quieter answer to a question the user is entitled to be asked.
  *
  * @module seriesExtent

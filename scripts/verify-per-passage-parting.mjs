@@ -369,5 +369,19 @@ const clamped = planSeriesParts({
 });
 check('an impossible target clamps to one part per chapter', clamped.parts.length, 22 + 1);
 
+// A target of ONE means the passage whole. In balance mode the modal's row stepper reaches "1 part",
+// and the planner used to treat 1 as "no target" — falling through to chapters-per-part, so a row
+// reading "1 part" produced one part per chapter.
+const wholeByBalance = planSeriesParts({
+	passages: [REV, MATT],
+	translationId: 'esv',
+	baseTitle: 'NT Study',
+	chaptersPerPassage: [1, 1],
+	balancePerPassage: [1, 2]
+});
+check('a target of 1 keeps Revelation whole', wholeByBalance.parts.filter((p) => p.passages[0].book === 'RE').length, 1);
+check('while Matthew still balances into 2', wholeByBalance.parts.filter((p) => p.passages[0].book === 'MT').length, 2);
+check('the whole part covers all of Revelation', wholeByBalance.parts[0].passages[0].toChapter, 22);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

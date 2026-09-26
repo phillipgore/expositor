@@ -207,43 +207,34 @@ export function getBoundaryDisabledReason(before, after) {
 }
 
 /**
- * The part-delete warning (§4).
+ * The part-delete confirmation (§4).
  *
- * §4 requires this to name three consequences, "all arriving later than the gesture, which is why
- * the warning must name them" — a permanently dead seam, previously-rigid parts becoming
- * reorderable, and the series becoming non-contiguous. All three follow from whether the deleted
- * part sits *inside* a run, which is why this lives beside the run helper instead of in the modal:
- * the copy is a consequence of the topology, not of the click.
+ * ⚠️ The copy is ONE fixed sentence — title and message only, no listed consequences. §4 originally
+ * required the warning to name three topology consequences (dead seam, newly reorderable, now
+ * non-contiguous) plus the dissolve-at-one-part case; that requirement was retired in favour of a
+ * single plain confirmation matching the Study / Study Group / Series modals. See §4 "Deletion".
  *
- * Deleting an end part of a run splits nothing, so claiming a dead seam there would be false.
+ * The topology is still COMPUTED and returned (`splitsRun`, `dissolves`) because it is true and
+ * cheap, and the verify suite pins it. It is simply no longer rendered as copy. Do not reintroduce
+ * consequence sentences here without revisiting that decision in the plan.
+ *
+ * Deleting an end part of a run splits nothing, so `splitsRun` is false there.
  *
  * @param {Array<Object>} parts - All parts of the series, including the one to be deleted
  * @param {string} partId
- * @returns {{ dissolves: boolean, splitsRun: boolean, title: string, message: string, consequences: string[] }}
+ * @returns {{ dissolves: boolean, splitsRun: boolean, title: string, message: string }}
  */
 export function describePartDeletion(parts, partId) {
 	const ordered = sortParts(parts);
 	const index = ordered.findIndex((candidate) => candidate.id === partId);
 	const target = ordered[index];
 	const label = target?.title ?? 'this part';
+	const title = 'Delete Series Part';
+	const message = `Are you sure you want to delete the Series Part "${label}"? This action cannot be undone.`;
 
-	// Down to one part: the series dissolves rather than the run splitting (§4). Reported on its
-	// own because "the series will no longer exist" outranks any statement about seams.
+	// Down to one part: the series dissolves rather than the run splitting (§4).
 	if (ordered.length <= 2) {
-		const survivor = ordered.find((candidate) => candidate.id !== partId);
-
-		return {
-			dissolves: true,
-			splitsRun: false,
-			title: 'Delete Part',
-			message: `Delete “${label}”?`,
-			consequences: [
-				survivor
-					? `This leaves one part, so the series will be dissolved and “${survivor.title ?? 'the remaining part'}” will become a standalone study.`
-					: 'This removes the last part, so the series will be dissolved.',
-				'This cannot be undone.'
-			]
-		};
+		return { dissolves: true, splitsRun: false, title, message };
 	}
 
 	// A seam dies only if the part had contiguous neighbours on BOTH sides — that is what makes it
@@ -255,55 +246,24 @@ export function describePartDeletion(parts, partId) {
 		isBoundaryContiguous(before, target) &&
 		isBoundaryContiguous(target, after);
 
-	const consequences = [];
-
-	if (splitsRun) {
-		// §4's worked example: "Deleting Part 8 (Romans 8) removes Romans 8 from the series and
-		// splits it into two blocks: Parts 1–7 and Parts 9–16."
-		consequences.push(
-			`Its verses leave the series, splitting it into two blocks: “${before.title ?? 'the earlier part'}” and “${after.title ?? 'the later part'}” are no longer adjacent.`
-		);
-		// Consequence 1 — permanently dead seam, and never "yet".
-		consequences.push('Structural commands will no longer work across that gap.');
-		// Consequence 2 — surprising unless stated.
-		consequences.push('Parts that could not be reordered before may now be reordered.');
-		// Consequence 3 — the Q7 non-contiguous case.
-		consequences.push('The series will no longer cover a continuous passage.');
-	} else {
-		consequences.push('Its verses leave the series.');
-	}
-
-	consequences.push('This cannot be undone.');
-
-	return {
-		dissolves: false,
-		splitsRun,
-		title: 'Delete Part',
-		message: `Delete “${label}”?`,
-		consequences
-	};
+	return { dissolves: false, splitsRun, title, message };
 }
 
 /**
  * The series-delete confirmation (§4).
  *
- * "one action destroys every part with all its structure, notes and commentary, so the
- * confirmation must state the part count and that it cannot be undone."
+ * The copy names the cascade ("and its parts") and states that it cannot be undone. It does not
+ * state the part count; see §4 "Deletion".
  *
  * @param {Object} series
- * @param {number} partCount
- * @returns {{ title: string, message: string, consequences: string[] }}
+ * @returns {{ title: string, message: string }}
  */
-export function describeSeriesDeletion(series, partCount) {
+export function describeSeriesDeletion(series) {
 	const name = series?.name ?? 'this series';
 
 	return {
 		title: 'Delete Series',
-		message: `Delete the series “${name}”?`,
-		consequences: [
-			`This permanently deletes all ${partCount} ${partCount === 1 ? 'part' : 'parts'}, including their structure, notes and commentary.`,
-			'This cannot be undone.'
-		]
+		message: `Are you sure you want to delete the Series "${name}" and its parts? This action cannot be undone.`
 	};
 }
 

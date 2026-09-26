@@ -11,7 +11,7 @@
 	 * @property {Object} form - Form state from SvelteKit form actions
 	 * @property {Function} onSubmittingChange - Callback when submitting state changes
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { v4 as uuidv4 } from 'uuid';
 	import { enhance, applyAction, deserialize } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
@@ -363,11 +363,41 @@
 	 * chapters-per-part (hand-split with Split Part) would be flattened to a uniform one it never
 	 * asked for.
 	 */
+	/**
+	 * The division as the form would SEND it: every field the planner reads, in the shape
+	 * `readDivisionRequest()` accepts on the server. Balance fields are zeroed unless balancing,
+	 * matching that reader, so the comparison below cannot see a difference the server would not.
+	 */
+	let divisionRequest = $derived({
+		chaptersPerPart,
+		chaptersPerPassage,
+		balanceByLength: balanceByLengthInput,
+		targetParts: balanceByLengthInput ? balanceTargetInput : 0,
+		balancePerPassage: balanceByLengthInput ? balancePerPassageInput : []
+	});
+
+	/**
+	 * What `divisionRequest` read when the form first rendered, before the user touched anything.
+	 *
+	 * ⚠️ Captured from the form's own state, NOT from `initialData.chaptersPerPart`. The old test
+	 * compared the stepper against that number and missed three things:
+	 *
+	 *   - balance by length, which changes the division without moving chapters-per-part;
+	 *   - per-passage steppers, which it never looked at;
+	 *   - and, worst, a multi-passage series. There the loader reports the division it found
+	 *     (say 2) while the form's own chapters-per-part clamps to 1, because the single-passage
+	 *     stepper does not apply — so the test read "changed" on load, and a save that touched
+	 *     nothing but the subtitle re-divided the series (5 parts became 10).
+	 *
+	 * Comparing the whole request with its own starting value asks the only question that
+	 * matters — did the user change the division? — whatever shape the division takes.
+	 */
+	const divisionBaseline = untrack(() => JSON.stringify(divisionRequest));
+
 	let divisionChanged = $derived(
 		mode === 'series-edit' &&
 			createAsSeries &&
-			initialData?.chaptersPerPart != null &&
-			chaptersPerPart !== initialData.chaptersPerPart
+			JSON.stringify(divisionRequest) !== divisionBaseline
 	);
 
 	// Drop settings for passages that no longer exist, so a deleted passage cannot leave a stale
@@ -761,11 +791,11 @@
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				// The division travels with the analysis so the report can name what a join would
-				// DISCARD (Q28). Sent only when the user actually moved the stepper — see
-				// `divisionChanged`.
+				// DISCARD (Q28). Sent only when the user actually changed it — chapters, per-passage
+				// steppers or balance — see `divisionChanged`.
 				body: JSON.stringify({
 					passages,
-					...(divisionChanged ? { chaptersPerPart, chaptersPerPassage } : {})
+					...(divisionChanged ? divisionRequest : {})
 				})
 			});
 
@@ -789,7 +819,7 @@
 					// shape the user approved. Sent only when it actually differs from what the
 					// series already has — otherwise an edit that merely changed a passage would
 					// re-divide the series as a side effect.
-					...(divisionChanged ? { chaptersPerPart, chaptersPerPassage } : {}),
+					...(divisionChanged ? divisionRequest : {}),
 					report
 				})
 			);

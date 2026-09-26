@@ -211,44 +211,17 @@ check(
 	false
 );
 
-console.log('\n§4 delete warnings — three named consequences');
+console.log('\n§4 delete confirmations — one fixed sentence, topology still computed');
 
-// §4's worked example: deleting Part 8 of sixteen splits Romans into 1–7 and 9–16.
+// §4's worked example: deleting Part 8 of sixteen splits Romans into 1–7 and 9–16. The split is no
+// longer rendered as copy (§4 "Deletion"), but the topology is still reported and must stay right.
 const deleteEight = describePartDeletion(romans16, 'p8');
 check('deleting interior part 8 → splitsRun', deleteEight.splitsRun, true);
 check('deleting interior part 8 → does not dissolve', deleteEight.dissolves, false);
-check('  names the earlier neighbour (Romans 7)', deleteEight.consequences[0].includes('Romans 7'), true);
-check('  names the later neighbour (Romans 9)', deleteEight.consequences[0].includes('Romans 9'), true);
-check(
-	'  consequence: dead seam',
-	deleteEight.consequences.some((c) => c.includes('no longer work across')),
-	true
-);
-check(
-	'  consequence: newly reorderable',
-	deleteEight.consequences.some((c) => c.includes('may now be reordered')),
-	true
-);
-check(
-	'  consequence: no longer continuous',
-	deleteEight.consequences.some((c) => c.includes('continuous passage')),
-	true
-);
-check(
-	'  the dead seam is never described as "yet"',
-	deleteEight.consequences.some((c) => c.includes('yet')),
-	false
-);
 
-// Deleting the LAST part shortens the run instead of splitting it, so the three
-// split-consequences would be false claims.
+// Deleting the LAST part shortens the run instead of splitting it.
 const deleteSixteen = describePartDeletion(romans16, 'p16');
 check('deleting the final part → splitsRun', deleteSixteen.splitsRun, false);
-check(
-	'  does not claim a dead seam',
-	deleteSixteen.consequences.some((c) => c.includes('no longer work across')),
-	false
-);
 
 // Prison Epistles: every seam is already dead, so no seam can newly die.
 const deletePrison = describePartDeletion(prisonEpistles, 'p2');
@@ -257,31 +230,40 @@ check('deleting a non-adjacent part → splitsRun', deletePrison.splitsRun, fals
 // §4: deleting down to one part dissolves the series.
 const dissolve = describePartDeletion(rom7plus8, 'p1');
 check('two parts → deleting one dissolves the series', dissolve.dissolves, true);
+
+// The copy is identical in every topology — that is the decision, so pin it across all four.
+check('part delete title', deleteEight.title, 'Delete Series Part');
 check(
-	'  says the survivor becomes a standalone study',
-	dissolve.consequences[0].includes('standalone study'),
+	'part delete message',
+	deleteEight.message,
+	`Are you sure you want to delete the Series Part "${romans16[7].title}"? This action cannot be undone.`
+);
+check(
+	'part delete lists no consequences, whatever the topology',
+	[deleteEight, deleteSixteen, deletePrison, dissolve].every((copy) => !('consequences' in copy)),
 	true
 );
 check(
-	'  names the surviving part',
-	dissolve.consequences[0].includes('Romans 8'),
+	'part delete copy does not vary with topology',
+	[deleteSixteen, deletePrison, dissolve].every(
+		(copy) => copy.title === 'Delete Series Part' && /^Are you sure you want to delete the Series Part ".+"\? This action cannot be undone\.$/.test(copy.message)
+	),
 	true
+);
+check(
+	'part with no siblings still gets the Series Part copy',
+	describePartDeletion([{ id: 'solo', title: 'Romans 1:1-32' }], 'solo').message,
+	'Are you sure you want to delete the Series Part "Romans 1:1-32"? This action cannot be undone.'
 );
 
-// §4: the series confirmation must state the part count and that it cannot be undone.
-const seriesDelete = describeSeriesDeletion({ name: 'Romans' }, 16);
-check('series delete states the part count', seriesDelete.consequences[0].includes('all 16 parts'), true);
+// The series confirmation names the cascade to its parts and says it cannot be undone.
+const seriesDelete = describeSeriesDeletion({ name: 'Romans' });
+check('series delete title', seriesDelete.title, 'Delete Series');
 check(
-	'series delete names structure, notes and commentary',
-	seriesDelete.consequences[0].includes('structure, notes and commentary'),
-	true
+	'series delete message',
+	seriesDelete.message,
+	'Are you sure you want to delete the Series "Romans" and its parts? This action cannot be undone.'
 );
-check(
-	'series delete says it cannot be undone',
-	seriesDelete.consequences.some((c) => c.includes('cannot be undone')),
-	true
-);
-check('series delete singularises one part', describeSeriesDeletion({ name: 'X' }, 1).consequences[0].includes('all 1 part'), true);
 
 console.log('\nEdge cases');
 

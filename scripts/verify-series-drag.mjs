@@ -147,7 +147,7 @@ assert(
 
 // The part half. A part's place IS its series (`study.seriesOrder`), so a drop into a group is a
 // membership change wearing a placement gesture — and §4 already answers membership loss elsewhere,
-// with its consequences stated (Delete Part, Join Parts, the extent review page).
+// each asking first (Delete Series Part, Join Parts, the extent review page).
 assert(
 	'a part grabbed directly refuses to start a drag',
 	/function handleStudyMouseDown\([\s\S]*?if \(study\?\.seriesId\) \{[\s\S]*?return;/.test(dragDrop)

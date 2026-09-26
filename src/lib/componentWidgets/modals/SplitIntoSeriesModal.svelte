@@ -13,13 +13,23 @@
 	 * runs, so what is previewed here is exactly what gets built — a second, "close enough"
 	 * preview implementation would be free to drift from the thing it is previewing.
 	 *
-	 * ## Compliance is shown, never enforced
+	 * ## A part the translation refuses cannot be reached
 	 *
-	 * Warnings appear as the stepper moves (§5, "the preview is where compliance lives"), but
-	 * Create is never disabled because of them. A user may knowingly create an ESV series that
-	 * will warn — later block — at export; §5 records that as the correct outcome and asks that
-	 * nobody "fix" it by blocking creation. Create is disabled only when the plan is not a
-	 * series at all (fewer than 2 parts).
+	 * This used to say compliance was "shown, never enforced": the stepper could reach any
+	 * setting, a yellow alert described what was wrong, and Create stayed enabled. That stopped
+	 * being true when display limits became `enforcement: "block"` — a part holding more of a
+	 * book than ESV allows on one page does not load ("Error loading Ephesians 1:1-6:24"), so
+	 * creating it creates a study that cannot be opened.
+	 *
+	 * So the steppers are BOUNDED by `allowedDivisionBounds()`, which plans each candidate with
+	 * the same planner and judges it with the same finders the save paths use: in ESV,
+	 * Ephesians stops at 2 chapters per part, and balancing it cannot go below 3 parts. Create is
+	 * also gated on `findRefusedPart()`, as a backstop behind those bounds, and `/api/series`
+	 * refuses the same parts server-side.
+	 *
+	 * What is still NOT enforced here is the series-wide EXPORT aggregate: a user may knowingly
+	 * create a whole-book ESV series that will block at export, and §5 records that as correct.
+	 * Only the per-part page rule is enforced, because only it decides whether a part loads.
 	 *
 	 * ## Props
 	 * @property {boolean} isOpen
@@ -35,7 +45,12 @@
 	import Stepper from '$lib/componentElements/Stepper.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 	import RadioButtons from '$lib/componentElements/RadioButtons.svelte';
-	import { planSeriesParts, getPartingStrategy } from '$lib/utils/seriesPlanning.js';
+	import {
+		planSeriesParts,
+		getPartingStrategy,
+		allowedDivisionBounds,
+		findRefusedPart
+	} from '$lib/utils/seriesPlanning.js';
 
 	let { isOpen = false, study = null, error = null, onCreate, onClose } = $props();
 
@@ -70,8 +85,40 @@
 			: 0
 	);
 
-	// Half the span is the largest setting that can still produce 2 parts.
-	let maxChaptersPerPart = $derived(totalChapters > 1 ? Math.floor(totalChapters / 2) : 1);
+	// What the translation permits for this passage: the most chapters one part may hold, and the
+	// fewest parts a balance may produce, before some part shows more of the book than the licence
+	// allows on a page. The same helper ManageSerializationModal uses, so the two surfaces that
+	// divide a study stop at the same settings.
+	//
+	// Computed only while open: the modal is mounted with its study selected, and for Psalms this
+	// plans a few hundred candidate divisions.
+	let limits = $derived(
+		isOpen && strategy === 'chapters-per-part' && passages[0]
+			? allowedDivisionBounds(passages[0], study?.translation)
+			: null
+	);
+
+	// Half the span is the largest setting that can still produce 2 parts, and the translation's
+	// ceiling can be lower still: Ephesians in ESV allows 2 of the 3 that half its span would.
+	// Never below 1, the stepper's floor; if a translation ever refused even that, the Create gate
+	// below is what stops the save.
+	let maxChaptersPerPart = $derived(
+		Math.max(
+			1,
+			Math.min(
+				totalChapters > 1 ? Math.floor(totalChapters / 2) : 1,
+				limits?.maxChaptersPerPart ?? Infinity
+			)
+		)
+	);
+
+	// The balance floor: 2 for a series (§4), raised to the translation's minimum, and held inside
+	// the span so the stepper always has somewhere to be. The ceiling is one part per chapter,
+	// since chapters are never split.
+	let minBalanceParts = $derived(
+		Math.min(Math.max(2, limits?.minBalanceParts ?? 2), Math.max(2, totalChapters))
+	);
+	let maxBalanceParts = $derived(Math.max(minBalanceParts, totalChapters));
 
 	// The parsed, clamped setting. Falls back to 1 while the field is mid-edit rather than
 	// letting NaN reach the planner and blank the preview.
@@ -116,17 +163,24 @@
 	// switch rather than restoring a stale number from two modes ago. The chapters value is NOT
 	// cleared in return: it is the default mode and the field the user starts in, so it keeps its
 	// own position across a round trip.
+	//
+	// Seeded inside the translation's bounds, so the field never opens on a number the plan is
+	// silently overriding.
 	$effect(() => {
 		if (balanceByLength && balanceTargetInput === '') {
-			balanceTargetInput = String(Math.max(2, fixedPartCount));
+			balanceTargetInput = String(
+				Math.min(Math.max(minBalanceParts, fixedPartCount), maxBalanceParts)
+			);
 		}
 		if (!balanceByLength) balanceTargetInput = '';
 	});
 
+	// Clamped to the translation's floor as well as the series' 2, so a number typed below it
+	// cannot reach the planner and build a part the save would refuse.
 	let balanceTarget = $derived.by(() => {
 		const parsed = parseInt(balanceTargetInput, 10);
-		if (!Number.isFinite(parsed) || parsed < 2) return 2;
-		return Math.min(parsed, Math.max(2, totalChapters));
+		if (!Number.isFinite(parsed) || parsed < minBalanceParts) return minBalanceParts;
+		return Math.min(parsed, maxBalanceParts);
 	});
 
 	/** Ranges in the shape the planner reads, normalised once. */
@@ -192,9 +246,28 @@
 		if (!needsConfirmation) hasConfirmedLarge = false;
 	});
 
-	// Create is blocked only when the plan is not a series. NOT for compliance warnings (§5).
+	// The first part `/api/series` would refuse — too many verses to load, or more of a book than
+	// the translation allows on one page — or null. The steppers' bounds keep every reachable
+	// setting clear of this, so it is the backstop behind them, not the primary control.
+	let refusedPart = $derived(findRefusedPart(parts, study?.translation));
+
+	// The remedy names the control that fixes it. With one part per passage there is no stepper,
+	// so the only fix is a smaller passage in the study itself.
+	let limitRemedy = $derived(
+		!showStepper
+			? 'Edit the study to shorten its passages first.'
+			: balanceByLength
+				? 'Use more parts.'
+				: 'Use fewer chapters per part.'
+	);
+
+	// Create is blocked when the plan is not a series, or when a part could not be loaded or
+	// displayed. NOT for the series-wide export aggregate, which is export's to enforce (§5).
 	let canCreate = $derived(
-		parts.length >= 2 && (!needsConfirmation || hasConfirmedLarge) && !isSubmitting
+		parts.length >= 2 &&
+			!refusedPart &&
+			(!needsConfirmation || hasConfirmedLarge) &&
+			!isSubmitting
 	);
 
 	function stepDown() {
@@ -287,10 +360,10 @@
 					ariaLabel="Number of parts"
 					unit={balanceTarget === 1 ? 'Part' : 'Parts'}
 					bind:value={balanceTargetInput}
-					min={2}
-					max={Math.max(2, totalChapters)}
-					decrementDisabled={balanceTarget <= 2}
-					incrementDisabled={balanceTarget >= Math.max(2, totalChapters)}
+					min={minBalanceParts}
+					max={maxBalanceParts}
+					decrementDisabled={balanceTarget <= minBalanceParts}
+					incrementDisabled={balanceTarget >= maxBalanceParts}
 					decrementLabel="Fewer parts"
 					incrementLabel="More parts"
 					summary={`${parts.length} parts · avg ${averageVerses} verses each`}
@@ -339,10 +412,18 @@
 		</ul>
 
 		<!--
-			One yellow Alert per part-scoped warning, then the series-scoped ones. The closing
-			reassurance rides on the LAST alert rather than sitting in its own box: it is the
-			absence of an action, not a finding, and a second yellow box saying nothing is wrong
-			is how a wall of alerts starts.
+			⚠️ RED, and ONE alert, when `/api/series` would refuse a part: Create is then disabled
+			(`refusedPart` gates `canCreate`), and red is the colour reserved for a blocking
+			condition across these modals. Worded as the server words the same refusal ("Part 2
+			cannot be displayed: …"), so the modal and the endpoint say the same thing. The
+			steppers are bounded so no reachable setting gets here; this is the backstop.
+
+			Otherwise, one yellow Alert per part-scoped warning, then the series-scoped ones —
+			findings a translation states but enforces only as `warn`. The closing reassurance
+			rides on the LAST alert rather than sitting in its own box: it is the absence of an
+			action, not a finding, and a second yellow box saying nothing is wrong is how a wall
+			of alerts starts. It is true only on this branch, which is why the refused case above
+			never reaches it.
 
 			⚠️ Says nothing about export, deliberately. This read "…These limits are
 			enforced when you export" until 2026-08-29 — premature (export is an act the
@@ -353,7 +434,14 @@
 			that remains is the one doing the work: compliance is the owner's call (COMPLIANCE
 			§1.6), so the modal has to say the series may still be created.
 		-->
-		{#if complianceMessages.length > 0}
+		{#if refusedPart}
+			<Alert
+				color="red"
+				look="subtle"
+				message={`Part ${refusedPart.seriesOrder} cannot be ${refusedPart.kind === 'retrieval' ? 'loaded' : 'displayed'}: ${refusedPart.message ?? ''} ${limitRemedy}`}
+				spacingBottom="0.8rem"
+			/>
+		{:else if complianceMessages.length > 0}
 			{#each complianceMessages as message, i}
 				<Alert
 					color="yellow"

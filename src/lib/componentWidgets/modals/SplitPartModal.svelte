@@ -12,7 +12,7 @@
 	 * renders what comes back — the same code path the commit runs, so the dialog cannot promise an
 	 * outcome the endpoint will not produce.
 	 *
-	 * That is also why the split point is a `<select>` populated from the server's `splitPoints`
+	 * That is also why the split point is a `Select` populated from the server's `splitPoints`
 	 * rather than a stepper computed here: the set of legal points is `getSplitPoints()`'s answer,
 	 * and duplicating that rule client-side would be a second place for it to drift.
 	 *
@@ -36,6 +36,7 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 	import Spinner from '$lib/componentElements/Spinner.svelte';
+	import Select from '$lib/componentElements/Select.svelte';
 	import { messageForFailure } from '$lib/utils/apiErrors.js';
 
 	let { isOpen = false, part = null, seriesId = null, onDone, onClose } = $props();
@@ -46,7 +47,7 @@
 	let submitting = $state(false);
 	let acknowledgedConnectionLoss = $state(false);
 
-	/** The chosen split point. A string because `<select>` values are strings. */
+	/** The chosen split point. A string because `Select` (a native `<select>`) values are strings. */
 	let choice = $state('');
 
 	/**
@@ -208,6 +209,22 @@
 	let kind = $derived(splitPoints?.kind ?? 'none');
 	let brokenCount = $derived(preview?.connections?.broken ?? 0);
 
+	// Options for the split-point Select. Values are strings to match `choice`. Seams are 0-based
+	// internally; shown 1-based, matching the Finder's part numbers.
+	let pointOptions = $derived(
+		kind === 'chapter'
+			? (splitPoints?.chapters ?? []).map((chapter) => ({
+					value: String(chapter),
+					text: String(chapter)
+				}))
+			: kind === 'passage'
+				? (splitPoints?.seams ?? []).map((seam) => ({
+						value: String(seam),
+						text: String(seam + 1)
+					}))
+				: []
+	);
+
 	// The only hard gate. Compliance warnings deliberately do NOT disable Split (§5).
 	let confirmDisabled = $derived(
 		submitting ||
@@ -261,18 +278,17 @@
 			<label class="point-label" for="split-point">
 				{kind === 'chapter' ? 'Split after chapter' : 'Split before passage'}
 			</label>
-			<select id="split-point" bind:value={choice} onchange={refresh} disabled={submitting}>
-				{#if kind === 'chapter'}
-					{#each splitPoints.chapters as chapter}
-						<option value={String(chapter)}>{chapter}</option>
-					{/each}
-				{:else}
-					<!-- Seams are 0-based internally; shown 1-based, matching the Finder's part numbers. -->
-					{#each splitPoints.seams as seam}
-						<option value={String(seam)}>{seam + 1}</option>
-					{/each}
-				{/if}
-			</select>
+			<Select
+				id="split-point"
+				name="split-point"
+				optionProperties={pointOptions}
+				selectedValue={choice}
+				isDisabled={submitting}
+				handleChange={(event) => {
+					choice = /** @type {HTMLSelectElement} */ (event.currentTarget).value;
+					void refresh();
+				}}
+			/>
 		</div>
 
 		{#if preview?.ok}
@@ -353,14 +369,6 @@
 	.point-label {
 		font-size: 1.4rem;
 		color: var(--black);
-	}
-
-	select {
-		font-size: 1.4rem;
-		padding: 0.4rem 0.6rem;
-		border: 1px solid var(--gray-200);
-		border-radius: 0.4rem;
-		background: var(--white);
 	}
 
 	.halves {
