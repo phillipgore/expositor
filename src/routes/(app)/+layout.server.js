@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db/index.js';
 import { study, passage, studyGroup, studySeries, user } from '$lib/server/db/schema.js';
@@ -142,7 +142,6 @@ export async function load({ request, depends }) {
 			.where(eq(study.userId, session.user.id))
 			.orderBy(asc(study.title));
 
-		console.log('Loaded studies:', studiesData); // Debug log
 		
 		// For each study, load its passages
 		const studiesWithPassages = await Promise.all(
@@ -260,17 +259,12 @@ export async function load({ request, depends }) {
 			documentZoomLevel,
 			documentZoomMode
 		};
-	} catch (error) {
-
-
-		console.error('Error loading studies:', error);
-		return {
-			isAdmin,
-			groups: [],
-			ungroupedStudies: [],
-			ungroupedSeries: [],
-			series: [],
-			studies: []
-		};
+	} catch (err) {
+		// Fail loudly. This used to return empty lists, which rendered an empty Finder
+		// indistinguishable from "user has no studies" — e.g. when a deploy shipped code
+		// ahead of its migration (`relation "study_series" does not exist`). The real
+		// cause is in the server logs; the user sees an error page, not vanished data.
+		console.error('Error loading studies:', err);
+		throw error(500, 'Your studies could not be loaded. Please try again shortly.');
 	}
 }

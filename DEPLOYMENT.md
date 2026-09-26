@@ -68,16 +68,30 @@ psql "$DATABASE_URL" -At -c "
     from information_schema.tables where table_name='app_settings'
   union all
   select 'study_series: ' || count(*)::text
-    from information_schema.tables where table_name='study_series';"
+    from information_schema.tables where table_name='study_series'
+  union all
+  select 'study.series: ' || coalesce(string_agg(column_name, ','), 'NONE')
+    from information_schema.columns
+   where table_name='study' and column_name in ('series_id','series_order');"
 ```
 
 | Result | Means |
 |---|---|
 | `auth_case: email_verified` | `0045_fix_auth_column_case.sql` applied (camelCase ⇒ it is **not**, and login is broken) |
 | `app_settings: 1` | `0044_add_app_settings.sql` applied |
-| `study_series: 1` | `0046_add_study_series.sql` applied |
+| `study_series: 1` and `study.series: series_id,series_order` | `0046_add_study_series.sql` applied |
 
 Extend the query with a new probe line as later migrations land.
+
+> ⚠️ **Apply new migrations to production BEFORE pushing the code that needs them to `main`.**
+> The app layout loader queries every Finder table on every page. If a column or table it
+> selects is missing, the whole load fails and the user sees an error page (it previously
+> failed *silently* as an empty Finder — that is how 0046 was missed on 2026-09-26).
+> Hand-written migrations are written to be idempotent, so applying one early is safe:
+>
+> ```sh
+> psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f drizzle/00XX_your_migration.sql
+> ```
 
 ### Running future migrations against Neon
 
