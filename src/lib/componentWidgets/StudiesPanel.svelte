@@ -428,6 +428,11 @@
 			// below (a group page gets this from its unlatched auto-select branch).
 			if (multiSelect.selectedItems.length === 0 && !activeSeriesId) return;
 
+			// Preserve selection while the Delete confirmation modal is open. The click that
+			// opened it (the toolbar Delete button) lands outside the Finder, and so do clicks
+			// inside the modal; neither may deselect the items the modal is asking about.
+			if ($toolbarState.deleteConfirmationOpen) return;
+
 			// Preserve selection on /new-study page with groupId parameter
 			if ($page.url.pathname === '/new-study' && $page.url.searchParams.get('groupId')) {
 				return;
@@ -444,7 +449,9 @@
 			// Preserve selection when interacting with Actions menu
 			const clickedOnActionsButton = event.target.closest('[popovertarget="MenuActions"]');
 			const clickedInActionsMenu = event.target.closest('#MenuActions');
-			const clickedInModal = event.target.closest('[role="dialog"]');
+			// `dialog` as well as `[role="dialog"]`: Modal.svelte renders a native <dialog> with no
+			// explicit role attribute, which the attribute selector alone never matched.
+			const clickedInModal = event.target.closest('dialog, [role="dialog"]');
 
 			if (clickedOnActionsButton || clickedInActionsMenu || clickedInModal) {
 				return;
@@ -479,6 +486,20 @@
 
 		return () => {
 			document.removeEventListener('click', handleDocumentClick);
+		};
+	});
+
+	/**
+	 * Clear the selection once a confirmed deletion succeeds.
+	 *
+	 * The selection is deliberately kept while the Delete confirmation modal is open, so
+	 * ToolbarApp announces a successful delete and the Finder drops the now-deleted rows here.
+	 */
+	$effect(() => {
+		const handleFinderClearSelection = () => multiSelect.clearSelection();
+		window.addEventListener('finder-clear-selection', handleFinderClearSelection);
+		return () => {
+			window.removeEventListener('finder-clear-selection', handleFinderClearSelection);
 		};
 	});
 

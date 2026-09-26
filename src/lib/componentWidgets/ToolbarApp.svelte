@@ -73,7 +73,7 @@
 
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
-	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleFocus, toggleHeadings, toggleConnections, toggleNotes, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview, toggleCommentary, setZoomLevel, setZoomMode } from '$lib/stores/toolbar.js';
+	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleFocus, toggleHeadings, toggleConnections, toggleNotes, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview, toggleCommentary, setZoomLevel, setZoomMode, setDeleteConfirmationOpen } from '$lib/stores/toolbar.js';
 
 
 	import { invalidate } from '$app/navigation';
@@ -214,10 +214,33 @@
 	// Modal state
 	let showDeleteModal = $state(false);
 	let deleteOpenedViaKeyboard = $state(false);
-	// Snapshot of selected items captured at click time, so the document-level
-	// click-outside handler in StudiesPanel can't nullify selectedItem before the
-	// modal renders (Svelte batches both reactive updates in the same tick).
+	// Snapshot of selected items captured at click time. The Finder no longer clears its
+	// selection while the modal is open (see `setDeleteConfirmationOpen` and StudiesPanel's
+	// `handleDocumentClick`), but the snapshot is kept so the modal always describes — and
+	// deletes — exactly what was selected when Delete was pressed.
 	let pendingDeleteItem = $state(null);
+
+	/**
+	 * Open the Delete confirmation modal for the current Finder selection.
+	 * The store flag is set synchronously, before this click bubbles to the Finder's
+	 * document-level click-outside handler, so the selection stays selected/active.
+	 * @param {boolean} viaKeyboard
+	 */
+	function openDeleteModal(viaKeyboard) {
+		pendingDeleteItem = $toolbarState.selectedItem;
+		deleteOpenedViaKeyboard = viaKeyboard;
+		setDeleteConfirmationOpen(true);
+		showDeleteModal = true;
+	}
+
+	/**
+	 * Close the Delete confirmation modal and release the Finder's selection lock.
+	 */
+	function closeDeleteModal() {
+		showDeleteModal = false;
+		pendingDeleteItem = null;
+		setDeleteConfirmationOpen(false);
+	}
 
 	// Get toolbar configuration
 	const toolbarConfig = getAppToolbarConfig();
@@ -379,10 +402,8 @@
 	 */
 	function handleDeleteClick(viaKeyboard) {
 		if (!$toolbarState.canDelete || !$toolbarState.selectedItem) return;
-		
-		pendingDeleteItem = $toolbarState.selectedItem;
-		deleteOpenedViaKeyboard = viaKeyboard;
-		showDeleteModal = true;
+
+		openDeleteModal(viaKeyboard);
 	}
 
 	/**
@@ -395,11 +416,9 @@
 	function handleDeleteAction() {
 		// Priority 1: Studies/groups selected in the panel
 		if ($toolbarState.canDelete && $toolbarState.selectedItem) {
-			// Snapshot selectedItem NOW before the document-level click-outside handler
-			// in StudiesPanel can clear it (both updates are batched in the same Svelte tick).
-			pendingDeleteItem = $toolbarState.selectedItem;
-			deleteOpenedViaKeyboard = false;
-			showDeleteModal = true;
+			// Snapshot the selection and lock the Finder's selection while the modal is open,
+			// so the selected items stay selected/active behind the confirmation.
+			openDeleteModal(false);
 			return;
 		}
 
@@ -485,8 +504,11 @@
 		// server-rendered error page (a hard reload). Navigating away first (with
 		// invalidateAll) keeps everything client-side and shows the existing
 		// navigation loader while data refreshes.
-		showDeleteModal = false;
-		pendingDeleteItem = null;
+		closeDeleteModal();
+
+		// The selection survived the modal on purpose; now that its items are gone, clear it so
+		// Edit/Delete don't stay enabled for rows that no longer exist.
+		window.dispatchEvent(new CustomEvent('finder-clear-selection'));
 
 		const pathname = $page.url.pathname;
 		const studyMatch = pathname.match(/^\/study\/([^/]+)/);
@@ -532,8 +554,7 @@
 	 * Handle delete modal close
 	 */
 	function handleDeleteModalClose() {
-		showDeleteModal = false;
-		pendingDeleteItem = null;
+		closeDeleteModal();
 	}
 
 	// Update toolbar state when route changes

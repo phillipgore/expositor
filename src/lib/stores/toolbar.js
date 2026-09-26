@@ -116,6 +116,7 @@ async function persistPreference(updates) {
 
 
  * @property {Selection|null} selectedItem - Currently selected item(s) from studies panel
+ * @property {boolean} deleteConfirmationOpen - Whether the Finder's Delete confirmation modal is open (the Finder keeps its selection while it is)
 
 
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
@@ -252,6 +253,10 @@ const defaultState = {
 	documentZoomLevel: 100,
 
 	selectedItem: null,
+	// True while the Finder's Delete confirmation modal is open. The Finder's document-level
+	// click-outside handler reads it so the click that opens the modal (and any click inside it)
+	// does not deselect the items the modal is asking about.
+	deleteConfirmationOpen: false,
 
 	hasWordSelection: false,
 	hasActiveSegment: false,
@@ -1458,6 +1463,23 @@ export function clearSelectedItem() {
 		canDelete: false,
 		// Keep enabled if a study route is currently active (study open but nothing selected)
 		canSwitchMode: state.isStudyRoute
+	}));
+}
+
+/**
+ * Mark the Finder's Delete confirmation modal as open or closed.
+ *
+ * While open, the Finder keeps its selection: the selected Studies, Study Groups, Series and
+ * Series Parts are exactly what the modal is asking about, so they must stay visibly selected.
+ * Store updates are synchronous, so setting this inside the Delete button's click handler takes
+ * effect before the same click bubbles up to the Finder's document-level listener.
+ *
+ * @param {boolean} isOpen
+ */
+export function setDeleteConfirmationOpen(isOpen) {
+	toolbarStateStore.update(state => ({
+		...state,
+		deleteConfirmationOpen: Boolean(isOpen)
 	}));
 }
 
