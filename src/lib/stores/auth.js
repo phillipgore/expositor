@@ -54,6 +54,68 @@ export async function initializeAuth() {
 }
 
 /**
+ * Re-check the session with the SERVER and sync the auth stores to it.
+ *
+ * Unlike `initializeAuth`, this does not toggle `isLoading` (which would unmount the whole app
+ * behind the root layout's spinner). Used where the client-side flag may be stale — e.g. the
+ * auth layout, which otherwise trusts `isAuthenticated` and can sit on "Redirecting to app..."
+ * forever while the server keeps bouncing protected routes back to /signin.
+ *
+ * @returns {Promise<boolean>} whether the server recognises a signed-in user
+ */
+export async function verifySession() {
+	try {
+		const sessionData = await authClient.getSession();
+		const sessionUser = sessionData.data?.user;
+
+		if (sessionUser) {
+			user.set(/** @type {AuthUser} */ (sessionUser));
+			isAuthenticated.set(true);
+			return true;
+		}
+	} catch (error) {
+		console.error('Failed to verify session:', error);
+	}
+
+	user.set(null);
+	isAuthenticated.set(false);
+	return false;
+}
+
+/**
+ * Message shown when sign-in succeeds but the browser does not send the session cookie back.
+ * Most often a build whose BETTER_AUTH_URL is https:// served over plain http://, which makes
+ * better-auth issue a `Secure` cookie the browser won't return.
+ */
+const SESSION_NOT_PERSISTED_ERROR =
+	'Signed in, but the browser did not keep the session cookie, so the server does not see you as signed in. ' +
+	'Check that BETTER_AUTH_URL matches the address in your browser (including http vs https).';
+
+/**
+ * The same failure on a locally served build. By far the usual cause is running `npm run build`
+ * (which bakes in .env.production: the production database and https://expositor.app) and then
+ * previewing it over http://localhost, so point at the scripts that build against the local .env.
+ */
+const SESSION_NOT_PERSISTED_LOCAL_ERROR =
+	'Signed in, but the browser did not keep the session cookie. This build was probably made with ' +
+	'"npm run build", which uses .env.production (the production database and an https:// auth URL). ' +
+	'To run a compiled build locally, stop the server and use "npm run build:local" then "npm run preview:local".';
+
+/**
+ * Pick the session-cookie error that fits where the app is being served from.
+ * @returns {string}
+ */
+function sessionNotPersistedError() {
+	if (typeof window !== 'undefined') {
+		const { protocol, hostname } = window.location;
+		const isLocalHttp =
+			protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]');
+		if (isLocalHttp) return SESSION_NOT_PERSISTED_LOCAL_ERROR;
+	}
+	return SESSION_NOT_PERSISTED_ERROR;
+}
+
+/**
  * Sign in function
  * @param {string} email
  * @param {string} password
@@ -80,8 +142,15 @@ export async function signIn(email, password) {
 				};
 			}
 			
-			user.set(userData);
-			isAuthenticated.set(true);
+			// Confirm the SERVER sees the new session before declaring success. The sign-in
+			// response alone only proves the credentials were right; if the session cookie was
+			// dropped, every protected route redirects back to /signin and the auth layout would
+			// otherwise hang on "Redirecting to app...".
+			const sessionPersisted = await verifySession();
+			if (!sessionPersisted) {
+				return { success: false, error: sessionNotPersistedError() };
+			}
+
 			return { success: true };
 		} else {
 			return { success: false, error: result.error?.message || 'Sign in failed' };

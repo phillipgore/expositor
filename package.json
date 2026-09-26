@@ -7,6 +7,8 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
+		"build:local": "BETTER_AUTH_URL=http://localhost:4173 MANDRILL_KEY= vite build --mode development",
+		"preview:local": "vite preview --mode development",
 		"prepare": "svelte-kit sync || echo ''",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",

@@ -18,6 +18,35 @@
 
 > **Vercel never reads these files.** Production values live in the Vercel dashboard.
 
+## Running the compiled app locally
+
+> ⚠️ **Plain `npm run build` targets PRODUCTION.** `vite build` runs in `production` mode, so
+> Vite loads `.env.production` on top of `.env` and bakes its values (Neon `DATABASE_URL`,
+> `BETTER_AUTH_URL=https://expositor.app`) into the build via `$env/static/private`. Previewing
+> that build locally reads and writes the **production database**, your local dev users can't
+> sign in, and the `https://` auth URL makes better-auth issue a `Secure` cookie that
+> `http://localhost` drops — so sign-in appears to succeed and then fails.
+
+To build and run against your **local** database:
+
+```sh
+npm run build:local     # vite build --mode development, BETTER_AUTH_URL=http://localhost:4173
+npm run preview:local   # vite preview --mode development → http://localhost:4173
+```
+
+- `--mode development` makes Vite load `.env` (not `.env.production`). The output is still a
+  minified production bundle (`NODE_ENV=production`).
+- `BETTER_AUTH_URL` is overridden to the preview origin so cookies and auth URLs match.
+  Email links in this build point at `localhost:4173`.
+- `MANDRILL_KEY` is set empty (it is imported via `$env/static/private`, so the build fails if
+  the key is missing entirely). With no key, verification/reset emails are **logged to the
+  preview server's console** instead of sent — a local build never emails real users.
+- SSL is only required for non-local databases (`src/lib/server/db/config.js`), so the local
+  Postgres (SSL off) works with the production-mode server.
+- If you previously signed in to a build with the wrong settings, clear cookies for
+  `localhost:4173` (or use a private window).
+- Env values are baked in at build time: rebuild after changing `.env`.
+
 ## Database Setup
 
 The `app_settings` row is seeded in production (`signups_enabled = true`).

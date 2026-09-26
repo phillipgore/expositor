@@ -1,17 +1,31 @@
 <script>
-	import { isAuthenticated } from '$lib/stores/auth.js';
+	import { isAuthenticated, verifySession } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import ToolbarAuth from '$lib/componentWidgets/ToolbarAuth.svelte';
 
 	onMount(() => {
-		const unsubscribe = isAuthenticated.subscribe((authenticated) => {
-			if (authenticated) {
-				goto('/new-study');
-			}
+		let unsubscribe = () => {};
+		let cancelled = false;
+
+		// Re-check with the server before trusting the client-side flag. When the browser
+		// believes it is signed in but the server does not (e.g. a dropped session cookie), a
+		// protected route redirects back here; trusting the stale flag would redirect again,
+		// bounce back, and leave "Redirecting to app..." on screen forever. After verifying,
+		// a mismatch simply shows the sign-in form.
+		verifySession().finally(() => {
+			if (cancelled) return;
+			unsubscribe = isAuthenticated.subscribe((authenticated) => {
+				if (authenticated) {
+					goto('/new-study');
+				}
+			});
 		});
 
-		return unsubscribe;
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	});
 </script>
 

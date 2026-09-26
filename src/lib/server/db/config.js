@@ -2,11 +2,32 @@ import { DATABASE_URL } from '$env/static/private';
 import postgres from 'postgres';
 
 /**
+ * Is the configured database on this machine?
+ *
+ * A compiled build run locally (`npm run build:local && npm run preview:local`) executes with
+ * NODE_ENV=production but talks to the local Postgres, which has SSL off. Requiring SSL there
+ * made every query fail, so SSL is only required for remote hosts (Neon on Vercel).
+ *
+ * @param {string | undefined} url
+ * @returns {boolean}
+ */
+export function isLocalDatabaseUrl(url) {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Database configuration based on environment
  * @returns {import('postgres').Options<{}>}
  */
 export function getDatabaseConfig() {
   const isProduction = process.env.NODE_ENV === 'production';
+  const isLocalDatabase = isLocalDatabaseUrl(DATABASE_URL);
   const isDevelopment = process.env.NODE_ENV === 'development';
 
   /** @type {import('postgres').Options<{}>} */
@@ -36,7 +57,8 @@ export function getDatabaseConfig() {
   if (isProduction) {
     return {
       ...baseConfig,
-      ssl: 'require',
+      // Remote (Neon) requires SSL; a local Postgres used by a locally-run build does not.
+      ssl: isLocalDatabase ? false : 'require',
       // Additional production optimizations
       prepare: false,  // Disable prepared statements for connection pooling
       types: {
@@ -97,7 +119,7 @@ export function getDatabaseInfo() {
       host: url.hostname,
       port: url.port || '5432',
       database: url.pathname.slice(1),
-      ssl: process.env.NODE_ENV === 'production'
+      ssl: process.env.NODE_ENV === 'production' && !isLocalDatabaseUrl(DATABASE_URL)
     };
   } catch (error) {
     throw new Error(`Failed to parse DATABASE_URL: ${error}`);
