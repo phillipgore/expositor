@@ -1,4 +1,5 @@
 <script>
+	import { tick } from 'svelte';
 	import IconButton from './buttons/IconButton.svelte';
 	import Input from './Input.svelte';
 	import Label from './Label.svelte';
@@ -30,7 +31,7 @@
 	 * - Distinct `aria-label`s on each button, since an icon-only button has no text
 	 * - Optional summary, shown as an `aria-live` pill beside the control
 	 * - Label stacked above the control by default, or beside it with `isInline`
-	 * - `displayValue` renders a word in place of the field for non-numeric positions
+	 * - `displayValue` fills the same bordered field with caller-owned text (e.g. "Whole"), committed via `onInput`
 	 *
 	 * ## Usage Examples
 	 *
@@ -48,7 +49,7 @@
 	 * />
 	 * ```
 	 *
-	 * Read-only display value, for a compact row:
+	 * Caller-owned display value, for a compact row:
 	 * ```svelte
 	 * <Stepper
 	 *   id="parting-3"
@@ -70,7 +71,7 @@
 	 * @property {string} [value] - Bindable value. A string, because that is what a number-typed
 	 *   `Input` surfaces and what both call sites already hold; `numericValue` below is the
 	 *   coerced view used for bound comparisons and arithmetic.
-	 * @property {string} [displayValue] - Render this text instead of an editable field
+	 * @property {string} [displayValue] - Caller-owned text shown in the field, for values that may be words; pair with `onInput`
  * @property {string} [unit=''] - Short word shown after the field, e.g. 'Chapters'. For a
  *   caller whose label is carried by a control above the stepper, this is what keeps the
  *   number's meaning on screen. A plain span, never a second `<label for>` — the field
@@ -87,6 +88,10 @@
 	 * @property {boolean} [decrementDisabled] - Override the derived minus disabled state
 	 * @property {boolean} [incrementDisabled] - Override the derived plus disabled state
 	 * @property {boolean} [isDisabled=false] - Disable the whole control
+	 * @property {boolean} [inputDisabled=false] - Disable only the field, e.g. when the bounds
+	 *   leave a single value. The buttons follow their own disabled overrides.
+	 * @property {(raw: string) => void} [onInput] - With `displayValue`, called with the typed
+	 *   text when the field is committed (change). The caller parses, clamps and re-derives.
 	 * @property {boolean} [isInline=false] - Put the label on the same row as the control,
 	 *   instead of stacking it above
 	 * @property {string} [classes=''] - Additional CSS classes on the wrapper
@@ -113,6 +118,8 @@
 		decrementDisabled = undefined,
 		incrementDisabled = undefined,
 		isDisabled = false,
+		inputDisabled = false,
+		onInput = undefined,
 		isInline = false,
 		classes = '',
 		onDecrement,
@@ -133,6 +140,20 @@
 	 */
 	let isAtMin = $derived(decrementDisabled ?? numericValue <= min);
 	let isAtMax = $derived(incrementDisabled ?? (max !== undefined && numericValue >= max));
+
+	/**
+	 * Commit a typed value in `displayValue` mode, then show what the caller made of it.
+	 * The caller clamps, so "9" may come back as "2", and a rejected entry may leave
+	 * `displayValue` unchanged. An unchanged prop would not re-render the field, so the
+	 * typed text is overwritten by hand once the caller's state has settled.
+	 * @param {Event & { currentTarget: HTMLInputElement }} event
+	 */
+	async function commitTyped(event) {
+		const field = event.currentTarget;
+		onInput?.(field.value);
+		await tick();
+		if (displayValue !== undefined) field.value = displayValue;
+	}
 
 	function stepDown() {
 		if (onDecrement) {
@@ -181,10 +202,30 @@
 				ariaLabel={decrementLabel}
 			/>
 
-			{#if displayValue !== undefined}
-				<span class="stepper-value" aria-live="polite">{displayValue}</span>
-			{:else}
-				<div class="stepper-field">
+			<!--
+				ALWAYS a bordered `Input`, so every stepper looks like the same control.
+
+				`displayValue` used to render bare text here, which was the borderless value in
+				Manage Serialization's per-passage rows. It now fills the SAME field, typed `text`
+				because it may be a word ("Whole") rather than a number. The caller owns that value,
+				so it is one-way: typing commits through `onInput`, which re-derives `displayValue`.
+
+				`inputDisabled` greys the field when there is nothing to change. It is separate from
+				`isDisabled` because the buttons are bounded by their own overrides.
+			-->
+			<div class="stepper-field">
+				{#if displayValue !== undefined}
+					<Input
+						{id}
+						name={name ?? id}
+						type="text"
+						inputmode="numeric"
+						value={displayValue}
+						isDisabled={isDisabled || inputDisabled}
+						aria-label={ariaLabel}
+						onchange={commitTyped}
+					/>
+				{:else}
 					<Input
 						{id}
 						name={name ?? id}
@@ -193,11 +234,11 @@
 						{max}
 						{step}
 						bind:value
-						{isDisabled}
+						isDisabled={isDisabled || inputDisabled}
 						aria-label={ariaLabel}
 					/>
-				</div>
-			{/if}
+				{/if}
+			</div>
 
 			<IconButton
 				classes="gray"
@@ -285,18 +326,13 @@
 		width: 6.4rem;
 	}
 
-	/* Matches `.stepper-value`: the two occupy the same visual role beside the control. */
+	/* Same size as the field text beside it. */
 	.stepper-unit {
 		font-size: 1.3rem;
 		color: var(--black);
 	}
 
-	.stepper-value {
-		min-width: 4.6rem;
-		text-align: center;
-		font-size: 1.3rem;
-		color: var(--black);
-	}
+
 
 	/* Pushed to the far end of the row, away from the stepper and out over the parts list it
 	   summarises. `margin-left: auto` rather than `justify-content: space-between`, so the

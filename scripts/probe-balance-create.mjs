@@ -251,7 +251,10 @@ try {
 	const { readFileSync } = await import('node:fs');
 	const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
-	const modalSrc = read('../src/lib/componentWidgets/modals/SplitIntoSeriesModal.svelte');
+	// The preview is planned in the shared controls now; the modal only forwards `result`.
+	const modalSrc =
+		read('../src/lib/componentWidgets/SeriesPartingControls.svelte') +
+		read('../src/lib/componentWidgets/modals/SplitIntoSeriesModal.svelte');
 	const menuSrc = read('../src/lib/componentWidgets/menus/MenuActions.svelte');
 	const endpointSrc = read('../src/routes/api/series/+server.js');
 

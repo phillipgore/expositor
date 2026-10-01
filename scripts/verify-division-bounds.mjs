@@ -220,45 +220,51 @@ console.log('\n── across the canon: every reachable setting is accepted, one
 
 console.log('\n── the modals and /api/series actually apply this ──');
 {
-	const split = stripComments(
-		readFileSync('src/lib/componentWidgets/modals/SplitIntoSeriesModal.svelte', 'utf8')
+	// Both dialogs render `SeriesPartingControls`, whose rules are in `partingDraft.js`. So the
+	// bounds are asserted ONCE, where they live, and each dialog is asserted to gate its button
+	// on the shared `canConfirm`.
+	const controls = stripComments(
+		readFileSync('src/lib/componentWidgets/SeriesPartingControls.svelte', 'utf8')
 	);
-	assert('Split: asks for the bounds', split.includes('allowedDivisionBounds('));
-	assert('Split: gates Create on a refused part', /canCreate[\s\S]{0,120}!refusedPart/.test(split));
-	assert('Split: balance floor is the translation floor', split.includes('min={minBalanceParts}'));
+	const draft = stripComments(readFileSync('src/lib/utils/partingDraft.js', 'utf8'));
+	assert('Controls: ask for the bounds', controls.includes('allowedDivisionBounds('));
 	assert(
-		'Split: no hard-coded balance floor of 2',
-		!split.includes('decrementDisabled={balanceTarget <= 2}')
-	);
-
-	const manage = stripComments(
-		readFileSync('src/lib/componentWidgets/modals/ManageSerializationModal.svelte', 'utf8')
-	);
-	assert('Manage: asks for the bounds', manage.includes('allowedDivisionBounds('));
-	assert(
-		'Manage: gates Done on a refused part',
-		manage.includes('canConfirm = $derived(hasEnoughParts && !refusedPart)')
+		'Controls: canConfirm requires no refused part',
+		controls.includes('canConfirm = $derived(hasEnoughParts && !refusedPart)')
 	);
 	assert(
-		'Manage: balance floor is the translation floor',
-		manage.includes('min={minBalanceParts}')
+		'Controls: balance floor is the translation floor',
+		controls.includes('min={bounds.minBalanceParts}')
 	);
 	assert(
-		'Manage: per-passage balance floor is the row floor',
-		manage.includes('entry.balanceTarget <= entry.minBalance')
+		'Controls: no hard-coded balance floor of 2',
+		!controls.includes('decrementDisabled={parsedBalanceTarget <= 2}')
 	);
-	assert('Manage: "Whole" is offered only where allowed', manage.includes('entry.wholeAllowed'));
+	assert(
+		'Draft: per-passage balance floor is the row floor',
+		draft.includes('entry.balanceTarget > entry.minBalance')
+	);
+	assert('Draft: "Whole" is offered only where allowed', draft.includes('entry.wholeAllowed'));
 	// The unit sits BESIDE the stepper (the `unit` prop, rendered after the plus button), not
 	// inside the value: "2 parts" / "3 ch" between the buttons was the reported layout.
 	assert(
-		'Manage: per-passage rows pass a unit',
-		/classes="passage-parting-stepper"[\s\S]{0,600}unit=\{/.test(manage)
+		'Controls: per-passage rows pass a unit',
+		/classes="passage-parting-stepper"[\s\S]{0,600}unit=\{/.test(controls)
 	);
-	assert('Manage: no "ch" abbreviation inside the value', !manage.includes('} ch`'));
+	assert('Controls: no "ch" abbreviation inside the value', !controls.includes('} ch`'));
 	assert(
-		'Manage: no unit word inside the balance value',
-		!/displayValue=\{balanceByLength\s*\?\s*`/.test(manage)
+		'Controls: no unit word inside the balance value',
+		!/displayValue=\{balanceByLength\s*\?\s*`/.test(controls)
 	);
+
+	const split = stripComments(
+		readFileSync('src/lib/componentWidgets/modals/SplitIntoSeriesModal.svelte', 'utf8')
+	);
+	assert('Split: gates Create on the shared canConfirm', /canCreate[\s\S]{0,120}result\?\.canConfirm/.test(split));
+	const manage = stripComments(
+		readFileSync('src/lib/componentWidgets/modals/ManageSerializationModal.svelte', 'utf8')
+	);
+	assert('Manage: gates Done on the shared canConfirm', manage.includes('confirmDisabled={!result?.canConfirm}'));
 
 	const api = stripComments(readFileSync('src/routes/api/series/+server.js', 'utf8'));
 	assert('/api/series: refuses a refused part', api.includes('findRefusedPart(plan.parts'));

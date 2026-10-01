@@ -163,8 +163,9 @@
 	}
 
 	/**
-	 * Create the series. The endpoint re-plans server-side from the same planner, so the
-	 * chapters-per-part setting is all that needs to travel.
+	 * Create the series. The endpoint re-plans server-side from the same planner, so every setting
+	 * that planner reads has to travel: chapters per part, the balance options, and the
+	 * per-passage arrays for a multi-passage study.
 	 */
 	async function handleCreateSeries(chaptersPerPart, options = {}) {
 		splitError = null;
@@ -178,7 +179,11 @@
 					// "Balance by length" (§5 option (b)). Forwarded so the server re-plans the shape the
 					// user actually approved, not the default one.
 					balanceByLength: options.balanceByLength ?? false,
-					targetParts: options.targetParts ?? 0
+					targetParts: options.targetParts ?? 0,
+					// Per-passage divisions for a multi-passage study, positional against its
+					// passages in display order — the order the endpoint plans them in.
+					chaptersPerPassage: options.chaptersPerPassage ?? [],
+					balancePerPassage: options.balancePerPassage ?? []
 				})
 			});
 
