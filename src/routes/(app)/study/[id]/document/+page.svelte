@@ -35,6 +35,7 @@
 
 	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
+	import { hoverCaret } from '$lib/composables/useHoverCaret.svelte.js';
 
 
 	let { data: rawData } = $props();
@@ -1891,29 +1892,13 @@
 	   copies of the selected word reflect the state; the measure layer is
 	   pointer-events:none so only the visible copy ever fires the handlers.
 	   ============================================================ */
-	let hoveredWord = $state(/** @type {{ passageIndex: number, wordId: string } | null} */ (null));
 	let selectedWord = $state(
 		/** @type {{ passageIndex: number, wordId: string, position: 'before'|'after' } | null} */ (null)
 	);
 	let suppressHoverCaret = $state(/** @type {{ passageIndex: number, wordId: string } | null} */ (null));
 
-	/**
-	 * Track the hovered word so its caret can render.
-	 * @param {MouseEvent} event
-	 */
-	function handleWordHover(event) {
-		const target = /** @type {HTMLElement} */ (event.target);
-		if (target?.classList?.contains('selectable-word')) {
-			hoveredWord = {
-				passageIndex: parseInt(target.dataset.passageIndex || '0'),
-				wordId: target.dataset.wordId || ''
-			};
-		}
-	}
-
 	/** Clear hover state (and the post-deselect caret suppression) on mouse-out. */
 	function handleWordHoverEnd() {
-		hoveredWord = null;
 		suppressHoverCaret = null;
 	}
 
@@ -2801,7 +2786,6 @@
 		// editor, AND any structural (column/section) selection, mirroring Analyze.
 		const onKeyDown = (event) => {
 			if (event.key === 'Escape') {
-				hoveredWord = null;
 				clearActiveCommentary();
 				clearActiveCommentarySubject();
 				clearActiveSegment();
@@ -3327,12 +3311,11 @@
 		<!-- Clicking the segment text activates this segment so the Markup menu can
 		     add a heading to it. Clicking a single WORD additionally selects that word
 		     (handleWordClick) while still activating the segment, mirroring the Analyze
-		     view. onmouseover/onmouseleave drive the per-word hover caret. -->
+		     view. The hover caret is drawn by `hoverCaret` on .pages-inner. -->
 		<div
 			class="passage-text passage-text-editable"
 			class:active={activeDocSegmentId === block.id}
 			role="presentation"
-			onmouseover={handleWordHover}
 			onmouseleave={handleWordHoverEnd}
 			onfocus={() => {}}
 			onclick={(e) => {
@@ -3476,6 +3459,7 @@
 			<div
 				class="pages-inner"
 				bind:this={pagesInnerEl}
+				use:hoverCaret={{ color: 'var(--blue)', opacity: 0.5 }}
 				style="transform: translateX(-50%) scale({currentScale}); transform-origin: top center;"
 			>
 
@@ -3854,25 +3838,8 @@
 		background-color: var(--blue-lighter);
 	}
 
-	/* Hover caret — a blue caret above the word (not selected, not suppressed). */
-	.passage-text
-		:global(.selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059FF' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-		position: absolute;
-		left: -0.7rem;
-		top: -0.9rem;
-		width: 1rem;
-		height: 1rem;
-		opacity: 0.5;
-	}
-
-	/* Safari-specific fix: force GPU compositing so :hover state updates reliably. */
-	@supports (-webkit-appearance: none) {
-		.passage-text :global(.selectable-word::before) {
-			transform: translateZ(0);
-			-webkit-transform: translateZ(0);
-		}
-	}
+	/* Hover caret: drawn by the `hoverCaret` action (blue, 50%) as ONE floating element,
+	   not a `::before` here, so moving between words never re-lays out the page text. */
 
 	/* Selected highlight — persistent lightest blue. */
 	.passage-text :global(.selectable-word[data-selected="true"]) {

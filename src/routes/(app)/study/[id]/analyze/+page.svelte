@@ -26,6 +26,7 @@
 
 
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
+	import { hoverCaret } from '$lib/composables/useHoverCaret.svelte.js';
 	import { useSectionReposition } from '$lib/composables/useSectionReposition.svelte.js';
 	import { useColumnReposition } from '$lib/composables/useColumnReposition.svelte.js';
 	import { useColumnResize, BASE_WIDTH_WIDE } from '$lib/composables/useColumnResize.svelte.js';
@@ -888,7 +889,6 @@
 	}
 
 	// Word selection state
-	let hoveredWord = $state(null); // { passageIndex, wordId }
 	let selectedWord = $state(null); // { passageIndex, wordId, position }
 	let suppressHoverCaret = $state(null); // { passageIndex, wordId } - suppress hover caret after deselection
 	
@@ -3887,28 +3887,10 @@
 	}
 
 	/**
-	 * Handle word hover
-	 * Disabled when dragging
-	 */
-	function handleWordHover(event) {
-		// Don't process word hover when dragging
-		if (isDragging) return;
-		
-		const target = event.target;
-		if (target.classList.contains('selectable-word')) {
-			hoveredWord = {
-				passageIndex: parseInt(target.dataset.passageIndex),
-				wordId: target.dataset.wordId
-			};
-		}
-	}
-
-	/**
 	 * Handle word hover end - also clears hover caret suppression
 	 */
 	function handleWordHoverEnd() {
 		
-		hoveredWord = null;
 		suppressHoverCaret = null; // Clear suppression when mouse leaves
 	}
 
@@ -4112,7 +4094,6 @@
 	function handleKeyDown(event) {
 		if (event.key === 'Escape') {
 			selectedWord = null;
-			hoveredWord = null;
 			// Clear browser's text selection
 			window.getSelection()?.removeAllRanges();
 		}
@@ -4601,9 +4582,9 @@
 		onmousedown={handleMouseDown}
 		onmousemove={handleMouseMove}
 		onmouseup={handleMouseUp}
-		onmouseover={handleWordHover}
 		onmouseleave={handleWordHoverEnd}
 		onclick={handleWordClick}
+		use:hoverCaret
 	>
 		<div class="analyze-content-wrapper" style="{wrapperDimensions}">
 			<div bind:this={contentInnerRef} class="analyze-content-inner" style="transform: {zoomTransform}; transform-origin: top left;">
@@ -5976,24 +5957,9 @@
 		background-color: rgba(255, 255, 255, 0.1);
 	}
 
-	/* Hover state - show caret above word (only when not selected and not suppressed) */
-	:global(.text .selectable-word:hover:not([data-selected]):not([data-suppress-hover-caret])::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-		position: absolute;
-		left: -0.7rem;
-		top: -0.9rem;
-		width: 1.0rem;
-		height: 1.0rem;
-		opacity: 0.5;
-	}
-
-	/* Safari-specific fix: Force GPU compositing to ensure :hover state updates properly */
-	@supports (-webkit-appearance:none) {
-		:global(.text .selectable-word::before) {
-			transform: translateZ(0);
-			-webkit-transform: translateZ(0);
-		}
-	}
+	/* Hover caret: drawn by the `hoverCaret` action as ONE floating element, not a
+	   `::before` here. A pseudo-element inside an inline word re-lays out the whole text
+	   block on every word-to-word move (~10,500 words in a long study). */
 
 	/* Selected state - persistent highlight */
 	:global(.text .selectable-word[data-selected="true"]) {
