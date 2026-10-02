@@ -49,11 +49,10 @@
 	>
 		<Icon iconId="chevron-up" />
 	</button>
-	{#if positionLabel}
-		<!-- Plain, non-interactive position readout. Hidden from screen readers
-		     because the buttons' labels already carry the position. -->
-		<span class="position" aria-hidden="true">{positionLabel}</span>
-	{/if}
+	<!-- Plain, non-interactive position readout, always shown so the control never
+	     disappears. Standalone studies show a disabled "1 of 1". Hidden from screen
+	     readers because the buttons' labels already carry the position. -->
+	<span class="position" class:disabled={!positionLabel} aria-hidden="true">{positionLabel ?? '1 of 1'}</span>
 	<button
 		use:tooltip
 		class="nav-button"
@@ -85,6 +84,14 @@
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 		user-select: none;
+	}
+
+	/* Matches .nav-button:disabled so the whole group reads as inactive. */
+	/* Use the buttons' base color (not the label's lighter gray-400) so the same
+	   opacity produces the same disabled tone as the chevrons. */
+	.position.disabled {
+		color: var(--gray-200);
+		opacity: 0.4;
 	}
 
 	.nav-button {
