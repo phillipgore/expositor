@@ -657,7 +657,8 @@
 
 	/**
 	 * Clear Finder study selection when the user activates a column, section,
-	 * connection, segment, or connection quick note inside the study content.
+	 * connection, segment, heading (selected for commentary), or connection quick note
+	 * inside the study content.
 	 * This transitions the study from "selected" (blue) to "active only" (gray)
 	 * so the Delete button targets the column/section/connection/heading/note
 	 * rather than the study itself.
@@ -672,6 +673,7 @@
 				$toolbarState.hasActiveSection ||
 				$toolbarState.hasActiveSegment ||
 				$toolbarState.hasActiveConnection ||
+				$toolbarState.hasActiveHeading ||
 				isConnectionNoteEditing) &&
 			multiSelect.selectedItems.length > 0
 		) {

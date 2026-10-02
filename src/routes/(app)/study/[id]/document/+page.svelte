@@ -2642,6 +2642,29 @@
 		const onRemoveTwo = removeHeading('two');
 		const onRemoveThree = removeHeading('three');
 
+		// Delete button while a heading is the active commentary subject but its editor
+		// isn't focused (ToolbarApp's Priority 5). Resolve segment + type from the heading id.
+		const onRemoveSelected = (/** @type {CustomEvent} */ event) => {
+			const headingId = event?.detail?.headingId;
+			if (!headingId) return;
+			for (const item of flowItems) {
+				if (item.kind !== 'block') continue;
+				const b = item.block;
+				const type =
+					b.headingOneId === headingId ? 'one' :
+					b.headingTwoId === headingId ? 'two' :
+					b.headingThreeId === headingId ? 'three' : null;
+				if (!type) continue;
+				if (activeDocHeadingId === headingId) {
+					activeDocHeadingId = null;
+					setActiveHeading(false);
+				}
+				removeHeading(type)({ detail: { segmentId: b.id } });
+				return;
+			}
+		};
+		window.addEventListener('remove-selected-heading', onRemoveSelected);
+
 		window.addEventListener('insert-heading-one-from-menu', onOne);
 		window.addEventListener('insert-heading-two-from-menu', onTwo);
 		window.addEventListener('insert-heading-three-from-menu', onThree);
@@ -2656,6 +2679,7 @@
 			window.removeEventListener('remove-heading-one', onRemoveOne);
 			window.removeEventListener('remove-heading-two', onRemoveTwo);
 			window.removeEventListener('remove-heading-three', onRemoveThree);
+			window.removeEventListener('remove-selected-heading', onRemoveSelected);
 		};
 	});
 

@@ -440,6 +440,15 @@
 			const type = $toolbarState.activeHeadingOrNoteType;
 			const eventName = type === 'note' ? 'remove-note' : `remove-heading-${type}`;
 			window.dispatchEvent(new CustomEvent(eventName, { detail: { segmentId } }));
+			return;
+		}
+
+		// Priority 5: A heading is selected for commentary (circular select button) —
+		// delete that heading. The owning editor/page resolves it by its passage_heading id.
+		if ($toolbarState.hasActiveHeading && $toolbarState.activeHeadingId) {
+			window.dispatchEvent(
+				new CustomEvent('remove-selected-heading', { detail: { headingId: $toolbarState.activeHeadingId } })
+			);
 		}
 	}
 

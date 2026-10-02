@@ -453,6 +453,17 @@
 	 * Listen for remove heading events
 	 */
 	$effect(() => {
+		// Delete button while THIS heading is selected for commentary (select button).
+		const onRemoveSelected = (/** @type {CustomEvent} */ event) => {
+			if (!headingId || event.detail?.headingId !== headingId) return;
+			setActiveHeading(false);
+			handleDelete();
+		};
+		window.addEventListener('remove-selected-heading', onRemoveSelected);
+		return () => window.removeEventListener('remove-selected-heading', onRemoveSelected);
+	});
+
+	$effect(() => {
 		const eventName = `remove-heading-${headingType}`;
 		window.addEventListener(eventName, handleRemoveHeading);
 		
