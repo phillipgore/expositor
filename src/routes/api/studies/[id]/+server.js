@@ -118,7 +118,7 @@ export const PATCH = async ({ request, params }) => {
 		}
 
 		const { id } = params;
-		const { groupId } = await request.json();
+		const body = await request.json();
 
 		// Verify the study belongs to the current user
 		const existingStudy = await db
@@ -131,13 +131,41 @@ export const PATCH = async ({ request, params }) => {
 			return json({ error: 'Study not found' }, { status: 404 });
 		}
 
-		// Update the study's groupId (can be null to ungroup)
+		// Only fields present in the body are written: an absent key means "leave it alone".
+		/** @type {Record<string, unknown>} */
+		const updates = { updatedAt: new Date() };
+
+		// groupId (can be null to ungroup)
+		if (body.groupId !== undefined) {
+			updates.groupId = body.groupId;
+		}
+
+		// Title is NOT NULL, so an empty title is rejected rather than cleared.
+		if (body.title !== undefined) {
+			if (typeof body.title !== 'string' || body.title.trim() === '') {
+				return json({ error: 'Study title cannot be empty' }, { status: 400 });
+			}
+			updates.title = body.title.trim().slice(0, 500);
+		}
+
+		// Subtitle is nullable: `null` and '' both clear it.
+		if (body.subtitle !== undefined) {
+			if (body.subtitle === null) {
+				updates.subtitle = null;
+			} else if (typeof body.subtitle === 'string') {
+				updates.subtitle = body.subtitle.trim() === '' ? null : body.subtitle.trim().slice(0, 500);
+			} else {
+				return json({ error: 'subtitle must be a string or null' }, { status: 400 });
+			}
+		}
+
+		if (Object.keys(updates).length === 1) {
+			return json({ error: 'No supported fields to update' }, { status: 400 });
+		}
+
 		await db
 			.update(study)
-			.set({ 
-				groupId: groupId,
-				updatedAt: new Date()
-			})
+			.set(updates)
 			.where(eq(study.id, id));
 
 		return json({ success: true }, { status: 200 });

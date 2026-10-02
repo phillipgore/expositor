@@ -4581,6 +4581,7 @@
 	<!-- Sub-toolbar: title/subtitle left, series part navigation right. It lives
 	     outside the zoomed scroll area so it stays put and never scales. -->
 	<AnalyzeStudyToolbar
+		studyId={data.study.id}
 		title={headerTitle}
 		subtitle={headerSubtitle}
 		seriesContext={data.seriesContext ?? null}
