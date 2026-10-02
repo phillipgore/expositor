@@ -305,7 +305,7 @@
 		flex-shrink: 0;
 	}
 
-	.chevron-button:focus {
+	.chevron-button:focus-visible {
 		outline: 0.2rem solid var(--blue);
 		outline-offset: 0.1rem;
 	}
@@ -337,7 +337,7 @@
 		outline: none;
 	}
 
-	.group-header:focus-within {
+	.group-header:has(:focus-visible) {
 		outline: 0.2rem solid var(--blue);
 		outline-offset: 0.1rem;
 	}

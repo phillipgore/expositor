@@ -144,10 +144,10 @@
 				}}
 				onmousedown={(e) => {
 					// Suppress the focus a mousedown would otherwise give this button, so a CLICKED
-					// series does not draw the `:focus-within` outline — a group does not, because
+					// series does not draw the `:has(:focus-visible)` outline — a group does not, because
 					// `handleGroupMouseDown` preventDefaults for its own reasons (drag start) and
 					// suppresses focus as a side effect. Matching that here rather than deleting the
-					// `:focus-within` rule keeps the outline for KEYBOARD focus, where it is the only
+					// outline rule keeps the outline for KEYBOARD focus, where it is the only
 					// thing showing where you are.
 					e.preventDefault();
 					onSeriesMouseDown?.(e, series);
@@ -303,7 +303,7 @@
 		flex-shrink: 0;
 	}
 
-	.chevron-button:focus {
+	.chevron-button:focus-visible {
 		outline: 0.2rem solid var(--blue);
 		outline-offset: 0.1rem;
 	}
@@ -334,7 +334,7 @@
 		outline: none;
 	}
 
-	.series-header:focus-within {
+	.series-header:has(:focus-visible) {
 		outline: 0.2rem solid var(--blue);
 		outline-offset: 0.1rem;
 	}
