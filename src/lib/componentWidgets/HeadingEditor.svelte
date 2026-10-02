@@ -435,9 +435,65 @@
 		if (isHeadingSelected) {
 			setActiveHeading(false);
 		} else {
-			setActiveHeading(true, headingId);
+			setActiveHeading(true, headingId, {
+				headingType,
+				hasHeadingOne,
+				hasHeadingTwo,
+				hasHeadingThree
+			});
 		}
 	}
+
+	/**
+	 * Convert THIS heading (when it is the selected one) to another level. Dispatched by
+	 * the Markup menu's Convert to Heading One/Two/Three items. The row is re-typed in
+	 * place server-side, so its id/text/commentary survive and it stays selected; after
+	 * the reload the heading renders in the target level's HeadingEditor.
+	 * @param {CustomEvent} event
+	 */
+	async function handleConvertSelected(event) {
+		const targetType = event.detail?.headingType;
+		if (!headingId || event.detail?.headingId !== headingId) return;
+		if (!targetType || targetType === headingType) return;
+
+		const convertedId = headingId;
+		const flags = { one: hasHeadingOne, two: hasHeadingTwo, three: hasHeadingThree };
+		if (flags[targetType]) return; // segment already has that level
+		flags[headingType] = false;
+		flags[targetType] = true;
+
+		try {
+			const response = await fetch(`/api/passages/headings/${convertedId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ headingType: targetType })
+			});
+			if (!response.ok) {
+				const error = await response.json().catch(() => ({}));
+				showPopoverError(error.error || 'Failed to convert heading');
+				return;
+			}
+			await invalidate('app:studies');
+			// Keep the converted heading selected, with flags reflecting its new level —
+			// unless the user selected something else while the request was in flight.
+			if ($toolbarState.hasActiveHeading && $toolbarState.activeHeadingId === convertedId) {
+				setActiveHeading(true, convertedId, {
+					headingType: targetType,
+					hasHeadingOne: flags.one,
+					hasHeadingTwo: flags.two,
+					hasHeadingThree: flags.three
+				});
+			}
+		} catch (error) {
+			console.error('Convert heading network error:', error);
+			showPopoverError(error.message || 'Failed to convert heading');
+		}
+	}
+
+	$effect(() => {
+		window.addEventListener('convert-selected-heading', handleConvertSelected);
+		return () => window.removeEventListener('convert-selected-heading', handleConvertSelected);
+	});
 
 	/**
 	 * Handle remove heading event from menu

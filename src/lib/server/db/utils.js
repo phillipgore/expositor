@@ -913,6 +913,81 @@ export async function updateSegmentHeading(dbInstance, userId, segmentId, headin
 }
 
 /**
+ * Convert a heading to a different level (e.g. Heading One → Heading Two).
+ *
+ * The row is re-typed IN PLACE rather than deleted and re-created, so the heading keeps
+ * its id, text and commentary — and a heading selected for commentary stays selected
+ * across the conversion. A segment may hold at most one heading of each type (unique
+ * index on passage_segment_id + heading_type), so converting into a level the segment
+ * already has is refused.
+ *
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string} headingId - passage_heading row id
+ * @param {string} newType - Target heading type: 'one', 'two', or 'three'
+ * @returns {Promise<{id: string, headingType: string}>}
+ */
+export async function convertHeadingType(dbInstance, userId, headingId, newType) {
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+
+	if (!['one', 'two', 'three'].includes(newType)) {
+		throw new Error('Invalid heading type');
+	}
+
+	// Verify ownership by walking heading → segment → section → column → passage → study.
+	const headingData = await dbInstance
+		.select({
+			headingId: passageHeading.id,
+			headingType: passageHeading.headingType,
+			segmentId: passageHeading.passageSegmentId,
+			userId: studyTable.userId
+		})
+		.from(passageHeading)
+		.innerJoin(passageSegment, eq(passageHeading.passageSegmentId, passageSegment.id))
+		.innerJoin(passageSection, eq(passageSegment.passageSectionId, passageSection.id))
+		.innerJoin(passageColumn, eq(passageSection.passageColumnId, passageColumn.id))
+		.innerJoin(passage, eq(passageColumn.passageId, passage.id))
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(eq(passageHeading.id, headingId))
+		.limit(1);
+
+	if (headingData.length === 0) {
+		throw new Error('Heading not found');
+	}
+
+	const current = headingData[0];
+	if (current.userId !== userId) {
+		throw new Error('User not authorized to update this heading');
+	}
+
+	// Already that level — nothing to do.
+	if (current.headingType === newType) {
+		return { id: headingId, headingType: newType };
+	}
+
+	// The segment may not already hold a heading at the target level.
+	const conflict = await dbInstance
+		.select({ id: passageHeading.id })
+		.from(passageHeading)
+		.where(and(
+			eq(passageHeading.passageSegmentId, current.segmentId),
+			eq(passageHeading.headingType, newType)
+		))
+		.limit(1);
+
+	if (conflict.length > 0) {
+		throw new Error('Segment already has a heading of that type');
+	}
+
+	await dbInstance
+		.update(passageHeading)
+		.set({ headingType: newType, updatedAt: new Date() })
+		.where(eq(passageHeading.id, headingId));
+
+	return { id: headingId, headingType: newType };
+}
+
+/**
  * Update a heading's commentary.
  * @param {Object} dbInstance - Database instance
  * @param {string} userId - User ID for authorization

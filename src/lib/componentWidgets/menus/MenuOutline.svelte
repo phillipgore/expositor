@@ -8,6 +8,8 @@
 	 * 
 	 * Items:
 	 * - Heading One / Two / Three — add a heading at the given level to the active segment
+	 * - Convert to Heading One / Two / Three — change the level of the heading selected via its
+	 *   round select button. Levels the heading's segment already has are disabled.
 	 * - Text Quick Note — add a passage (segment) note to the active segment. Auto-reveals
 	 *   passage notes if they are currently hidden. (Connection notes are added from the
 	 *   Connect menu's "Connection Quick Note" item.)
@@ -52,6 +54,22 @@
 		if (menuElement) {
 			menuElement.hidePopover();
 		}
+	}
+
+	// ── Convert selected heading ──
+	// Enabled only while a heading is selected via its round select button. A segment holds
+	// at most one heading per level, so every level the selected heading's segment already
+	// has (including the heading's own level) is disabled.
+	let canConvertHeading = $derived($toolbarState.hasActiveHeading && !!$toolbarState.activeHeadingId);
+
+	/** @param {'one'|'two'|'three'} headingType */
+	function convertSelectedHeading(headingType) {
+		closeMenu();
+		window.dispatchEvent(
+			new CustomEvent('convert-selected-heading', {
+				detail: { headingId: $toolbarState.activeHeadingId, headingType }
+			})
+		);
 	}
 </script>
 
@@ -99,6 +117,35 @@
 
 		}}
 		isDisabled={!$toolbarState.hasActiveSegment || $toolbarState.hasActiveColumn || $toolbarState.hasActiveSection || $toolbarState.activeSegmentHasHeadingThree}
+	/>
+
+	<DividerHorizontal />
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-one-convert"
+		label="Convert to Heading One"
+		role="menuitem"
+		handleClick={() => convertSelectedHeading('one')}
+		isDisabled={!canConvertHeading || $toolbarState.activeHeadingSegmentHasOne}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-two-convert"
+		label="Convert to Heading Two"
+		role="menuitem"
+		handleClick={() => convertSelectedHeading('two')}
+		isDisabled={!canConvertHeading || $toolbarState.activeHeadingSegmentHasTwo}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-three-convert"
+		label="Convert to Heading Three"
+		role="menuitem"
+		handleClick={() => convertSelectedHeading('three')}
+		isDisabled={!canConvertHeading || $toolbarState.activeHeadingSegmentHasThree}
 	/>
 
 	<DividerHorizontal />

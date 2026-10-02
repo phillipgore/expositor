@@ -151,6 +151,10 @@ async function persistPreference(updates) {
  * @property {number} activeConnectionNoteCount - How many of the currently selected connections have a quick note (drives multi-select note-placement actions)
  * @property {boolean} hasActiveHeading - Whether a heading (passage_heading row) is currently selected for commentary
  * @property {string|null} activeHeadingId - The ID of the currently selected heading row
+ * @property {string|null} activeHeadingType - Level of the selected heading: 'one', 'two', 'three', or null
+ * @property {boolean} activeHeadingSegmentHasOne - Whether the selected heading's segment has a heading one
+ * @property {boolean} activeHeadingSegmentHasTwo - Whether the selected heading's segment has a heading two
+ * @property {boolean} activeHeadingSegmentHasThree - Whether the selected heading's segment has a heading three
  * @property {boolean} hasActiveHeadingOrNoteEditor - Whether a heading or note editor is in input mode
 
  * @property {string|null} activeHeadingOrNoteType - Which editor is active: 'one', 'two', 'three', 'note', or null
@@ -293,6 +297,10 @@ const defaultState = {
 	// attaching commentary. Independent of the heading EDITOR (edit-the-text) state.
 	hasActiveHeading: false,
 	activeHeadingId: null,
+	activeHeadingType: null,
+	activeHeadingSegmentHasOne: false,
+	activeHeadingSegmentHasTwo: false,
+	activeHeadingSegmentHasThree: false,
 	hasActiveHeadingOrNoteEditor: false,
 
 	activeHeadingOrNoteType: null,
@@ -1716,11 +1724,18 @@ export function clearHeadingOrNoteEditorActiveKey(key) {
  * @param {boolean} hasHeading - Whether a heading is currently selected
  * @param {string|null} headingId - The ID of the selected passage_heading row
  */
-export function setActiveHeading(hasHeading, headingId = null) {
+export function setActiveHeading(hasHeading, headingId = null, options = {}) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasActiveHeading: hasHeading,
 		activeHeadingId: hasHeading ? headingId : null,
+		// Level of the selected heading and which levels its segment already holds —
+		// drives the Markup menu's Convert to Heading One/Two/Three items (a heading
+		// can't be converted into a level the segment already has).
+		activeHeadingType: hasHeading ? (options.headingType ?? null) : null,
+		activeHeadingSegmentHasOne: hasHeading ? !!options.hasHeadingOne : false,
+		activeHeadingSegmentHasTwo: hasHeading ? !!options.hasHeadingTwo : false,
+		activeHeadingSegmentHasThree: hasHeading ? !!options.hasHeadingThree : false,
 		// A heading is its own commentary subject — clear the other subjects so the
 		// panel's priority resolution lands on the heading.
 		hasActiveSegment: hasHeading ? false : state.hasActiveSegment,

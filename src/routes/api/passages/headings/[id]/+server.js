@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db/index.js';
 import { passageHeading } from '$lib/server/db/schema';
-import { updateHeadingCommentary } from '$lib/server/db/utils.js';
+import { updateHeadingCommentary, convertHeadingType } from '$lib/server/db/utils.js';
 import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth';
 import { json } from '@sveltejs/kit';
@@ -37,7 +37,11 @@ export async function GET({ request, params }) {
 }
 
 /**
- * PATCH a heading's commentary.
+ * PATCH a heading's commentary, or convert it to another level.
+ *
+ * Body: `{ commentary }` updates the commentary; `{ headingType: 'one'|'two'|'three' }`
+ * converts the heading in place (id, text and commentary preserved). Converting into a
+ * level the segment already holds is refused with 409.
  * @type {import('./$types').RequestHandler}
  */
 export async function PATCH({ request, params }) {
@@ -49,8 +53,17 @@ export async function PATCH({ request, params }) {
 
 	try {
 		const body = await request.json();
-		const { commentary } = body;
+		const { commentary, headingType } = body;
 		const headingId = params.id;
+
+		// Heading-level conversion
+		if (headingType !== undefined) {
+			if (!['one', 'two', 'three'].includes(headingType)) {
+				return json({ error: 'Invalid headingType. Must be one, two, or three' }, { status: 400 });
+			}
+			const result = await convertHeadingType(db, session.user.id, headingId, headingType);
+			return json({ success: true, headingId: result.id, headingType: result.headingType });
+		}
 
 		// Validate commentary
 		if (commentary !== undefined && typeof commentary !== 'string') {
@@ -67,6 +80,9 @@ export async function PATCH({ request, params }) {
 		}
 		if (error.message?.includes('not found')) {
 			return json({ error: error.message }, { status: 404 });
+		}
+		if (error.message?.includes('already has a heading')) {
+			return json({ error: error.message }, { status: 409 });
 		}
 		return json({ error: 'Failed to update heading' }, { status: 500 });
 	}

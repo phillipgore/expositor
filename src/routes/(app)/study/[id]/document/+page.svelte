@@ -1740,7 +1740,32 @@
 		activeDocConnectionKey = null;
 		activeDocHeadingId = headingId;
 		// Pushes hasActiveHeading + clears segment/section/column/connection in the store.
-		setActiveHeading(true, headingId);
+		// Also passes the heading's level and its segment's levels so the Markup menu's
+		// Convert to Heading One/Two/Three items can disable levels already present.
+		setActiveHeading(true, headingId, headingConvertOptions(headingId));
+	}
+
+	/**
+	 * Resolve a heading id to its level and the heading levels its segment holds.
+	 * @param {string} headingId
+	 */
+	function headingConvertOptions(headingId) {
+		for (const item of flowItems) {
+			if (item.kind !== 'block') continue;
+			const b = item.block;
+			const type =
+				b.headingOneId === headingId ? 'one' :
+				b.headingTwoId === headingId ? 'two' :
+				b.headingThreeId === headingId ? 'three' : null;
+			if (!type) continue;
+			return {
+				headingType: type,
+				hasHeadingOne: !!b.headingOneId,
+				hasHeadingTwo: !!b.headingTwoId,
+				hasHeadingThree: !!b.headingThreeId
+			};
+		}
+		return {};
 	}
 
 
@@ -2651,6 +2676,38 @@
 		};
 		window.addEventListener('remove-selected-heading', onRemoveSelected);
 
+		// Markup menu's Convert to Heading One/Two/Three while a heading is selected.
+		// Re-types the row in place (id/text/commentary preserved), reloads, and keeps
+		// the converted heading selected with refreshed level flags.
+		const onConvertSelected = async (/** @type {CustomEvent} */ event) => {
+			const headingId = event?.detail?.headingId;
+			const targetType = event?.detail?.headingType;
+			if (!headingId || !targetType) return;
+			const opts = headingConvertOptions(headingId);
+			if (!opts.headingType || opts.headingType === targetType) return;
+			const has = { one: opts.hasHeadingOne, two: opts.hasHeadingTwo, three: opts.hasHeadingThree };
+			if (has[targetType]) return;
+			try {
+				const response = await fetch(`/api/passages/headings/${headingId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ headingType: targetType })
+				});
+				if (!response.ok) {
+					console.error('Error converting heading:', await response.json().catch(() => ({})));
+					return;
+				}
+				await invalidate('app:studies');
+				if (activeDocHeadingId === headingId) {
+					await tick();
+					setActiveHeading(true, headingId, headingConvertOptions(headingId));
+				}
+			} catch (error) {
+				console.error('Error converting heading:', error);
+			}
+		};
+		window.addEventListener('convert-selected-heading', onConvertSelected);
+
 		window.addEventListener('insert-heading-one-from-menu', onOne);
 		window.addEventListener('insert-heading-two-from-menu', onTwo);
 		window.addEventListener('insert-heading-three-from-menu', onThree);
@@ -2666,6 +2723,7 @@
 			window.removeEventListener('remove-heading-two', onRemoveTwo);
 			window.removeEventListener('remove-heading-three', onRemoveThree);
 			window.removeEventListener('remove-selected-heading', onRemoveSelected);
+			window.removeEventListener('convert-selected-heading', onConvertSelected);
 		};
 	});
 
