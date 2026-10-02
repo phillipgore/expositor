@@ -13,15 +13,53 @@
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 
 	/**
-	 * Friendly headline for common statuses.
-	 * @param {number} status
-	 * @returns {string}
+	 * Friendly headline + fallback description for common statuses.
+	 * @type {Record<number, { title: string, description: string }>}
 	 */
-	function headline(status) {
-		if (status === 404) return 'Not Found';
-		if (status === 403) return 'Access Denied';
-		return 'Something Went Wrong';
-	}
+	const COPY = {
+		400: { title: 'Bad Request', description: 'The request could not be understood.' },
+		401: { title: 'Sign In Required', description: 'Please sign in to view this page.' },
+		403: { title: 'Access Denied', description: "You don't have permission to view this page." },
+		404: {
+			title: 'Not Found',
+			description: "The page you're looking for doesn't exist or may have been moved."
+		},
+		500: {
+			title: 'Something Went Wrong',
+			description: 'An unexpected error occurred. Please try again later.'
+		},
+		503: {
+			title: 'Service Unavailable',
+			description: 'The service is temporarily unavailable. Please try again shortly.'
+		}
+	};
+
+	const FALLBACK = {
+		title: 'Something Went Wrong',
+		description: 'An unexpected error occurred. Please try again later.'
+	};
+
+	/**
+	 * Generic messages SvelteKit (or HTTP) fills in automatically — these add no
+	 * information beyond the headline, so we replace them with our description.
+	 */
+	const GENERIC_MESSAGES = ['not found', 'internal error', 'internal server error', 'error'];
+
+	$: copy = COPY[$page.status] ?? FALLBACK;
+
+	/**
+	 * Show the error's own message only if it is meaningful and doesn't just
+	 * repeat the headline (e.g. "Not Found" under "Not Found").
+	 */
+	$: description = (() => {
+		const message = $page.error?.message?.trim();
+		if (!message) return copy.description;
+		const normalized = message.toLowerCase();
+		if (normalized === copy.title.toLowerCase() || GENERIC_MESSAGES.includes(normalized)) {
+			return copy.description;
+		}
+		return message;
+	})();
 </script>
 
 <svelte:head>
@@ -31,8 +69,8 @@
 <div class="error-page">
 	<div class="error-card">
 		<div class="error-status">{$page.status}</div>
-		<h1>{headline($page.status)}</h1>
-		<p>{$page.error?.message || 'An unexpected error occurred.'}</p>
+		<h1>{copy.title}</h1>
+		<p>{description}</p>
 		<Button label="Go to Dashboard" href="/dashboard" classes="blue" />
 	</div>
 </div>
