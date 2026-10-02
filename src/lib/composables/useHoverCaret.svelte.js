@@ -17,6 +17,8 @@
  *   `--section-light`), hidden on selected words, scroll, leave and drag.
  * - Also draws the SELECTED word's highlight + persistent caret (`data-selected` /
  *   `data-position`) in an out-of-flow layer inside `node`, so selecting never re-lays out text.
+ * - When the caret is AFTER the selected word, the next word in the same `.segment` gets a
+ *   visual-only gray box (shows where a split falls). None for a segment's last word.
  * - Hidden on scroll, pointer leave and drag; re-evaluated when the hovered word's selection
  *   attributes change (a MutationObserver, since the page stamps them from an $effect).
  *
@@ -106,7 +108,47 @@ export function hoverCaret(node, options = {}) {
 	const selCaret = /** @type {HTMLElement} */ (caret.cloneNode(true));
 	selCaret.className = 'selection-caret';
 	Object.assign(selCaret.style, { position: 'absolute', display: 'block', opacity: '1', zIndex: '1' });
-	selLayer.append(selBox, selCaret);
+	// Visual-only gray highlight on the word FOLLOWING a caret placed after the selected word,
+	// so the user can see where a split falls. Fixed gray regardless of section colour.
+	const selNextBox = document.createElement('div');
+	selNextBox.className = 'selection-next-highlight';
+	Object.assign(selNextBox.style, { position: 'absolute', left: '0', top: '0', display: 'none' });
+	selLayer.append(selBox, selNextBox, selCaret);
+
+	/**
+	 * Viewport x of the caret's centre: the exact midpoint of the gap between `word` and its
+	 * neighbour on that side (same segment, same line). Falls back to 0.2rem outside the word
+	 * edge (the old fixed offset) at segment/line boundaries.
+	 * @param {HTMLElement} word @param {DOMRect} rect @param {boolean} after @param {number} rem @param {number} scale
+	 */
+	const caretCenterX = (word, rect, after, rem, scale) => {
+		const fallback = after ? rect.right + 0.2 * rem * scale : rect.left - 0.2 * rem * scale;
+		const segment = word.closest('.segment');
+		if (!segment) return fallback;
+		const words = Array.from(segment.querySelectorAll('.selectable-word'));
+		const i = words.indexOf(word);
+		const neighbour = /** @type {HTMLElement | undefined} */ (words[after ? i + 1 : i - 1]);
+		if (!neighbour) return fallback;
+		const n = neighbour.getBoundingClientRect();
+		// Same line only: a wrapped neighbour has no gap to centre in.
+		if (Math.abs(n.top - rect.top) > rect.height / 2) return fallback;
+		const gapLeft = after ? rect.right : n.right;
+		const gapRight = after ? n.left : rect.left;
+		return gapRight >= gapLeft ? (gapLeft + gapRight) / 2 : fallback;
+	};
+	/** Caret lift above the old position, in unscaled px. */
+	const CARET_RAISE_PX = 2;
+
+	/** Next `.selectable-word` in the same `.segment` (document order), or null. @param {HTMLElement} word */
+	const nextWordInSegment = (word) => {
+		const segment = word.closest('.segment');
+		if (!segment) return null;
+		const words = segment.querySelectorAll('.selectable-word');
+		for (let i = 0; i < words.length; i++) {
+			if (words[i] === word) return /** @type {HTMLElement | null} */ (words[i + 1] || null);
+		}
+		return null;
+	};
 	node.appendChild(selLayer);
 
 	/** @type {HTMLElement | null} */
@@ -145,9 +187,25 @@ export function hoverCaret(node, options = {}) {
 		selLayer.style.mixBlendMode = tint ? 'multiply' : 'normal';
 		selCaret.style.color = caretColor(selected);
 		// Old CSS: before → `left: -0.7rem`, after → `right: -0.7rem`; both `top: -0.9rem`, 1rem box.
-		const cx =
-			selected.getAttribute('data-position') === 'after' ? x + w + 0.7 * rem * s - 1 * rem * s : x - 0.7 * rem * s;
-		selCaret.style.transform = `translate(${cx}px, ${y - 0.9 * rem * s}px) scale(${s})`;
+		// Caret box (1rem, arrow centred) centred on the gap; viewport x → node-local x.
+		const centre = caretCenterX(selected, rect, selected.getAttribute('data-position') === 'after', rem, s * nodeScale);
+		const cx = (centre - nodeRect.left) / nodeScale + node.scrollLeft - node.clientLeft - 0.5 * rem * s;
+		selCaret.style.transform = `translate(${cx}px, ${y - 0.9 * rem * s - CARET_RAISE_PX * s}px) scale(${s})`;
+		// Gray highlight on the following word (only when the caret is after the selected word).
+		const next = selected.getAttribute('data-position') === 'after' ? nextWordInSegment(selected) : null;
+		const nRect = next?.getBoundingClientRect();
+		if (next && nRect && (nRect.width > 0 || nRect.height > 0)) {
+			Object.assign(selNextBox.style, {
+				display: 'block',
+				background: 'var(--gray-light)',
+				borderRadius: `${0.2 * rem * s}px`,
+				width: `${nRect.width / nodeScale}px`,
+				height: `${nRect.height / nodeScale}px`,
+				transform: `translate(${(nRect.left - nodeRect.left) / nodeScale + node.scrollLeft - node.clientLeft}px, ${(nRect.top - nodeRect.top) / nodeScale + node.scrollTop - node.clientTop}px)`
+			});
+		} else {
+			selNextBox.style.display = 'none';
+		}
 		selLayer.style.display = 'block';
 	};
 	// Content can reflow under a fixed selection (edits, zoom, resize): re-place it, at most
@@ -196,10 +254,27 @@ export function hoverCaret(node, options = {}) {
 		box.style.display = 'block';
 	};
 
+	// Hover counterpart of selNextBox: gray box on the word following the hover caret.
+	const hoverNextBox = document.createElement('div');
+	hoverNextBox.className = 'hover-next-highlight';
+	hoverNextBox.setAttribute('aria-hidden', 'true');
+	Object.assign(hoverNextBox.style, {
+		position: 'fixed',
+		left: '0',
+		top: '0',
+		pointerEvents: 'none',
+		zIndex: '4',
+		display: 'none',
+		mixBlendMode: 'multiply',
+		background: 'var(--gray-light)'
+	});
+	document.body.appendChild(hoverNextBox);
+
 	const hide = () => {
 		current = null;
 		setHighlight(null);
 		caret.style.display = 'none';
+		hoverNextBox.style.display = 'none';
 	};
 
 	/** @param {HTMLElement} word */
@@ -207,6 +282,7 @@ export function hoverCaret(node, options = {}) {
 		current = word;
 		if (word.hasAttribute('data-selected') || word.hasAttribute('data-suppress-hover-caret')) {
 			caret.style.display = 'none';
+			hoverNextBox.style.display = 'none';
 			return;
 		}
 		const rect = word.getBoundingClientRect();
@@ -216,9 +292,28 @@ export function hoverCaret(node, options = {}) {
 		const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 10;
 		caret.style.color = caretColor(word);
 		caret.style.opacity = String(opacity);
-		// Offsets match the old `left: -0.7rem; top: -0.9rem` relative to the word's box.
-		caret.style.transform = `translate(${rect.left - 0.7 * rem * scale}px, ${rect.top - 0.9 * rem * scale}px) scale(${scale})`;
+		// Inside a segment, the hover caret previews the click: after the word, unless it is the
+		// segment's first word. Outside segments (Document view) it stays before the word.
+		const segment = word.closest('.segment');
+		const after = !!segment && segment.querySelector('.selectable-word') !== word;
+		// Offsets match the old `left/right: -0.7rem; top: -0.9rem` relative to the word's box.
+		// Caret box (1rem, arrow centred) centred on the gap between words.
+		const cx = caretCenterX(word, rect, after, rem, scale) - 0.5 * rem * scale;
+		caret.style.transform = `translate(${cx}px, ${rect.top - 0.9 * rem * scale - CARET_RAISE_PX * scale}px) scale(${scale})`;
 		caret.style.display = 'block';
+		const next = after ? nextWordInSegment(word) : null;
+		const nRect = next?.getBoundingClientRect();
+		if (next && nRect && (nRect.width > 0 || nRect.height > 0)) {
+			Object.assign(hoverNextBox.style, {
+				borderRadius: `${0.2 * rem * scale}px`,
+				width: `${nRect.width}px`,
+				height: `${nRect.height}px`,
+				transform: `translate(${nRect.left}px, ${nRect.top}px)`,
+				display: 'block'
+			});
+		} else {
+			hoverNextBox.style.display = 'none';
+		}
 	};
 
 	/** @param {MouseEvent} event */
@@ -231,6 +326,7 @@ export function hoverCaret(node, options = {}) {
 			if (hovered !== current) {
 				current = null;
 				caret.style.display = 'none';
+				hoverNextBox.style.display = 'none';
 			}
 			return;
 		}
@@ -313,6 +409,7 @@ export function hoverCaret(node, options = {}) {
 			window.removeEventListener('mouseup', onUp);
 			window.removeEventListener('scroll', hide, true);
 			caret.remove();
+			hoverNextBox.remove();
 		}
 	};
 }

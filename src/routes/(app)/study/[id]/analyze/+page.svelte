@@ -3897,11 +3897,11 @@
 	}
 
 	/**
-	 * Handle word click with three-state selection
-	 * - Click 1: Caret before word
-	 * - Click 2 (same word): Caret after word
-	 * - Click 3 (same word): Deselect
-	 * - Shift+Click: Jump directly to "after" position
+	 * Handle word click selection
+	 * - Click 1: Caret after word (before it, if it is the first word in its segment)
+	 * - Click 2 (same word): first word in segment → caret after; otherwise deselect
+	 * - Click 3 (first word in segment): Deselect
+	 * The following word in the segment gets a visual-only gray highlight (see hoverCaret).
 	 * 
 	 * Also handles segment activation
 	 * 
@@ -4060,9 +4060,8 @@
 				                   selectedWord?.wordId === wordId;
 				
 				if (isSameWord) {
-					// Clicking same word: cycle through states
 					if (selectedWord.position === 'before') {
-						// Before -> After
+						// Only a segment's first word can be 'before': second click moves caret after it
 						selectedWord = { passageIndex, wordId, position: 'after' };
 						suppressHoverCaret = null; // Clear suppression
 					} else {
@@ -4072,8 +4071,10 @@
 						activeSegments = []; // Also deactivate segments
 					}
 				} else {
-					// Clicking different word: start with "before"
-					selectedWord = { passageIndex, wordId, position: 'before' };
+					// Clicking different word: caret after it, unless it is the segment's first word
+					const firstInSegment = target.closest('.segment')?.querySelector('.selectable-word');
+					const position = firstInSegment === target ? 'before' : 'after';
+					selectedWord = { passageIndex, wordId, position };
 					suppressHoverCaret = null; // Clear suppression
 				}
 			} else {
