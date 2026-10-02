@@ -42,6 +42,7 @@ export const user = pgTable('user', {
 	crossItemConnectionsVisible: boolean('cross_item_connections_visible').default(true),
 	referencesVisible: boolean('references_visible').default(false),
 	versesVisible: boolean('verses_visible').default(false),
+	chaptersVisible: boolean('chapters_visible').default(true),
 	paragraphBreaksVisible: boolean('paragraph_breaks_visible').default(false),
 	wideLayout: boolean('wide_layout').default(false),
 	overviewMode: boolean('overview_mode').default(false),
@@ -64,6 +65,7 @@ export const user = pgTable('user', {
 	documentSegmentConnectionsVisible: boolean('document_segment_connections_visible').default(true),
 	documentCrossItemConnectionsVisible: boolean('document_cross_item_connections_visible').default(true),
 	documentVersesVisible: boolean('document_verses_visible').default(false),
+	documentChaptersVisible: boolean('document_chapters_visible').default(true),
 	documentParagraphBreaksVisible: boolean('document_paragraph_breaks_visible').default(false),
 	documentCommentariesVisible: boolean('document_commentaries_visible').default(true),
 	// Remembers the last study view ('analyze' | 'document') the user was in, so

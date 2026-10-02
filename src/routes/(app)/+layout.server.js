@@ -40,6 +40,7 @@ export async function load({ request, depends }) {
 				crossItemConnectionsVisible: user.crossItemConnectionsVisible,
 				referencesVisible: user.referencesVisible,
 				versesVisible: user.versesVisible,
+				chaptersVisible: user.chaptersVisible,
 				paragraphBreaksVisible: user.paragraphBreaksVisible,
 				wideLayout: user.wideLayout,
 				overviewMode: user.overviewMode,
@@ -56,6 +57,7 @@ export async function load({ request, depends }) {
 				documentSegmentConnectionsVisible: user.documentSegmentConnectionsVisible,
 				documentCrossItemConnectionsVisible: user.documentCrossItemConnectionsVisible,
 				documentVersesVisible: user.documentVersesVisible,
+				documentChaptersVisible: user.documentChaptersVisible,
 				documentParagraphBreaksVisible: user.documentParagraphBreaksVisible,
 				documentCommentariesVisible: user.documentCommentariesVisible,
 				lastStudyView: user.lastStudyView,
@@ -86,6 +88,7 @@ export async function load({ request, depends }) {
 		const crossItemConnectionsVisible = userData[0]?.crossItemConnectionsVisible ?? true;
 		const referencesVisible = userData[0]?.referencesVisible ?? false;
 		const versesVisible = userData[0]?.versesVisible ?? false;
+		const chaptersVisible = userData[0]?.chaptersVisible ?? true;
 		const paragraphBreaksVisible = userData[0]?.paragraphBreaksVisible ?? false;
 		const wideLayout = userData[0]?.wideLayout ?? false;
 		const overviewMode = userData[0]?.overviewMode ?? false;
@@ -103,6 +106,7 @@ export async function load({ request, depends }) {
 		const documentSegmentConnectionsVisible = userData[0]?.documentSegmentConnectionsVisible ?? true;
 		const documentCrossItemConnectionsVisible = userData[0]?.documentCrossItemConnectionsVisible ?? true;
 		const documentVersesVisible = userData[0]?.documentVersesVisible ?? false;
+		const documentChaptersVisible = userData[0]?.documentChaptersVisible ?? true;
 		const documentParagraphBreaksVisible = userData[0]?.documentParagraphBreaksVisible ?? false;
 		const documentCommentariesVisible = userData[0]?.documentCommentariesVisible ?? true;
 		const lastStudyView = userData[0]?.lastStudyView ?? 'analyze';
@@ -234,6 +238,7 @@ export async function load({ request, depends }) {
 			crossItemConnectionsVisible,
 			referencesVisible,
 			versesVisible,
+			chaptersVisible,
 			paragraphBreaksVisible,
 			wideLayout,
 			overviewMode,
@@ -250,6 +255,7 @@ export async function load({ request, depends }) {
 			documentSegmentConnectionsVisible,
 			documentCrossItemConnectionsVisible,
 			documentVersesVisible,
+			documentChaptersVisible,
 			documentParagraphBreaksVisible,
 			documentCommentariesVisible,
 			lastStudyView,

@@ -90,6 +90,7 @@ async function persistPreference(updates) {
  * @property {boolean} connectionNotesVisible - Whether connection quick notes are visible
  * @property {boolean} referencesVisible - Whether scripture references are visible in headings
  * @property {boolean} versesVisible - Whether verse numbers are visible in the analyze view
+ * @property {boolean} chaptersVisible - Whether the chapter prefix of verse notations is visible (when off, only the first verse of each chapter / passage keeps it)
  * @property {boolean} paragraphBreaksVisible - Whether translator paragraph break markers are visible
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
@@ -110,6 +111,7 @@ async function persistPreference(updates) {
  * @property {boolean} documentSegmentConnectionsVisible - (Document view) Whether segment connections are visible
  * @property {boolean} documentCrossItemConnectionsVisible - (Document view) Whether cross-item connections are visible
  * @property {boolean} documentVersesVisible - (Document view) Whether verse notations are visible
+ * @property {boolean} documentChaptersVisible - (Document view) Whether the chapter prefix of verse notations is visible
  * @property {boolean} documentParagraphBreaksVisible - (Document view) Whether paragraph break markers are visible
  * @property {boolean} documentCommentariesVisible - (Document view) Whether commentaries are shown in the document (NOT the commentary editor slide-out)
  * @property {boolean} documentCommentaryEditorOpen - (Document view) Whether an inline commentary editor is currently open/active (drives the Comment toolbar button's highlight + lets it toggle the editor closed)
@@ -218,6 +220,7 @@ const defaultState = {
 	connectionNotesVisible: true,
 	referencesVisible: false,
 	versesVisible: false,
+	chaptersVisible: true,
 	paragraphBreaksVisible: false,
 	wideLayout: false,
 	overviewMode: false,
@@ -238,6 +241,7 @@ const defaultState = {
 	documentSegmentConnectionsVisible: true,
 	documentCrossItemConnectionsVisible: true,
 	documentVersesVisible: false,
+	documentChaptersVisible: true,
 	documentParagraphBreaksVisible: false,
 	documentCommentariesVisible: true,
 	// Document view: whether an inline commentary editor is currently open/active.
@@ -1166,6 +1170,17 @@ export function toggleLayoutControls() {
 }
 
 /**
+ * Toggle the chapter prefix of verse notations ("5:3" → "3").
+ * When off, the chapter stays visible on verse 1 of each chapter and on the first
+ * verse of each passage, so the reader always knows which chapter they're in.
+ */
+export function toggleChapters() {
+	const newValue = !get(toolbarStateStore).chaptersVisible;
+	toolbarStateStore.update(state => ({ ...state, chaptersVisible: newValue }));
+	persistPreference({ chaptersVisible: newValue });
+}
+
+/**
  * Toggle the passage dividers.
  * When on (the default), the vertical divider line between adjacent passages is
  * drawn and the cross-passage gap is double width (a gap slot on each side of the
@@ -1200,6 +1215,13 @@ export function toggleDocumentVerses() {
 	const newValue = !get(toolbarStateStore).documentVersesVisible;
 	toolbarStateStore.update(state => ({ ...state, documentVersesVisible: newValue }));
 	persistPreference({ documentVersesVisible: newValue });
+}
+
+/** (Document view) Toggle the chapter prefix of verse notations. See toggleChapters(). */
+export function toggleDocumentChapters() {
+	const newValue = !get(toolbarStateStore).documentChaptersVisible;
+	toolbarStateStore.update(state => ({ ...state, documentChaptersVisible: newValue }));
+	persistPreference({ documentChaptersVisible: newValue });
 }
 
 /** Toggle paragraph break markers visibility (Document view). */

@@ -2865,6 +2865,7 @@
 		// geometry — leaving lines/anchors stacked on top of one another.
 		const _references = $toolbarState.referencesVisible;
 		const _verses     = $toolbarState.versesVisible;
+		const _chapters   = $toolbarState.chaptersVisible;
 		// Recompute AFTER the browser has reflowed the toggled content. A single rAF
 		// can fire before the ref/verse/paragraph reflow has settled, so the fan-out
 		// distribution measures the in-between frame and lines pile up. A double rAF

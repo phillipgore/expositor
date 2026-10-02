@@ -60,6 +60,42 @@ export function generateVerseSuffix(index) {
 	return letter.repeat(repeatCount);
 }
 
+/**
+ * Build the chapter-verse notation span, splitting the chapter prefix ("5:") into
+ * its own `.cv-chapter` span so the "Chapters" View toggle can hide it with CSS
+ * while leaving the verse number visible. The rendered text is unchanged ("5:3a").
+ *
+ * When `keepChapter` is true (the verse is verse 1 of a chapter, or the first verse
+ * of the passage) the span is marked `data-chapter-start` so the chapter prefix
+ * stays visible even when chapters are hidden — the reader always knows which
+ * chapter they're in.
+ *
+ * NOTE: the marker is a data attribute (not an extra class) because callers detect
+ * the notation with `includes('class="chapter-verse"')`.
+ *
+ * @param {string} chapterVerseText - e.g. "5:3"
+ * @param {string} [suffix] - subdivision suffix, e.g. "a"
+ * @param {boolean} [keepChapter] - force the chapter prefix to remain visible
+ * @param {boolean} [isContinuation] - this is a later part (b, c, …) of a subdivided
+ *   verse; only the FIRST part of a chapter-start verse keeps its chapter
+ * @returns {string}
+ */
+export function buildChapterVerseHtml(
+	chapterVerseText,
+	suffix = '',
+	keepChapter = false,
+	isContinuation = false
+) {
+	const match = /^\s*(\d+):(\d+)\s*$/.exec(chapterVerseText);
+	if (!match) {
+		return `<span class="chapter-verse">${chapterVerseText}${suffix}</span>`;
+	}
+	const [, chapter, verse] = match;
+	const isChapterStart = !isContinuation && (keepChapter || verse === '1');
+	const startAttr = isChapterStart ? ' data-chapter-start=""' : '';
+	return `<span class="chapter-verse"${startAttr}><span class="cv-chapter">${chapter}:</span>${verse}${suffix}</span>`;
+}
+
 /** @type {Map<string, { words: Element[], indexById: Map<string, number> }>} */
 const _parsedPassageCache = new Map();
 
@@ -134,6 +170,9 @@ export function extractSegmentText(
 	// back to 0, matching the original "capture nothing" outcome.
 	const startIndex = indexById.get(startWordId) ?? 0;
 
+	// The passage's opening verse (see buildChapterVerseHtml's keepChapter).
+	const firstVerseSpan = allWords[0]?.closest('.verse') ?? null;
+
 	let capturing = false;
 	const capturedHTML = [];
 	let currentVerseId = null;
@@ -202,6 +241,10 @@ export function extractSegmentText(
 						// Extract chapter and verse numbers
 						const chapterVerseText = chapterVerseSpan.textContent || '';
 
+						// The passage's first verse keeps its chapter visible even when
+						// chapters are hidden (a passage may open mid-chapter, e.g. 5:3).
+						const isPassageFirstVerse = verseSpan === firstVerseSpan;
+
 						// Capture paragraph-break-marker if this verse starts a new paragraph
 						const paragraphMarkerEl = verseSpan.querySelector('.paragraph-break-marker');
 						const paragraphMarkerHtml = paragraphMarkerEl ? paragraphMarkerEl.outerHTML : '';
@@ -225,12 +268,19 @@ export function extractSegmentText(
 							verseOccurrences[verseId] = currentIndex + 1;
 
 							verseBuffer.push(
-								`${paragraphMarkerHtml}<span class="chapter-verse">${chapterVerseText}${suffix}</span>`
+								`${paragraphMarkerHtml}${buildChapterVerseHtml(
+									chapterVerseText,
+									suffix,
+									isPassageFirstVerse,
+									currentIndex > 0
+								)}`
 							);
 						} else {
 							// Verse not section - use original without suffix
 							// Prepend paragraph marker (empty string if none)
-							verseBuffer.push(`${paragraphMarkerHtml}${chapterVerseSpan.outerHTML}`);
+							verseBuffer.push(
+								`${paragraphMarkerHtml}${buildChapterVerseHtml(chapterVerseText, '', isPassageFirstVerse)}`
+							);
 						}
 					}
 				}

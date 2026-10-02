@@ -191,6 +191,7 @@
 		const _refs = $toolbarState.referencesVisible;
 		const _headings = $toolbarState.headingsVisible;
 		const _verses = $toolbarState.versesVisible;
+		const _chapters = $toolbarState.chaptersVisible;
 		const _paras = $toolbarState.paragraphBreaksVisible;
 		const _notes = $toolbarState.passageNotesVisible;
 		// Wait for the toggle's DOM/layout change to flush, then recompute group heights.
@@ -4589,6 +4590,7 @@
 		class="analyze-content"
 		class:hide-notes={!$toolbarState.passageNotesVisible}
 		class:hide-verses={!$toolbarState.versesVisible}
+		class:hide-chapters={!$toolbarState.chaptersVisible}
 		class:hide-paragraph-breaks={!$toolbarState.paragraphBreaksVisible}
 		class:wide-layout={$toolbarState.wideLayout} 
 		class:overview-mode={$toolbarState.overviewMode}
@@ -5879,6 +5881,11 @@
 	}
 
 	.hide-verses :global(.chapter-verse) {
+		display: none;
+	}
+
+	/* Chapters toggle off: drop the "5:" prefix except at chapter/passage starts. */
+	.hide-chapters :global(.chapter-verse:not([data-chapter-start]) .cv-chapter) {
 		display: none;
 	}
 

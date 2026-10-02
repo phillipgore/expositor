@@ -54,6 +54,7 @@
 		toggleCrossItemConnections,
 		toggleReferences,
 		toggleVerses,
+		toggleChapters,
 		toggleParagraphBreaks,
 		toggleWide,
 		toggleOverview,
@@ -70,6 +71,7 @@
 		toggleDocumentSegmentConnections,
 		toggleDocumentCrossItemConnections,
 		toggleDocumentVerses,
+		toggleDocumentChapters,
 		toggleDocumentParagraphBreaks,
 		toggleDocumentCommentaries
 	} from '$lib/stores/toolbar.js';
@@ -86,6 +88,7 @@
 			? {
 					headings: { active: $toolbarState.documentHeadingsVisible, toggle: toggleDocumentHeadings },
 					verses: { active: $toolbarState.documentVersesVisible, toggle: toggleDocumentVerses },
+					chapters: { active: $toolbarState.documentChaptersVisible, toggle: toggleDocumentChapters },
 					paragraphs: { active: $toolbarState.documentParagraphBreaksVisible, toggle: toggleDocumentParagraphBreaks },
 					allConnections: { active: $toolbarState.documentConnectionsVisible, toggle: toggleDocumentConnections },
 					columnConnections: { active: $toolbarState.documentColumnConnectionsVisible, toggle: toggleDocumentColumnConnections },
@@ -100,6 +103,7 @@
 			: {
 					headings: { active: $toolbarState.headingsVisible, toggle: toggleHeadings },
 					verses: { active: $toolbarState.versesVisible, toggle: toggleVerses },
+					chapters: { active: $toolbarState.chaptersVisible, toggle: toggleChapters },
 					paragraphs: { active: $toolbarState.paragraphBreaksVisible, toggle: toggleParagraphBreaks },
 					allConnections: { active: $toolbarState.connectionsVisible, toggle: toggleConnections },
 					columnConnections: { active: $toolbarState.columnConnectionsVisible, toggle: toggleColumnConnections },
@@ -117,6 +121,8 @@
 	// the Document view has no overview mode, so they are only gated by capability.
 	let headingsDisabled = $derived(!$toolbarState.canToggleHeadings || (!isDocument && $toolbarState.overviewMode));
 	let versesDisabled = $derived(!$toolbarState.canToggleVerses || (!isDocument && $toolbarState.overviewMode));
+	// Chapters only matters while Notations are shown.
+	let chaptersDisabled = $derived(versesDisabled || !cfg.verses.active);
 	let paragraphsDisabled = $derived(!$toolbarState.canToggleParagraphBreaks || (!isDocument && $toolbarState.overviewMode));
 	// In the Document view connections are no longer toggleable from here — they render
 	// in a fixed appendix at the END of the study — so the five connection items (All /
@@ -178,6 +184,12 @@
 		isActive={cfg.verses.active}
 		onToggle={cfg.verses.toggle}
 		isDisabled={versesDisabled}
+	/>
+	<MenuToggleItem
+		label="Chapters"
+		isActive={cfg.chapters.active}
+		onToggle={cfg.chapters.toggle}
+		isDisabled={chaptersDisabled}
 	/>
 	<MenuToggleItem
 		label="Paragraphs"

@@ -71,6 +71,9 @@
 		if (data.versesVisible !== undefined) {
 			setToolbarState('versesVisible', data.versesVisible);
 		}
+		if (data.chaptersVisible !== undefined) {
+			setToolbarState('chaptersVisible', data.chaptersVisible);
+		}
 		if (data.paragraphBreaksVisible !== undefined) {
 			setToolbarState('paragraphBreaksVisible', data.paragraphBreaksVisible);
 		}
@@ -119,6 +122,9 @@
 		}
 		if (data.documentVersesVisible !== undefined) {
 			setToolbarState('documentVersesVisible', data.documentVersesVisible);
+		}
+		if (data.documentChaptersVisible !== undefined) {
+			setToolbarState('documentChaptersVisible', data.documentChaptersVisible);
 		}
 		if (data.documentParagraphBreaksVisible !== undefined) {
 			setToolbarState('documentParagraphBreaksVisible', data.documentParagraphBreaksVisible);

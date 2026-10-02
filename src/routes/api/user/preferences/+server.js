@@ -31,6 +31,7 @@ export async function PATCH({ request }) {
 			crossItemConnectionsVisible,
 			referencesVisible,
 			versesVisible,
+			chaptersVisible,
 			paragraphBreaksVisible,
 			wideLayout,
 			overviewMode,
@@ -47,6 +48,7 @@ export async function PATCH({ request }) {
 			documentSegmentConnectionsVisible,
 			documentCrossItemConnectionsVisible,
 			documentVersesVisible,
+			documentChaptersVisible,
 			documentParagraphBreaksVisible,
 			documentCommentariesVisible,
 			lastStudyView,
@@ -107,6 +109,7 @@ export async function PATCH({ request }) {
 			crossItemConnectionsVisible,
 			referencesVisible,
 			versesVisible,
+			chaptersVisible,
 			paragraphBreaksVisible,
 			wideLayout,
 			overviewMode,
@@ -123,6 +126,7 @@ export async function PATCH({ request }) {
 			documentSegmentConnectionsVisible,
 			documentCrossItemConnectionsVisible,
 			documentVersesVisible,
+			documentChaptersVisible,
 			documentParagraphBreaksVisible,
 			documentCommentariesVisible
 		};

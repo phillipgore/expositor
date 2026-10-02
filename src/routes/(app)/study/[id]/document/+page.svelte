@@ -1279,6 +1279,7 @@
 		// of the passage text — so re-paginate when either flips, or the page breaks
 		// would be computed against stale heights.
 		$toolbarState.documentVersesVisible;
+		$toolbarState.documentChaptersVisible;
 		$toolbarState.documentParagraphBreaksVisible;
 		if (typeof window === 'undefined') return;
 
@@ -3433,6 +3434,7 @@
 <div
 	class="document-gutter"
 	class:hide-verses={!$toolbarState.documentVersesVisible}
+	class:hide-chapters={!$toolbarState.documentChaptersVisible}
 	class:hide-paragraph-breaks={!$toolbarState.documentParagraphBreaksVisible}
 	bind:this={gutterEl}
 >
@@ -3891,6 +3893,11 @@
 	   measurement and the render — keeping pagination in agreement. Mirrors the
 	   Analyze view's `.hide-verses` / `.hide-paragraph-breaks` rules. */
 	.hide-verses :global(.chapter-verse) {
+		display: none;
+	}
+
+	/* Chapters toggle off: drop the "5:" prefix except at chapter/passage starts. */
+	.hide-chapters :global(.chapter-verse:not([data-chapter-start]) .cv-chapter) {
 		display: none;
 	}
 

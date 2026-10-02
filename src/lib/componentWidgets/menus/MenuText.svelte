@@ -9,6 +9,7 @@
 	 * Items:
 	 * - Reference  — shows scripture heading references
 	 * - Notation   — shows verse/notation numbers
+	 * - Chapters   — shows the chapter prefix on every notation (off: only at chapter/passage starts)
 	 * - Paragraphs — shows translator paragraph break markers
 	 * - Wide       — enables wide layout (wider passage columns)
 	 * - Outline View — outline-only overview (hides passage text, structure only)
@@ -26,7 +27,7 @@
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import MenuToggleItem from '$lib/componentElements/buttons/MenuToggleItem.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
-	import { toolbarState, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview } from '$lib/stores/toolbar.js';
+	import { toolbarState, toggleReferences, toggleVerses, toggleChapters, toggleParagraphBreaks, toggleWide, toggleOverview } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuText' } = $props();
 </script>
@@ -42,6 +43,12 @@
 		isActive={$toolbarState.versesVisible}
 		onToggle={toggleVerses}
 		isDisabled={!$toolbarState.canToggleVerses || $toolbarState.overviewMode}
+	/>
+	<MenuToggleItem
+		label="Chapters"
+		isActive={$toolbarState.chaptersVisible}
+		onToggle={toggleChapters}
+		isDisabled={!$toolbarState.canToggleVerses || $toolbarState.overviewMode || !$toolbarState.versesVisible}
 	/>
 	<MenuToggleItem
 		label="Paragraphs"

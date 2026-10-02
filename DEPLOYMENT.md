@@ -72,7 +72,11 @@ psql "$DATABASE_URL" -At -c "
   union all
   select 'study.series: ' || coalesce(string_agg(column_name, ','), 'NONE')
     from information_schema.columns
-   where table_name='study' and column_name in ('series_id','series_order');"
+   where table_name='study' and column_name in ('series_id','series_order')
+  union all
+  select 'user.chapters: ' || coalesce(string_agg(column_name, ','), 'NONE')
+    from information_schema.columns
+   where table_name='user' and column_name in ('chapters_visible','document_chapters_visible');"
 ```
 
 | Result | Means |
@@ -80,6 +84,7 @@ psql "$DATABASE_URL" -At -c "
 | `auth_case: email_verified` | `0045_fix_auth_column_case.sql` applied (camelCase ⇒ it is **not**, and login is broken) |
 | `app_settings: 1` | `0044_add_app_settings.sql` applied |
 | `study_series: 1` and `study.series: series_id,series_order` | `0046_add_study_series.sql` applied |
+| `user.chapters: chapters_visible,document_chapters_visible` | `0047_add_chapters_visible.sql` applied |
 
 Extend the query with a new probe line as later migrations land.
 
