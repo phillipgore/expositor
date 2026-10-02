@@ -27,13 +27,14 @@
  * <div use:hoverCaret={{ color: 'var(--blue)', opacity: 1 }}>…words…</div>
  * ```
  * `color` defaults to the word's `--section-darker` (falling back to its text colour);
- * `highlight` defaults to its `--section-light`.
+ * `highlight` defaults to its `--section-light`. `segmentSelector` (default `.segment`) names
+ * the element that bounds one segment — Document view passes `.passage-text`.
  *
  * @param {HTMLElement} node - Container whose descendant `.selectable-word`s get the caret.
- * @param {{ color?: string, opacity?: number, highlight?: string }} [options]
+ * @param {{ color?: string, opacity?: number, highlight?: string, segmentSelector?: string }} [options]
  */
 export function hoverCaret(node, options = {}) {
-	let { color = '', opacity = 0.5, highlight = '' } = options;
+	let { color = '', opacity = 0.5, highlight = '', segmentSelector = '.segment' } = options;
 
 	/** Caret colour: explicit `color`, else the word's section colour, else its text colour. @param {HTMLElement} word */
 	const caretColor = (word) => {
@@ -123,7 +124,7 @@ export function hoverCaret(node, options = {}) {
 	 */
 	const caretCenterX = (word, rect, after, rem, scale) => {
 		const fallback = after ? rect.right + 0.2 * rem * scale : rect.left - 0.2 * rem * scale;
-		const segment = word.closest('.segment');
+		const segment = word.closest(segmentSelector);
 		if (!segment) return fallback;
 		const words = Array.from(segment.querySelectorAll('.selectable-word'));
 		const i = words.indexOf(word);
@@ -141,7 +142,7 @@ export function hoverCaret(node, options = {}) {
 
 	/** Next `.selectable-word` in the same `.segment` (document order), or null. @param {HTMLElement} word */
 	const nextWordInSegment = (word) => {
-		const segment = word.closest('.segment');
+		const segment = word.closest(segmentSelector);
 		if (!segment) return null;
 		const words = segment.querySelectorAll('.selectable-word');
 		for (let i = 0; i < words.length; i++) {
@@ -293,8 +294,8 @@ export function hoverCaret(node, options = {}) {
 		caret.style.color = caretColor(word);
 		caret.style.opacity = String(opacity);
 		// Inside a segment, the hover caret previews the click: after the word, unless it is the
-		// segment's first word. Outside segments (Document view) it stays before the word.
-		const segment = word.closest('.segment');
+		// segment's first word. Outside any segment it stays before the word.
+		const segment = word.closest(segmentSelector);
 		const after = !!segment && segment.querySelector('.selectable-word') !== word;
 		// Offsets match the old `left/right: -0.7rem; top: -0.9rem` relative to the word's box.
 		// Caret box (1rem, arrow centred) centred on the gap between words.
@@ -391,9 +392,9 @@ export function hoverCaret(node, options = {}) {
 	window.addEventListener('scroll', hide, true);
 
 	return {
-		/** @param {{ color?: string, opacity?: number, highlight?: string }} [next] */
+		/** @param {{ color?: string, opacity?: number, highlight?: string, segmentSelector?: string }} [next] */
 		update(next = {}) {
-			({ color = '', opacity = 0.5, highlight = '' } = next);
+			({ color = '', opacity = 0.5, highlight = '', segmentSelector = '.segment' } = next);
 			drawSelection();
 		},
 		destroy() {

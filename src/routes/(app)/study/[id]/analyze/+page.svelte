@@ -28,6 +28,7 @@
 
 	import { useSegmentResize } from '$lib/composables/useSegmentResize.svelte.js';
 	import { hoverCaret } from '$lib/composables/useHoverCaret.svelte.js';
+	import { getInsertionWordId, initialCaretPosition } from '$lib/utils/caretPosition.js';
 	import { useSectionReposition } from '$lib/composables/useSectionReposition.svelte.js';
 	import { useColumnReposition } from '$lib/composables/useColumnReposition.svelte.js';
 	import { useColumnResize, BASE_WIDTH_WIDE } from '$lib/composables/useColumnResize.svelte.js';
@@ -1516,28 +1517,10 @@
 		}
 
 		// Get the insertion word ID based on position
-		let insertionWordId = null;
-		if (selectedWord.position === 'before') {
-			// Before: use current word's ID directly
-			insertionWordId = selectedWord.wordId;
-		} else {
-			// After: need to find next word's ID
-			const wordElement = document.querySelector(
-				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
-			);
-			
-			if (wordElement) {
-				// Find next word sibling in the DOM
-				let nextElement = wordElement.nextElementSibling;
-				while (nextElement) {
-					if (nextElement.classList.contains('selectable-word')) {
-						insertionWordId = nextElement.dataset.wordId;
-						break;
-					}
-					nextElement = nextElement.nextElementSibling;
-				}
-			}
-		}
+		const wordElement = selectedWord.position === 'before' ? null : document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+		);
+		const insertionWordId = getInsertionWordId(selectedWord, wordElement);
 
 		if (!insertionWordId) {
 			// No valid insertion point (e.g., after last word)
@@ -2624,21 +2607,8 @@
 		}
 
 		// Get the insertion word ID based on position
-		let insertionWordId = null;
-		if (selectedWord.position === 'before') {
-			// Before: use current word's ID directly
-			insertionWordId = selectedWord.wordId;
-		} else {
-			// After: need to find next word's ID
-			let nextElement = wordElement.nextElementSibling;
-			while (nextElement) {
-				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
-					insertionWordId = nextElement.dataset?.wordId || null;
-					break;
-				}
-				nextElement = nextElement.nextElementSibling;
-			}
-		}
+		// 'before' → the selected word; 'after' → the next word in the same segment
+		const insertionWordId = getInsertionWordId(selectedWord, wordElement);
 
 		if (!insertionWordId) {
 			console.log('No insertion word ID found');
@@ -2732,21 +2702,8 @@
 		}
 
 		// Get the insertion word ID based on position
-		let insertionWordId = null;
-		if (selectedWord.position === 'before') {
-			// Before: use current word's ID directly
-			insertionWordId = selectedWord.wordId;
-		} else {
-			// After: need to find next word's ID
-			let nextElement = wordElement.nextElementSibling;
-			while (nextElement) {
-				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
-					insertionWordId = nextElement.dataset?.wordId || null;
-					break;
-				}
-				nextElement = nextElement.nextElementSibling;
-			}
-		}
+		// 'before' → the selected word; 'after' → the next word in the same segment
+		const insertionWordId = getInsertionWordId(selectedWord, wordElement);
 
 		if (!insertionWordId) {
 			console.log('No insertion word ID found');
@@ -2834,21 +2791,8 @@
 		}
 
 		// Get the insertion word ID based on position
-		let insertionWordId = null;
-		if (selectedWord.position === 'before') {
-			// Before: use current word's ID directly
-			insertionWordId = selectedWord.wordId;
-		} else {
-			// After: need to find next word's ID
-			let nextElement = wordElement.nextElementSibling;
-			while (nextElement) {
-				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
-					insertionWordId = nextElement.dataset?.wordId || null;
-					break;
-				}
-				nextElement = nextElement.nextElementSibling;
-			}
-		}
+		// 'before' → the selected word; 'after' → the next word in the same segment
+		const insertionWordId = getInsertionWordId(selectedWord, wordElement);
 
 		if (!insertionWordId) {
 			console.log('No insertion word ID found');
@@ -3002,21 +2946,8 @@
 
 		// Determine the insertion word ID based on caret position
 		// insertionWordId = the first word that stays in the current segment after the move
-		let insertionWordId = null;
-		if (selectedWord.position === 'before') {
-			// Caret is before the selected word — that word stays in the current segment
-			insertionWordId = selectedWord.wordId;
-		} else {
-			// Caret is after the selected word — next word stays in the current segment
-			let nextElement = wordElement.nextElementSibling;
-			while (nextElement) {
-				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
-					insertionWordId = nextElement.dataset?.wordId || null;
-					break;
-				}
-				nextElement = nextElement.nextElementSibling;
-			}
-		}
+		// 'before' → the selected word; 'after' → the next word in the same segment
+		const insertionWordId = getInsertionWordId(selectedWord, wordElement);
 
 		if (!insertionWordId) {
 			console.log('No insertion word ID found (caret may be at end of passage)');
@@ -3077,21 +3008,8 @@
 
 		// Determine the insertion word ID based on caret position
 		// insertionWordId = the first word that moves down into the next segment
-		let insertionWordId = null;
-		if (selectedWord.position === 'before') {
-			// Caret is before the selected word — that word moves down
-			insertionWordId = selectedWord.wordId;
-		} else {
-			// Caret is after the selected word — next word moves down
-			let nextElement = wordElement.nextElementSibling;
-			while (nextElement) {
-				if (nextElement.classList && nextElement.classList.contains('selectable-word')) {
-					insertionWordId = nextElement.dataset?.wordId || null;
-					break;
-				}
-				nextElement = nextElement.nextElementSibling;
-			}
-		}
+		// 'before' → the selected word; 'after' → the next word in the same segment
+		const insertionWordId = getInsertionWordId(selectedWord, wordElement);
 
 		if (!insertionWordId) {
 			console.log('No insertion word ID found (caret may be at end of passage)');
@@ -4072,8 +3990,7 @@
 					}
 				} else {
 					// Clicking different word: caret after it, unless it is the segment's first word
-					const firstInSegment = target.closest('.segment')?.querySelector('.selectable-word');
-					const position = firstInSegment === target ? 'before' : 'after';
+					const position = initialCaretPosition(target, '.segment');
 					selectedWord = { passageIndex, wordId, position };
 					suppressHoverCaret = null; // Clear suppression
 				}

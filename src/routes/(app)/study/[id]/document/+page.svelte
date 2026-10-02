@@ -36,6 +36,7 @@
 	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 	import { hoverCaret } from '$lib/composables/useHoverCaret.svelte.js';
+	import { getInsertionWordId, initialCaretPosition } from '$lib/utils/caretPosition.js';
 
 
 	let { data: rawData } = $props();
@@ -1881,8 +1882,9 @@
 	   The passage HTML rendered here already wraps every word in a
 	   `.selectable-word` span (via the shared extractSegmentText helper), so the
 	   words just need handlers + state to become interactive. State and handlers
-	   mirror the Analyze page exactly: hovering shows a caret, and the click cycle
-	   is before → after → deselect (Shift+Click jumps straight to "after").
+	   mirror the Analyze page exactly: hovering shows a caret; a click puts it after
+	   the word (before it only on a segment's first word), and clicking the same
+	   word again steps on to deselect (Shift+Click jumps straight to "after").
 
 	   Selecting a word ALSO activates its segment (the passage-text div's onclick
 	   calls activateSegment alongside handleWordClick), matching the requirement
@@ -1904,9 +1906,10 @@
 	}
 
 	/**
-	 * Three-state word selection (click 1 → before, click 2 same word → after,
-	 * click 3 same word → deselect; Shift+Click → straight to "after"). Mirrors the
-	 * Analyze view's handleWordClick.
+	 * Word selection, mirroring the Analyze view's handleWordClick: click 1 puts the
+	 * caret after the word — or before it when it is the segment's first word, the
+	 * only place "before" names a distinct insertion point. Clicking the same word
+	 * steps before → after → deselect. Shift+Click → straight to "after".
 	 * @param {MouseEvent} event
 	 */
 	function handleWordClick(event) {
@@ -1930,7 +1933,9 @@
 				suppressHoverCaret = { passageIndex, wordId };
 			}
 		} else {
-			selectedWord = { passageIndex, wordId, position: 'before' };
+			// Caret after the word, unless it is the segment's first word (each
+			// `.passage-text` block is exactly one segment — the paginator never splits it)
+			selectedWord = { passageIndex, wordId, position: initialCaretPosition(target, '.passage-text') };
 			suppressHoverCaret = null;
 		}
 	}
@@ -2006,29 +2011,10 @@
 		}
 
 		// Get the insertion word ID based on position
-		let insertionWordId = null;
-		if (selectedWord.position === 'before') {
-			// Before: use current word's ID directly
-			insertionWordId = selectedWord.wordId;
-		} else {
-			// After: need to find next word's ID
-			const wordElement = document.querySelector(
-				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
-			);
-
-			if (wordElement) {
-				// Find next word sibling in the DOM
-				let nextElement = /** @type {HTMLElement | null} */ (wordElement.nextElementSibling);
-				while (nextElement) {
-					if (nextElement.classList.contains('selectable-word')) {
-						insertionWordId = nextElement.dataset.wordId;
-						break;
-					}
-					nextElement = /** @type {HTMLElement | null} */ (nextElement.nextElementSibling);
-				}
-
-			}
-		}
+		const wordElement = selectedWord.position === 'before' ? null : document.querySelector(
+			`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+		);
+		const insertionWordId = getInsertionWordId(selectedWord, wordElement);
 
 		if (!insertionWordId) {
 			// No valid insertion point (e.g., after last word)
@@ -3486,7 +3472,7 @@
 			<div
 				class="pages-inner"
 				bind:this={pagesInnerEl}
-				use:hoverCaret={{ color: 'var(--blue-darker)', opacity: 0.5, highlight: 'var(--blue-light)' }}
+				use:hoverCaret={{ color: 'var(--blue-darker)', opacity: 0.5, highlight: 'var(--blue-light)', segmentSelector: '.passage-text' }}
 				style="transform: translateX(-50%) scale({currentScale}); transform-origin: top center;"
 			>
 
@@ -3850,8 +3836,8 @@
 	   WORD SELECTION — mirrors the Analyze view, tuned for the light document page.
 	   Each word in the passage HTML is wrapped in a `.selectable-word` span (by the
 	   shared extractSegmentText helper). Hovering / selecting a word draws the
-	   lightest-blue highlight and a blue caret; the click cycle is before → after →
-	   deselect. Selecting a word also activates its segment (the container's onclick
+	   lightest-blue highlight and a blue caret; a click puts the caret after the
+	   word (before it only on a segment's first word), a repeat click deselects. Selecting a word also activates its segment (the container's onclick
 	   calls activateSegment). Screen-only — stripped in print below.
 	   ============================================ */
 	/* No `position: relative`: it only anchored the old `::before` carets (now drawn by
