@@ -332,9 +332,24 @@
 		flex-direction: column;
 	}
 
-	.segment:global(.active) {
+	/* Active glow lives on a pseudo-element, NOT on the segment. Giving the segment
+	   `z-index` (its children use `z-index: inherit`) made Safari re-style and re-lay out
+	   every word in it on each activation: ~850 ms per click on Matthew 1:1–14:36. The
+	   pseudo's own z-index still lifts the glow above neighbouring segments. */
+	.segment::after {
+		content: '';
+		position: absolute;
+		inset: 0;
 		z-index: 10;
+		pointer-events: none;
+		border-radius: inherit;
 		box-shadow: 0rem 0rem 0.5rem var(--section-dark);
+		opacity: 0;
+		transition: opacity 50ms ease-in-out;
+	}
+
+	.segment:global(.active)::after {
+		opacity: 1;
 	}
 
 	.text {
@@ -344,7 +359,8 @@
 		flex: 1 1 auto;
 		font-size: 1.2rem;
 		line-height: 1.7;
-		color: var(--gray-100);
+		/* Was `--gray-100`, which isn't defined (the scale starts at 200), so text inherited. */
+		color: var(--gray-200);
 		white-space: pre-wrap;
 		text-align: left;
 		padding: 0.6rem;

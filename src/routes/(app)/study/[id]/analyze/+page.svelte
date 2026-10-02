@@ -4037,7 +4037,10 @@
 		}
 		
 		// Delay word selection processing to allow double/triple-clicks to work
-		clickTimeout = setTimeout(() => {
+		// Apply immediately (was a 200ms setTimeout, which made switching words feel slow,
+		// especially in Safari). A following double/triple-click still clears it via the
+		// `event.detail >= 2` branch above, like Document view already does.
+		(() => {
 			// Block word selection in compare mode
 			if (isCompareMode) {
 				console.log('[CLICK] Word selection blocked in compare mode');
@@ -4079,7 +4082,7 @@
 			
 			// Clear timeout reference
 			clickTimeout = null;
-		}, 200); // 200ms delay - enough to detect double/triple clicks
+		})();
 		
 		// Reset drag state
 		dragStartPos = null;
@@ -4150,7 +4153,10 @@
 	 */
 	$effect(() => {
 		// Remove data-selected, data-position, and data-suppress-hover-caret from all words
-		const allWords = document.querySelectorAll('.selectable-word');
+		// Only touch words that currently carry a flag (not all ~10k): far less DOM/style work.
+		const allWords = document.querySelectorAll(
+			'.selectable-word[data-selected], .selectable-word[data-position], .selectable-word[data-suppress-hover-caret]'
+		);
 		allWords.forEach(word => {
 			word.removeAttribute('data-selected');
 			word.removeAttribute('data-position');
@@ -4391,6 +4397,7 @@
 	 * Calculate zoom transform based on zoom level
 	 * @returns {string} CSS transform value
 	 */
+
 	let zoomTransform = $derived.by(() => {
 		return `scale(${currentScale})`;
 	});
@@ -5550,7 +5557,6 @@
 		--section-light: var(--green-light);
 		--section-lighter: var(--green-lighter);
 		--section-color: var(--green-dark);
-		transition: box-shadow 50ms ease-in-out;
 		/* User reposition offset: extra spacing ADDED above the section beyond its
 		   default gap. Defaults to 0 (no change). Applied additively in margin-top
 		   below so a section can be pushed down but never tighter than its default. */
@@ -5697,13 +5703,24 @@
 
 	.segment {
 		position: relative;
-		transition: box-shadow 50ms ease-in-out;
 	}
 
-	.section:global(.active),
-	.segment:global(.active) {
+	/* Active glow: a pseudo-element, not z-index/box-shadow on the element itself (see
+	   Segment.svelte — that re-laid out every word in Safari on each click). */
+	.section::after {
+		content: '';
+		position: absolute;
+		inset: 0;
 		z-index: 10;
+		pointer-events: none;
+		border-radius: inherit;
 		box-shadow: 0rem 0rem 0.5rem var(--section-dark);
+		opacity: 0;
+		transition: opacity 50ms ease-in-out;
+	}
+
+	.section:global(.active)::after {
+		opacity: 1;
 	}
 
 	.heading-one {
@@ -5806,7 +5823,8 @@
 		z-index: inherit;
 		font-size: 1.1rem;
 		line-height: 1.7;
-		color: var(--gray-100);
+		/* Was `--gray-100`, which isn't defined (the scale starts at 200), so text inherited. */
+		color: var(--gray-200);
 		white-space: pre-wrap;
 		text-align: left;
 		padding: 0.6rem 0.9rem 0.9rem;
@@ -5934,59 +5952,34 @@
 	/* ============================================================ */
 
 	/* Hover state - color-aware highlight */
-	.section :global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: var(--section-light);
-	}
+	/* Hover + selected highlight/caret: drawn by the `hoverCaret` action outside the text
+	   (Safari perf: styling a word re-lays out the whole ~10k-word block). */
 
 	/* Selected state - color-aware highlight */
-	.section :global(.text .selectable-word[data-selected="true"]) {
-		background-color: var(--section-light);
-	}
 
 	/* Word selection styles */
 
+	/* No `position: relative` (it only anchored the old `::before` carets, now drawn by
+	   `hoverCaret`). On ~10k inline words it made each one a positioned box, so in Safari
+	   any change inside the text repainted the whole block (~850 ms on Matthew). */
 	:global(.text .selectable-word) {
-		position: relative;
 		cursor: pointer;
 		padding: 0.2rem 0.1rem;
 		border-radius: 0.2rem;
 	}
 
 	/* Hover state - subtle highlight (only when not selected) */
-	:global(.text .selectable-word:hover:not([data-selected])) {
-		background-color: rgba(255, 255, 255, 0.1);
-	}
+	/* Hover highlight: drawn by the `hoverCaret` action as a floating box (Safari perf). */
 
 	/* Hover caret: drawn by the `hoverCaret` action as ONE floating element, not a
 	   `::before` here. A pseudo-element inside an inline word re-lays out the whole text
 	   block on every word-to-word move (~10,500 words in a long study). */
 
 	/* Selected state - persistent highlight */
-	:global(.text .selectable-word[data-selected="true"]) {
-		background-color: rgba(255, 255, 255, 0.15);
-	}
 
 	/* Selected state - persistent caret (before position) */
-	:global(.text .selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-		position: absolute;
-		left: -0.7rem;
-		top: -0.9rem;
-		width: 1.0rem;
-		height: 1.0rem;
-		opacity: 1;
-	}
 
 	/* Selected state - persistent caret (after position) */
-	:global(.text .selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='currentColor' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-		position: absolute;
-		right: -0.7rem;
-		top: -0.9rem;
-		width: 1.0rem;
-		height: 1.0rem;
-		opacity: 1;
-	}
 
 	.error-message {
 		padding: 1.8rem;
@@ -6049,6 +6042,7 @@
 		color: var(--gray-500);
 		text-decoration: underline;
 	}
+
 
 
 </style>

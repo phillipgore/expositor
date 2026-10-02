@@ -1948,7 +1948,8 @@
 		pages;
 
 		tick().then(() => {
-			document.querySelectorAll('.selectable-word').forEach((word) => {
+			// Only words that currently carry a flag (not every word in the document).
+			document.querySelectorAll('.selectable-word[data-selected], .selectable-word[data-position], .selectable-word[data-suppress-hover-caret]').forEach((word) => {
 				word.removeAttribute('data-selected');
 				word.removeAttribute('data-position');
 				word.removeAttribute('data-suppress-hover-caret');
@@ -3459,7 +3460,7 @@
 			<div
 				class="pages-inner"
 				bind:this={pagesInnerEl}
-				use:hoverCaret={{ color: 'var(--blue)', opacity: 0.5 }}
+				use:hoverCaret={{ color: 'var(--blue-darker)', opacity: 0.5, highlight: 'var(--blue-light)' }}
 				style="transform: translateX(-50%) scale({currentScale}); transform-origin: top center;"
 			>
 
@@ -3773,7 +3774,8 @@
 
 		font-size: 1.4rem;
 		line-height: 1.7;
-		color: var(--black);
+		/* Matches Analyze passage text. */
+		color: var(--gray-200);
 		white-space: pre-wrap;
 		text-align: left;
 	}
@@ -3826,47 +3828,26 @@
 	   deselect. Selecting a word also activates its segment (the container's onclick
 	   calls activateSegment). Screen-only — stripped in print below.
 	   ============================================ */
+	/* No `position: relative`: it only anchored the old `::before` carets (now drawn by
+	   `hoverCaret`) and made every word a positioned box, which Safari repaints as a whole. */
 	.passage-text :global(.selectable-word) {
-		position: relative;
 		cursor: pointer;
 		padding: 0.2rem 0.1rem;
 		border-radius: 0.2rem;
 	}
 
 	/* Hover highlight — lightest blue (only when not already selected). */
-	.passage-text :global(.selectable-word:hover:not([data-selected])) {
-		background-color: var(--blue-lighter);
-	}
+	/* Hover + selected highlight/caret: drawn by the `hoverCaret` action outside the text
+	   (Safari perf: styling a word re-lays out the whole ~10k-word block). */
 
 	/* Hover caret: drawn by the `hoverCaret` action (blue, 50%) as ONE floating element,
 	   not a `::before` here, so moving between words never re-lays out the page text. */
 
 	/* Selected highlight — persistent lightest blue. */
-	.passage-text :global(.selectable-word[data-selected="true"]) {
-		background-color: var(--blue-lighter);
-	}
 
 	/* Selected caret (before position) — persistent blue caret. */
-	.passage-text :global(.selectable-word[data-selected="true"][data-position="before"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059FF' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-		position: absolute;
-		left: -0.7rem;
-		top: -0.9rem;
-		width: 1rem;
-		height: 1rem;
-		opacity: 1;
-	}
 
 	/* Selected caret (after position) — persistent blue caret on the right. */
-	.passage-text :global(.selectable-word[data-selected="true"][data-position="after"]::before) {
-		content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230059FF' d='M32 9.8q0 .8-.6 1.2l-14 12.5a2 2 0 0 1-1.4.5 2 2 0 0 1-1.4-.5L.6 11Q0 10.5 0 9.8q0-.8.6-1.3A2 2 0 0 1 2 8h28q.8 0 1.4.5t.6 1.3'/%3E%3C/svg%3E");
-		position: absolute;
-		right: -0.7rem;
-		top: -0.9rem;
-		width: 1rem;
-		height: 1rem;
-		opacity: 1;
-	}
 
 
 
