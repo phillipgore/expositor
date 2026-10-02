@@ -339,6 +339,11 @@ function prepareForCapture(innerEl) {
 	// the notice and the capture is sized to fit it.
 	const detachAttribution = attachExportAttribution(innerEl);
 
+	// Reveal the in-content study header (title/subtitle). On screen it is hidden
+	// because AnalyzeStudyToolbar shows the titles, but the export must keep them.
+	// Done before measuring so the natural height includes the header.
+	innerEl.classList.add('exporting');
+
 	// Save the inline styles we are about to change.
 	const savedInner = {
 		transform: innerEl.style.transform,
@@ -373,6 +378,7 @@ function prepareForCapture(innerEl) {
 
 	const restore = () => {
 		detachAttribution();
+		innerEl.classList.remove('exporting');
 		innerEl.style.transform = savedInner.transform;
 		innerEl.style.transformOrigin = savedInner.transformOrigin;
 		if (wrapperEl && savedWrapper) {

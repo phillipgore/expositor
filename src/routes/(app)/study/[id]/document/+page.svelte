@@ -3428,7 +3428,7 @@
      The toolbar drives whichever commentary section is currently editable (via the
      commentaryToolbar bus) and is disabled when none is. -->
 <div class="document-view">
-<DocumentCommentaryToolbar />
+<DocumentCommentaryToolbar seriesContext={data.seriesContext ?? null} />
 
 <div
 	class="document-gutter"

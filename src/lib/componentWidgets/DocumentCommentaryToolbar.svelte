@@ -23,6 +23,10 @@
 		isCommentaryActive
 	} from '$lib/stores/commentaryToolbar.svelte.js';
 	import { toolbarState } from '$lib/stores/toolbar.js';
+	import SeriesPartNav from '$lib/componentWidgets/SeriesPartNav.svelte';
+
+	/** @type {{ seriesContext?: any }} */
+	let { seriesContext = null } = $props();
 
 	// Enable the toolbar strictly from the page's authoritative "a commentary editor
 	// is open" flag (documentCommentaryEditorOpen), which the Document page sets when a
@@ -77,6 +81,7 @@
 </script>
 
 <div class="doc-commentary-toolbar" class:disabled={!enabled}>
+	<div class="toolbar-groups">
 	<div class="toolbar-group">
 		<button
 			use:tooltip
@@ -277,6 +282,11 @@
 			<Icon iconId="x" />
 		</button>
 	</div>
+	</div>
+	<!-- Series part navigation, pinned to the far right (same spot as Analyze). -->
+	<div class="series-nav-slot">
+		<SeriesPartNav {seriesContext} view="document" />
+	</div>
 </div>
 
 <style>
@@ -289,6 +299,24 @@
 		background-color: var(--white);
 		border-bottom: 0.1rem solid var(--gray-700);
 		flex-shrink: 0;
+		position: relative;
+	}
+
+	/* The commentary buttons stay centred across the full bar width. */
+	.toolbar-groups {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.9rem;
+	}
+
+	/* Absolutely positioned so it never shifts the centred groups. */
+	.series-nav-slot {
+		position: absolute;
+		/* Matches AnalyzeStudyToolbar's right padding so the chevrons sit in the same spot. */
+		right: 3.8rem;
+		top: 50%;
+		transform: translateY(-50%);
 	}
 
 	.toolbar-group {

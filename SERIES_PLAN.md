@@ -1264,6 +1264,16 @@ mutation-tested, including the trap that disabling Edit must **not** disable par
 
 ## 7. Navigation
 
+> **Update — part navigation reinstated as chevrons.** Up/down chevrons
+> (`SeriesPartNav.svelte`, `chevron-up` / `chevron-down`) now sit at the far right of a
+> sub-toolbar in both views: Analyze's `AnalyzeStudyToolbar` (title/subtitle left) and
+> Document's `DocumentCommentaryToolbar` (commentary buttons stay centred). They step to
+> `parts[position-2]` / `parts[position]` from `seriesContext` while staying in the current view,
+> and are disabled at the ends and for standalone studies. Both bars sit outside the zoomed /
+> paginated content and are hidden in print. Analyze's in-content `study-header` is hidden on
+> screen but revealed for export (`.exporting` class in `exportAnalyze.js`) and print.
+> The text below records the earlier removal.
+
 **Removed. The Finder is the navigation.** An in-part `‹ Part 3 of 16 ›` control was built and
 then taken out: the Finder already lists every part of an expanded series, in order, one click
 away, and it stays open while the study is read. A second, view-local navigator duplicated that

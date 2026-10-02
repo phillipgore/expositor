@@ -9,6 +9,7 @@
 
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Segment from '$lib/componentWidgets/Segment.svelte';
+	import AnalyzeStudyToolbar from '$lib/componentWidgets/AnalyzeStudyToolbar.svelte';
 
 	import ConnectionsOverlay from '$lib/componentWidgets/ConnectionsOverlay.svelte';
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
@@ -4575,6 +4576,13 @@
 
 
 <div class="container">
+	<!-- Sub-toolbar: title/subtitle left, series part navigation right. It lives
+	     outside the zoomed scroll area so it stays put and never scales. -->
+	<AnalyzeStudyToolbar
+		title={headerTitle}
+		subtitle={headerSubtitle}
+		seriesContext={data.seriesContext ?? null}
+	/>
 	<!-- Analyze View Content -->
 	<div
 		bind:this={analyzeContentRef}
@@ -5160,11 +5168,24 @@
 		height: 100%;
 	}
 
-	/* Title on the left, part navigation pushed to the far right (§7). align-items:end
-	   keeps the arrows on the title's baseline-ish line rather than floating beside a
-	   two-line title's centre. */
+	/* On screen the title/subtitle live in AnalyzeStudyToolbar, so the in-content
+	   header is hidden. It is kept in the DOM for export (exportAnalyze.js adds
+	   `.exporting` during capture) and for print, where the toolbar is hidden. */
 	.study-header {
+		display: none;
+	}
+
+	:global(.analyze-content-inner.exporting) .study-header {
 		display: flex;
+	}
+
+	@media print {
+		.study-header {
+			display: flex;
+		}
+	}
+
+	.study-header {
 		flex-direction: column;
 		justify-content: center;
 		align-items: left;
@@ -5270,7 +5291,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2.6rem;
-		padding: 2.6rem 4.4rem;
+		/* Top matches the side padding so the gap below AnalyzeStudyToolbar equals
+		   the left gap. Bottom keeps its original 2.6rem. */
+		padding: 4.4rem 4.4rem 2.6rem;
 		width: fit-content;
 	}
 
