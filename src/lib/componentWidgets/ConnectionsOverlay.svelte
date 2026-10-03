@@ -1588,14 +1588,14 @@
 	}
 
 	/**
-	 * Concrete css color for a named color (main shade, e.g. --green), or the
+	 * Concrete css color for a named color (line shade, e.g. --green-line), or the
 	 * default line gray for 'gray' / unknown names.
 	 * @param {string} name
 	 * @returns {string}
 	 */
 	function namedColor(name) {
 		const root = getComputedStyle(document.documentElement);
-		const value = SECTION_COLORS.includes(name) ? root.getPropertyValue(`--${name}`).trim() : '';
+		const value = SECTION_COLORS.includes(name) ? root.getPropertyValue(`--${name}-line`).trim() : '';
 		return value || root.getPropertyValue('--gray-300').trim() || '#545251';
 	}
 

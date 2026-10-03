@@ -31,6 +31,9 @@
 	--red: hsl(3, 100%, 59%);
 	--red-light: hsl(3, 100%, 80%);
 	--red-lighter: #FFD9D9;
+	/* --{color}-line: connection-line shade = the section colour (-dark), same hue
+	   and saturation, darkened to ~3.5:1 contrast on white (WCAG 1.4.11 needs 3:1). */
+	--red-line: #BF7373;
 
 	/* Orange */
 	--orange-darker: #4D2800;
@@ -38,6 +41,7 @@
 	--orange: hsl(25, 100%, 50%);
 	--orange-light: hsl(25, 100%, 80%);
 	--orange-lighter: #FFECD9;
+	--orange-line: #B17D53;
 
 	/* Yellow */
 	--yellow-darker: #4D4D08;
@@ -45,6 +49,7 @@
 	--yellow: hsl(45, 100%, 50%);
 	--yellow-light: hsl(45, 100%, 80%);
 	--yellow-lighter: #FFFFD9;
+	--yellow-line: #8C8C40;
 
 	/* Green */
 	--green-darker: #084D08;
@@ -52,6 +57,7 @@
 	--green: hsl(145, 65%, 45%);
 	--green-light: hsl(145, 65%, 75%);
 	--green-lighter: #D9FFD9;
+	--green-line: #469A46;
 
 	/* Aqua */
 	--aqua-darker: #084D4D;
@@ -59,6 +65,7 @@
 	--aqua: hsl(185, 85%, 45%);
 	--aqua-light: hsl(185, 85%, 75%);
 	--aqua-lighter: #D9F7FF;
+	--aqua-line: #48939E;
 
 	/* Blue */
 	--blue-darker: #082A4D;
@@ -66,6 +73,7 @@
 	--blue: hsl(219, 100%, 50%);
 	--blue-light: hsl(219, 100%, 80%);
 	--blue-lighter: #D9ECFF;
+	--blue-line: #618CB7;
 
 	--blue-alpha: hsl(219, 100%, 50%, 0.4);
 
@@ -75,6 +83,7 @@
 	--purple: hsl(270, 65%, 55%);
 	--purple-light: hsl(270, 65%, 80%);
 	--purple-lighter: #ECD9FF;
+	--purple-line: #9C78C2;
 
 	/* Pink */
 	--pink-darker: #4D0831;
@@ -82,4 +91,5 @@
 	--pink: hsl(330, 75%, 60%);
 	--pink-light: hsl(330, 75%, 85%);
 	--pink-lighter: #FFD9F0;
+	--pink-line: #BE6F9F;
 }
