@@ -482,6 +482,12 @@ export const segmentConnection = pgTable('segment_connection', {
 	 * straight off the line). NULL/0 = flush against the line (today's default).
 	 */
 	noteLead: integer('note_lead'),
+	/**
+	 * How the connection line is drawn between its anchors: 'curved' | 'straight' |
+	 * 'cornered'. NULL = default 'curved' (the historic bezier), so existing rows
+	 * render unchanged. Anchor/edge selection is shared by every route.
+	 */
+	lineRoute: text('line_route'),
 	// Rich text commentary for this connection (mirrors passage_segment.commentary)
 
 	commentary: text('commentary'),

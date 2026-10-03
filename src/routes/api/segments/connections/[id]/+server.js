@@ -5,6 +5,7 @@ import { auth } from '$lib/server/auth.js';
 import { eq, and } from 'drizzle-orm';
 
 const VALID_TYPES = ['segment', 'section', 'column'];
+const VALID_LINE_ROUTES = ['curved', 'straight', 'cornered'];
 
 /**
  * Get a single connection record (including commentary).
@@ -92,8 +93,14 @@ export const PATCH = async ({ params, request }) => {
 		const updatingNotePlacement =
 			'noteAnchorSide' in body || 'noteAnchorT' in body || 'noteOffset' in body || 'noteLead' in body;
 
-		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote && !updatingNotePlacement) {
-			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, noteLead, or commentary)' }, { status: 400 });
+		const updatingLineRoute = 'lineRoute' in body;
+
+		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote && !updatingNotePlacement && !updatingLineRoute) {
+			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, noteLead, lineRoute, or commentary)' }, { status: 400 });
+		}
+
+		if (updatingLineRoute && body.lineRoute !== null && !VALID_LINE_ROUTES.includes(body.lineRoute)) {
+			return json({ error: "Invalid lineRoute: must be 'curved', 'straight', 'cornered', or null" }, { status: 400 });
 		}
 
 
@@ -176,6 +183,12 @@ export const PATCH = async ({ params, request }) => {
 			}
 		}
 
+
+		// Line route (curved / straight / cornered). 'curved' is stored as NULL so
+		// the default stays the single source of truth for unstyled rows.
+		if (updatingLineRoute) {
+			updates.lineRoute = body.lineRoute === 'curved' ? null : (body.lineRoute ?? null);
+		}
 
 		// Commentary update (independent of rerouting)
 		if (updatingCommentary) {

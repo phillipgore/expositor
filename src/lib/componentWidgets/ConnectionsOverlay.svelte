@@ -136,7 +136,8 @@
 	/**
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
-	 * @typedef {{ id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, noteLead: number, noteCardX: number, noteCardY: number, handleCorner: 'tl'|'tr'|'bl'|'br', fromSlide: { axis: 'x'|'y', lo: number, hi: number }|null, toSlide: { axis: 'x'|'y', lo: number, hi: number }|null }} PathEntry
+	 * @typedef {'curved'|'straight'|'cornered'} LineRoute
+	 * @typedef {{ route: LineRoute, routeShift: number, id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, noteLead: number, noteCardX: number, noteCardY: number, handleCorner: 'tl'|'tr'|'bl'|'br', fromSlide: { axis: 'x'|'y', lo: number, hi: number }|null, toSlide: { axis: 'x'|'y', lo: number, hi: number }|null }} PathEntry
 
 
 
@@ -239,6 +240,14 @@
 	 * @type {Record<string, { t: number|null, side: ('top'|'right'|'bottom'|'left')|null, offset: number|null, lead?: number|null }>}
 	 */
 	let notePlacementOverrides = $state({});
+
+	/**
+	 * Live line-route overrides (Connect menu → Curved/Straight/Cornered Connection),
+	 * keyed by connection id. Applied immediately for an instant redraw and dropped
+	 * once the PATCH + invalidate lands the persisted `lineRoute`.
+	 * @type {Record<string, LineRoute>}
+	 */
+	let routeOverrides = $state({});
 
 
 	/**
@@ -819,6 +828,112 @@
 		};
 	}
 
+	// ─── Line routes (curved / straight / cornered) ───────────────────────────
+	//
+	// Every route shares the SAME anchors (Pass A/B pick edges and slide positions
+	// identically), so only the drawing between the two anchors differs:
+	//   curved   → the historic cubic bezier (cx1..cy2 control points)
+	//   straight → one straight segment anchor-to-anchor
+	//   cornered → orthogonal polyline that leaves each edge perpendicular to it,
+	//              with small rounded bends (CORNER_RADIUS)
+	// Non-curved routes are described by a polyline (routePoints) so the note dot,
+	// dot dragging and Pass E work on them through the polyline helpers below.
+
+	/** Lateral offset (layout units) beyond which a curved line is guaranteed a visible bend. */
+	const CURVE_MIN_LATERAL = 8;
+	/** Minimum perpendicular-exit bias for an offset curved line (see controlHandle). */
+	const CURVE_MIN_BIAS = 0.9;
+
+	/** Rounded-corner radius (layout units) for cornered routes. */
+	const CORNER_RADIUS = 6;
+	/** Minimum run (layout units) a cornered route travels straight out of an edge before it may turn back. */
+	const CORNER_STUB = 20;
+	/** Below this (layout units) two anchors count as aligned on an axis — a perpendicular sign is ambiguous. */
+	const CORNER_ALIGN_EPS = 12;
+
+	/**
+	 * Normalise a stored/override route value to a known route.
+	 * @param {unknown} value
+	 * @returns {LineRoute}
+	 */
+	function normalizeRoute(value) {
+		return value === 'straight' || value === 'cornered' ? value : 'curved';
+	}
+
+	/**
+	 * Exit direction for a cornered route at one anchor: perpendicular to its edge,
+	 * signed toward the opposite anchor (mirrors controlHandle). When the opposite
+	 * anchor is (nearly) aligned on that axis, fall back to the edge's outward
+	 * direction so e.g. a same-column segment pair loops out to the right.
+	 * @param {'top'|'bottom'|'left'|'right'} edge
+	 * @param {number} ax @param {number} ay @param {number} ox @param {number} oy
+	 * @returns {{ vertical: boolean, sign: number }}
+	 */
+	function cornerExit(edge, ax, ay, ox, oy) {
+		if (edge === 'top' || edge === 'bottom') {
+			const dy = oy - ay;
+			return { vertical: true, sign: Math.abs(dy) < CORNER_ALIGN_EPS ? (edge === 'top' ? -1 : 1) : Math.sign(dy) };
+		}
+		const dx = ox - ax;
+		return { vertical: false, sign: Math.abs(dx) < CORNER_ALIGN_EPS ? (edge === 'right' ? 1 : -1) : Math.sign(dx) };
+	}
+
+	/**
+	 * Polyline vertices for a non-curved route. `routeShift` slides the middle run
+	 * of a cornered route sideways (set by Pass E to separate overlapping lines).
+	 * @param {PathEntry} p
+	 * @returns {Array<{ x: number, y: number }>}
+	 */
+	function routePoints(p) {
+		const a = { x: p.x1, y: p.y1 };
+		const b = { x: p.x2, y: p.y2 };
+		if (p.route !== 'cornered') return [a, b];
+
+		const shift = p.routeShift || 0;
+		const ea = cornerExit(p.fromEdge, a.x, a.y, b.x, b.y);
+		const eb = cornerExit(p.toEdge,   b.x, b.y, a.x, a.y);
+
+		if (ea.vertical && eb.vertical) {
+			// Up/down, across, up/down. The across run sits midway, unless both ends
+			// leave the same way (no room between them) → run past the farther one.
+			let ym;
+			if (ea.sign !== eb.sign) ym = (a.y + b.y) / 2;
+			else ym = ea.sign > 0 ? Math.max(a.y, b.y) + CORNER_STUB : Math.min(a.y, b.y) - CORNER_STUB;
+			ym += shift;
+			return [a, { x: a.x, y: ym }, { x: b.x, y: ym }, b];
+		}
+		if (!ea.vertical && !eb.vertical) {
+			// Across, up/down, across (segment ↔ segment). Same-direction exits loop out.
+			let xm;
+			if (ea.sign !== eb.sign) xm = (a.x + b.x) / 2;
+			else xm = ea.sign > 0 ? Math.max(a.x, b.x) + CORNER_STUB : Math.min(a.x, b.x) - CORNER_STUB;
+			xm += shift;
+			return [a, { x: xm, y: a.y }, { x: xm, y: b.y }, b];
+		}
+
+		// Mixed: one vertical exit, one horizontal exit → a single-corner "L" with
+		// the corner on the vertical end's x and the horizontal end's y. If either
+		// end would have to leave AGAINST its exit direction, use a Z-shape with a
+		// stub out of each end so the line never doubles back into its element.
+		const v  = ea.vertical ? a : b;
+		const ev = ea.vertical ? ea : eb;
+		const h  = ea.vertical ? b : a;
+		const eh = ea.vertical ? eb : ea;
+		const vOk = Math.sign(h.y - v.y) === ev.sign;
+		const hOk = Math.sign(v.x - h.x) === eh.sign;
+		/** @type {Array<{ x: number, y: number }>} */
+		let mid;
+		if (vOk && hOk) {
+			mid = [{ x: v.x, y: h.y }];
+		} else {
+			const vy = v.y + ev.sign * CORNER_STUB + shift;
+			const hx = h.x + eh.sign * CORNER_STUB;
+			mid = [{ x: v.x, y: vy }, { x: hx, y: vy }, { x: hx, y: h.y }];
+		}
+		const pts = [v, ...mid, h];
+		return ea.vertical ? pts : pts.reverse();
+	}
+
 	/**
 	 * Compute a cubic-bezier control handle for ONE end of a connection.
 	 *
@@ -878,7 +993,15 @@
 		// → STRAIGHT line) and 0 when it's fully to the side (→ full 0.55 bias →
 		// today's smooth square-exit curve).
 		const align = Math.abs(ux * nx + uy * ny);
-		const BIAS = 0.55 * (1 - align);
+		// A curved line must visibly CURVE whenever its ends are offset. The pure
+		// "bias → 0 as the partner lines up" rule above left diagonal lines (e.g.
+		// section↔section, whose anchors already slide toward each other) almost
+		// perfectly straight. So once the partner sits more than CURVE_MIN_LATERAL
+		// off the edge-normal axis, keep at least CURVE_MIN_BIAS of perpendicular
+		// exit. Only a genuinely straight-across pair stays straight (no S-wave).
+		const lateral = (edge === 'top' || edge === 'bottom') ? Math.abs(dx) : Math.abs(dy);
+		const minBias = lateral > CURVE_MIN_LATERAL ? CURVE_MIN_BIAS : 0;
+		const BIAS = Math.max(minBias, 0.55 * (1 - align));
 		let hx = nx * BIAS + ux * (1 - BIAS);
 		let hy = ny * BIAS + uy * (1 - BIAS);
 
@@ -890,6 +1013,117 @@
 		return { cx: ax + hx * len, cy: ay + hy * len };
 	}
 
+
+	/**
+	 * Drop zero-length and collinear interior vertices so corner rounding and
+	 * arc-length sampling only see real bends.
+	 * @param {Array<{ x: number, y: number }>} pts
+	 * @returns {Array<{ x: number, y: number }>}
+	 */
+	function simplifyPolyline(pts) {
+		/** @type {Array<{ x: number, y: number }>} */
+		const out = [];
+		for (const pt of pts) {
+			const last = out[out.length - 1];
+			if (last && Math.hypot(pt.x - last.x, pt.y - last.y) < 0.01) continue;
+			out.push(pt);
+		}
+		for (let i = out.length - 2; i >= 1; i--) {
+			const p0 = out[i - 1], p1 = out[i], p2 = out[i + 1];
+			const cross = (p1.x - p0.x) * (p2.y - p1.y) - (p1.y - p0.y) * (p2.x - p1.x);
+			const dot   = (p1.x - p0.x) * (p2.x - p1.x) + (p1.y - p0.y) * (p2.y - p1.y);
+			// Only drop vertices that continue straight ahead (not a 180° reversal).
+			if (Math.abs(cross) < 0.01 && dot > 0) out.splice(i, 1);
+		}
+		return out;
+	}
+
+	/**
+	 * SVG path data for a polyline with rounded interior corners.
+	 * @param {Array<{ x: number, y: number }>} pts
+	 * @returns {string}
+	 */
+	function polylineToD(pts) {
+		if (pts.length < 2) return '';
+		let d = `M ${pts[0].x},${pts[0].y}`;
+		for (let i = 1; i < pts.length - 1; i++) {
+			const p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1];
+			const l1 = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
+			const l2 = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+			const r = Math.min(CORNER_RADIUS, l1 / 2, l2 / 2);
+			const ax = p1.x - ((p1.x - p0.x) / l1) * r, ay = p1.y - ((p1.y - p0.y) / l1) * r;
+			const bx = p1.x + ((p2.x - p1.x) / l2) * r, by = p1.y + ((p2.y - p1.y) / l2) * r;
+			d += ` L ${ax},${ay} Q ${p1.x},${p1.y} ${bx},${by}`;
+		}
+		const end = pts[pts.length - 1];
+		return d + ` L ${end.x},${end.y}`;
+	}
+
+	/**
+	 * Point at fraction t ∈ [0,1] of a polyline's arc length.
+	 * @param {Array<{ x: number, y: number }>} pts
+	 * @param {number} t
+	 * @returns {{ x: number, y: number }}
+	 */
+	function polylinePointAt(pts, t) {
+		if (pts.length < 2) return { ...pts[0] };
+		/** @type {number[]} */
+		const lens = [];
+		let total = 0;
+		for (let i = 1; i < pts.length; i++) {
+			const l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+			lens.push(l);
+			total += l;
+		}
+		let target = Math.min(1, Math.max(0, t)) * total;
+		for (let i = 0; i < lens.length; i++) {
+			if (target <= lens[i] || i === lens.length - 1) {
+				const f = lens[i] ? Math.min(1, target / lens[i]) : 0;
+				return {
+					x: pts[i].x + (pts[i + 1].x - pts[i].x) * f,
+					y: pts[i].y + (pts[i + 1].y - pts[i].y) * f
+				};
+			}
+			target -= lens[i];
+		}
+		return { ...pts[pts.length - 1] };
+	}
+
+	/**
+	 * Arc-length fraction t ∈ [0,1] of the polyline point nearest (px, py).
+	 * @param {Array<{ x: number, y: number }>} pts
+	 * @param {number} px @param {number} py
+	 * @returns {number}
+	 */
+	function nearestTOnPolyline(pts, px, py) {
+		let total = 0;
+		let bestD = Infinity;
+		let bestS = 0;
+		for (let i = 1; i < pts.length; i++) {
+			const ax = pts[i - 1].x, ay = pts[i - 1].y;
+			const vx = pts[i].x - ax, vy = pts[i].y - ay;
+			const len2 = vx * vx + vy * vy;
+			const len = Math.sqrt(len2);
+			const f = len2 ? Math.min(1, Math.max(0, ((px - ax) * vx + (py - ay) * vy) / len2)) : 0;
+			const d = (ax + vx * f - px) ** 2 + (ay + vy * f - py) ** 2;
+			if (d < bestD) { bestD = d; bestS = total + f * len; }
+			total += len;
+		}
+		return total ? bestS / total : 0.5;
+	}
+
+	/**
+	 * Point at parameter t on a path, whatever its route. For curved paths t is
+	 * the bezier parameter (unchanged behavior); for straight/cornered it is the
+	 * arc-length fraction, so noteAnchorT means "how far along the line" for both.
+	 * @param {PathEntry} p
+	 * @param {number} t
+	 * @returns {{ x: number, y: number }}
+	 */
+	function routePointAt(p, t) {
+		if (p.route === 'curved') return cubicBezierPoint(t, p.x1, p.y1, p.cx1, p.cy1, p.cx2, p.cy2, p.x2, p.y2);
+		return polylinePointAt(simplifyPolyline(routePoints(p)), t);
+	}
 
 	// ─── Line style determination ─────────────────────────────────────────────
 
@@ -1067,6 +1301,7 @@
 	 * @returns {number}
 	 */
 	function nearestTOnCurve(path, px, py) {
+		if (path.route !== 'curved') return nearestTOnPolyline(simplifyPolyline(routePoints(path)), px, py);
 		let bestT = 0.5;
 		let bestD = Infinity;
 		const evalT = (t) => {
@@ -1449,9 +1684,14 @@
 			// sideways (away from the card) so the arc's middle swings clear of the
 			// straight anchor-to-anchor path. Segment side-loops already bow via
 			// loopOut, so this only targets the vertical (top/bottom) exits.
+			// Line route: a live menu override wins over the persisted value. Only the
+			// curved route uses the bezier controls; straight/cornered are rebuilt from
+			// the same anchors by refreshPathCurve() once the entry exists.
+			const route = normalizeRoute(routeOverrides[connection.id] ?? connection.lineRoute);
+
 			const hasNoteForCurve = !!(connection.note ?? null) || noteEditingId === connection.id;
 			const verticalish = !(fromSide2 && toSide2); // at least one top/bottom end
-			if (hasNoteForCurve && verticalish && dx < 8 && dy > dx) {
+			if (route === 'curved' && hasNoteForCurve && verticalish && dx < 8 && dy > dx) {
 				// REBUILD the control points as a clean, symmetric arc — exactly like the
 				// same-column segment loop — rather than nudging the already-vertical
 				// handles sideways (which produced a J-hook because one handle pointed
@@ -1497,7 +1737,9 @@
 		}
 
 
-		newPaths.push({
+		/** @type {PathEntry} */
+		const entry = {
+			route, routeShift: 0,
 			id: connection.id,
 			d, x1: from.x, y1: from.y, x2: to.x, y2: to.y,
 			mx, my, cx1, cy1, cx2, cy2,
@@ -1510,7 +1752,11 @@
 			handleCorner: defaultHandleCorner(anchorSide),
 			fromSlide: slideMap.get(`${connection.id}|from`) ?? null,
 			toSlide:   slideMap.get(`${connection.id}|to`)   ?? null
-		});
+		};
+		// Straight/cornered: replace the bezier d/midpoint/note anchor with the
+		// polyline equivalents (same anchors, same note t semantics: "fraction along").
+		if (route !== 'curved') refreshPathCurve(entry);
+		newPaths.push(entry);
 
 	}
 
@@ -1639,13 +1885,20 @@
 	 * @param {PathEntry} p
 	 */
 	function refreshPathCurve(p) {
-		p.d = `M ${p.x1},${p.y1} C ${p.cx1},${p.cy1} ${p.cx2},${p.cy2} ${p.x2},${p.y2}`;
-		const mid = cubicBezierMidpoint(p.x1, p.y1, p.cx1, p.cy1, p.cx2, p.cy2, p.x2, p.y2);
-		p.mx = mid.mx; p.my = mid.my;
+		if (p.route === 'curved') {
+			p.d = `M ${p.x1},${p.y1} C ${p.cx1},${p.cy1} ${p.cx2},${p.cy2} ${p.x2},${p.y2}`;
+			const mid = cubicBezierMidpoint(p.x1, p.y1, p.cx1, p.cy1, p.cx2, p.cy2, p.x2, p.y2);
+			p.mx = mid.mx; p.my = mid.my;
+		} else {
+			const pts = simplifyPolyline(routePoints(p));
+			p.d = polylineToD(pts);
+			const mid = polylinePointAt(pts, 0.5);
+			p.mx = mid.x; p.my = mid.y;
+		}
 
-		// Keep the note dot on the (now-bowed) curve at its parameter t, then re-derive
+		// Keep the note dot on the (now-bowed) line at its parameter t, then re-derive
 		// the card anchor by pushing the dot off the line by noteLead (mirrors Pass C).
-		const anchorPt = cubicBezierPoint(p.noteAnchorT, p.x1, p.y1, p.cx1, p.cy1, p.cx2, p.cy2, p.x2, p.y2);
+		const anchorPt = routePointAt(p, p.noteAnchorT);
 		p.noteAnchorX = anchorPt.x;
 		p.noteAnchorY = anchorPt.y;
 		let cardX = anchorPt.x, cardY = anchorPt.y;
@@ -1807,8 +2060,22 @@
 				// 2) Bend only for the residual each end couldn't cover by sliding.
 				const fRes = off - f.achievedPerp;
 				const tRes = off - t.achievedPerp;
-				if (Math.abs(fRes) > 0.5) { p.cx1 += nx * fRes; p.cy1 += ny * fRes; }
-				if (Math.abs(tRes) > 0.5) { p.cx2 += nx * tRes; p.cy2 += ny * tRes; }
+				//    Curved   → bow the bezier control points (historic behavior).
+				//    Cornered → shift the middle run sideways so bends stay square.
+				//    Straight → never bend; sliding is the only separation it gets.
+				if (p.route === 'curved') {
+					if (Math.abs(fRes) > 0.5) { p.cx1 += nx * fRes; p.cy1 += ny * fRes; }
+					if (Math.abs(tRes) > 0.5) { p.cx2 += nx * tRes; p.cy2 += ny * tRes; }
+				} else if (p.route === 'cornered') {
+					const res = (fRes + tRes) / 2;
+					if (Math.abs(res) > 0.5) {
+						// The middle run is horizontal for vertical exits (shift in y) and
+						// vertical for side exits (shift in x); project the normal on that axis.
+						const verticalExit = p.fromEdge === 'top' || p.fromEdge === 'bottom';
+						const axisComp = verticalExit ? ny : nx;
+						if (Math.abs(axisComp) > 0.2) p.routeShift += res * Math.sign(axisComp);
+					}
+				}
 
 				refreshPathCurve(p);
 			}
@@ -2844,6 +3111,45 @@
 
 
 
+	/**
+	 * Connect menu → Curved / Straight / Cornered Connection. Applies the chosen route to
+	 * EVERY selected connection (like the note-side items), redraws instantly via
+	 * routeOverrides, persists each, then drops the overrides once data refreshes.
+	 * @param {CustomEvent<{ route: LineRoute }>} event
+	 */
+	function handleSetRoute(event) {
+		const route = normalizeRoute(event.detail?.route);
+		const ids = [...selectedPathIds].filter(id => connections.some(c => c.id === id));
+		if (ids.length === 0) return;
+
+		const overrides = { ...routeOverrides };
+		for (const id of ids) overrides[id] = route;
+		routeOverrides = overrides;
+		scheduleCalculate();
+
+		Promise.all(
+			ids.map(async id => {
+				try {
+					const response = await fetch(`/api/segments/connections/${id}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ lineRoute: route })
+					});
+					if (!response.ok) console.error('Connection line route save error:', await response.json());
+				} catch (err) {
+					console.error('Connection line route save network error:', err);
+				}
+			})
+		)
+			.then(() => invalidate('app:studies'))
+			.finally(() => {
+				const rest = { ...routeOverrides };
+				for (const id of ids) delete rest[id];
+				routeOverrides = rest;
+				scheduleCalculate();
+			});
+	}
+
 	// ─── Reactivity ──────────────────────────────────────────────────────────
 
 	$effect(() => {
@@ -2916,6 +3222,7 @@
 		window.addEventListener('connection-insert-note', handleInsertConnectionNote);
 		window.addEventListener('connection-remove-note', handleRemoveConnectionNote);
 		window.addEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
+		window.addEventListener('connection-set-route', /** @type {EventListener} */ (handleSetRoute));
 		// Structure → "Select All Connections": select every currently visible line.
 		window.addEventListener('select-all-connections', handleSelectAllConnections);
 		// Auto-select a freshly inserted connection (dispatched by the analyze page).
@@ -2954,6 +3261,7 @@
 		window.removeEventListener('connection-insert-note', handleInsertConnectionNote);
 		window.removeEventListener('connection-remove-note', handleRemoveConnectionNote);
 		window.removeEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
+		window.removeEventListener('connection-set-route', /** @type {EventListener} */ (handleSetRoute));
 		window.removeEventListener('select-all-connections', handleSelectAllConnections);
 		window.removeEventListener('select-connection', /** @type {EventListener} */ (handleSelectConnection));
 		window.removeEventListener('analyze-layout-changed', handleLayoutChanged);

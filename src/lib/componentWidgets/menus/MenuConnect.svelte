@@ -7,6 +7,7 @@
 	 *   (moved out of MenuStructure so that menu stays focused on split/join/move).
 	 * - Connection Quick Note — add a note to the selected connection (auto-reveals
 	 *   connection notes if hidden). Text/segment notes live in the Markup menu.
+	 * - Line route — Curved / Straight / Cornered for every selected connection.
 	 * - Quick-note placement — once a connection has a quick note, fine-tune where
 	 *   that note card sits relative to its anchor dot. These items only apply to a
 	 *   single selected connection that actually has a note (see noteSideDisabled).
@@ -68,6 +69,16 @@
 	function setNoteSide(side) {
 		closeMenu();
 		window.dispatchEvent(new CustomEvent('connection-note-set-side', { detail: { side } }));
+	}
+
+	/**
+	 * Set how the selected connection line(s) are drawn. ConnectionsOverlay
+	 * listens for this event (handleSetRoute) and applies it to every selection.
+	 * @param {'curved'|'straight'|'cornered'} route
+	 */
+	function setRoute(route) {
+		closeMenu();
+		window.dispatchEvent(new CustomEvent('connection-set-route', { detail: { route } }));
 	}
 
 	// The note placement items (Side / Slide / Position / Offset) apply to EVERY
@@ -150,6 +161,38 @@
 
 		}}
 		isDisabled={quickNoteDisabled}
+	/>
+
+	<DividerHorizontal />
+
+	<!-- Connection line route: how the selected line(s) are drawn between their
+	     anchors. Applies to every selected connection. Anchors are chosen the same
+	     way for all three; only the drawing between them changes. -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect-curved"
+		label="Curved Connection"
+		role="menuitem"
+		handleClick={() => setRoute('curved')}
+		isDisabled={!$toolbarState.hasActiveConnection}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect-straight"
+		label="Straight Connection"
+		role="menuitem"
+		handleClick={() => setRoute('straight')}
+		isDisabled={!$toolbarState.hasActiveConnection}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect-cornered"
+		label="Cornered Connection"
+		role="menuitem"
+		handleClick={() => setRoute('cornered')}
+		isDisabled={!$toolbarState.hasActiveConnection}
 	/>
 
 
