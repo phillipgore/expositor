@@ -76,7 +76,11 @@ psql "$DATABASE_URL" -At -c "
   union all
   select 'user.chapters: ' || coalesce(string_agg(column_name, ','), 'NONE')
     from information_schema.columns
-   where table_name='user' and column_name in ('chapters_visible','document_chapters_visible');"
+   where table_name='user' and column_name in ('chapters_visible','document_chapters_visible')
+  union all
+  select 'passage.word: ' || coalesce(string_agg(column_name, ','), 'NONE')
+    from information_schema.columns
+   where table_name='passage' and column_name in ('from_word','to_word');"
 ```
 
 | Result | Means |

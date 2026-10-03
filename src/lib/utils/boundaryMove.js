@@ -27,6 +27,12 @@
  */
 
 import { getVerseCount } from './bibleData.js';
+import {
+	parseWordIdParts,
+	comparePositions,
+	rangeStartPosition,
+	isNonEmptyRange
+} from './wordIds.js';
 
 /** Book id from either spelling. DB rows carry `bookId`; in-memory ranges carry `book`. */
 function bookOf(range) {
@@ -34,23 +40,33 @@ function bookOf(range) {
 }
 
 /**
- * Parse a `BOOK-CHAPTER-VERSE-WORD` id into its chapter and verse.
+ * Parse a `BOOK-CHAPTER-VERSE-WORD` id into its chapter, verse and word.
  *
- * ⚠️ Only chapter and verse are read. The word index is deliberately ignored: passage ranges are
- * verse-granular (`fromVerse`/`toVerse`), so a boundary landing mid-verse still moves the whole verse.
- * A segment may legitimately begin mid-verse — `passageReconcile.js` says so explicitly — which means
- * a move can put a passage boundary inside a verse that both parts partly display. Recorded rather
- * than silently truncated: the range arithmetic below rounds to whole verses, and the structure keeps
- * its exact word anchor, so the *rendering* stays correct while the range stays verse-granular.
+ * The word index is READ, not ignored. Until passage ranges carried word bounds (migration 0048), a
+ * boundary landing mid-verse was rounded to the whole verse, and both parts ended up partly displaying
+ * the same verse. Ranges now carry `fromWord` / `toWord`, so the boundary is kept exactly.
  */
 function parseAnchor(wordId) {
-	if (typeof wordId !== 'string') return null;
-	const parts = wordId.split('-');
-	if (parts.length < 3) return null;
-	const chapter = parseInt(parts[1], 10);
-	const verse = parseInt(parts[2], 10);
-	if (!Number.isFinite(chapter) || !Number.isFinite(verse)) return null;
-	return { chapter, verse };
+	const p = parseWordIdParts(wordId);
+	if (!p) return null;
+	return { chapter: p.chapter, verse: p.verse, word: p.word };
+}
+
+/**
+ * Verses covered by a PAIR of abutting-or-not ranges, counting a verse that the seam divides once.
+ *
+ * `countVerses` counts every verse a range touches, so a verse split between two parts appears in
+ * both. That is right for licence counting (each part displays some of it) but wrong for
+ * conservation, where it would make a mid-verse move look like it invented a verse.
+ */
+function pairCoverage(a, b) {
+	const shared =
+		bookOf(a) === bookOf(b) &&
+		a.toChapter === b.fromChapter &&
+		a.toVerse === b.fromVerse
+			? 1
+			: 0;
+	return countVerses(a) + countVerses(b) - shared;
 }
 
 /** The (chapter, verse) immediately before this one, or null at the start of the book. */
@@ -122,49 +138,62 @@ export function planBoundaryShift({ before, after, newBoundaryWordId }) {
 	const anchor = parseAnchor(newBoundaryWordId);
 	if (!anchor) return fail('The new boundary could not be read as a position in the text.');
 
-	// The earlier passage now ends at the verse before the boundary.
-	const end = previousVerse(before.testament, book, anchor.chapter, anchor.verse);
-	if (!end) {
-		return fail('The new boundary would leave the earlier passage with no verses.');
+	// Where the earlier passage now ends. On word 1 of a verse the seam falls BETWEEN verses, so the
+	// earlier passage takes the whole previous verse (toWord null). Anywhere else the seam falls INSIDE
+	// the anchor's verse: the earlier passage keeps its words before the anchor, and the later passage
+	// starts at the anchor word. Word ids number words within a verse, so `word - 1` is always the
+	// word before — no word count is needed.
+	let newBefore;
+	let newAfter;
+	if (anchor.word > 1) {
+		newBefore = {
+			...before,
+			toChapter: anchor.chapter,
+			toVerse: anchor.verse,
+			toWord: anchor.word - 1
+		};
+		newAfter = {
+			...after,
+			fromChapter: anchor.chapter,
+			fromVerse: anchor.verse,
+			fromWord: anchor.word
+		};
+	} else {
+		const end = previousVerse(before.testament, book, anchor.chapter, anchor.verse);
+		if (!end) {
+			return fail('The new boundary would leave the earlier passage with no verses.');
+		}
+		newBefore = { ...before, toChapter: end.chapter, toVerse: end.verse, toWord: null };
+		newAfter = {
+			...after,
+			fromChapter: anchor.chapter,
+			fromVerse: anchor.verse,
+			fromWord: null
+		};
 	}
-
-	const newBefore = {
-		...before,
-		toChapter: end.chapter,
-		toVerse: end.verse
-	};
-	const newAfter = {
-		...after,
-		fromChapter: anchor.chapter,
-		fromVerse: anchor.verse
-	};
 
 	// Neither passage may be emptied. A boundary move relocates content between two parts; a move that
 	// consumes one of them entirely is a Join Parts, which is a different command with a different
 	// confirmation — and performing it under this name would delete a part the user did not ask to
-	// lose. Refused rather than silently promoted.
-	if (
-		newBefore.fromChapter > newBefore.toChapter ||
-		(newBefore.fromChapter === newBefore.toChapter && newBefore.fromVerse > newBefore.toVerse)
-	) {
+	// lose. Refused rather than silently promoted. Compared at word level, so a part left with only
+	// the first few words of a verse is legal and a part left with none is not.
+	if (!isNonEmptyRange(newBefore)) {
 		return fail(
-			'That would move every verse out of the earlier part. Use Join Parts to merge them instead.'
+			'That would move all the text out of the earlier part. Use Join Parts to merge them instead.'
 		);
 	}
-	if (
-		newAfter.fromChapter > newAfter.toChapter ||
-		(newAfter.fromChapter === newAfter.toChapter && newAfter.fromVerse > newAfter.toVerse)
-	) {
+	if (!isNonEmptyRange(newAfter)) {
 		return fail(
-			'That would move every verse out of the later part. Use Join Parts to merge them instead.'
+			'That would move all the text out of the later part. Use Join Parts to merge them instead.'
 		);
 	}
 
 	// Verse conservation, asserted rather than assumed: the two new ranges must together cover exactly
 	// what the two old ones did. If this ever fails, a boundary move has invented or destroyed verses
-	// and §10.1's "export is provably unaffected" no longer holds.
-	const oldTotal = countVerses(before) + countVerses(after);
-	const newTotal = countVerses(newBefore) + countVerses(newAfter);
+	// and §10.1's "export is provably unaffected" no longer holds. Counted per PAIR so a verse the seam
+	// divides is counted once on both sides of the comparison.
+	const oldTotal = pairCoverage(before, after);
+	const newTotal = pairCoverage(newBefore, newAfter);
 	if (oldTotal !== newTotal) {
 		return fail(
 			`Refusing the move: it would change the verses covered (${oldTotal} → ${newTotal}).`
@@ -190,10 +219,7 @@ export function planBoundaryShift({ before, after, newBoundaryWordId }) {
 	// §10.1: "All three Joins fold backwards, so they grow part n−1. moveSegmentTextUp grows the
 	// previous item; moveSegmentTextDown the next." So 'backward' is the Joins and Move Text Up, and
 	// the receiver is `before`; 'forward' is Move Text Down, and the receiver is `after`.
-	const boundaryDelta =
-		anchor.chapter !== after.fromChapter
-			? anchor.chapter - after.fromChapter
-			: anchor.verse - after.fromVerse;
+	const boundaryDelta = comparePositions(anchor, rangeStartPosition(after));
 
 	const direction = boundaryDelta > 0 ? 'backward' : boundaryDelta < 0 ? 'forward' : 'none';
 

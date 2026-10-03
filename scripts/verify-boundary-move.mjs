@@ -229,19 +229,58 @@ const bookStart = planBoundaryShift({
 });
 assert('a boundary at the very first verse of the book is refused', !bookStart.ok);
 
-console.log('\n── the word index is ignored: ranges are verse-granular ──');
+console.log('\n── the word index is KEPT: ranges are word-granular (migration 0048) ──');
 
-// A segment may legitimately begin mid-verse, so a boundary can land on word 7 of a verse. The range
-// still moves the WHOLE verse; the structure keeps its exact word anchor. Asserted so that a future
-// change to verse-granularity is a deliberate decision rather than an accident.
+// A boundary on word 7 of 2:15 used to be rounded to the whole verse, leaving both parts partly
+// displaying 2:15. It now divides the verse: the earlier part ends at word 6, the later begins at 7.
 const midVerse = planBoundaryShift({ before, after, newBoundaryWordId: w(2, 15, 7) });
 assert('accepted', midVerse.ok);
 check(
-	'and lands on the same verse boundary as word 1',
-	`${midVerse.after.fromChapter}:${midVerse.after.fromVerse}`,
-	'2:15'
+	'the earlier part ends at 2:15 word 6',
+	`${midVerse.before.toChapter}:${midVerse.before.toVerse}.${midVerse.before.toWord}`,
+	'2:15.6'
 );
-check('with the same verse count moved', midVerse.versesMoved, back.versesMoved);
+check(
+	'the later part starts at 2:15 word 7',
+	`${midVerse.after.fromChapter}:${midVerse.after.fromVerse}.${midVerse.after.fromWord}`,
+	'2:15.7'
+);
+check('word 1 still lands between verses (no word bounds)', back.after.fromWord, null);
+check('and leaves the earlier end whole-verse', back.before.toWord, null);
+assert('a mid-verse move is still direction "forward"', midVerse.direction === 'forward');
+
+// Moving the seam back to a verse line clears the word bounds on both sides.
+const reset = planBoundaryShift({
+	before: midVerse.before,
+	after: midVerse.after,
+	newBoundaryWordId: w(2, 16)
+});
+assert('a mid-verse pair can move back to a verse line', reset.ok);
+check('clearing toWord', reset.before.toWord, null);
+check('and fromWord', reset.after.fromWord, null);
+
+// Moving within the shared verse: word 7 → word 3.
+const within = planBoundaryShift({
+	before: midVerse.before,
+	after: midVerse.after,
+	newBoundaryWordId: w(2, 15, 3)
+});
+assert('a seam can move within the shared verse', within.ok);
+check('earlier ends at word 2', within.before.toWord, 2);
+check('later starts at word 3', within.after.fromWord, 3);
+assert('content moved forward', within.direction === 'forward');
+
+// A later part that is only words 7.. of its single verse: moving its seam to word 8 is fine; past
+// the verse's last word cannot be expressed by a word id that exists, but the start-of-part guard
+// still refuses emptying via the next verse.
+const tiny = { ...ro(2, 15, 2, 15), fromWord: 7 };
+const swallow = planBoundaryShift({
+	before: midVerse.before,
+	after: tiny,
+	newBoundaryWordId: w(2, 16)
+});
+assert('emptying a one-verse mid-verse part is refused', !swallow.ok);
+assert('pointing at Join Parts', /Join Parts/.test(swallow.error));
 
 console.log('\n── countVerses sums real chapter lengths ──');
 

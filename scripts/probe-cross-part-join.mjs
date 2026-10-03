@@ -578,6 +578,66 @@ try {
 		WHERE sec.id LIKE ${PREFIX + '%'} AND col.id IS NULL
 	`;
 	check('no section lost its column', orphanSections[0].n, 0);
+
+	// ── Word-level boundary (migration 0048): a join that ends MID-VERSE ──────
+	//
+	// Part B's first segment (3:1) is joined back; the first segment that stays begins at 3:10 WORD 5.
+	// Before word bounds the boundary was rounded to 3:10, and both parts displayed the whole of 3:10.
+	// Now part A must end at 3:10 word 4 and part B must begin at 3:10 word 5 — every word of 3:10
+	// owned by exactly one part.
+	console.log('\n── word-level: a cross-part join whose boundary falls INSIDE a verse ──');
+
+	await sql`DELETE FROM study WHERE id LIKE ${PREFIX + '%'}`;
+	await sql`DELETE FROM study_series WHERE id LIKE ${PREFIX + '%'}`;
+
+	const s4 = id('s4-series');
+	const s4A = id('s4-partA');
+	const s4B = id('s4-partB');
+	const s4PA = id('s4-passA');
+	const s4PB = id('s4-passB');
+	await sql`INSERT INTO study_series (id, name, user_id, created_at, updated_at) VALUES (${s4}, 'Probe word', ${owner.id}, now(), now())`;
+	await sql`INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at) VALUES (${s4A}, 'A', 'esv', ${owner.id}, ${s4}, 0, now(), now())`;
+	await sql`INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at) VALUES (${s4B}, 'B', 'esv', ${owner.id}, ${s4}, 1, now(), now())`;
+	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${s4PA}, ${s4A}, 'NT', 'RO', 'Romans', 1, 1, 2, 29, 0, now())`;
+	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${s4PB}, ${s4B}, 'NT', 'RO', 'Romans', 3, 1, 4, 25, 0, now())`;
+	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s4-colA')}, ${s4PA}, ${w(1, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s4-secA')}, ${id('s4-colA')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s4-a1')}, ${id('s4-secA')}, ${w(1, 1)}, 'A1', now(), now())`;
+	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s4-colB')}, ${s4PB}, ${w(3, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s4-secB')}, ${id('s4-colB')}, ${w(3, 1)}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s4-b1')}, ${id('s4-secB')}, ${w(3, 1)}, 'B1', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s4-b2')}, ${id('s4-secB')}, ${w(3, 10, 5)}, 'B2', now(), now())`;
+
+	const wordPlan = await analyzeCrossPartJoin(db, owner.id, s4PB, id('s4-b1'), 'segment');
+	assert('the mid-verse join is available', wordPlan.ok === true);
+	await joinAcrossBoundary(db, owner.id, s4PB, id('s4-b1'), 'merge', 'segment');
+
+	const [wA] = await sql`SELECT to_chapter, to_verse, to_word, from_word FROM passage WHERE id = ${s4PA}`;
+	const [wB] = await sql`SELECT from_chapter, from_verse, from_word, to_word FROM passage WHERE id = ${s4PB}`;
+	check('part A ends at 3:10 word 4', `${wA.to_chapter}:${wA.to_verse}.${wA.to_word}`, '3:10.4');
+	check('part A still starts whole-verse', wA.from_word, null);
+	check('part B starts at 3:10 word 5', `${wB.from_chapter}:${wB.from_verse}.${wB.from_word}`, '3:10.5');
+	check('part B still ends whole-verse', wB.to_word, null);
+
+	// Every word of 3:10 is owned by exactly one part — the property the rounding used to break.
+	const { isWordInRange } = await import('../src/lib/utils/wordIds.js');
+	const rangeA = { fromChapter: 1, fromVerse: 1, fromWord: null, toChapter: wA.to_chapter, toVerse: wA.to_verse, toWord: wA.to_word };
+	const rangeB = { fromChapter: wB.from_chapter, fromVerse: wB.from_verse, fromWord: wB.from_word, toChapter: 4, toVerse: 25, toWord: wB.to_word };
+	let owners = 0;
+	for (let word = 1; word <= 30; word += 1) {
+		const wid = w(3, 10, word);
+		const n = (isWordInRange(wid, rangeA) ? 1 : 0) + (isWordInRange(wid, rangeB) ? 1 : 0);
+		if (n === 1) owners += 1;
+	}
+	check('each of the first 30 words of 3:10 has exactly one owner', owners, 30);
+
+	const [b2] = await sql`
+		SELECT p.id AS passage_id FROM passage_segment s
+		JOIN passage_section sec ON s.passage_section_id = sec.id
+		JOIN passage_column col ON sec.passage_column_id = col.id
+		JOIN passage p ON col.passage_id = p.id WHERE s.id = ${id('s4-b2')}`;
+	check('the staying segment is still in part B', b2?.passage_id, s4PB);
+
 } catch (error) {
 	fail += 1;
 	console.log(`\n✗ threw: ${error.message}`);

@@ -259,6 +259,15 @@ export const passage = pgTable('passage', {
 	toChapter: integer('to_chapter').notNull(),
 	fromVerse: integer('from_verse').notNull(),
 	toVerse: integer('to_verse').notNull(),
+	/**
+	 * Word-level bounds (migration 0048). A part may begin or end part-way through a verse.
+	 * `fromWord` is the first word of the first verse (NULL = word 1); `toWord` is the last word of
+	 * the last verse (NULL = to the end of that verse). NULL means whole-verse, so pre-existing rows
+	 * are unchanged. Text is still fetched and cached per whole verse; the loader clips it to these.
+	 * Compare edges only through `$lib/utils/wordIds.js` (`rangeStartPosition` / `rangeEndPosition`).
+	 */
+	fromWord: integer('from_word'),
+	toWord: integer('to_word'),
 	displayOrder: integer('display_order').notNull().default(0),
 	// Cached, fully-processed passage text (post-wrapWords HTML). NULL = not yet
 	// cached; the loader fetches live and lazily backfills this on first read. The

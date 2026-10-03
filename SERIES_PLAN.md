@@ -92,9 +92,8 @@ fire".
 and all surfaced to the user rather than hidden:
 
 1. **A cross-part Move Text requires the caret at the start of a verse** — segment anchors are
-   word-granular, passage ranges are verse-granular, and the mismatch cannot be represented across a
-   part boundary. Refused with a reason; fixing it properly means word-granular ranges, a schema change
-   outside §8's scope.
+   word-granular and passage ranges were verse-granular. Ranges became word-granular in stage 1 of
+   "Word-granular parts" (migration 0048); the refusal is lifted in stage 2.
 2. ~~**Cross-part connections are deleted, not preserved**~~ — **resolved in phase 3.** Strategy (b)
    has been replaced by (c): the connection survives, stamped with `seriesId`, and each part draws a
    labelled edge stub. Left visible rather than deleted because a reader who remembers the old
@@ -218,13 +217,44 @@ they were **rewritten rather than routed** — §8 already said so, and the reas
 join is a _different_ operation while a cross-part text move is the _same_ operation over a wider
 scope, so routing would have duplicated `moveSegmentTextDown`'s tree walk rather than widening it.
 
-⚠️ **A cross-part Move Text requires the caret at the start of a verse.** Segment anchors are
-word-granular; passage ranges are verse-granular. Inside one passage that mismatch is harmless — both
-segments render from the same text. Across a part boundary it is not: a caret at `RO-003-001-005`
-yields a boundary of exactly 3:1, dropping the word offset, so one part would claim words 1–4 of a
-verse the other owns entirely. Refused with a reason directing the user to move to a verse boundary
-within the part first. Making passage ranges word-granular would fix it and is a schema change well
-outside §8's scope.
+⚠️ **A cross-part Move Text requires the caret at the start of a verse — until stage 2 of
+word-granular parts.** Segment anchors are word-granular; passage ranges were verse-granular, so a
+caret at `RO-003-001-005` yielded a boundary of exactly 3:1, dropping the word offset. **Stage 1 has
+made ranges word-granular** (see "Word-granular parts" below); the refusal is kept for one more stage
+only so the foundation ships without changing what the command accepts.
+
+### Word-granular parts (stage 1 — foundation, shipped)
+
+A part may begin or end part-way through a verse. Decided because Split Part and the cross-part
+commands work from the caret, and the caret is a word; series *creation* and the series edit flow
+stay on chapter/verse lines.
+
+- **Schema (migration 0048):** `passage.from_word` / `passage.to_word`, nullable. NULL = whole verse,
+  so existing rows are unchanged. Word ids number words *within a verse*, so "the word before word 1
+  of 5:1" is simply (4:19, `to_word` NULL) — no word counts are needed anywhere.
+- **One ordering rule:** `wordIds.js` — `rangeStartPosition` / `rangeEndPosition` /
+  `comparePositions` / `isWordInRange` / `rangeEndWordId`. Range edges are compared only through these.
+- **Boundary moves keep the word:** `planBoundaryShift()` no longer rounds. A mid-verse anchor ends
+  the earlier part at word − 1 and starts the later part at the word; a word-1 anchor is a verse
+  seam as before. Conservation is counted per pair, so the divided verse is counted once. This fixed
+  a live inconsistency: a cross-part Join whose boundary fell mid-verse left BOTH parts displaying
+  the whole verse.
+- **Adjacency:** `classifyBoundary()` treats 4:12 word 4 → 4:12 word 5 as contiguous, a shared word
+  as overlap, a skipped word as a gap. `coalesceRanges` and Join Parts close a divided verse back up.
+- **Display:** text is still fetched and cached per whole verse (cache keyed by verse range); the
+  study loader clips it once with `clipPassageHtml()`. The partial verse carries `data-partial`, and
+  its number reads `12a` / `12b` — the same convention as a verse subdivided between segments.
+- **Labels:** `formatPassageReference` → "1 Peter 4:1-12a" / "4:12b-5:14". The Analyze and Document
+  pages now use the shared formatter instead of private copies.
+- **Licence counts stay whole-verse** (`translationLimits.js`): a divided verse counts in both parts.
+  Deliberate — it is the conservative direction.
+- **Series edit refuses mid-verse parts** (`describeMidVerseBlock`, enforced in `analyze-edit` and
+  `reserialize`): re-dividing on verse lines would silently round a user's split away. The user joins
+  the parts back to a verse line first.
+
+**Stage 2 (next):** Split Part splits at the caret word (enabled when a word is selected that is not
+the part's first); the confirmation shows both resulting references; the chapter dropdown goes. The
+cross-part Move Text verse-start refusal is removed.
 
 ⚠️ **No structure changes parent during a Move Text, and that is a conclusion, not an omission.**
 Because the boundary is derived from the caret, the moved verses always land inside the range of the

@@ -21,8 +21,10 @@ function referenceFor(ranges) {
 		bookName: first.bookName ?? first.bookId ?? first.book,
 		fromChapter: first.fromChapter,
 		fromVerse: first.fromVerse,
+		fromWord: first.fromWord ?? null,
 		toChapter: last.toChapter,
-		toVerse: last.toVerse
+		toVerse: last.toVerse,
+		toWord: last.toWord ?? null
 	});
 }
 
@@ -336,6 +338,8 @@ async function commitJoin({
 					toChapter: range.toChapter,
 					fromVerse: range.fromVerse,
 					toVerse: range.toVerse,
+					fromWord: range.fromWord ?? null,
+					toWord: range.toWord ?? null,
 					displayOrder: i,
 					// Keyed by the verse range, so a widened passage must refetch its text.
 					cachedText: null,

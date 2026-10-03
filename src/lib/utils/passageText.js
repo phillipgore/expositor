@@ -15,6 +15,56 @@
  * streamed content resolves), so that's fine.
  */
 
+import { isWordInRange, startsMidVerse, endsMidVerse } from './wordIds.js';
+
+/**
+ * Clip a passage's whole-verse HTML to its word-level bounds (migration 0048).
+ *
+ * Text is fetched and cached per whole verse (the cache is keyed by verse range), so a part that
+ * begins or ends part-way through a verse receives the whole verse and must drop the words it does
+ * not own. Word ids are unchanged by clipping, so selection, segments and connections keep working.
+ *
+ * The partial verse is marked `data-partial="b"` (it starts mid-verse — the later half) or
+ * `data-partial="a"` (it ends mid-verse — the earlier half), which `extractSegmentText` reads to put
+ * the suffix on the verse number, matching the reference labels from `formatPassageReference`.
+ *
+ * ⚠️ Pure string work, no DOM: this runs in the server loader. It relies on the shape `wrapWords()`
+ * produces — `<span class="word" data-word-id="…">text</span>` with no nested tags — which is the
+ * same contract `getParsedPassage` relies on in the browser. A range with null word bounds is
+ * returned untouched, so every existing passage is unaffected.
+ *
+ * @param {string} html - Whole-verse passage HTML
+ * @param {{ fromChapter:number, fromVerse:number, fromWord?:number|null, toChapter:number, toVerse:number, toWord?:number|null }} range
+ * @returns {string}
+ */
+export function clipPassageHtml(html, range) {
+	if (!html || !range) return html;
+	const clipStart = startsMidVerse(range);
+	const clipEnd = endsMidVerse(range);
+	if (!clipStart && !clipEnd) return html;
+
+	let out = html.replace(
+		/\s*<span class="word" data-word-id="([^"]+)">[^<]*<\/span>/g,
+		(match, wordId) => (isWordInRange(wordId, range) ? match : '')
+	);
+
+	const pad = (n) => String(n).padStart(3, '0');
+	const mark = (chapter, verse, letter) => {
+		const re = new RegExp(`<span class="verse" data-verse-id="([^"]+-${pad(chapter)}-${pad(verse)})">`);
+		out = out.replace(re, `<span class="verse" data-verse-id="$1" data-partial="${letter}">`);
+	};
+	// Mark the end first so a single verse clipped at both ends ends up "b" (its later portion is
+	// what a reader most needs flagged as not starting at the verse's beginning).
+	if (clipEnd) mark(range.toChapter, range.toVerse, 'a');
+	if (clipStart) {
+		const re = new RegExp(
+			`(<span class="verse" data-verse-id="[^"]+-${pad(range.fromChapter)}-${pad(range.fromVerse)}")(?: data-partial="a")?>`
+		);
+		out = out.replace(re, '$1 data-partial="b">');
+	}
+	return out;
+}
+
 /**
  * Build a verse → segment-count map. Counts how many segments START within each
  * verse, which is how we detect a verse that has been subdivided across multiple
@@ -251,8 +301,19 @@ export function extractSegmentText(
 
 						// Determine if we need a suffix
 						const isSection = verseSectionMap && verseSectionMap[verseId] > 1;
+						// A verse the part boundary divides (see clipPassageHtml).
+						const partial = verseSpan.getAttribute('data-partial') ?? '';
 
-						if (isSection) {
+						if (partial && !isSection) {
+							verseBuffer.push(
+								`${paragraphMarkerHtml}${buildChapterVerseHtml(
+									chapterVerseText,
+									partial,
+									isPassageFirstVerse,
+									partial === 'b' && !isPassageFirstVerse
+								)}`
+							);
+						} else if (isSection) {
 							// Initialize counter for this verse if we haven't seen it yet
 							if (verseOccurrences[verseId] === undefined) {
 								verseOccurrences[verseId] = 0;

@@ -56,8 +56,10 @@ function normalise(range) {
 		bookName: range.bookName ?? range.bookId ?? range.book ?? null,
 		fromChapter: range.fromChapter,
 		fromVerse: range.fromVerse,
+		fromWord: range.fromWord ?? null,
 		toChapter: range.toChapter,
-		toVerse: range.toVerse
+		toVerse: range.toVerse,
+		toWord: range.toWord ?? null
 	};
 }
 

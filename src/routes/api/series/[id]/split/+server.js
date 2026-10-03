@@ -102,6 +102,8 @@ async function applyRanges(tx, studyId, ranges, existingRows, now) {
 			toChapter: range.toChapter,
 			fromVerse: range.fromVerse,
 			toVerse: range.toVerse,
+			fromWord: range.fromWord ?? null,
+			toWord: range.toWord ?? null,
 			displayOrder: i,
 			// Cleared, not carried: see above.
 			cachedText: null,

@@ -65,6 +65,24 @@ export function classifyBoundary(before, after) {
 		return 'different-books';
 	}
 
+	// ── A seam INSIDE one verse (word-granular parts, migration 0048) ──
+	//
+	// The two ranges meet in the same verse. They are contiguous exactly when the earlier one stops on
+	// a word and the later one starts on the very next word; any other arrangement in a shared verse
+	// either overlaps (both claim some word) or leaves words to neither (a gap).
+	if (start.fromChapter === end.toChapter && start.fromVerse === end.toVerse) {
+		const endWord = end.toWord ?? Infinity;
+		const startWord = start.fromWord ?? 1;
+		if (startWord <= endWord) return 'overlap';
+		return startWord === endWord + 1 ? 'contiguous' : 'gap';
+	}
+
+	// A range that stops part-way through a verse can only be continued inside that same verse, which
+	// was handled above. Likewise one that starts part-way through. Either way, from here on any
+	// partial edge means words are left to nobody.
+	const endsMidVerse = end.toWord !== null && end.toWord !== undefined;
+	const startsMidVerse = (start.fromWord ?? 1) > 1;
+
 	const endsBefore =
 		start.fromChapter < end.toChapter ||
 		(start.fromChapter === end.toChapter && start.fromVerse <= end.toVerse);
@@ -72,6 +90,8 @@ export function classifyBoundary(before, after) {
 	// The later part begins at or before the earlier one ends: Rom 1–3 then Rom 3–5. Q40 has not
 	// decided what this means for runs, so it is reported as its own state rather than guessed at.
 	if (endsBefore) return 'overlap';
+
+	if (endsMidVerse || startsMidVerse) return 'gap';
 
 	// Immediately next verse, same chapter.
 	if (start.fromChapter === end.toChapter && start.fromVerse === end.toVerse + 1) {
@@ -289,7 +309,10 @@ function sortedPassages(part) {
 	if (!Array.isArray(passages) || passages.length === 0) return [];
 
 	return [...passages].sort(
-		(a, b) => a.fromChapter - b.fromChapter || a.fromVerse - b.fromVerse
+		(a, b) =>
+			a.fromChapter - b.fromChapter ||
+			a.fromVerse - b.fromVerse ||
+			(a.fromWord ?? 1) - (b.fromWord ?? 1)
 	);
 }
 
@@ -315,7 +338,9 @@ function normalizeRange(passage) {
 		bookName: passage.bookName ?? passage.bookId ?? passage.book,
 		fromChapter: passage.fromChapter,
 		fromVerse: passage.fromVerse,
+		fromWord: passage.fromWord ?? null,
 		toChapter: passage.toChapter,
-		toVerse: passage.toVerse
+		toVerse: passage.toVerse,
+		toWord: passage.toWord ?? null
 	};
 }

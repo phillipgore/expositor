@@ -5,7 +5,12 @@ import { auth } from '$lib/server/auth.js';
 import { eq, and, asc, inArray } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { classifyExtent, projectExtent } from '$lib/utils/seriesExtent.js';
-import { fingerprintParts, recomposePassages, diffSeams } from '$lib/utils/seriesSeams.js';
+import {
+	fingerprintParts,
+	recomposePassages,
+	diffSeams,
+	describeMidVerseBlock
+} from '$lib/utils/seriesSeams.js';
 import { applyPassageRangeChange, rangeFirstWordId } from '$lib/server/db/passageReconcile.js';
 import {
 	renumberForRemoval,
@@ -98,6 +103,11 @@ export const POST = async ({ request, params }) => {
 		if (parts.length === 0) {
 			return json({ error: 'This series has no parts' }, { status: 404 });
 		}
+
+		// Enforced at the commit as well as the analysis: rebuilding parts here would round a mid-verse
+		// edge to a whole verse, silently undoing a split the user made. See describeMidVerseBlock.
+		const midVerse = describeMidVerseBlock(parts);
+		if (midVerse) return json({ error: midVerse, midVerse: true }, { status: 409 });
 
 		// ── Staleness ────────────────────────────────────────────────────────
 		//

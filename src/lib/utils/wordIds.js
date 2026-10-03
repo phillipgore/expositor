@@ -50,3 +50,122 @@ export function compareWordIds(wordId1, wordId2) {
 
 	return 0;
 }
+
+// ── Word-level passage bounds (SERIES_PLAN §8, word-granular parts) ─────────────────────────────
+//
+// A passage row's range is (fromChapter, fromVerse) → (toChapter, toVerse), plus two nullable word
+// indices: `fromWord` (first word of the first verse; null = word 1) and `toWord` (last word of the
+// last verse; null = to the end of that verse). Null-means-whole-verse is what lets every existing
+// row stay valid untouched, and what lets "the word before word 1 of 5:1" be written without knowing
+// how many words 4:19 has: it is simply (4, 19, null).
+//
+// Positions below are `{ chapter, verse, word }`, where `word` may be `Infinity` for "end of verse".
+// Every comparison of a range edge in the app should go through these, so the rule lives once.
+
+/** Parse `BOOK-CCC-VVV-WWW` into its numeric parts, or null if it is not one. */
+export function parseWordIdParts(wordId) {
+	if (typeof wordId !== 'string') return null;
+	const parts = wordId.split('-');
+	if (parts.length !== 4) return null;
+	const chapter = parseInt(parts[1], 10);
+	const verse = parseInt(parts[2], 10);
+	const word = parseInt(parts[3], 10);
+	if (![chapter, verse, word].every(Number.isFinite)) return null;
+	return { book: parts[0], chapter, verse, word };
+}
+
+/** Is a word-bound value present (i.e. the edge falls inside a verse)? */
+function hasWord(value) {
+	return value !== null && value !== undefined;
+}
+
+/** First position a range covers. */
+export function rangeStartPosition(range) {
+	return {
+		chapter: range.fromChapter,
+		verse: range.fromVerse,
+		word: hasWord(range.fromWord) ? range.fromWord : 1
+	};
+}
+
+/** Last position a range covers (`word: Infinity` when it runs to the end of its last verse). */
+export function rangeEndPosition(range) {
+	return {
+		chapter: range.toChapter,
+		verse: range.toVerse,
+		word: hasWord(range.toWord) ? range.toWord : Infinity
+	};
+}
+
+/** Order two positions. Negative if a < b, 0 if equal, positive if a > b. */
+export function comparePositions(a, b) {
+	if (a.chapter !== b.chapter) return a.chapter - b.chapter;
+	if (a.verse !== b.verse) return a.verse - b.verse;
+	if (a.word === b.word) return 0;
+	return a.word < b.word ? -1 : 1;
+}
+
+/** Does the range start part-way through its first verse? */
+export function startsMidVerse(range) {
+	return hasWord(range?.fromWord) && range.fromWord > 1;
+}
+
+/** Does the range stop part-way through its last verse? */
+export function endsMidVerse(range) {
+	return hasWord(range?.toWord);
+}
+
+/** Does this range start or end inside a verse? */
+export function hasPartialVerse(range) {
+	return startsMidVerse(range) || endsMidVerse(range);
+}
+
+/** Is a range non-empty — does its start come no later than its end? */
+export function isNonEmptyRange(range) {
+	return comparePositions(rangeStartPosition(range), rangeEndPosition(range)) <= 0;
+}
+
+/**
+ * Is `wordId` inside `range`? Book is not compared (ranges never span books, and this mirrors
+ * `compareWordIds`). Used to clip a passage's whole-verse text to its word bounds.
+ */
+export function isWordInRange(wordId, range) {
+	const p = parseWordIdParts(wordId);
+	if (!p) return false;
+	const pos = { chapter: p.chapter, verse: p.verse, word: p.word };
+	return (
+		comparePositions(pos, rangeStartPosition(range)) >= 0 &&
+		comparePositions(pos, rangeEndPosition(range)) <= 0
+	);
+}
+
+/**
+ * EXCLUSIVE end word id of a range: the first word NOT in it.
+ *
+ * Whole-verse end → word 1 of the following verse number (the long-standing `toVerse + 1` form; a
+ * chapter rollover is resolved by `formatScriptureReference`, as before). Mid-verse end → the word
+ * after `toWord` in the same verse, exactly how a segment boundary inside a verse is expressed.
+ *
+ * @param {string} bookAbbr - e.g. `IPE`
+ * @param {{ toChapter: number, toVerse: number, toWord?: number|null }} range
+ * @param {number} [chapterPad=3]
+ * @param {number} [versePad=3]
+ */
+export function rangeEndWordId(bookAbbr, range, chapterPad = 3, versePad = 3) {
+	const ch = String(range.toChapter).padStart(chapterPad, '0');
+	if (hasWord(range.toWord)) {
+		const v = String(range.toVerse).padStart(versePad, '0');
+		return `${bookAbbr}-${ch}-${v}-${String(range.toWord + 1).padStart(3, '0')}`;
+	}
+	const v = String((range.toVerse ?? 0) + 1).padStart(versePad, '0');
+	return `${bookAbbr}-${ch}-${v}-001`;
+}
+
+/** Normalise the two optional word fields so word 1 / end-of-verse are stored as null. */
+export function normaliseWordBounds(range) {
+	return {
+		...range,
+		fromWord: startsMidVerse(range) ? range.fromWord : null,
+		toWord: endsMidVerse(range) ? range.toWord : null
+	};
+}

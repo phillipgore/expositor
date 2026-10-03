@@ -20,6 +20,7 @@ import { selectPrefetchTarget } from '$lib/utils/seriesPrefetch.js';
 import { warmAdjacentPart } from '$lib/server/db/seriesPrefetchRunner.js';
 import { enforceCacheLimit } from '$lib/server/db/cacheEvictionRunner.js';
 import { resolveStructureOwners } from '$lib/server/db/structureOwners.js';
+import { clipPassageHtml } from '$lib/utils/passageText.js';
 
 
 
@@ -129,8 +130,10 @@ export async function load({ params, request, depends }) {
 								bookName: passage.bookName,
 								fromChapter: passage.fromChapter,
 								fromVerse: passage.fromVerse,
+								fromWord: passage.fromWord,
 								toChapter: passage.toChapter,
 								toVerse: passage.toVerse,
+								toWord: passage.toWord,
 								hasCachedText: sql`${passage.cachedText} IS NOT NULL`
 							})
 							.from(passage)
@@ -435,6 +438,10 @@ export async function load({ params, request, depends }) {
 				}
 				return {
 					...passageText,
+					// Word-level part bounds (migration 0048): the cache holds whole verses, so clip here,
+					// once, at the single point every view's text passes through. A no-op for whole-verse
+					// passages.
+					text: clipPassageHtml(passageText.text, passageData),
 					structure: {
 						passageId: passageData.id,
 						columns: columnsByPassage.get(passageData.id) ?? []

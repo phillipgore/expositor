@@ -13,7 +13,12 @@ import { auth } from '$lib/server/auth.js';
 import { eq, and, asc, inArray } from 'drizzle-orm';
 import { analyzeEdit } from '$lib/server/db/passageReconcile.js';
 import { classifyExtent, formatExtentReference, projectExtent } from '$lib/utils/seriesExtent.js';
-import { fingerprintParts, recomposePassages, diffSeams } from '$lib/utils/seriesSeams.js';
+import {
+	fingerprintParts,
+	recomposePassages,
+	diffSeams,
+	describeMidVerseBlock
+} from '$lib/utils/seriesSeams.js';
 // `findUnservablePart` rather than `validatePassagesLimits`: the unit is the PART, never the
 // recomposed source range the edit form is loaded with. See the gate in the handler.
 import {
@@ -103,6 +108,10 @@ export const POST = async ({ request, params }) => {
 		if (parts.length === 0) {
 			return json({ error: 'This series has no parts' }, { status: 404 });
 		}
+
+		// Word-level part edges cannot survive a chapter/verse re-division — see describeMidVerseBlock.
+		const midVerse = describeMidVerseBlock(parts);
+		if (midVerse) return json({ error: midVerse, midVerse: true }, { status: 409 });
 
 		const extent = classifyExtent({ parts, desiredPassages });
 		const passageReports = await reportNarrowings(db, extent);

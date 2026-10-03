@@ -77,8 +77,10 @@ function normaliseRange(range) {
 		bookName: range.bookName ?? null,
 		fromChapter: range.fromChapter,
 		fromVerse: range.fromVerse,
+		fromWord: range.fromWord ?? null,
 		toChapter: range.toChapter,
-		toVerse: range.toVerse
+		toVerse: range.toVerse,
+		toWord: range.toWord ?? null
 	};
 }
 
@@ -210,8 +212,10 @@ export function planPartSplit({ part, afterChapter, atPassageSeam, translationId
 			};
 		}
 
-		first = [{ ...range, toChapter: at, toVerse: chapterEnd }];
-		second = [{ ...range, fromChapter: at + 1, fromVerse: 1 }];
+		// The split edge is a chapter line, so it is whole-verse on both sides; each half keeps only
+		// the word bound on its OUTER edge (a part that already began mid-verse still does).
+		first = [{ ...range, toChapter: at, toVerse: chapterEnd, toWord: null }];
+		second = [{ ...range, fromChapter: at + 1, fromVerse: 1, fromWord: null }];
 	}
 
 	return {
@@ -346,7 +350,8 @@ export function planPartJoin({
 		passages[passages.length - 1] = {
 			...seamLeft,
 			toChapter: seamRight.toChapter,
-			toVerse: seamRight.toVerse
+			toVerse: seamRight.toVerse,
+			toWord: seamRight.toWord ?? null
 		};
 		passages.push(...afterRanges.slice(1));
 	} else {

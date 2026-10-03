@@ -30,8 +30,13 @@
  * So a cross-part move requires the caret to be at the **start of a verse**. That is a real
  * restriction and is surfaced as a reason, not as a silent no-op: the user is told to move the text in
  * two steps (to the verse boundary within the part, then across), which is achievable with the
- * commands that already exist. Recorded rather than worked around, because the alternative — making
- * passage ranges word-granular — is a schema change well outside §8's scope.
+ * commands that already exist.
+ *
+ * ⚠️ **Scheduled for removal (word-granular parts, stage 2).** Passage ranges now carry
+ * `fromWord` / `toWord` (migration 0048) and `planBoundaryShift()` keeps the word offset, so the
+ * arithmetic described above no longer drops it. The refusal stays in this stage only so that stage 1
+ * ships the foundation without changing what the command accepts; stage 2 deletes `isVerseStart`'s
+ * gate here together with the caret-based Split Part.
  *
  * @module crossPartMove
  */
@@ -320,6 +325,7 @@ export async function moveTextAcrossBoundary(
 			.set({
 				toChapter: plan.newEarlierRange.toChapter,
 				toVerse: plan.newEarlierRange.toVerse,
+				toWord: plan.newEarlierRange.toWord ?? null,
 				// Keyed by verse range: a passage holding text for a range it no longer covers would render
 				// verses belonging to the other part.
 				cachedText: null,
@@ -332,6 +338,7 @@ export async function moveTextAcrossBoundary(
 			.set({
 				fromChapter: plan.newLaterRange.fromChapter,
 				fromVerse: plan.newLaterRange.fromVerse,
+				fromWord: plan.newLaterRange.fromWord ?? null,
 				cachedText: null,
 				textCachedAt: null
 			})

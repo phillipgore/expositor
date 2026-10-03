@@ -48,6 +48,8 @@
 		getParsedPassage,
 		extractSegmentText
 	} from '$lib/utils/passageText.js';
+	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
+	import { rangeEndWordId } from '$lib/utils/wordIds.js';
 	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
 	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
 	import { resolveTransferNeighbours } from '$lib/utils/transferNeighbours.js';
@@ -3565,10 +3567,8 @@
 		const bookAbbr = parts[0];
 		const chapterPadLen = parts[1].length;
 		const versePadLen = parts[2].length;
-		const chapStr = String(passageData.toChapter).padStart(chapterPadLen, '0');
-		// toVerse + 1 is the exclusive boundary; formatScriptureReference will subtract 1 to get toVerse
-		const verseStr = String(passageData.toVerse + 1).padStart(versePadLen, '0');
-		return `${bookAbbr}-${chapStr}-${verseStr}-001`;
+		// Exclusive end, word-aware: a part ending mid-verse ends at word `toWord`, not verse end.
+		return rangeEndWordId(bookAbbr, passageData, chapterPadLen, versePadLen);
 	}
 
 	/**
@@ -4192,21 +4192,8 @@
 	 * @param {Object} passage
 	 * @returns {string}
 	 */
-	function formatPassageReference(passage) {
-		const sameChapter = passage.fromChapter === passage.toChapter;
-		const singleVerse = passage.fromVerse === passage.toVerse;
-		
-		if (sameChapter && singleVerse) {
-			// Single verse: "John 3:16"
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}`;
-		} else if (sameChapter) {
-			// Multiple verses same chapter: "John 3:16-17"
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toVerse}`;
-		} else {
-			// Multiple chapters: "Genesis 1:1-2:3"
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toChapter}:${passage.toVerse}`;
-		}
-	}
+	// Shared formatter, so word-level part edges read "4:12b" here as in the Finder.
+	const formatPassageReference = sharedFormatPassageReference;
 
 	// Ref to inner content wrapper for measuring dimensions
 	let contentInnerRef = $state(null);

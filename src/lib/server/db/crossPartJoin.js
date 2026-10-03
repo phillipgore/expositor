@@ -144,7 +144,7 @@ function planBoundaryShiftForJoin(sequence, scope, granularity) {
 		// one function is how a caller ends up reading a field that is sometimes absent.
 		return {
 			ok: false,
-			error: `Joining this ${granularity} would move every verse out of its part. Use Join Parts to merge them instead.`,
+			error: `Joining this ${granularity} would move all the text out of its part. Use Join Parts to merge them instead.`,
 			before: /** @type {Object|null} */ (null),
 			after: /** @type {Object|null} */ (null),
 			versesMoved: 0,
@@ -197,7 +197,7 @@ function planForwardBoundaryShiftForJoin(sequence, scope, granularity) {
 	if (staying.length === 0) {
 		return {
 			ok: false,
-			error: `Joining this ${granularity} would move every verse out of its part. Use Join Parts to merge them instead.`,
+			error: `Joining this ${granularity} would move all the text out of its part. Use Join Parts to merge them instead.`,
 			before: /** @type {Object|null} */ (null),
 			after: /** @type {Object|null} */ (null),
 			versesMoved: 0,
@@ -596,6 +596,7 @@ export async function joinAcrossBoundary(
 			.set({
 				toChapter: shift.before.toChapter,
 				toVerse: shift.before.toVerse,
+				toWord: shift.before.toWord ?? null,
 				// 5. cachedText is keyed by the verse range, so both sides must refetch.
 				cachedText: null,
 				textCachedAt: null
@@ -607,6 +608,7 @@ export async function joinAcrossBoundary(
 			.set({
 				fromChapter: shift.after.fromChapter,
 				fromVerse: shift.after.fromVerse,
+				fromWord: shift.after.fromWord ?? null,
 				cachedText: null,
 				textCachedAt: null
 			})
@@ -760,6 +762,7 @@ export async function joinDownAcrossBoundary(
 			.set({
 				toChapter: shift.before.toChapter,
 				toVerse: shift.before.toVerse,
+				toWord: shift.before.toWord ?? null,
 				cachedText: null,
 				textCachedAt: null
 			})
@@ -770,6 +773,7 @@ export async function joinDownAcrossBoundary(
 			.set({
 				fromChapter: shift.after.fromChapter,
 				fromVerse: shift.after.fromVerse,
+				fromWord: shift.after.fromWord ?? null,
 				cachedText: null,
 				textCachedAt: null
 			})

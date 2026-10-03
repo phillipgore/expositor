@@ -70,8 +70,10 @@ function normaliseRange(range) {
 		bookName: range.bookName ?? range.bookId ?? range.book ?? null,
 		fromChapter: range.fromChapter,
 		fromVerse: range.fromVerse,
+		fromWord: range.fromWord ?? null,
 		toChapter: range.toChapter,
-		toVerse: range.toVerse
+		toVerse: range.toVerse,
+		toWord: range.toWord ?? null
 	};
 }
 
@@ -129,6 +131,7 @@ export function coalesceRanges(ranges) {
 			// One continuous stretch: extend the end, keep the start.
 			current.toChapter = next.toChapter;
 			current.toVerse = next.toVerse;
+			current.toWord = next.toWord ?? null;
 		} else {
 			out.push({ ...next });
 		}
@@ -498,6 +501,29 @@ export function deriveChaptersPerPart(parts) {
  * @param {Array<Object>} parts
  * @returns {string}
  */
+/**
+ * Why this series cannot be re-divided from the edit form, or null if it can.
+ *
+ * Series creation and re-serialisation work on chapter and verse lines. A part that begins or ends
+ * part-way through a verse (Split Part / a cross-part move at a word) cannot be represented in that
+ * form, and rebuilding the parts from it would silently round the split back to a whole verse —
+ * undoing a division the user made deliberately. So the edit flow refuses, naming the parts, and the
+ * user joins them back to a verse line first.
+ *
+ * @param {Array<Object>} parts - Parts with `passages`
+ * @returns {string|null}
+ */
+export function describeMidVerseBlock(parts) {
+	const offenders = sortParts(parts).filter((part) =>
+		(part.passages ?? []).some(
+			(p) => (p.fromWord ?? 1) > 1 || (p.toWord !== null && p.toWord !== undefined)
+		)
+	);
+	if (offenders.length === 0) return null;
+	const names = offenders.map((p) => p.title ?? 'Untitled part').join(', ');
+	return `This series has parts divided part-way through a verse (${names}). Join them back to a verse boundary before editing the series as a whole.`;
+}
+
 export function fingerprintParts(parts) {
 	return sortParts(parts)
 		.map((part) => {

@@ -34,6 +34,8 @@
 
 
 	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
+	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
+	import { rangeEndWordId } from '$lib/utils/wordIds.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 	import { hoverCaret } from '$lib/composables/useHoverCaret.svelte.js';
 	import { getInsertionWordId, initialCaretPosition } from '$lib/utils/caretPosition.js';
@@ -176,7 +178,7 @@
 	 * exclusive boundary to recover the true last verse. Mirrors the Analyze view's
 	 * helper of the same name. Returns null if the boundary can't be derived.
 	 * @param {Array<{ startingWordId?: string }>} segments - Flat, ordered segments
-	 * @param {{ toChapter?: number, toVerse?: number }} [passageData] - Passage DB record
+	 * @param {{ toChapter: number, toVerse: number, toWord?: number|null }} [passageData] - Passage DB record
 	 * @returns {string|null}
 	 */
 	function getPassageEndWordId(segments, passageData) {
@@ -188,10 +190,8 @@
 		const bookAbbr = parts[0];
 		const chapterPadLen = parts[1].length;
 		const versePadLen = parts[2].length;
-		const chapStr = String(passageData.toChapter).padStart(chapterPadLen, '0');
-		// toVerse + 1 is the exclusive boundary; formatScriptureReference subtracts 1.
-		const verseStr = String((passageData.toVerse ?? 0) + 1).padStart(versePadLen, '0');
-		return `${bookAbbr}-${chapStr}-${verseStr}-001`;
+		// Exclusive end, word-aware: a part ending mid-verse ends at word `toWord`, not verse end.
+		return rangeEndWordId(bookAbbr, passageData, chapterPadLen, versePadLen);
 	}
 
 	/**
@@ -696,21 +696,8 @@
 	 * @param {Object} passage
 	 * @returns {string}
 	 */
-	function formatPassageReference(passage) {
-		const sameChapter = passage.fromChapter === passage.toChapter;
-		const singleVerse = passage.fromVerse === passage.toVerse;
-		
-		if (sameChapter && singleVerse) {
-			// Single verse: "John 3:16"
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}`;
-		} else if (sameChapter) {
-			// Multiple verses same chapter: "John 3:16-17"
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toVerse}`;
-		} else {
-			// Multiple chapters: "Genesis 1:1-2:3"
-			return `${passage.bookName} ${passage.fromChapter}:${passage.fromVerse}-${passage.toChapter}:${passage.toVerse}`;
-		}
-	}
+	// Shared formatter, so word-level part edges read "4:12b" here as in the Finder.
+	const formatPassageReference = sharedFormatPassageReference;
 
 	/* ============================================================
 	   SCREEN PAGINATION — distribute content across 8.5"×11" sheets

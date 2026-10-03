@@ -220,7 +220,7 @@ function planShiftFor(entry, neighbour, located, granularity, direction) {
 		staying.sort((a, b) => compareWordIds(a.startingWordId, b.startingWordId));
 		if (staying.length === 0) {
 			return nothing(
-				`Moving this ${granularity} would move every verse out of its part. Use Join Parts instead.`
+				`Moving this ${granularity} would move all the text out of its part. Use Join Parts instead.`
 			);
 		}
 		return planBoundaryShift({
@@ -397,6 +397,7 @@ export async function transferItem(dbInstance, userId, passageId, itemId, granul
 			.set({
 				toChapter: plan.shiftBefore.toChapter,
 				toVerse: plan.shiftBefore.toVerse,
+				toWord: plan.shiftBefore.toWord ?? null,
 				// cachedText is keyed by verse range, so both sides must refetch.
 				cachedText: null,
 				textCachedAt: null
@@ -408,6 +409,7 @@ export async function transferItem(dbInstance, userId, passageId, itemId, granul
 			.set({
 				fromChapter: plan.shiftAfter.fromChapter,
 				fromVerse: plan.shiftAfter.fromVerse,
+				fromWord: plan.shiftAfter.fromWord ?? null,
 				cachedText: null,
 				textCachedAt: null
 			})
