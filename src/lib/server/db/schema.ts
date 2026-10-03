@@ -504,6 +504,18 @@ export const segmentConnection = pgTable('segment_connection', {
 	 * TO end's (end nodes take their end's color). NULL = default gray.
 	 */
 	lineColor: text('line_color'),
+	/**
+	 * User-placed connection points. Each end can be dragged anywhere along an
+	 * ALLOWED side of its element (column: top · section: top/bottom · segment:
+	 * left/right). `*AnchorEdge` is that side; `*AnchorPos` is the position along
+	 * it as a fraction 0…1 (left→right on top/bottom, top→bottom on left/right),
+	 * so it survives reflow/zoom. NULL = automatic placement. Cleared whenever
+	 * that end moves to a different element.
+	 */
+	fromAnchorEdge: text('from_anchor_edge'),
+	fromAnchorPos: real('from_anchor_pos'),
+	toAnchorEdge: text('to_anchor_edge'),
+	toAnchorPos: real('to_anchor_pos'),
 	// Rich text commentary for this connection (mirrors passage_segment.commentary)
 
 	commentary: text('commentary'),

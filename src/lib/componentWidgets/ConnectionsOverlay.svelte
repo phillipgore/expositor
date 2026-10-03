@@ -53,6 +53,7 @@
 	import { toolbarState, setActiveConnection, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey, setToolbarState, clearSelectedItem, setActiveSegment, setActiveSection, setActiveColumn, showConnectionsForTypes } from '$lib/stores/toolbar.js';
 	import { QUICK_NOTE_MAX_CHARS } from '$lib/constants/notes.js';
 	import { endpointOf, stubLabel } from '$lib/utils/connectionStubs.js';
+	import { routeCorner } from '$lib/utils/cornerRouting.js';
 
 
 
@@ -138,13 +139,19 @@
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
 	 * @typedef {'curved'|'straight'|'cornered'} LineRoute
 	 * @typedef {'gray'|'mixed'|'red'|'orange'|'yellow'|'green'|'aqua'|'blue'|'purple'|'pink'} LineColor
-	 * @typedef {{ x: number, y: number, baseX: number, baseY: number, axis: 'x'|'y'|null }} ShapeHandle
+	 * @typedef {{ a: { x: number, y: number }, b: { x: number, y: number }, axis: 'x'|'y'|'xy' }} CornerRun
+	 *   Where a cornered route's shaping handle starts (the handle itself moves freely).
+	 * @typedef {{ x: number, y: number, baseX: number, baseY: number, axis: 'x'|'y'|'xy'|null }} ShapeHandle
 	 * @typedef {{ route: LineRoute, routeShift: number, bendAlong: number|null, bendPerp: number|null, bendShift: number, chord: { x1: number, y1: number, x2: number, y2: number }, shapeHandle: ShapeHandle|null, lineColor: LineColor, fromColor: string|null, toColor: string|null, id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, noteLead: number, noteCardX: number, noteCardY: number, handleCorner: 'tl'|'tr'|'bl'|'br', fromSlide: { axis: 'x'|'y', lo: number, hi: number }|null, toSlide: { axis: 'x'|'y', lo: number, hi: number }|null }} PathEntry
 
 
 
 
-	 * @typedef {{ elementId: string, type: ConnType, side: 'left'|'right', x: number, y: number }} Handle
+	 * @typedef {'top'|'bottom'|'left'|'right'} AnchorEdge
+	 * @typedef {{ elementId: string, type: ConnType, edge: AnchorEdge, x1: number, y1: number, x2: number, y2: number }} DropSide
+	 *   An allowed side of an element (layout units) a dragged connection point can snap onto.
+	 * @typedef {{ elementId: string, type: ConnType, edge: AnchorEdge, pos: number, x: number, y: number }} DropSpot
+	 *   The snapped drop point: a side plus the fraction `pos` (0…1) along it.
 	 */
 
 	/** @type {PathEntry[]} */
@@ -176,12 +183,12 @@
 	 *   fixedElementId: string|null,
 	 *   fixedX: number, fixedY: number,
 	 *   cursorX: number, cursorY: number,
-	 *   activeHandle: Handle|null
+	 *   activeHandle: DropSpot|null
 	 * } | null}
 	 */
 	let drag = $state(null);
 
-	/** Drop-target handles computed at drag start. @type {Handle[]} */
+	/** Allowed sides a dragged connection point can snap onto (computed at drag start). @type {DropSide[]} */
 	let dropHandles = $state([]);
 
 	/** ID of the path currently under the pointer (for hover highlight). */
@@ -269,7 +276,7 @@
 	/**
 	 * Active shaping-handle drag, or null when idle. Positions are in layout
 	 * units; the drag moves `base` by the pointer delta (never snaps to cursor).
-	 * @type {{ id: string, startX: number, startY: number, baseX: number, baseY: number, route: LineRoute, axis: 'x'|'y'|null, startShift: number, chord: { x1: number, y1: number, x2: number, y2: number } } | null}
+	 * @type {{ id: string, startX: number, startY: number, baseX: number, baseY: number, route: LineRoute, axis: 'x'|'y'|'xy'|null, startShift: number, chord: { x1: number, y1: number, x2: number, y2: number } } | null}
 	 */
 	let shapeDrag = $state(null);
 
@@ -562,38 +569,6 @@
 		return { x: (clientX - r.left) / scale, y: (clientY - r.top) / scale };
 	}
 
-	/**
-	 * Get the SVG anchor point for a bounding rect based on connection type and side.
-	 *   Column  → top edge, centered horizontally (side ignored)
-	 *   Section → bottom edge, centered horizontally (side ignored)
-	 *   Segment → left or right side edge, vertically centred (midpoint)
-	 * @param {DOMRect} rect
-	 * @param {ConnType} type
-	 * @param {DOMRect} svgRect
-	 * @param {'left'|'right'} [side]
-	 * @returns {{ x: number, y: number }}
-	 */
-	function getAnchorPoint(rect, type, svgRect, side = 'left') {
-		if (type === 'column') {
-			return {
-				x: (rect.left + rect.width / 2 - svgRect.left) / scale,
-				y: (rect.top - svgRect.top) / scale
-			};
-		} else if (type === 'section') {
-			return {
-				x: (rect.left + rect.width / 2 - svgRect.left) / scale,
-				y: (rect.bottom - svgRect.top) / scale
-			};
-		} else {
-			// segment — side edge, vertical midpoint
-			return {
-				x: side === 'left'
-					? (rect.left  - svgRect.left) / scale
-					: (rect.right - svgRect.left) / scale,
-				y: (rect.top + rect.height / 2 - svgRect.top) / scale
-			};
-		}
-	}
 
 	/**
 	 * Spacing (SVG units) between adjacent anchor points that share the same
@@ -607,6 +582,33 @@
 	 * anchors never sit exactly on the element's corner.
 	 */
 	const ANCHOR_EDGE_PAD = 6;
+
+	/**
+	 * Sides a connection point may sit on, per element type. Each type keeps its
+	 * own side(s) so nested elements sharing a border never compete for a drop.
+	 * Mirrored server-side (connections PATCH validation).
+	 * @type {Record<ConnType, AnchorEdge[]>}
+	 */
+	const ALLOWED_ANCHOR_EDGES = {
+		column: ['top'],
+		section: ['top', 'bottom'],
+		segment: ['left', 'right']
+	};
+
+	/**
+	 * The user-placed spot for one end, if any and still valid for its type.
+	 * @param {any} connection
+	 * @param {'from'|'to'} end
+	 * @param {ConnType} type
+	 * @returns {{ edge: AnchorEdge, pos: number } | null}
+	 */
+	function placedAnchor(connection, end, type) {
+		const edge = end === 'from' ? connection.fromAnchorEdge : connection.toAnchorEdge;
+		const pos  = end === 'from' ? connection.fromAnchorPos  : connection.toAnchorPos;
+		if (edge == null || pos == null) return null;
+		if (!ALLOWED_ANCHOR_EDGES[type]?.includes(edge)) return null;
+		return { edge, pos: Math.min(1, Math.max(0, pos)) };
+	}
 
 	/**
 	 * Canonical anchor point for a specific edge of a rect (before any
@@ -890,6 +892,13 @@
 	const CORNER_RADIUS = 6;
 	/** Minimum run (layout units) a cornered route travels straight out of an edge before it may turn back. */
 	const CORNER_STUB = 20;
+	/** Extra route cost (layout units) for a cornered end that leaves heading
+	 *  AWAY from where the line goes (it then has to double round). */
+	const CORNER_AWAY_COST = 40;
+	/** Extra route cost (layout units) per bend, so simpler routes win. */
+	const CORNER_BEND_COST = 10;
+	/** Route cost marking a polyline that doubles back on itself (never chosen when avoidable). */
+	const CORNER_REVERSAL_COST = 100000;
 	/** Below this (layout units) two anchors count as aligned on an axis — a perpendicular sign is ambiguous. */
 	const CORNER_ALIGN_EPS = 12;
 
@@ -927,10 +936,291 @@
 	 * @returns {Array<{ x: number, y: number }>}
 	 */
 	function routePoints(p) {
+		if (p.route !== 'cornered') return [{ x: p.x1, y: p.y1 }, { x: p.x2, y: p.y2 }];
+		return cornerShape(p).pts;
+	}
+
+	/**
+	 * Inset (layout units) kept between a shaping handle and the edge of the study
+	 * area, so the handle stays fully visible and grabbable.
+	 */
+	const SHAPE_HANDLE_BOUNDS_PAD = 12;
+
+	/**
+	 * The area a shaping handle may be placed in: the study content box (the
+	 * overlay SVG, which spans the whole scrollable study), in layout units. Any
+	 * point inside it can be scrolled into view, so a dragged handle can always be
+	 * reached again. Null before the overlay has a size.
+	 * @returns {{ minX: number, minY: number, maxX: number, maxY: number } | null}
+	 */
+	function shapeHandleBounds() {
+		if (!svgElement) return null;
+		const r = svgElement.getBoundingClientRect();
+		const w = r.width / scale, h = r.height / scale;
+		if (w <= 0 || h <= 0) return null;
+		const pad = Math.min(SHAPE_HANDLE_BOUNDS_PAD, w / 2, h / 2);
+		return { minX: pad, minY: pad, maxX: w - pad, maxY: h - pad };
+	}
+
+	/**
+	 * Clamp a point (layout units) into the reachable study area.
+	 * @param {number} x @param {number} y
+	 * @param {{ minX: number, minY: number, maxX: number, maxY: number } | null} bounds
+	 * @returns {{ x: number, y: number }}
+	 */
+	function clampToBounds(x, y, bounds) {
+		if (!bounds) return { x, y };
+		return {
+			x: Math.min(bounds.maxX, Math.max(bounds.minX, x)),
+			y: Math.min(bounds.maxY, Math.max(bounds.minY, y))
+		};
+	}
+
+	/**
+	 * The point a curved line is pulled through (its placed handle), in layout
+	 * units, kept inside the study area (mirrors Pass C).
+	 * @param {PathEntry} p
+	 * @returns {{ x: number, y: number }}
+	 */
+	function curvedPullPoint(p) {
+		const c = p.chord ?? { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2 };
+		const fr = chordFrame(c);
+		const along = (p.bendAlong ?? 0.5) * fr.L;
+		const off   = (p.bendPerp ?? 0) * fr.L;
+		return clampToBounds(c.x1 + fr.ux * along + fr.nx * off, c.y1 + fr.uy * along + fr.ny * off, shapeHandleBounds());
+	}
+
+	/**
+	 * The user-placed waypoint of a cornered route, in layout units: `bendAlong`
+	 * (along the chord) and `bendPerp` (off it) are fractions of the chord length,
+	 * measured from the chord's FROM end.
+	 * @param {PathEntry} p
+	 * @returns {{ x: number, y: number }}
+	 */
+	function cornerWaypoint(p) {
+		const c = p.chord ?? { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2 };
+		const fr = chordFrame(c);
+		const along = (p.bendAlong ?? 0.5) * fr.L;
+		const off   = (p.bendPerp ?? 0) * fr.L;
+		// Kept inside the study area so the handle can always be scrolled to (this
+		// also brings back a waypoint that was saved off the page before).
+		return clampToBounds(c.x1 + fr.ux * along + fr.nx * off, c.y1 + fr.uy * along + fr.ny * off, shapeHandleBounds());
+	}
+
+	/**
+	 * Passage boxes (sections, layout units) cornered lines route around;
+	 * refreshed by calculatePaths.
+	 * @type {Array<{ x: number, y: number, w: number, h: number }>}
+	 */
+	let routeObstacles = [];
+
+	/**
+	 * Measure every visible section box (they hold all passage text).
+	 * @param {DOMRect} svgRect
+	 * @param {number} scl
+	 */
+	function collectRouteObstacles(svgRect, scl) {
+		/** @type {Array<{ x: number, y: number, w: number, h: number }>} */
+		const out = [];
+		document.querySelectorAll('.section[data-section-id]').forEach(el => {
+			if (el.classList.contains('compare-hidden')) return;
+			const r = el.getBoundingClientRect();
+			if (r.width === 0 || r.height === 0) return;
+			out.push({ x: (r.left - svgRect.left) / scl, y: (r.top - svgRect.top) / scl, w: r.width / scl, h: r.height / scl });
+		});
+		return out;
+	}
+
+	/**
+	 * Shortest square route around passage boxes (see utils/cornerRouting.js),
+	 * steered by the placed handle (the handle picks the lane). Null when there
+	 * is no clear route, so cornerShape falls back to its simple shapes.
+	 * @param {PathEntry} p
+	 * @returns {{ pts: Array<{ x: number, y: number }>, run: CornerRun } | null}
+	 */
+	function routeCornerAround(p) {
+		const bounds = shapeHandleBounds();
+		if (!bounds || !p.fromEdge || !p.toEdge) return null;
+		const placed = p.bendAlong != null && p.bendPerp != null;
+		const r = routeCorner({
+			a: { x: p.x1, y: p.y1 }, b: { x: p.x2, y: p.y2 },
+			fromEdge: p.fromEdge, toEdge: p.toEdge,
+			obstacles: routeObstacles, bounds,
+			handle: placed ? cornerWaypoint(p) : null
+		});
+		if (!r) return null;
+		return { pts: r.pts, run: { a: r.handle, b: r.handle, axis: 'xy' } };
+	}
+
+	/**
+	 * The simplest square route from one end P to the waypoint W: leave P along
+	 * `axis` straight toward W, turn once, arrive at W. Any direction is allowed
+	 * — a top-edge point may leave left or right, a side-edge point up or down.
+	 * @param {{ x: number, y: number }} P
+	 * @param {'x'|'y'} axis — the axis P leaves along
+	 * @param {{ x: number, y: number }} w
+	 * @returns {Array<{ x: number, y: number }>} P … W
+	 */
+	function cornerDirectHalf(P, axis, w) {
+		return axis === 'x' ? [P, { x: w.x, y: P.y }, w] : [P, { x: P.x, y: w.y }, w];
+	}
+
+	/**
+	 * Which way an end should leave to reach W: along the axis W mostly lies on
+	 * (the user drags the handle to the right of a point → the line comes out to
+	 * the right), then the other axis. `ratio` says how clear-cut that is.
+	 * @param {{ x: number, y: number }} P
+	 * @param {{ x: number, y: number }} w
+	 * @returns {{ axes: Array<'x'|'y'>, ratio: number }}
+	 */
+	function cornerExitPrefs(P, w) {
+		const dx = Math.abs(w.x - P.x), dy = Math.abs(w.y - P.y);
+		const dom = dx >= dy ? 'x' : 'y';
+		return { axes: dom === 'x' ? ['x', 'y'] : ['y', 'x'], ratio: (Math.max(dx, dy) + 1) / (Math.min(dx, dy) + 1) };
+	}
+
+	/**
+	 * Candidate square routes from one end P to the waypoint W. Like a curved
+	 * line, a cornered line may leave P in EITHER direction perpendicular to its
+	 * edge — out of the element (top → up) or straight across it (top → down,
+	 * the way a curve heads toward a partner below) — then turns to reach W:
+	 *   direct — run to W's level, turn once into W (only when W lies far
+	 *            enough out in that direction);
+	 *   stub   — step a short stub out, run across to W's line, turn into W;
+	 *   detour — stub out, sidestep either way, then on to W (reaches a W that
+	 *            sits straight behind the end without doubling back).
+	 * cornerShape picks the cleanest pair (one per end); `away` marks routes
+	 * that leave heading AWAY from W, so — like a curve — the line normally
+	 * leaves toward where it's going.
+	 * @param {{ x: number, y: number }} P
+	 * @param {'top'|'bottom'|'left'|'right'} edge
+	 * @param {{ x: number, y: number }} w
+	 * @returns {Array<{ pts: Array<{ x: number, y: number }>, away: boolean }>} each pts P … W
+	 */
+	function cornerHalves(P, edge, w) {
+		const vertical = edge === 'top' || edge === 'bottom';
+		const outward = edge === 'top' || edge === 'left' ? -1 : 1;
+		const stub = CORNER_STUB / 2;
+		/** @type {Array<{ pts: Array<{ x: number, y: number }>, away: boolean }>} */
+		const out = [];
+		for (const s of [outward, -outward]) {
+			// Heading away from W? (When W is level with P on this axis, either way
+			// is fine, so only the inward direction counts as "away".)
+			const toward = vertical ? (w.y - P.y) * s : (w.x - P.x) * s;
+			const away = Math.abs(toward) < CORNER_ALIGN_EPS ? s !== outward : toward < 0;
+			if (vertical) {
+				if ((w.y - P.y) * s >= stub) out.push({ pts: [P, { x: P.x, y: w.y }, w], away });
+				const sy = P.y + s * stub;
+				out.push({ pts: [P, { x: P.x, y: sy }, { x: w.x, y: sy }, w], away });
+				for (const side of [-1, 1]) {
+					const ox = P.x + side * CORNER_STUB;
+					out.push({ pts: [P, { x: P.x, y: sy }, { x: ox, y: sy }, { x: ox, y: w.y }, w], away });
+				}
+			} else {
+				if ((w.x - P.x) * s >= stub) out.push({ pts: [P, { x: w.x, y: P.y }, w], away });
+				const sx = P.x + s * stub;
+				out.push({ pts: [P, { x: sx, y: P.y }, { x: sx, y: w.y }, w], away });
+				for (const side of [-1, 1]) {
+					const oy = P.y + side * CORNER_STUB;
+					out.push({ pts: [P, { x: sx, y: P.y }, { x: sx, y: oy }, { x: w.x, y: oy }, w], away });
+				}
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * How badly a square polyline doubles back: each place it reverses straight
+	 * back over itself costs a lot; otherwise shorter is better.
+	 * @param {Array<{ x: number, y: number }>} pts
+	 * @returns {number}
+	 */
+	function cornerRouteCost(pts) {
+		let cost = 0;
+		for (let i = 1; i < pts.length; i++) {
+			cost += Math.abs(pts[i].x - pts[i - 1].x) + Math.abs(pts[i].y - pts[i - 1].y);
+			if (i >= 2) {
+				const ax = pts[i - 1].x - pts[i - 2].x, ay = pts[i - 1].y - pts[i - 2].y;
+				const bx = pts[i].x - pts[i - 1].x, by = pts[i].y - pts[i - 1].y;
+				if (Math.abs(ax * by - ay * bx) < 0.01 && ax * bx + ay * by < 0) cost += CORNER_REVERSAL_COST;
+			}
+		}
+		return cost;
+	}
+
+	/**
+	 * Geometry of a cornered route: its polyline vertices (FROM → TO) plus where
+	 * its shaping handle starts (`run`). The handle moves freely: dragging it
+	 * places a waypoint the line is routed through (see cornerHalves); until then
+	 * the automatic shapes below apply.
+	 *
+	 * Shapes:
+	 *   vertical ↔ vertical exits    → up/down, across, up/down (handle: the across run)
+	 *   horizontal ↔ horizontal exits → across, up/down, across (handle: the up/down run)
+	 *   mixed (e.g. column ↔ segment) → an "L" (one corner).
+	 *   mixed, an end facing away     → a "Z" with a stub out of each end
+	 *     (handle: its across run).
+	 * @param {PathEntry} p
+	 * @returns {{ pts: Array<{ x: number, y: number }>, run: CornerRun | null }}
+	 */
+	function cornerShape(p) {
 		const a = { x: p.x1, y: p.y1 };
 		const b = { x: p.x2, y: p.y2 };
-		if (p.route !== 'cornered') return [a, b];
 
+		// Obstacle-aware routing (preferred): shortest square route through the
+		// clear lanes between passage boxes, steered by the handle.
+		const routed = routeCornerAround(p);
+		if (routed) return routed;
+
+		// User-placed waypoint: the shaping handle was dragged to a point W (stored
+		// relative to the chord, so it survives reflow). Route square from each end
+		// THROUGH W: each end leaves heading toward W — in any direction, not
+		// just perpendicular to its edge — and turns once to reach W. W may sit anywhere — above, below, left or right of either end.
+		if (p.bendAlong != null && p.bendPerp != null) {
+			const w = cornerWaypoint(p);
+			// 1) Leave each end straight TOWARD the handle, along the axis it mostly
+			//    lies on (so dragging the handle right of a point makes the line come
+			//    out to the right), turning once at the handle's level. Not limited to
+			//    the edge's perpendicular. The end whose direction is clearer keeps it
+			//    first; the first combination that doesn't double back wins.
+			const fp = cornerExitPrefs(a, w), tp = cornerExitPrefs(b, w);
+			const order = fp.ratio >= tp.ratio
+				? [[0, 0], [0, 1], [1, 0], [1, 1]]
+				: [[0, 0], [1, 0], [0, 1], [1, 1]];
+			// Prefer a route that actually TURNS at the handle (so the handle sits on
+			// a corner the user can see they're steering); fall back to one that just
+			// passes through it.
+			/** @type {Array<{ x: number, y: number }> | null} */
+			let passThrough = null;
+			for (const [i, j] of order) {
+				const pts = simplifyPolyline([
+					...cornerDirectHalf(a, fp.axes[i], w),
+					...cornerDirectHalf(b, tp.axes[j], w).reverse().slice(1)
+				]);
+				if (cornerRouteCost(pts) >= CORNER_REVERSAL_COST) continue;
+				const turnsAtW = pts.some((q, k) => k > 0 && k < pts.length - 1 && Math.abs(q.x - w.x) < 0.5 && Math.abs(q.y - w.y) < 0.5);
+				if (turnsAtW) return { pts, run: { a: w, b: w, axis: 'xy' } };
+				passThrough ??= pts;
+			}
+			if (passThrough) return { pts: passThrough, run: { a: w, b: w, axis: 'xy' } };
+			// 2) Fallback (rare): the stub / detour routes.
+			/** @type {Array<{ x: number, y: number }>} */
+			let best = [a, w, b];
+			let bestCost = Infinity;
+			for (const fh of cornerHalves(a, p.fromEdge, w)) {
+				for (const th of cornerHalves(b, p.toEdge, w)) {
+					const pts = simplifyPolyline([...fh.pts, ...th.pts.slice().reverse().slice(1)]);
+					// Like a curve, each end should leave toward where the line is
+					// going: heading away first costs extra, and so does every bend, so
+					// the simplest sensible route wins.
+					const cost = cornerRouteCost(pts)
+						+ (fh.away ? CORNER_AWAY_COST : 0) + (th.away ? CORNER_AWAY_COST : 0)
+						+ Math.max(0, pts.length - 2) * CORNER_BEND_COST;
+					if (cost < bestCost) { bestCost = cost; best = pts; }
+				}
+			}
+			return { pts: best, run: { a: w, b: w, axis: 'xy' } };
+		}
 		// Pass E's separation shift plus the user's shaping-handle shift.
 		const shift = (p.routeShift || 0) + (p.bendShift || 0);
 		const ea = cornerExit(p.fromEdge, a.x, a.y, b.x, b.y);
@@ -943,7 +1233,10 @@
 			if (ea.sign !== eb.sign) ym = (a.y + b.y) / 2;
 			else ym = ea.sign > 0 ? Math.max(a.y, b.y) + CORNER_STUB : Math.min(a.y, b.y) - CORNER_STUB;
 			ym += shift;
-			return [a, { x: a.x, y: ym }, { x: b.x, y: ym }, b];
+			// Keep the run (and its handle) inside the study area.
+			ym = clampToBounds(0, ym, shapeHandleBounds()).y;
+			const p1 = { x: a.x, y: ym }, p2 = { x: b.x, y: ym };
+			return { pts: [a, p1, p2, b], run: { a: p1, b: p2, axis: 'y' } };
 		}
 		if (!ea.vertical && !eb.vertical) {
 			// Across, up/down, across (segment ↔ segment). Same-direction exits loop out.
@@ -951,13 +1244,12 @@
 			if (ea.sign !== eb.sign) xm = (a.x + b.x) / 2;
 			else xm = ea.sign > 0 ? Math.max(a.x, b.x) + CORNER_STUB : Math.min(a.x, b.x) - CORNER_STUB;
 			xm += shift;
-			return [a, { x: xm, y: a.y }, { x: xm, y: b.y }, b];
+			xm = clampToBounds(xm, 0, shapeHandleBounds()).x;
+			const p1 = { x: xm, y: a.y }, p2 = { x: xm, y: b.y };
+			return { pts: [a, p1, p2, b], run: { a: p1, b: p2, axis: 'x' } };
 		}
 
-		// Mixed: one vertical exit, one horizontal exit → a single-corner "L" with
-		// the corner on the vertical end's x and the horizontal end's y. If either
-		// end would have to leave AGAINST its exit direction, use a Z-shape with a
-		// stub out of each end so the line never doubles back into its element.
+		// Mixed: one vertical exit (v), one horizontal exit (h).
 		const v  = ea.vertical ? a : b;
 		const ev = ea.vertical ? ea : eb;
 		const h  = ea.vertical ? b : a;
@@ -966,15 +1258,25 @@
 		const hOk = Math.sign(v.x - h.x) === eh.sign;
 		/** @type {Array<{ x: number, y: number }>} */
 		let mid;
+		/** @type {CornerRun} */
+		let run;
 		if (vOk && hOk) {
+			// "L": leave v vertically, turn once, run level into h. Its handle starts
+			// at the middle of the vertical leg; dragging it places a waypoint.
 			mid = [{ x: v.x, y: h.y }];
+			const m = { x: v.x, y: (v.y + h.y) / 2 };
+			run = { a: m, b: m, axis: 'xy' };
 		} else {
-			const vy = v.y + ev.sign * CORNER_STUB + shift;
+			// "Z": an end would have to leave against its exit direction, so stub out
+			// of each end; the handle slides the across run.
+			const vy = clampToBounds(0, v.y + ev.sign * CORNER_STUB + shift, shapeHandleBounds()).y;
 			const hx = h.x + eh.sign * CORNER_STUB;
-			mid = [{ x: v.x, y: vy }, { x: hx, y: vy }, { x: hx, y: h.y }];
+			const p1 = { x: v.x, y: vy }, p2 = { x: hx, y: vy }, p3 = { x: hx, y: h.y };
+			mid = [p1, p2, p3];
+			run = { a: p1, b: p2, axis: 'y' };
 		}
 		const pts = [v, ...mid, h];
-		return ea.vertical ? pts : pts.reverse();
+		return { pts: ea.vertical ? pts : pts.reverse(), run };
 	}
 
 	/**
@@ -1177,11 +1479,17 @@
 	// The bend is stored RELATIVE to the anchor-to-anchor chord (bendAlong /
 	// bendPerp as fractions of chord length) so it survives reflow and zoom.
 
-	/** Clamp for bendAlong — keeps the pulled point away from the anchors. */
+	/** Range for a curve's PARAMETER (where along the curve the handle point is
+	 *  reached) — keeps the curve leaving/arriving at its connection points.
+	 *  The handle point itself is free (see CORNER_* below). */
 	const BEND_ALONG_MIN = 0.1;
 	const BEND_ALONG_MAX = 0.9;
-	/** Max |bendPerp| (fraction of chord length). Mirrored server-side. */
-	const BEND_PERP_MAX = 1.5;
+	/** Handle placement range for curved AND cornered lines (fractions of chord
+	 *  length) — wide, so the handle can go well beyond either end; the study-
+	 *  area clamp is the practical limit. Mirrored server-side. */
+	const CORNER_ALONG_MIN = -3;
+	const CORNER_ALONG_MAX = 4;
+	const CORNER_PERP_MAX = 3;
 	/** Min distance (layout units) kept between the shaping handle and a note dot. */
 	const SHAPE_HANDLE_NOTE_CLEARANCE = 14;
 
@@ -1196,23 +1504,13 @@
 	}
 
 	/**
-	 * The middle run of a cornered route (the segment a shift moves), or null for
-	 * an L-shape, which has no run to slide.
+	 * The run of a cornered route that its shaping handle moves (see cornerShape):
+	 * the centre of its middle run, an L's vertical leg, or the placed waypoint.
 	 * @param {PathEntry} p
-	 * @returns {{ a: { x: number, y: number }, b: { x: number, y: number }, axis: 'x'|'y' } | null}
+	 * @returns {CornerRun | null}
 	 */
 	function cornerMidRun(p) {
-		const raw = routePoints(p);
-		if (raw.length === 4) {
-			const axis = Math.abs(raw[1].y - raw[2].y) < 0.01 ? 'y' : 'x';
-			return { a: raw[1], b: raw[2], axis };
-		}
-		if (raw.length === 5) {
-			// Z-shape: the shifted run is the HORIZONTAL one among the two inner segments.
-			const i = Math.abs(raw[1].y - raw[2].y) < 0.01 ? 1 : 2;
-			return { a: raw[i], b: raw[i + 1], axis: 'y' };
-		}
-		return null;
+		return cornerShape(p).run;
 	}
 
 	/**
@@ -1226,7 +1524,7 @@
 	function computeShapeHandle(p) {
 		/** @type {Array<{ x: number, y: number }>} */
 		let candidates;
-		/** @type {'x'|'y'|null} */
+		/** @type {'x'|'y'|'xy'|null} */
 		let axis = null;
 		if (p.route === 'cornered') {
 			const run = cornerMidRun(p);
@@ -1235,8 +1533,13 @@
 			const at = (/** @type {number} */ f) => ({ x: run.a.x + (run.b.x - run.a.x) * f, y: run.a.y + (run.b.y - run.a.y) * f });
 			candidates = [at(0.5), at(0.25), at(0.75)];
 		} else if (p.route === 'curved') {
-			const a = p.bendAlong ?? 0.5;
-			candidates = [a, a - 0.2, a + 0.2].map(t => routePointAt(p, Math.min(0.95, Math.max(0.05, t))));
+			// A placed handle sits exactly where the user dropped it (the curve
+			// passes through it); otherwise at the curve's middle.
+			const a = Math.min(BEND_ALONG_MAX, Math.max(BEND_ALONG_MIN, p.bendAlong ?? 0.5));
+			const placed = p.bendPerp != null ? curvedPullPoint(p) : null;
+			candidates = placed
+				? [placed, ...[a - 0.2, a + 0.2].map(t => routePointAt(p, Math.min(0.95, Math.max(0.05, t))))]
+				: [a, a - 0.2, a + 0.2].map(t => routePointAt(p, Math.min(0.95, Math.max(0.05, t))));
 		} else {
 			const at = (/** @type {number} */ f) => ({ x: p.x1 + (p.x2 - p.x1) * f, y: p.y1 + (p.y2 - p.y1) * f });
 			candidates = [at(0.5), at(0.3), at(0.7)];
@@ -1449,7 +1752,7 @@
 	/**
 	 * Collect the bounding boxes of all visible passage segments in the note
 	 * coordinate space (CSS px relative to the SVG top-left, divided by scale —
-	 * the same transform getAnchorPoint uses).  These are the "passage text"
+	 * the same transform edgeAnchorPoint uses).  These are the "passage text"
 	 * obstacles the note resolver tries to avoid; the gaps between them (column
 	 * gutters, inter-section spacing, margins) are the "white space" the notes
 	 * prefer to sit over.
@@ -1635,19 +1938,23 @@
 		if (!svgElement || !connections.length) { paths = []; stubs = []; return; }
 		const svgRect = svgElement.getBoundingClientRect();
 		if (svgRect.width === 0 && svgRect.height === 0) { paths = []; stubs = []; return; }
+		// Area shaping handles are kept inside (see shapeHandleBounds).
+		const bounds = shapeHandleBounds();
 
 		const SAME_COL_PX = 20;
 
 		// Passage text obstacles (used to flip section anchors off the short edge
 		// only when the short-edge line would otherwise cut through text).
 		const textBoxes = collectSegmentBoxes(svgRect, scale);
+		// Passage boxes cornered lines route around (see routeCornerAround).
+		routeObstacles = collectRouteObstacles(svgRect, scale);
 
 		// ── Pass A: resolve each connection's endpoints and chosen edges ──────
 		// For every connection we decide which EDGE of each element it anchors to
 		// (column=top, section=top/bottom by shortest line, segment=left/right) and
 		// register both endpoints into per-edge groups so they can be fanned out.
 		/**
-		 * @typedef {{ key: string, edge: 'top'|'bottom'|'left'|'right', rect: DOMRect, otherCX: number, otherCY: number }} Endpoint
+		 * @typedef {{ key: string, edge: 'top'|'bottom'|'left'|'right', rect: DOMRect, otherCX: number, otherCY: number, placedPos: number|null }} Endpoint
 		 * @type {Array<{ connection: any, fromType: ConnType, toType: ConnType, fromCX: number, toCX: number, sameCol: boolean, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineColor: LineColor, fromColor: string|null, toColor: string|null }>}
 		 */
 		const resolved = [];
@@ -1730,10 +2037,14 @@
 			// Which edge each end anchors to.  Sections prefer the SHORTEST edge but
 			// flip to the opposite edge when the short side would route through text;
 			// columns (top) and segments (left/right) keep their existing behaviour.
-			const fromEdge = fromType === 'section'
+			// A user-placed point (dragged to a spot) pins its end's side; otherwise
+			// the side is chosen automatically as before.
+			const fromPlaced = placedAnchor(connection, 'from', fromType);
+			const toPlaced   = placedAnchor(connection, 'to',   toType);
+			const fromEdge = fromPlaced ? fromPlaced.edge : fromType === 'section'
 				? decideSectionEdge(fromRect, svgRect, toCXsvg, toCYsvg, textBoxes, excludeIds)
 				: decideEdge(fromType, fromRect, toCY, fromSide);
-			const toEdge   = toType === 'section'
+			const toEdge   = toPlaced ? toPlaced.edge : toType === 'section'
 				? decideSectionEdge(toRect, svgRect, fromCXsvg, fromCYsvg, textBoxes, excludeIds)
 				: decideEdge(toType, toRect, fromCY, toSide);
 			const fromGroupKey = `${fromId}|${fromEdge}`;
@@ -1741,8 +2052,8 @@
 
 			if (!groups.has(fromGroupKey)) groups.set(fromGroupKey, []);
 			if (!groups.has(toGroupKey))   groups.set(toGroupKey, []);
-			groups.get(fromGroupKey)?.push({ key: `${connection.id}|from`, edge: fromEdge, rect: fromRect, otherCX: toCX,   otherCY: toCY   });
-			groups.get(toGroupKey)?.push(  { key: `${connection.id}|to`,   edge: toEdge,   rect: toRect,   otherCX: fromCX, otherCY: fromCY });
+			groups.get(fromGroupKey)?.push({ key: `${connection.id}|from`, edge: fromEdge, rect: fromRect, otherCX: toCX,   otherCY: toCY,   placedPos: fromPlaced?.pos ?? null });
+			groups.get(toGroupKey)?.push(  { key: `${connection.id}|to`,   edge: toEdge,   rect: toRect,   otherCX: fromCX, otherCY: fromCY, placedPos: toPlaced?.pos ?? null });
 
 			// Line color (live menu override wins over the stored value):
 			//   gray  → default CSS gray (no inline color)
@@ -1781,42 +2092,63 @@
 		const slideMap = new Map();
 		for (const members of groups.values()) {
 			const horizontal = members[0].edge === 'top' || members[0].edge === 'bottom';
+			const rect = members[0].rect; // all members share one element edge → one rect
+
+			// Usable range along the edge (ANCHOR_EDGE_PAD in from each corner).
+			const lo = horizontal
+				? (rect.left - svgRect.left) / scale + ANCHOR_EDGE_PAD
+				: (rect.top  - svgRect.top)  / scale + ANCHOR_EDGE_PAD;
+			const hi = horizontal
+				? (rect.right  - svgRect.left) / scale - ANCHOR_EDGE_PAD
+				: (rect.bottom - svgRect.top)  / scale - ANCHOR_EDGE_PAD;
+			// Full edge span (corner to corner) — a placed point's `pos` is a
+			// fraction of this, matching the drag snap (findClosestHandle).
+			const start = horizontal ? (rect.left - svgRect.left) / scale : (rect.top - svgRect.top) / scale;
+			const span  = horizontal ? rect.width / scale : rect.height / scale;
+
+			// Each point's IDEAL spot along the edge:
+			//   placed by the user → its saved fraction along the edge
+			//   column / section    → opposite the far end (shortest line)
+			//   segment             → the side's vertical midpoint
+			const mid = (lo + hi) / 2;
+			const ideal = (/** @type {Endpoint} */ m) => {
+				if (m.placedPos != null) return start + m.placedPos * span;
+				return horizontal ? (m.otherCX - svgRect.left) / scale : mid;
+			};
+
+			// Order along the edge by ideal spot, then by the far end's position (so
+			// lines fan out without crossing), then by key for a stable layout.
 			members.sort((a, b) => {
+				const ia = ideal(a), ib = ideal(b);
+				if (Math.abs(ia - ib) > 0.01) return ia - ib;
 				const pa = horizontal ? a.otherCX : a.otherCY;
 				const pb = horizontal ? b.otherCX : b.otherCY;
 				if (pa !== pb) return pa - pb;
-				return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; // stable tie-break
+				return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
 			});
-			const n = members.length;
-			const rect = members[0].rect; // all members share one element edge → one rect
 
-			if (horizontal) {
-				// Column / Section: slide along the edge toward each opposite endpoint.
-				const lo = (rect.left  - svgRect.left) / scale + ANCHOR_EDGE_PAD;
-				const hi = (rect.right - svgRect.left) / scale - ANCHOR_EDGE_PAD;
-				const ideals = members.map(m => (m.otherCX - svgRect.left) / scale);
-				const xs = distributeAlongEdge(ideals, lo, hi);
-				for (let i = 0; i < n; i++) {
-					const m = members[i];
-					const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
-					anchorMap.set(m.key, { x: xs[i], y: base.y });
-					slideMap.set(m.key, { axis: 'x', lo, hi });
+			// Keep every point on its ideal spot unless two would overlap, in which
+			// case nudge them apart by ANCHOR_SPACING (the smallest move needed).
+			// Unplaced segment points that share the midpoint spread symmetrically
+			// about it, exactly as before.
+			const ideals = members.map(ideal);
+			const ps = distributeAlongEdge(ideals, lo, hi);
+			if (!horizontal) {
+				const unplaced = members.map((m, i) => (m.placedPos == null ? i : -1)).filter(i => i >= 0);
+				if (unplaced.length === members.length && members.length > 1) {
+					const n = members.length;
+					const spacing = Math.min(ANCHOR_SPACING, Math.max(0, hi - lo) / (n - 1));
+					for (let i = 0; i < n; i++) ps[i] = mid + (i - (n - 1) / 2) * spacing;
 				}
-			} else {
-				// Segment: keep the side-edge vertical midpoint, fan out symmetrically.
-				const vlo = (rect.top    - svgRect.top) / scale + ANCHOR_EDGE_PAD;
-				const vhi = (rect.bottom - svgRect.top) / scale - ANCHOR_EDGE_PAD;
-				for (let i = 0; i < n; i++) {
-					const m = members[i];
-					const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
-					slideMap.set(m.key, { axis: 'y', lo: vlo, hi: vhi });
-					if (n === 1) { anchorMap.set(m.key, base); continue; }
-					const edgeLen = m.rect.height / scale;
-					const usable  = Math.max(0, edgeLen - 2 * ANCHOR_EDGE_PAD);
-					const spacing = Math.min(ANCHOR_SPACING, usable / (n - 1));
-					const offset  = (i - (n - 1) / 2) * spacing;
-					anchorMap.set(m.key, { x: base.x, y: base.y + offset });
-				}
+			}
+
+			for (let i = 0; i < members.length; i++) {
+				const m = members[i];
+				const base = edgeAnchorPoint(m.rect, m.edge, svgRect);
+				anchorMap.set(m.key, horizontal ? { x: ps[i], y: base.y } : { x: base.x, y: ps[i] });
+				// User-placed points stay where they were put: Pass E may not slide
+				// them to separate overlapping lines (it bends those lines instead).
+				if (m.placedPos == null) slideMap.set(m.key, { axis: horizontal ? 'x' : 'y', lo, hi });
 			}
 		}
 
@@ -1953,15 +2285,28 @@
 			const chord = { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
 			const frame = chordFrame(chord);
 			if (route === 'curved' && bendPerp != null) {
-				const t = Math.min(BEND_ALONG_MAX, Math.max(BEND_ALONG_MIN, bendAlong ?? 0.5));
-				const px = from.x + frame.ux * t * frame.L + frame.nx * bendPerp * frame.L;
-				const py = from.y + frame.uy * t * frame.L + frame.ny * bendPerp * frame.L;
+				// The curve passes through the handle point P — wherever the user put
+				// it (beyond either end, far off to the side), only kept inside the
+				// study area so it can always be scrolled to. `t` is just WHERE along
+				// the curve P is reached; it stays inside 0.1…0.9 so the curve still
+				// leaves and arrives at its connection points.
+				const along = bendAlong ?? 0.5;
+				const t = Math.min(BEND_ALONG_MAX, Math.max(BEND_ALONG_MIN, along));
+				const pull = clampToBounds(
+					from.x + frame.ux * along * frame.L + frame.nx * bendPerp * frame.L,
+					from.y + frame.uy * along * frame.L + frame.ny * bendPerp * frame.L,
+					bounds
+				);
+				const px = pull.x, py = pull.y;
 				const cur = cubicBezierPoint(t, from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
 				const k = 3 * t * (1 - t);
 				const ddx = (px - cur.x) / k, ddy = (py - cur.y) / k;
 				cx1 += ddx; cy1 += ddy; cx2 += ddx; cy2 += ddy;
 			}
-			const bendShift = route === 'cornered' && bendPerp != null ? bendPerp * frame.L : 0;
+			// Cornered: with bendAlong + bendPerp the line routes through a waypoint
+			// (cornerShape). A bend saved before waypoints (bendPerp only) still slides
+			// the middle run sideways, as it used to.
+			const bendShift = route === 'cornered' && bendPerp != null && bendAlong == null ? bendPerp * frame.L : 0;
 
 			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
 			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
@@ -1992,7 +2337,10 @@
 		/** @type {PathEntry} */
 		const entry = {
 			route, routeShift: 0,
-			bendAlong: route === 'curved' && bendPerp != null ? (bendAlong ?? 0.5) : null,
+			// curved: where along the chord the pull point sits · cornered L: how far
+			// down (0…1, v→h) the step sits. Unused (null) otherwise.
+			bendAlong: route === 'curved' && bendPerp != null ? (bendAlong ?? 0.5)
+				: route === 'cornered' ? (bendAlong ?? null) : null,
 			bendPerp, bendShift, chord, shapeHandle: null,
 			lineColor, fromColor, toColor,
 			id: connection.id,
@@ -2507,78 +2855,104 @@
 	// ─── Drop handle computation ──────────────────────────────────────────────
 
 	/**
-	 * Build the list of valid drop targets for the dragged endpoint.
+	 * Build the list of ALLOWED SIDES a dragged connection point may snap onto.
+	 *
+	 * Every element keeps its own side(s) — column: top · section: top & bottom ·
+	 * segment: left & right — so nested elements that share a border never
+	 * compete for the same side, and the drop is unambiguous. A point can land
+	 * anywhere along an allowed side (see snapToDropSide).
 	 *
 	 * An item can only have ONE connection to another item, so any element that
-	 * already has a connection to the fixed end is excluded — its handle is never
-	 * created, which means it can neither be highlighted nor snapped to during the
-	 * drag.  The connection currently being dragged is excluded from that check so
-	 * dropping back onto its own current target is still permitted.
+	 * already has a connection to the fixed end is excluded. The connection being
+	 * dragged is excluded from that check, so dropping back onto its own element
+	 * (to slide the point along its side) is always allowed.
 	 *
 	 * @param {string|null} fixedElementId
 	 * @param {ConnType} fixedType — type of the fixed (non-dragged) endpoint
 	 * @param {string} connectionId — id of the connection being dragged
-	 * @returns {Handle[]}
+	 * @returns {DropSide[]}
 	 */
 	function computeDropHandles(fixedElementId, fixedType, connectionId) {
 		if (!svgElement) return [];
 		const svgRect = svgElement.getBoundingClientRect();
-		/** @type {Handle[]} */
-		const handles = [];
+		/** @type {DropSide[]} */
+		const sides = [];
 
-		// Column: single handle at top-center — no left/right pair needed
+		/**
+		 * @param {string} id @param {ConnType} type @param {DOMRect} rect
+		 */
+		const addSides = (id, type, rect) => {
+			const L = (rect.left - svgRect.left) / scale;
+			const R = (rect.right - svgRect.left) / scale;
+			const T = (rect.top - svgRect.top) / scale;
+			const B = (rect.bottom - svgRect.top) / scale;
+			for (const edge of ALLOWED_ANCHOR_EDGES[type]) {
+				if (edge === 'top')    sides.push({ elementId: id, type, edge, x1: L, y1: T, x2: R, y2: T });
+				if (edge === 'bottom') sides.push({ elementId: id, type, edge, x1: L, y1: B, x2: R, y2: B });
+				if (edge === 'left')   sides.push({ elementId: id, type, edge, x1: L, y1: T, x2: L, y2: B });
+				if (edge === 'right')  sides.push({ elementId: id, type, edge, x1: R, y1: T, x2: R, y2: B });
+			}
+		};
+
 		document.querySelectorAll('.column[data-column-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.columnId;
 			if (!id || id === fixedElementId) return;
 			if (hasConnectionBetween(fixedType, fixedElementId, 'column', id, connectionId)) return;
-			// Match the column anchor: top from the first visible section, not the
-			// column box top (see columnAnchorRect).
+			// Column top = the first visible section's top (see columnAnchorRect).
 			const rect = columnAnchorRect(el);
 			if (rect.width === 0) return;
-			const { x, y } = getAnchorPoint(rect, 'column', svgRect);
-
-			handles.push({ elementId: id, type: 'column', side: 'left', x, y });
+			addSides(id, 'column', rect);
 		});
 
-		// Section: single handle at bottom-center — no left/right pair needed
 		document.querySelectorAll('.section[data-section-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.sectionId;
 			if (!id || id === fixedElementId) return;
 			if (hasConnectionBetween(fixedType, fixedElementId, 'section', id, connectionId)) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			const { x, y } = getAnchorPoint(rect, 'section', svgRect);
-			handles.push({ elementId: id, type: 'section', side: 'left', x, y });
+			addSides(id, 'section', rect);
 		});
 
-		// Segment: two handles — left midpoint and right midpoint
 		document.querySelectorAll('[data-segment-id]').forEach(el => {
 			const id = /** @type {HTMLElement} */ (el).dataset.segmentId;
 			if (!id || id === fixedElementId) return;
 			if (hasConnectionBetween(fixedType, fixedElementId, 'segment', id, connectionId)) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			const left  = getAnchorPoint(rect, 'segment', svgRect, 'left');
-			const right = getAnchorPoint(rect, 'segment', svgRect, 'right');
-			handles.push({ elementId: id, type: 'segment', side: 'left',  x: left.x,  y: left.y  });
-			handles.push({ elementId: id, type: 'segment', side: 'right', x: right.x, y: right.y });
+			addSides(id, 'segment', rect);
 		});
 
-		return handles;
+		return sides;
 	}
 
 	/**
-	 * @param {Handle[]} handles @param {number} cursorX @param {number} cursorY
-	 * @returns {Handle|null}
+	 * Snap the cursor to the nearest point on the nearest allowed side within
+	 * SNAP_RADIUS. The spot is kept ANCHOR_EDGE_PAD in from each corner (like the
+	 * automatic placement) and reported as a fraction `pos` along the side.
+	 * @param {DropSide[]} sides @param {number} cursorX @param {number} cursorY
+	 * @returns {DropSpot|null}
 	 */
-	function findClosestHandle(handles, cursorX, cursorY) {
-		let closest = null;
-		let minDist = SNAP_RADIUS;
-		for (const h of handles) {
-			const dist = Math.sqrt((h.x - cursorX) ** 2 + (h.y - cursorY) ** 2);
-			if (dist < minDist) { minDist = dist; closest = h; }
+	function findClosestHandle(sides, cursorX, cursorY) {
+		/** @type {DropSpot|null} */
+		let best = null;
+		let bestDist = SNAP_RADIUS;
+		for (const s of sides) {
+			const horizontal = s.edge === 'top' || s.edge === 'bottom';
+			const lo = (horizontal ? s.x1 : s.y1);
+			const hi = (horizontal ? s.x2 : s.y2);
+			const len = hi - lo;
+			if (len <= 0) continue;
+			const pad = Math.min(ANCHOR_EDGE_PAD, len / 2);
+			const along = Math.min(hi - pad, Math.max(lo + pad, horizontal ? cursorX : cursorY));
+			const x = horizontal ? along : s.x1;
+			const y = horizontal ? s.y1 : along;
+			const dist = Math.hypot(x - cursorX, y - cursorY);
+			if (dist < bestDist) {
+				bestDist = dist;
+				best = { elementId: s.elementId, type: s.type, edge: s.edge, pos: (along - lo) / len, x, y };
+			}
 		}
-		return closest;
+		return best;
 	}
 
 	// ─── SVG shape helpers ────────────────────────────────────────────────────
@@ -2662,20 +3036,27 @@
 		if (!activeHandle) return;
 
 		try {
-			// Only update the dragged end — PATCH handler preserves the fixed end
-			/** @type {Record<string,string>} */
+			// Only update the dragged end — PATCH handler preserves the fixed end.
+			// The end lands on (or stays on) the snapped element AND remembers the
+			// exact spot along its side, so the point stays where it was dropped.
+			/** @type {Record<string, string|number>} */
 			const body = {};
+			const pos = Math.round(activeHandle.pos * 1000) / 1000;
 
 			if (end === 'from') {
 				body.fromType = activeHandle.type;
 				if (activeHandle.type === 'segment') body.fromSegmentId = activeHandle.elementId;
 				else if (activeHandle.type === 'section') body.fromSectionId = activeHandle.elementId;
 				else body.fromColumnId = activeHandle.elementId;
+				body.fromAnchorEdge = activeHandle.edge;
+				body.fromAnchorPos = pos;
 			} else {
 				body.toType = activeHandle.type;
 				if (activeHandle.type === 'segment') body.toSegmentId = activeHandle.elementId;
 				else if (activeHandle.type === 'section') body.toSectionId = activeHandle.elementId;
 				else body.toColumnId = activeHandle.elementId;
+				body.toAnchorEdge = activeHandle.edge;
+				body.toAnchorPos = pos;
 			}
 
 			const response = await fetch(`/api/segments/connections/${connectionId}`, {
@@ -3518,20 +3899,33 @@
 	 * @returns {{ along: number|null, perp: number, route: LineRoute }}
 	 */
 	function bendFromDrag(drag, clientX, clientY) {
-		const dx = (clientX - drag.startX) / scale;
-		const dy = (clientY - drag.startY) / scale;
+		let dx = (clientX - drag.startX) / scale;
+		let dy = (clientY - drag.startY) / scale;
+		// The handle can't leave the study area: a point dragged past its edge stops
+		// at the edge (so the handle can always be scrolled to and grabbed again).
+		if (drag.route !== 'cornered' || drag.axis === 'xy') {
+			const c = clampToBounds(drag.baseX + dx, drag.baseY + dy, shapeHandleBounds());
+			dx = c.x - drag.baseX;
+			dy = c.y - drag.baseY;
+		}
 		const f = chordFrame(drag.chord);
 		if (drag.route === 'cornered') {
-			// Slide the middle run across its own axis only (bends stay square).
-			const shift = drag.startShift + (drag.axis === 'y' ? dy : dx);
-			const perp = Math.max(-BEND_PERP_MAX, Math.min(BEND_PERP_MAX, shift / f.L));
-			return { along: null, perp, route: 'cornered' };
+			// Cornered: the handle moves freely in 2-D; its new point becomes the
+			// waypoint the line is routed through (stored relative to the chord). It
+			// may go anywhere — above, below, left or right of either end.
+			const px = drag.baseX + dx - drag.chord.x1;
+			const py = drag.baseY + dy - drag.chord.y1;
+			const along = Math.max(CORNER_ALONG_MIN, Math.min(CORNER_ALONG_MAX, (px * f.ux + py * f.uy) / f.L));
+			const perp  = Math.max(-CORNER_PERP_MAX, Math.min(CORNER_PERP_MAX, (px * f.nx + py * f.ny) / f.L));
+			return { along, perp, route: 'cornered' };
 		}
 		// Curved (or straight → curved): the curve passes through the moved point.
 		const px = drag.baseX + dx - drag.chord.x1;
 		const py = drag.baseY + dy - drag.chord.y1;
-		const along = Math.max(BEND_ALONG_MIN, Math.min(BEND_ALONG_MAX, (px * f.ux + py * f.uy) / f.L));
-		const perp = Math.max(-BEND_PERP_MAX, Math.min(BEND_PERP_MAX, (px * f.nx + py * f.ny) / f.L));
+		// Free placement: same wide range as cornered (the study-area clamp above
+		// is the only real limit).
+		const along = Math.max(CORNER_ALONG_MIN, Math.min(CORNER_ALONG_MAX, (px * f.ux + py * f.uy) / f.L));
+		const perp  = Math.max(-CORNER_PERP_MAX, Math.min(CORNER_PERP_MAX, (px * f.nx + py * f.ny) / f.L));
 		return { along, perp, route: 'curved' };
 	}
 
@@ -3596,6 +3990,31 @@
 		scheduleCalculate();
 	}
 
+	/**
+	 * Connect menu → Reset Connection Points: send the selected connections'
+	 * user-placed ends back to automatic placement.
+	 */
+	async function handleResetPoints() {
+		const ids = [...selectedPathIds].filter(id => {
+			const c = connections.find(x => x.id === id);
+			return c && (c.fromAnchorEdge != null || c.toAnchorEdge != null);
+		});
+		if (ids.length === 0) return;
+		await Promise.all(ids.map(async id => {
+			try {
+				const response = await fetch(`/api/segments/connections/${id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ fromAnchorEdge: null, fromAnchorPos: null, toAnchorEdge: null, toAnchorPos: null })
+				});
+				if (!response.ok) console.error('Connection points reset error:', await response.json());
+			} catch (err) {
+				console.error('Connection points reset network error:', err);
+			}
+		}));
+		await invalidate('app:studies');
+	}
+
 	/** Connect menu → Reset Connection Shape: back to the automatic shape. */
 	function handleResetShape() {
 		const ids = [...selectedPathIds].filter(id => {
@@ -3618,6 +4037,12 @@
 			return !!c && (c.bendPerp != null || c.bendAlong != null);
 		});
 		if ($toolbarState.activeConnectionHasBend !== has) setToolbarState('activeConnectionHasBend', has);
+		// …and whether any has a user-placed connection point ("Reset Connection Points").
+		const placed = [...selectedPathIds].some(id => {
+			const c = connections.find(x => x.id === id);
+			return !!c && (c.fromAnchorEdge != null || c.toAnchorEdge != null);
+		});
+		if ($toolbarState.activeConnectionHasPlacedPoints !== placed) setToolbarState('activeConnectionHasPlacedPoints', placed);
 	});
 
 	// ─── Reactivity ──────────────────────────────────────────────────────────
@@ -3694,6 +4119,7 @@
 		window.addEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
 		window.addEventListener('connection-set-route', /** @type {EventListener} */ (handleSetRoute));
 		window.addEventListener('connection-reset-shape', handleResetShape);
+		window.addEventListener('connection-reset-points', handleResetPoints);
 		window.addEventListener('connection-set-color', /** @type {EventListener} */ (handleSetColor));
 		window.addEventListener('pointermove', handleShapeMove, { passive: false });
 		window.addEventListener('pointerup', handleShapeUp);
@@ -3737,6 +4163,7 @@
 		window.removeEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
 		window.removeEventListener('connection-set-route', /** @type {EventListener} */ (handleSetRoute));
 		window.removeEventListener('connection-reset-shape', handleResetShape);
+		window.removeEventListener('connection-reset-points', handleResetPoints);
 		window.removeEventListener('connection-set-color', /** @type {EventListener} */ (handleSetColor));
 		window.removeEventListener('pointermove', handleShapeMove);
 		window.removeEventListener('pointerup', handleShapeUp);
@@ -3966,8 +4393,7 @@
 					<circle
 						class="connection-shape-handle-target"
 						cx={path.shapeHandle.x} cy={path.shapeHandle.y} r="9"
-						class:connection-shape-handle-target--x={path.route === 'cornered' && path.shapeHandle.axis === 'x'}
-						class:connection-shape-handle-target--y={path.route === 'cornered' && path.shapeHandle.axis === 'y'}
+						class:connection-shape-handle-target--xy={path.route === 'cornered'}
 						onpointerdown={(e) => startShapeDrag(e, path)}
 						onclick={(e) => e.stopPropagation()}
 					/>
@@ -3983,28 +4409,17 @@
 
 		<!-- ── Drop handles (shown only while dragging) ── -->
 		{#if drag}
-			{#each dropHandles as handle (`${handle.elementId}-${handle.side}`)}
+			<!-- Allowed sides: every side a point may land on (column: top · section:
+			     top/bottom · segment: left/right) is drawn faintly; the side the
+			     cursor snaps to is emphasised. The point can land anywhere along it. -->
+			{#each dropHandles as side (`${side.elementId}-${side.edge}`)}
 				{@const isActive = !!drag.activeHandle &&
-					drag.activeHandle.elementId === handle.elementId &&
-					drag.activeHandle.side === handle.side}
-
-				<!-- Drop handles: column=■ square, section=◆ diamond, segment=● circle -->
-				{#if handle.type === 'column'}
-					<rect class="drop-handle drop-handle--square"
-						class:drop-handle--active={isActive}
-						x={handle.x - 5} y={handle.y - 5} width="10" height="10"
-					/>
-				{:else if handle.type === 'section'}
-					<polygon class="drop-handle drop-handle--diamond"
-						class:drop-handle--active={isActive}
-						points={diamondPoints(handle.x, handle.y, 6)}
-					/>
-				{:else if handle.type === 'segment'}
-					<circle class="drop-handle drop-handle--circle"
-						class:drop-handle--active={isActive}
-						cx={handle.x} cy={handle.y} r="5"
-					/>
-				{/if}
+					drag.activeHandle.elementId === side.elementId &&
+					drag.activeHandle.edge === side.edge}
+				<line class="drop-side"
+					class:drop-side--active={isActive}
+					x1={side.x1} y1={side.y1} x2={side.x2} y2={side.y2}
+				/>
 			{/each}
 
 			<!-- Ghost line from fixed point to active handle or cursor -->
@@ -4321,19 +4736,21 @@
 
 	/* ── Drop handles ── */
 
-	.drop-handle {
-		fill: none;
+	/* Allowed sides while dragging a connection point: faint guides, with the
+	   side the point will land on emphasised in blue. */
+	.drop-side {
 		stroke: var(--gray-500);
-		stroke-width: 1.5;
+		stroke-width: 2;
+		stroke-linecap: round;
 		pointer-events: none;
-		opacity: 0.35;
-		transition: opacity 0.08s, fill 0.08s;
+		opacity: 0.25;
+		transition: opacity 0.08s, stroke 0.08s;
 	}
 
-	.drop-handle--active {
-		fill: var(--gray-600);
-		stroke: var(--gray-300);
-		opacity: 1;
+	.drop-side--active {
+		stroke: var(--blue);
+		stroke-width: 3;
+		opacity: 0.9;
 	}
 
 	/* ── Ghost line ── */
@@ -4406,13 +4823,9 @@
 		cursor: grab;
 	}
 
-	/* Cornered lines only slide their middle run along one axis. */
-	.connection-shape-handle-target--x {
-		cursor: ew-resize;
-	}
-
-	.connection-shape-handle-target--y {
-		cursor: ns-resize;
+	/* A cornered line's handle moves freely (the line reroutes through it). */
+	.connection-shape-handle-target--xy {
+		cursor: move;
 	}
 
 	/* Note anchor dot — ties the note box to the bezier arc */

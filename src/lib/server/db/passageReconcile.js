@@ -985,6 +985,10 @@ async function reanchorOrphanConnections(
 			.set({
 				...endpointColumns('from', newFrom),
 				...endpointColumns('to', newTo),
+				// A user-placed connection point belongs to its OLD element: clear it
+				// only for an end that actually moved (it falls back to automatic).
+				...(sameEndpoint(connEndpoint(conn, 'from'), newFrom) ? {} : { fromAnchorEdge: null, fromAnchorPos: null }),
+				...(sameEndpoint(connEndpoint(conn, 'to'), newTo) ? {} : { toAnchorEdge: null, toAnchorPos: null }),
 				updatedAt: new Date()
 			})
 			.where(eq(segmentConnection.id, conn.id));

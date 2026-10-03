@@ -6,11 +6,19 @@ import { eq, and } from 'drizzle-orm';
 
 const VALID_TYPES = ['segment', 'section', 'column'];
 const VALID_LINE_ROUTES = ['curved', 'straight', 'cornered'];
+/** Sides a connection point may sit on, per element type (mirrors ConnectionsOverlay). */
+const ALLOWED_ANCHOR_EDGES = {
+	column: ['top'],
+	section: ['top', 'bottom'],
+	segment: ['left', 'right']
+};
 // 'gray' (default, stored as NULL), 'mixed' (fade between the ends' colors), or
 // any of the eight named colors as a solid line color.
 const VALID_LINE_COLORS = ['gray', 'mixed', 'red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'];
-/** Max |bendPerp| (fraction of chord length) — mirrors ConnectionsOverlay's BEND_PERP_MAX. */
-const BEND_PERP_MAX = 1.5;
+/** Handle placement range (fractions of chord length) — mirrors ConnectionsOverlay. */
+const CORNER_ALONG_MIN = -3;
+const CORNER_ALONG_MAX = 4;
+const CORNER_PERP_MAX = 3;
 
 /**
  * Get a single connection record (including commentary).
@@ -101,9 +109,11 @@ export const PATCH = async ({ params, request }) => {
 		const updatingLineRoute = 'lineRoute' in body;
 		const updatingBend = 'bendAlong' in body || 'bendPerp' in body;
 		const updatingLineColor = 'lineColor' in body;
+		const updatingAnchors =
+			'fromAnchorEdge' in body || 'fromAnchorPos' in body || 'toAnchorEdge' in body || 'toAnchorPos' in body;
 
-		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote && !updatingNotePlacement && !updatingLineRoute && !updatingBend && !updatingLineColor) {
-			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, noteLead, lineRoute, bendAlong, bendPerp, lineColor, or commentary)' }, { status: 400 });
+		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote && !updatingNotePlacement && !updatingLineRoute && !updatingBend && !updatingLineColor && !updatingAnchors) {
+			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, noteLead, lineRoute, bendAlong, bendPerp, lineColor, fromAnchorEdge/Pos, toAnchorEdge/Pos, or commentary)' }, { status: 400 });
 		}
 
 		if (updatingLineColor && body.lineColor !== null && !VALID_LINE_COLORS.includes(body.lineColor)) {
@@ -219,11 +229,15 @@ export const PATCH = async ({ params, request }) => {
 
 		// Manual line shape (shaping handle). Stored relative to the chord; clamped
 		// so a stray value can't fling the line across the canvas.
+		// The handle is placed freely (curved and cornered alike): anywhere around
+		// either end. This range only stops absurd values.
+		const [alongMin, alongMax] = [CORNER_ALONG_MIN, CORNER_ALONG_MAX];
+		const perpMax = CORNER_PERP_MAX;
 		if ('bendAlong' in body) {
-			updates.bendAlong = body.bendAlong === null ? null : Math.min(0.9, Math.max(0.1, body.bendAlong));
+			updates.bendAlong = body.bendAlong === null ? null : Math.min(alongMax, Math.max(alongMin, body.bendAlong));
 		}
 		if ('bendPerp' in body) {
-			updates.bendPerp = body.bendPerp === null ? null : Math.min(BEND_PERP_MAX, Math.max(-BEND_PERP_MAX, body.bendPerp));
+			updates.bendPerp = body.bendPerp === null ? null : Math.min(perpMax, Math.max(-perpMax, body.bendPerp));
 		}
 
 		// Commentary update (independent of rerouting)
@@ -274,6 +288,44 @@ export const PATCH = async ({ params, request }) => {
 			updates.toColumnId  = newToType === 'column'
 				? (body.toColumnId  ?? (connection.toType === 'column'  ? connection.toColumnId  : null))
 				: null;
+		}
+
+		// ── User-placed connection points ─────────────────────────────────────
+		// An end's saved spot belongs to its element. If the end is re-anchored to
+		// a DIFFERENT element without a new spot, fall back to automatic placement.
+		for (const end of /** @type {const} */ (['from', 'to'])) {
+			const typeKey = `${end}Type`;
+			const idKeys = [`${end}SegmentId`, `${end}SectionId`, `${end}ColumnId`];
+			const moved =
+				(typeKey in updates && updates[typeKey] !== connection[typeKey]) ||
+				idKeys.some((k) => k in updates && updates[k] !== connection[k]);
+			if (moved) {
+				updates[`${end}AnchorEdge`] = null;
+				updates[`${end}AnchorPos`] = null;
+			}
+		}
+		for (const end of /** @type {const} */ (['from', 'to'])) {
+			const edgeKey = `${end}AnchorEdge`;
+			const posKey = `${end}AnchorPos`;
+			if (!(edgeKey in body) && !(posKey in body)) continue;
+			const edge = body[edgeKey] ?? null;
+			const pos = body[posKey] ?? null;
+			if (edge === null || pos === null) {
+				// Clearing (either value null) → back to automatic.
+				updates[edgeKey] = null;
+				updates[posKey] = null;
+				continue;
+			}
+			// The edge must be one the end's element type allows.
+			const endType = updates[`${end}Type`] ?? connection[`${end}Type`];
+			if (!(ALLOWED_ANCHOR_EDGES[endType] ?? []).includes(edge)) {
+				return json({ error: `Invalid ${edgeKey} '${edge}' for a ${endType} end` }, { status: 400 });
+			}
+			if (typeof pos !== 'number' || !Number.isFinite(pos)) {
+				return json({ error: `Invalid ${posKey}: must be a number or null` }, { status: 400 });
+			}
+			updates[edgeKey] = edge;
+			updates[posKey] = Math.min(1, Math.max(0, pos));
 		}
 
 		const [updated] = await db

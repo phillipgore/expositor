@@ -209,6 +209,20 @@
 		isDisabled={!($toolbarState.hasActiveConnection && $toolbarState.activeConnectionHasBend)}
 	/>
 
+	<!-- Send ends the user dragged to a chosen spot back to automatic placement
+	     (closest spot on the nearest allowed side). -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect"
+		label="Reset Connection Points"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('connection-reset-points'));
+		}}
+		isDisabled={!($toolbarState.hasActiveConnection && $toolbarState.activeConnectionHasPlacedPoints)}
+	/>
+
 
 	<DividerHorizontal />
 
