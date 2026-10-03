@@ -17,6 +17,7 @@
 		"probe:join-direction": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-join-direction.mjs",
 		"probe:join-parts": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-join-parts.mjs",
 		"probe:split-part": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-split-part.mjs",
+		"probe:split-caret": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-split-caret.mjs",
 		"probe:move-text": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-cross-part-move.mjs",
 		"probe:transfer": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-item-transfer.mjs",
 		"probe:balance": "node --import tsx --import ./scripts/alias-loader.mjs scripts/probe-balance-create.mjs",

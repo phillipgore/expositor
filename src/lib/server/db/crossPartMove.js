@@ -14,29 +14,15 @@
  * still moves — so routing would duplicate the tree walk rather than widen it. Hence a scope-aware
  * implementation here, with the passage-local case still served by the original functions.
  *
- * ## ⚠️ The mid-verse caret, and why it is refused
+ * ## A mid-verse caret moves the boundary to that word
  *
- * A segment may legitimately begin mid-verse: `startingWordId` is word-granular, and Move Text exists
- * precisely to place a segment boundary at an arbitrary word. Passage ranges, however, are
- * **verse**-granular (`fromVerse` / `toVerse`).
- *
- * Within one passage that mismatch is harmless — both segments render from the same passage's text. At
- * a part boundary it is not. If the caret sits at word 5 of Romans 3:1 and the boundary is derived from
- * it, the range arithmetic assigns the whole of 3:1 to one part while the other part's last segment
- * still claims words 1–4 of it. One part would render text it does not own, or the words would vanish
- * from both. Verified against the real arithmetic before writing this: a caret at `RO-003-001-005`
- * yields a boundary of exactly 3:1, silently dropping the word offset.
- *
- * So a cross-part move requires the caret to be at the **start of a verse**. That is a real
- * restriction and is surfaced as a reason, not as a silent no-op: the user is told to move the text in
- * two steps (to the verse boundary within the part, then across), which is achievable with the
- * commands that already exist.
- *
- * ⚠️ **Scheduled for removal (word-granular parts, stage 2).** Passage ranges now carry
- * `fromWord` / `toWord` (migration 0048) and `planBoundaryShift()` keeps the word offset, so the
- * arithmetic described above no longer drops it. The refusal stays in this stage only so that stage 1
- * ships the foundation without changing what the command accepts; stage 2 deletes `isVerseStart`'s
- * gate here together with the caret-based Split Part.
+ * A segment may begin mid-verse — Move Text exists to place a segment boundary at an arbitrary word.
+ * Passage ranges used to be verse-granular, so a cross-part move had to refuse a caret that was not at
+ * the start of a verse: the arithmetic rounded `RO-003-001-005` to 3:1 and one part would have claimed
+ * words the other displayed. Ranges now carry `fromWord` / `toWord` (migration 0048) and
+ * `planBoundaryShift()` keeps the word, so the caret's exact word becomes the seam: the earlier part
+ * ends at word 4 of 3:1 and the later part begins at word 5. The refusal was removed in stage 2 of
+ * word-granular parts.
  *
  * @module crossPartMove
  */
@@ -48,12 +34,6 @@ import { planBoundaryShift } from '$lib/utils/boundaryMove.js';
 import { loadPassageSequence } from './passageSequence.js';
 import { reanchorPassages } from './reanchor.js';
 import { validateStudyDisplayLimits, getDisplayLimits } from '$lib/utils/translationLimits.js';
-
-/** Is this word id the first word of its verse? */
-function isVerseStart(wordId) {
-	const parts = String(wordId ?? '').split('-');
-	return parts.length === 4 && parseInt(parts[3], 10) === 1;
-}
 
 /**
  * Display-limit warnings for both affected studies after the proposed shift (§10.1).
@@ -151,15 +131,6 @@ export async function analyzeCrossPartMove(
 
 	if (!scope.ok) return { ok: false, reason: scope.reason, seamKind: scope.seamKind ?? null };
 	if (!scope.crossesBoundary) return { ok: true, crossesBoundary: false, reason: null };
-
-	if (!isVerseStart(insertionWordId)) {
-		return {
-			ok: false,
-			crossesBoundary: true,
-			reason:
-				'Text can only be moved to another part at the start of a verse. Move it to a verse boundary within this part first, then across.'
-		};
-	}
 
 	const activeEntry = loaded.sequence[scope.active.passageIndex];
 	const targetEntry = loaded.sequence[scope.target.passageIndex];

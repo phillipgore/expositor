@@ -20,7 +20,7 @@ import {
 } from '../src/lib/utils/wordIds.js';
 import { classifyBoundary } from '../src/lib/utils/seriesRuns.js';
 import { coalesceRanges, describeMidVerseBlock } from '../src/lib/utils/seriesSeams.js';
-import { planPartJoin } from '../src/lib/utils/seriesRestructure.js';
+import { planPartJoin, planPartSplitAtWord } from '../src/lib/utils/seriesRestructure.js';
 import { formatPassageReference } from '../src/lib/utils/passageFormatting.js';
 import { clipPassageHtml } from '../src/lib/utils/passageText.js';
 
@@ -137,6 +137,44 @@ check('whole-verse series pass', describeMidVerseBlock([part('A', 1, ipe(4, 1, 4
 const block = describeMidVerseBlock([a, b, part('C', 3, ipe(5, 1, 5, 14))]);
 assert('a mid-verse series is refused', typeof block === 'string');
 assert('naming each affected part and only those', /\(A, B\)/.test(block ?? ''));
+
+console.log('\n── stage 2: Split Part at the caret ──');
+const ipePart = part('P', 1, ipe(4, 1, 5, 14));
+const at = (wordId) => planPartSplitAtWord({ part: ipePart, boundaryWordId: wordId, translationId: 'esv' });
+const r = (x) => formatPassageReference(x);
+
+const mid = at('IPE-004-012-005');
+assert('a mid-verse caret is accepted', mid.ok);
+check('original ends at 4:12a', r(mid.first[0]), '1 Peter 4:1-12a');
+check('new starts at 4:12b', r(mid.second[0]), '1 Peter 4:12b-5:14');
+check('head ends at word 4', mid.first[0].toWord, 4);
+check('tail starts at word 5', mid.second[0].fromWord, 5);
+check('the halves are contiguous', classifyBoundary(part('A', 1, ...mid.first), part('B', 2, ...mid.second)), 'contiguous');
+
+const atVerse = at('IPE-004-012-001');
+check('word 1 cuts between verses', r(atVerse.first[0]), '1 Peter 4:1-11');
+check('the new part starts at 4:12', r(atVerse.second[0]), '1 Peter 4:12-5:14');
+const chap = at('IPE-005-001-001');
+check('word 1 of a chapter ends the head on the last verse of the previous chapter', r(chap.first[0]), '1 Peter 4:1-19');
+
+const atStart = at('IPE-004-001-001');
+assert("the part's very first word is refused", !atStart.ok);
+assert('saying it would leave the part empty', /empty/.test(atStart.error ?? ''));
+assert('a caret outside the part is refused', !at('IPE-002-001-001').ok);
+assert('a missing caret is refused', !at(null).ok);
+
+// Multi-passage part: Philippians 1 and 2 as two passages.
+const php = (fc, fv, tc, tv) => ({ ...ipe(fc, fv, tc, tv), bookId: 'PH', bookName: 'Philippians', displayOrder: fc });
+const multi = part('M', 1, php(1, 1, 1, 30), php(2, 1, 2, 30));
+const seam = planPartSplitAtWord({ part: multi, boundaryWordId: 'PH-002-001-001', translationId: 'esv' });
+assert('the start of a later passage is a clean seam', seam.ok && seam.isSeam);
+check('nothing is cut', seam.cutPassageIndex, null);
+check('one passage each side', `${seam.first.length}/${seam.second.length}`, '1/1');
+const inFirst = planPartSplitAtWord({ part: multi, boundaryWordId: 'PH-001-020-003', translationId: 'esv' });
+check('cutting the first passage cuts index 0', inFirst.cutPassageIndex, 0);
+check('and moves the later passage whole', inFirst.second.length, 2);
+check('the later passage is unchanged', r(inFirst.second[1]), 'Philippians 2:1-30');
+
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

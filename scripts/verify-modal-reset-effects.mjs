@@ -197,7 +197,7 @@ console.log('\n── The modals that already had this bug keep the guard ──
 for (const [file, loader] of [
 	['AddToSeriesModal.svelte', 'refresh'],
 	['JoinPartsModal.svelte', 'refresh'],
-	['SplitPartModal.svelte', 'loadPoints']
+	['SplitPartModal.svelte', 'loadPreview']
 ]) {
 	const { exposed, guarded } = inspect(readFileSync(`${MODALS}/${file}`, 'utf8'));
 	// Guarded AND present: deleting the load from the effect would also clear `exposed`.

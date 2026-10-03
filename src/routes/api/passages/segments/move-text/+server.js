@@ -54,8 +54,8 @@ export const POST = async ({ request }) => {
 		// ── The dry run: refuse before the gesture, never after it ──
 		//
 		// ⚠️ This is a PRE-FLIGHT CHECK, not a confirmation step. A cross-part move can be refused for
-		// reasons the client cannot evaluate — the caret must sit at the start of a verse, and the seam
-		// must be eligible — so asking first turns "why did nothing happen?" into a sentence that
+		// reasons the client cannot evaluate — the seam must be eligible, and the display limits
+		// must still hold — so asking first turns "why did nothing happen?" into a sentence that
 		// explains itself.
 		//
 		// It deliberately does NOT gate a confirm dialog. An earlier version returned
@@ -100,8 +100,8 @@ export const POST = async ({ request }) => {
 			return json({ success: true, ...result }, { status: 200 });
 		}
 
-		// A refused cross-part move reports its OWN reason — an ineligible seam, or the mid-verse caret
-		// restriction. Falling through to the passage-local function would instead raise "no next segment
+		// A refused cross-part move reports its OWN reason — an ineligible seam, or a display limit
+		// the move would breach. Falling through to the passage-local function would instead raise "no next segment
 		// exists", which is false whenever a next part abuts and is the §11 failure of describing a
 		// boundary in terms that do not name it.
 		if (!cross.ok && cross.crossesBoundary) {

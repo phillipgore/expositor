@@ -219,21 +219,26 @@
 	let isPart = $derived(Boolean(selectedPartSeries));
 
 	/**
-	 * Split Part needs a part with something to divide. The authoritative rule is
-	 * `getSplitPoints()` on the server, which the modal renders; this is only the enabling test, so
-	 * it asks the cheaper question the client can answer — does the part span more than one chapter,
-	 * or hold more than one passage?
+	 * Split Part works like Split Column / Section / Segment: it divides the part WHERE THE CARET IS
+	 * (word-granular parts, stage 2). The caret is published by the Analyze page with the study it
+	 * is in, so the part to split is the one holding the caret — not whatever the Finder happens to
+	 * have selected. A Finder selection of a different part does not redirect it.
 	 *
-	 * Deliberately NOT a second copy of the planner's rule: if the two disagree, the modal opens and
-	 * states the reason, which is §11's requirement anyway.
+	 * Enabled only with a caret that has an insertion word, in a part of a series. Whether that word
+	 * is a legal split point (not the part's very first word) is the server's call — the modal shows
+	 * its reason, which is §11's requirement anyway.
 	 */
-	let canSplitPart = $derived(
-		isPart &&
-			(selectedStudyData?.passages ?? []).length > 0 &&
-			((selectedStudyData?.passages ?? []).length > 1 ||
-				(selectedStudyData.passages[0].toChapter ?? 0) >
-					(selectedStudyData.passages[0].fromChapter ?? 0))
-	);
+	let caretPart = $derived.by(() => {
+		const studyId = $toolbarState.caretStudyId;
+		if (!studyId) return null;
+		for (const s of series ?? []) {
+			const found = (s.parts ?? []).find((p) => p.id === studyId);
+			if (found) return { part: found, series: s };
+		}
+		return null;
+	});
+
+	let canSplitPart = $derived(Boolean(caretPart && $toolbarState.caretInsertionWordId));
 
 	// Join needs a neighbour to join with. A one-part series cannot exist (§4), so any real part has
 	// at least one — but the guard is kept because a stale payload should disable the command rather
@@ -241,11 +246,13 @@
 	let canJoinParts = $derived(isPart && (selectedPartSeries?.parts?.length ?? 0) > 1);
 
 	let splitPartDisabledReason = $derived(
-		!isPart
-			? 'Select a part of a series to split it.'
-			: !canSplitPart
-				? 'This part covers a single chapter, so it cannot be divided further.'
-				: null
+		!$toolbarState.caretStudyId
+			? 'Place the caret in a part of a series where the new part should begin.'
+			: !caretPart
+				? 'Split Part divides a part of a series. This study is not in one.'
+				: !$toolbarState.caretInsertionWordId
+					? 'The caret is after the last word of a segment. Place it before the word the new part should start with.'
+					: null
 	);
 
 	let joinPartsDisabledReason = $derived(
@@ -623,8 +630,9 @@
 
 <SplitPartModal
 	isOpen={showSplitPartModal}
-	part={selectedStudyData}
-	seriesId={selectedPartSeries?.id ?? null}
+	part={caretPart?.part ?? null}
+	seriesId={caretPart?.series?.id ?? null}
+	boundaryWordId={$toolbarState.caretInsertionWordId}
 	onDone={handleRestructured}
 	onClose={() => (showSplitPartModal = false)}
 />

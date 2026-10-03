@@ -122,6 +122,8 @@ async function persistPreference(updates) {
 
 
  * @property {boolean} hasWordSelection - Whether a word has been selected in the passage
+ * @property {string|null} caretStudyId - Study the caret is in (see setCaretPosition)
+ * @property {string|null} caretInsertionWordId - First word after the caret, or null
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {string|null} activeSegmentId - The ID of the currently active segment
  * @property {string[]} activeSegmentSectionIds - The IDs of the section(s) the currently selected segment(s) belong to (for Color)
@@ -267,6 +269,8 @@ const defaultState = {
 	deleteConfirmationOpen: false,
 
 	hasWordSelection: false,
+	caretStudyId: null,
+	caretInsertionWordId: null,
 	hasActiveSegment: false,
 	activeSegmentId: null,
 	activeSegmentSectionIds: [],
@@ -1521,6 +1525,22 @@ export function setWordSelection(hasSelection) {
 	toolbarStateStore.update(state => ({
 		...state,
 		hasWordSelection: hasSelection
+	}));
+}
+
+/**
+ * Publish where the caret is, for commands outside the Analyze page that act on it (Split Part,
+ * in the Studies menu). `insertionWordId` is the first word on the far side of the caret — the same
+ * value every structural command uses — and `studyId` names the study it is in, so a caret left in
+ * one part cannot split a different part selected in the Finder.
+ *
+ * @param {{ studyId: string, insertionWordId: string|null } | null} caret
+ */
+export function setCaretPosition(caret) {
+	toolbarStateStore.update(state => ({
+		...state,
+		caretStudyId: caret?.studyId ?? null,
+		caretInsertionWordId: caret?.insertionWordId ?? null
 	}));
 }
 

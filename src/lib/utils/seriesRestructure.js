@@ -59,6 +59,12 @@ import { checkSinglePassageSupport, getDistributionLimits } from './translationL
 // `allowNonContiguous`, contiguous coalesces — and the boolean cannot express that. Still the
 // same single predicate (§4), just read at full resolution.
 import { classifyBoundary } from './seriesRuns.js';
+import {
+	parseWordIdParts,
+	comparePositions,
+	rangeStartPosition,
+	rangeEndPosition
+} from './wordIds.js';
 
 /**
  * Normalise a passage row to the shape the range helpers expect.
@@ -223,6 +229,109 @@ export function planPartSplit({ part, afterChapter, atPassageSeam, translationId
 		error: null,
 		first,
 		second,
+		warnings: [
+			...assessRanges(first, translationId, 'The first part'),
+			...assessRanges(second, translationId, 'The second part')
+		]
+	};
+}
+
+/**
+ * Plan a split at the CARET (§8 "Split Part", word-granular parts stage 2).
+ *
+ * Split Part works like Split Column / Section / Segment: the part divides where the caret is, and
+ * the caret is a word. `boundaryWordId` is the first word of the NEW part (the insertion word, as for
+ * every other structural command). Three shapes, decided by where that word falls:
+ *
+ * - **inside a passage, not its first word** → that passage is cut. Earlier passages and the
+ *   passage's head stay; its tail and every later passage move. A word other than word 1 cuts the
+ *   verse itself (`toWord` / `fromWord`); word 1 cuts between verses.
+ * - **the first word of a passage other than the first** → a clean seam between passages.
+ * - **the part's very first word** → refused: the original part would be left empty.
+ *
+ * The verse arithmetic is the same rule `planBoundaryShift()` applies to a moving boundary — the
+ * word before word 1 of a verse is the previous verse with `toWord` null, so no word counts are
+ * needed — but written out here because a split creates a seam rather than moving one.
+ *
+ * @param {Object} params
+ * @param {Object} params.part - The part, with `passages`
+ * @param {string} params.boundaryWordId - First word of the new part
+ * @param {string} params.translationId
+ * @returns {{ ok: boolean, error: string|null, first: Object[], second: Object[], warnings: Object[], cutPassageIndex: number|null, isSeam: boolean }}
+ */
+export function planPartSplitAtWord({ part, boundaryWordId, translationId }) {
+	const fail = (error) => ({
+		ok: false,
+		error,
+		first: [],
+		second: [],
+		warnings: [],
+		cutPassageIndex: null,
+		isSeam: false
+	});
+
+	const anchor = parseWordIdParts(boundaryWordId);
+	if (!anchor) return fail('Place the caret where the new part should begin.');
+
+	const ranges = rangesOf(part);
+	if (ranges.length === 0) return fail('This part has no passages.');
+
+	const pos = { chapter: anchor.chapter, verse: anchor.verse, word: anchor.word };
+	const index = ranges.findIndex(
+		(r) =>
+			comparePositions(pos, rangeStartPosition(r)) >= 0 &&
+			comparePositions(pos, rangeEndPosition(r)) <= 0
+	);
+	if (index === -1) return fail('The caret is not inside this part.');
+
+	const range = ranges[index];
+	const atPassageStart = comparePositions(pos, rangeStartPosition(range)) === 0;
+
+	if (atPassageStart && index === 0) {
+		return fail(
+			'The caret is at the very start of this part, so splitting there would leave it empty. Place the caret where the new part should begin.'
+		);
+	}
+
+	let first;
+	let second;
+	if (atPassageStart) {
+		first = ranges.slice(0, index);
+		second = ranges.slice(index);
+	} else {
+		let head;
+		if (anchor.word > 1) {
+			head = { ...range, toChapter: anchor.chapter, toVerse: anchor.verse, toWord: anchor.word - 1 };
+		} else {
+			const prev =
+				anchor.verse > 1
+					? { chapter: anchor.chapter, verse: anchor.verse - 1 }
+					: {
+							chapter: anchor.chapter - 1,
+							verse: getVerseCount(range.testament, range.book, anchor.chapter - 1)
+						};
+			if (!prev.verse) {
+				return fail('The length of the previous chapter is unknown, so the split cannot be placed.');
+			}
+			head = { ...range, toChapter: prev.chapter, toVerse: prev.verse, toWord: null };
+		}
+		const tail = {
+			...range,
+			fromChapter: anchor.chapter,
+			fromVerse: anchor.verse,
+			fromWord: anchor.word > 1 ? anchor.word : null
+		};
+		first = [...ranges.slice(0, index), head];
+		second = [tail, ...ranges.slice(index + 1)];
+	}
+
+	return {
+		ok: true,
+		error: null,
+		first,
+		second,
+		cutPassageIndex: atPassageStart ? null : index,
+		isSeam: atPassageStart,
 		warnings: [
 			...assessRanges(first, translationId, 'The first part'),
 			...assessRanges(second, translationId, 'The second part')

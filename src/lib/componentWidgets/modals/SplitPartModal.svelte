@@ -2,30 +2,34 @@
 	/**
 	 * # SplitPartModal Component
 	 *
-	 * Divides one part of a series into two (SERIES_PLAN §8, "Split Part").
+	 * Divides one part of a series into two at the CARET (SERIES_PLAN §8, "Split Part";
+	 * word-granular parts stage 2).
+	 *
+	 * ## Like the other split commands
+	 *
+	 * Split Column, Split Section and Split Segment divide where the caret is. Split Part now does
+	 * too: `boundaryWordId` is the caret's insertion word — the first word of the new part — and it
+	 * may fall anywhere, including part-way through a verse. There is no point picker. This dialog
+	 * exists only because a split restructures the series and has no undo (Q35), so the user sees
+	 * the two resulting references before committing.
 	 *
 	 * ## The preview comes from the server, not from a second implementation
 	 *
-	 * `SplitIntoSeriesModal` can preview locally because `planSeriesParts()` is pure. A split
-	 * cannot: how many connections the split would break is a fact about stored structure, so only
-	 * the server can answer it. This therefore calls the split endpoint with `dryRun: true` and
-	 * renders what comes back — the same code path the commit runs, so the dialog cannot promise an
-	 * outcome the endpoint will not produce.
+	 * The dialog calls the split endpoint with `dryRun: true` and renders what comes back — the
+	 * same code path the commit runs, so it cannot promise an outcome the endpoint will not produce.
+	 * A refusal (e.g. the caret is at the very start of the part) is shown as the server's own reason.
 	 *
-	 * That is also why the split point is a `Select` populated from the server's `splitPoints`
-	 * rather than a stepper computed here: the set of legal points is `getSplitPoints()`'s answer,
-	 * and duplicating that rule client-side would be a second place for it to drift.
+	 * ## Compliance is shown, never blocking
 	 *
-	 * ## Compliance is shown; connection loss must be acknowledged
-	 *
-	 * Warnings never block — §5 records that a user may knowingly build a part that will warn at
-	 * export. Broken connections are different: they are destroyed, and Q35 leaves no undo, so the
-	 * checkbox is required before the endpoint will proceed (it answers 409 without it).
+	 * §5 records that a user may knowingly build a part that will warn at export. Connections that
+	 * cross the new boundary are preserved as edge stubs (§8 strategy (c)), so nothing needs
+	 * acknowledging.
 	 *
 	 * ## Props
 	 * @property {boolean} isOpen
 	 * @property {Object} part - The part being split (only `id` is read)
 	 * @property {string} seriesId
+	 * @property {string|null} boundaryWordId - First word of the new part (the caret's insertion word)
 	 * @property {Function} onDone - Called after a successful split
 	 * @property {Function} onClose
 	 *
@@ -34,159 +38,76 @@
 	import { untrack } from 'svelte';
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
-	import Checkbox from '$lib/componentElements/Checkbox.svelte';
 	import Spinner from '$lib/componentElements/Spinner.svelte';
-	import Select from '$lib/componentElements/Select.svelte';
 	import { messageForFailure } from '$lib/utils/apiErrors.js';
 
-	let { isOpen = false, part = null, seriesId = null, onDone, onClose } = $props();
+	let {
+		isOpen = false,
+		part = null,
+		seriesId = null,
+		boundaryWordId = null,
+		onDone,
+		onClose
+	} = $props();
 
 	let preview = $state(null);
-	let loading = $state(false);
 	let error = $state('');
 	let submitting = $state(false);
-	let acknowledgedConnectionLoss = $state(false);
-
-	/** The chosen split point. A string because `Select` (a native `<select>`) values are strings. */
-	let choice = $state('');
-
-	/**
-	 * Whether this opening's first answer has arrived: the legal points and the first preview, or a
-	 * failure.
-	 *
-	 * Without it, "not loaded yet" and "cannot be divided" were the same state — `preview` is null in
-	 * both, so `kind` reads 'none' in both — and every opening began by telling the user this part
-	 * cannot be divided. It also keeps the body on the spinner until the first preview is in, so the
-	 * dialog changes height once rather than again when the Original / New list arrives.
-	 */
+	/** False until this opening's dry run has answered (or failed). */
 	let ready = $state(false);
 
 	/**
-	 * Reset per opening: a preview left from a previously selected part would describe a split of a
-	 * different part entirely.
-	 *
-	 * ⚠️ `untrack` is load-bearing, not defensive — the same trap `AddToSeriesModal` and
-	 * `JoinPartsModal` record. `loadPoints()` calls `request()`, which reads `choice` BEFORE its
-	 * first `await`, so that read is tracked and this effect subscribes to the state it resets. When
-	 * the points arrived and `loadPoints()` set `choice`, the effect re-ran, reset `choice` and
-	 * `preview`, and started another load. The body flipped between "This part cannot be divided."
-	 * and the split controls for as long as the dialog was open, and each pass fired more dry runs
-	 * than the last. Keyed on `isOpen` alone, because the open transition is the only thing that
-	 * should re-seed the choice.
+	 * Reset per opening, keyed on `isOpen` alone. ⚠️ `untrack` is load-bearing: `request()` reads
+	 * props before its first `await`, and without it this effect would subscribe to them and re-run
+	 * its own load in a loop — the trap `AddToSeriesModal` and `JoinPartsModal` record.
 	 */
 	$effect(() => {
 		if (!isOpen) return;
 		untrack(() => {
 			preview = null;
 			error = '';
-			choice = '';
-			acknowledgedConnectionLoss = false;
 			submitting = false;
 			ready = false;
-			void loadPoints();
+			void loadPreview();
 		});
 	});
 
-	/**
-	 * Fetch the legal split points, then preview the first one.
-	 *
-	 * Asking with no point selected returns the planner's refusal *plus* `splitPoints`, which is
-	 * exactly what the control needs — so the rejection is useful rather than merely an error. It is
-	 * sent as a `probe` so that expected refusal is not shown as one.
-	 */
-	async function loadPoints() {
+	async function loadPreview() {
 		try {
-			const points = await request({ dryRun: true, probe: true });
-			const found = points?.splitPoints;
-			const first =
-				found?.kind === 'chapter'
-					? found.chapters?.[0]
-					: found?.kind === 'passage'
-						? found.seams?.[0]
-						: null;
-
-			if (first != null) {
-				choice = String(first);
-				await refresh();
-			}
+			const result = await request({ dryRun: true });
+			if (result?.ok) preview = result;
 		} finally {
-			// Also on failure: a load that never settles would leave the spinner up for good.
 			ready = true;
 		}
 	}
 
-	/** Re-run the dry run for the currently chosen point. */
-	async function refresh() {
-		const result = await request({ dryRun: true });
-		if (result?.ok) {
-			preview = result;
-			error = '';
+	/** One request shape for both the dry run and the commit, so they cannot diverge. */
+	async function request({ dryRun }) {
+		if (!seriesId || !part?.id || !boundaryWordId) {
+			error = 'Place the caret where the new part should begin.';
+			return null;
 		}
-	}
-
-	/**
-	 * One request shape for both the dry run and the commit, so they cannot diverge.
-	 *
-	 * `probe` marks the opening no-point request, whose refusal is expected — see `loadPoints()`.
-	 */
-	async function request({ dryRun, confirmConnectionLoss = false, probe = false }) {
-		if (!seriesId || !part?.id) return null;
-		loading = dryRun;
 		try {
-			/** @type {Record<string, unknown>} */
-			const body = { partId: part.id, dryRun, confirmConnectionLoss };
-
-			// Which field to send depends on how this part divides. Sending both would let a stale
-			// value select the wrong branch server-side.
-			if (choice !== '') {
-				if (preview?.splitPoints?.kind === 'passage') body.atPassageSeam = Number(choice);
-				else body.afterChapter = Number(choice);
-			}
-
 			const response = await fetch(`/api/series/${seriesId}/split`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body)
+				body: JSON.stringify({ partId: part.id, boundaryWordId, dryRun })
 			});
 			const result = await response.json();
-
 			if (!response.ok) {
-				// A 409 is not a failure: it means "acknowledge the loss first", and the payload still
-				// carries the full preview, so it is kept rather than discarded.
-				if (result?.needsConnectionConfirmation) {
-					preview = result;
-					error = result.error ?? '';
-					return null;
-				}
-				// Keep any points that came back so the control still works after a rejected point.
-				if (result?.splitPoints) {
-					preview = { ...(preview ?? {}), splitPoints: result.splitPoints };
-				}
-				// The probe's refusal is the expected answer to "which points exist?", not a failure:
-				// the chapter case is followed at once by a real preview, and the single-chapter case
-				// is stated by the body from `splitPoints.reason`. Showing it in red either briefly
-				// flashed "That chapter is not inside this part." or repeated the body's reason. Only a
-				// refusal that brought the points back counts — a 401, a 404 or a part with no passages
-				// has none, and still reports.
-				if (probe && result?.splitPoints) {
-					return { splitPoints: result.splitPoints };
-				}
 				error = messageForFailure(
 					response,
 					result,
 					'Could not prepare the split.',
 					'split this part'
 				);
-				return dryRun ? { splitPoints: result?.splitPoints } : null;
+				return null;
 			}
-
 			return result;
 		} catch (err) {
 			console.error('Split request failed:', err);
 			error = 'Could not reach the server.';
 			return null;
-		} finally {
-			loading = false;
 		}
 	}
 
@@ -195,48 +116,17 @@
 		submitting = true;
 		error = '';
 		try {
-			const result = await request({
-				dryRun: false,
-				confirmConnectionLoss: acknowledgedConnectionLoss
-			});
+			const result = await request({ dryRun: false });
 			if (result?.ok) onDone?.(result);
 		} finally {
 			submitting = false;
 		}
 	}
 
-	let splitPoints = $derived(preview?.splitPoints ?? null);
-	let kind = $derived(splitPoints?.kind ?? 'none');
-	let brokenCount = $derived(preview?.connections?.broken ?? 0);
+	let confirmDisabled = $derived(submitting || !ready || !preview?.ok);
+	let crossPartCount = $derived(preview?.connections?.crossPart ?? 0);
 
-	// Options for the split-point Select. Values are strings to match `choice`. Seams are 0-based
-	// internally; shown 1-based, matching the Finder's part numbers.
-	let pointOptions = $derived(
-		kind === 'chapter'
-			? (splitPoints?.chapters ?? []).map((chapter) => ({
-					value: String(chapter),
-					text: String(chapter)
-				}))
-			: kind === 'passage'
-				? (splitPoints?.seams ?? []).map((seam) => ({
-						value: String(seam),
-						text: String(seam + 1)
-					}))
-				: []
-	);
-
-	// The only hard gate. Compliance warnings deliberately do NOT disable Split (§5).
-	let confirmDisabled = $derived(
-		submitting ||
-			loading ||
-			!ready ||
-			choice === '' ||
-			kind === 'none' ||
-			(brokenCount > 0 && !acknowledgedConnectionLoss)
-	);
-
-	// Both parts' display warnings (§10.1 requires re-checking the donor too, because its existing
-	// warning may now clear and a stale warning is its own bug).
+	// Both parts' display warnings (§10.1 requires re-checking the donor too).
 	let complianceMessages = $derived([
 		...(preview?.warnings ?? []).map((w) => w.message),
 		...(preview?.display?.first ?? []),
@@ -255,94 +145,47 @@
 	onCancel={onClose}
 	{onClose}
 >
-	<!-- Four states, and the first two are why this is not a plain if/else on `kind`. Before the
-	     answer arrives there are no points, so `kind` reads 'none' — and saying "cannot be divided"
-	     then was a claim nobody had made. Likewise a load that FAILED has no points either: that is
-	     "could not ask", not "the answer is no", so it gets the error rather than a reason. -->
 	{#if !ready}
 		<div class="loading">
-			<Spinner size="sm" inline label="Finding where this part can be divided…" showLabel />
+			<Spinner size="sm" inline label="Preparing the split…" showLabel />
 		</div>
-	{:else if !splitPoints}
-		<Alert
-			color="red"
-			look="subtle"
-			message={error || 'Could not prepare the split.'}
-			spacingBottom="0rem"
-		/>
-	{:else if kind === 'none'}
-		<!-- §11's rule for a dead control: say why, and never imply a fix that is not coming. -->
-		<p class="explain">{splitPoints.reason ?? 'This part cannot be divided.'}</p>
-	{:else}
-		<div class="point-row">
-			<label class="point-label" for="split-point">
-				{kind === 'chapter' ? 'Split after chapter' : 'Split before passage'}
-			</label>
-			<Select
-				id="split-point"
-				name="split-point"
-				optionProperties={pointOptions}
-				selectedValue={choice}
-				isDisabled={submitting}
-				handleChange={(event) => {
-					choice = /** @type {HTMLSelectElement} */ (event.currentTarget).value;
-					void refresh();
-				}}
-			/>
-		</div>
+	{:else if preview?.ok}
+		<p class="explain">This part will be divided at the caret.</p>
+		<ul class="halves">
+			<li>
+				<span class="half-label">Original</span>
+				<span class="half-ref">{preview.firstReference}</span>
+			</li>
+			<li>
+				<span class="half-label">New</span>
+				<span class="half-ref">{preview.secondReference}</span>
+			</li>
+		</ul>
 
-		{#if preview?.ok}
-			<ul class="halves">
-				<li>
-					<span class="half-label">Original</span>
-					<span class="half-ref">{preview.firstReference}</span>
-				</li>
-				<li>
-					<span class="half-label">New</span>
-					<span class="half-ref">{preview.secondReference}</span>
-				</li>
-			</ul>
+		{#if crossPartCount > 0}
+			<!-- Information, not a warning: §8 strategy (c) keeps these as edge stubs. -->
+			<p class="explain">
+				{crossPartCount}
+				{crossPartCount === 1 ? 'connection continues' : 'connections continue'} across the new
+				boundary and will be shown in both parts.
+			</p>
 		{/if}
 
-		<!-- One yellow Alert per message, and the closing reassurance rides on the LAST of them
-		     rather than sitting in its own box. It is the absence of an action, not a finding of
-		     its own — StudyForm makes the same argument for keeping "You can still save it" inside
-		     the alert it qualifies. A separate Alert would also have been a second yellow box
-		     saying nothing was wrong, which is how a wall of alerts starts.
-
-		     No mention of export, matching the other compliance footers; see SplitIntoSeriesModal
-		     for the reasoning. -->
-		{#if complianceMessages.length > 0}
-			{#each complianceMessages as message, i}
-				<Alert
-					color="yellow"
-					look="subtle"
-					message={i === complianceMessages.length - 1
-						? `${message} You can still split this part.`
-						: message}
-					spacingBottom="0.8rem"
-				/>
-			{/each}
-		{/if}
-
-		{#if brokenCount > 0}
-			<!-- Q23 strategy (b): warn with the count, then delete only on acknowledgement. Phase 3
-			     replaces this with edge stubs that keep the connections instead. -->
-			<Checkbox
-				id="split-part-confirm"
-				bind:checked={acknowledgedConnectionLoss}
-				alignTop
+		<!-- One yellow Alert per message; the reassurance rides on the last (see StudyForm). -->
+		{#each complianceMessages as message, i (i)}
+			<Alert
+				color="yellow"
+				look="subtle"
+				message={i === complianceMessages.length - 1
+					? `${message} You can still split this part.`
+					: message}
 				spacingBottom="0.8rem"
-			>
-				Delete {brokenCount}
-				{brokenCount === 1 ? 'connection' : 'connections'} crossing the new boundary. This cannot be
-				undone.
-			</Checkbox>
-		{/if}
+			/>
+		{/each}
+	{/if}
 
-		{#if error}
-			<Alert color="red" look="subtle" message={error} spacingBottom="0rem" />
-		{/if}
+	{#if ready && error}
+		<Alert color="red" look="subtle" message={error} spacingBottom="0rem" />
 	{/if}
 </Modal>
 
@@ -357,18 +200,6 @@
 	   the answer will. */
 	.loading {
 		margin: 0 0 1.2rem;
-	}
-
-	.point-row {
-		display: flex;
-		align-items: center;
-		gap: 0.8rem;
-		margin-bottom: 1.2rem;
-	}
-
-	.point-label {
-		font-size: 1.4rem;
-		color: var(--black);
 	}
 
 	.halves {

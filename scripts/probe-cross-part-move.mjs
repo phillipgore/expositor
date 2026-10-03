@@ -388,31 +388,23 @@ try {
 	}
 	assert('but a duplicate anchor is still refused', /beginning of an existing segment/.test(duplicateError ?? ''));
 
-	// ── The mid-verse refusal ─────────────────────────────────────────────────
+	// ── A mid-verse caret moves the seam to that WORD (word-granular parts, stage 2) ──
 	//
-	// Segment anchors are word-granular; passage ranges are verse-granular. Across a part boundary that
-	// mismatch cannot be represented, so it is refused rather than silently dropping the word offset.
-	console.log('\n── a MID-VERSE caret is refused, not silently mishandled ──');
+	// Formerly refused, because passage ranges could not express a seam inside a verse. With
+	// from_word / to_word the caret's exact word becomes the boundary.
+	console.log('\n── a MID-VERSE caret moves the seam to that exact word ──');
 	await buildFixture(owner.id);
 
 	const midPlan = await analyzeCrossPartMove(db, owner.id, passB, id('gB-s3-1'), w(3, 5, 7), 'up');
-	assert('it is refused', midPlan.ok === false);
-	assert('it still reports that a boundary is involved', midPlan.crossesBoundary === true);
-	assert('and explains the verse-start requirement', /start of a verse/.test(midPlan.reason ?? ''));
+	assert('it is accepted', midPlan.ok === true);
+	assert('and crosses the boundary', midPlan.crossesBoundary === true);
 
-	let threw = null;
-	try {
-		await moveTextAcrossBoundary(db, owner.id, passB, id('gB-s3-1'), w(3, 5, 7), 'up');
-	} catch (error) {
-		threw = error.message;
-	}
-	assert(
-		'the executor refuses it too, not just the analyzer',
-		/start of a verse/.test(threw ?? '')
-	);
+	await moveTextAcrossBoundary(db, owner.id, passB, id('gB-s3-1'), w(3, 5, 7), 'up');
 
-	const [untouchedA] = await sql`SELECT to_chapter, to_verse FROM passage WHERE id = ${passA}`;
-	check('and nothing was written', `${untouchedA.to_chapter}:${untouchedA.to_verse}`, '2:29');
+	const [midA] = await sql`SELECT to_chapter, to_verse, to_word FROM passage WHERE id = ${passA}`;
+	const [midB] = await sql`SELECT from_chapter, from_verse, from_word FROM passage WHERE id = ${passB}`;
+	check('the earlier part ends at 3:5 word 6', `${midA.to_chapter}:${midA.to_verse}.${midA.to_word}`, '3:5.6');
+	check('the later part starts at 3:5 word 7', `${midB.from_chapter}:${midB.from_verse}.${midB.from_word}`, '3:5.7');
 } catch (error) {
 	fail += 1;
 	console.log(`\n✗ threw: ${error.message}`);

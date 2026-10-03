@@ -4,7 +4,12 @@ import { db } from '$lib/server/db/index.js';
 import { studySeries, study, passage } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
 import { eq, and, asc } from 'drizzle-orm';
-import { planPartSplit, getSplitPoints, renumberForInsert } from '$lib/utils/seriesRestructure.js';
+import {
+	planPartSplit,
+	planPartSplitAtWord,
+	getSplitPoints,
+	renumberForInsert
+} from '$lib/utils/seriesRestructure.js';
 import {
 	splitPassageStructure,
 	inspectPassageSplit,
@@ -49,8 +54,10 @@ function referenceFor(ranges) {
 		bookName: first.bookName ?? first.bookId ?? first.book,
 		fromChapter: first.fromChapter,
 		fromVerse: first.fromVerse,
+		fromWord: first.fromWord ?? null,
 		toChapter: last.toChapter,
-		toVerse: last.toVerse
+		toVerse: last.toVerse,
+		toWord: last.toWord ?? null
 	});
 }
 
@@ -154,12 +161,15 @@ export const POST = async ({ request, params }) => {
 
 		const seriesId = params.id;
 		const body = (await request.json()) ?? {};
+		// `boundaryWordId` is the caret's insertion word (stage 2): the part divides there, exactly
+		// like Split Column / Section / Segment. `afterChapter` / `atPassageSeam` remain accepted for a
+		// client that has not been redeployed, so it keeps working instead of failing.
 		const {
 			partId,
+			boundaryWordId: caretWordId,
 			afterChapter,
 			atPassageSeam,
-			dryRun = false,
-			confirmConnectionLoss = false
+			dryRun = false
 		} = body;
 
 		if (!partId || typeof partId !== 'string') {
@@ -203,12 +213,28 @@ export const POST = async ({ request, params }) => {
 		const translationId = target.translation || 'esv';
 		const splitPoints = getSplitPoints(partWithPassages);
 
-		const plan = planPartSplit({
-			part: partWithPassages,
-			afterChapter,
-			atPassageSeam,
-			translationId
-		});
+		// Caret split, or the legacy chapter/seam split. Normalised to one shape: `cutIndex` is the
+		// passage being divided (null for a clean seam between passages).
+		let plan;
+		if (typeof caretWordId === 'string' && caretWordId) {
+			plan = planPartSplitAtWord({
+				part: partWithPassages,
+				boundaryWordId: caretWordId,
+				translationId
+			});
+		} else {
+			const legacy = planPartSplit({
+				part: partWithPassages,
+				afterChapter,
+				atPassageSeam,
+				translationId
+			});
+			plan = {
+				...legacy,
+				isSeam: splitPoints.kind === 'passage',
+				cutPassageIndex: splitPoints.kind === 'passage' ? null : 0
+			};
+		}
 
 		if (!plan.ok) {
 			// The planner's own sentence explains what is wrong with THIS gesture, which a generic
@@ -224,7 +250,12 @@ export const POST = async ({ request, params }) => {
 		const firstDisplay = validateStudyDisplayLimits(plan.first, translationId);
 		const secondDisplay = validateStudyDisplayLimits(plan.second, translationId);
 
-		const boundaryWordId = boundaryWordIdOf(plan.second[0]);
+		// A caret split may fall mid-verse, so the caret's own word is the boundary — rebuilding it
+		// from the range would give word 1 and put the structure boundary at the wrong word.
+		const boundaryWordId =
+			typeof caretWordId === 'string' && caretWordId
+				? caretWordId
+				: boundaryWordIdOf(plan.second[0]);
 		if (!boundaryWordId) {
 			return json(
 				{ error: 'The split point could not be resolved to a position in the text.' },
@@ -234,7 +265,10 @@ export const POST = async ({ request, params }) => {
 
 		// Which shape of split this is decides everything below, so it is resolved once from the
 		// planner's own classification rather than re-derived from the request fields.
-		const isSeamSplit = splitPoints.kind === 'passage';
+		const isSeamSplit = plan.isSeam;
+		// The passage row being cut (chapter-line or caret split). Rows before it stay, rows after
+		// it move whole — they carry their own structure, like a seam split's moving rows.
+		const cutIndex = plan.cutPassageIndex ?? 0;
 
 		// What the split would do to connections, read from the real structure so the number in the
 		// warning is the number that will actually be destroyed.
@@ -248,7 +282,7 @@ export const POST = async ({ request, params }) => {
 		const preview = isSeamSplit
 			? { movedSegments: 0, reownedConnections: 0, straddlingConnections: [] }
 			: await inspectPassageSplit(db, {
-					passageId: targetPassages[0].id,
+					passageId: targetPassages[cutIndex].id,
 					boundaryWordId
 				});
 
@@ -365,14 +399,24 @@ export const POST = async ({ request, params }) => {
 				// A chapter-line split divides ONE passage. The original row is narrowed to the
 				// first half — UPDATED, never deleted and recreated, or the cascade would take its
 				// structure — and a new row receives the second half.
+				// Only the CUT passage (and the ones before it, unchanged) stay; `plan.first` ends with
+				// the cut passage's head, so the leading rows are reused in order. The cut passage's
+				// tail gets a new row; any passages after it re-parent whole, keeping their structure.
 				await applyRanges(tx, partId, plan.first, targetPassages, now);
-				const newPassageIds = await applyRanges(tx, newPartId, plan.second, [], now);
+				const [tailPassageId] = await applyRanges(tx, newPartId, plan.second.slice(0, 1), [], now);
+				const laterRows = targetPassages.slice(cutIndex + 1);
+				for (let i = 0; i < laterRows.length; i += 1) {
+					await tx
+						.update(passage)
+						.set({ studyId: newPartId, displayOrder: i + 1 })
+						.where(eq(passage.id, laterRows[i].id));
+				}
 
 				// Structure moves BEFORE anything is deleted. This ordering is the whole safety
 				// argument — see server/db/seriesStructure.js.
 				moved = await splitPassageStructure(tx, {
-					passageId: targetPassages[0].id,
-					newPassageId: newPassageIds[0],
+					passageId: targetPassages[cutIndex].id,
+					newPassageId: tailPassageId,
 					boundaryWordId,
 					newStudyId: newPartId,
 					seriesId

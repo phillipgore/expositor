@@ -93,7 +93,7 @@ and all surfaced to the user rather than hidden:
 
 1. **A cross-part Move Text requires the caret at the start of a verse** — segment anchors are
    word-granular and passage ranges were verse-granular. Ranges became word-granular in stage 1 of
-   "Word-granular parts" (migration 0048); the refusal is lifted in stage 2.
+   "Word-granular parts" (migration 0048), and the refusal was **lifted in stage 2**.
 2. ~~**Cross-part connections are deleted, not preserved**~~ — **resolved in phase 3.** Strategy (b)
    has been replaced by (c): the connection survives, stamped with `seriesId`, and each part draws a
    labelled edge stub. Left visible rather than deleted because a reader who remembers the old
@@ -217,11 +217,9 @@ they were **rewritten rather than routed** — §8 already said so, and the reas
 join is a _different_ operation while a cross-part text move is the _same_ operation over a wider
 scope, so routing would have duplicated `moveSegmentTextDown`'s tree walk rather than widening it.
 
-⚠️ **A cross-part Move Text requires the caret at the start of a verse — until stage 2 of
-word-granular parts.** Segment anchors are word-granular; passage ranges were verse-granular, so a
-caret at `RO-003-001-005` yielded a boundary of exactly 3:1, dropping the word offset. **Stage 1 has
-made ranges word-granular** (see "Word-granular parts" below); the refusal is kept for one more stage
-only so the foundation ships without changing what the command accepts.
+~~**A cross-part Move Text requires the caret at the start of a verse.**~~ **Resolved** by
+word-granular parts (below): passage ranges carry word bounds, so a caret at `RO-003-001-005` now
+moves the seam to word 5 of 3:1 instead of being refused.
 
 ### Word-granular parts (stage 1 — foundation, shipped)
 
@@ -252,9 +250,28 @@ stay on chapter/verse lines.
   `reserialize`): re-dividing on verse lines would silently round a user's split away. The user joins
   the parts back to a verse line first.
 
-**Stage 2 (next):** Split Part splits at the caret word (enabled when a word is selected that is not
-the part's first); the confirmation shows both resulting references; the chapter dropdown goes. The
-cross-part Move Text verse-start refusal is removed.
+### Word-granular parts (stage 2 — caret commands, shipped)
+
+- **Split Part splits at the caret**, like Split Column / Section / Segment. The Analyze page
+  publishes the caret's insertion word and its study (`setCaretPosition` in the toolbar store); the
+  Studies menu's Split Part acts on the part HOLDING THE CARET — not the Finder selection — and is
+  disabled with a reason when there is no caret, the study is not a part, or the caret sits after a
+  segment's last word. The dialog has no point picker: it dry-runs the split and shows "Original" /
+  "New" references (e.g. `1 Peter 4:1-12a` / `4:12b-5:14`) before committing, because a split has
+  no undo (Q35).
+- **`planPartSplitAtWord()`** (`seriesRestructure.js`) decides the shape from where the word falls:
+  inside a passage → that passage is cut (mid-verse when the word is not word 1); the first word of a
+  later passage → a clean seam; the part's very first word → refused ("would leave it empty").
+  Passages after a cut passage re-parent whole, keeping their structure; the cut passage's tail gets
+  a new row, and `splitPassageStructure()` divides the containing segment at the caret word so the
+  new part is never blank (the I Peter production defect).
+- The endpoint (`api/series/[id]/split`) takes `boundaryWordId`; `afterChapter` / `atPassageSeam` are
+  still accepted so an un-redeployed client keeps working. `getSplitPoints` / `planPartSplit` remain
+  for that path only.
+- **Cross-part Move Text accepts a mid-verse caret**: the seam moves to that exact word. The
+  `isVerseStart` refusal is gone from `crossPartMove.js`.
+- Verified by `verify-word-bounds.mjs` (pure planner) and `npm run probe:split-caret`, which drives
+  the real endpoint handler against Postgres.
 
 ⚠️ **No structure changes parent during a Move Text, and that is a conclusion, not an omission.**
 Because the boundary is derived from the caret, the moved verses always land inside the range of the
@@ -1709,7 +1726,7 @@ backwards, with every section and column anchored to its own first child.
 
 ### Split Part / Join Parts
 
-- **Split Part** — divide at the selected boundary, renumber the rest. Validate each result
+- **Split Part** — divide at the caret (any word; see "Word-granular parts"), renumber the rest. Validate each result
   with `checkSinglePassageSupport(range, translationId)`, which reports whether the translation
   can serve that range as one passage and why not (`'exceeds-request'` / `'complete-book'`).
 - **Join Parts** — merge with the next or previous part, validating the _combined_ range.

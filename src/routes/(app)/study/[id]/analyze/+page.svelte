@@ -50,7 +50,7 @@
 	} from '$lib/utils/passageText.js';
 	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
 	import { rangeEndWordId } from '$lib/utils/wordIds.js';
-	import { toolbarState, setWordSelection, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
 	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
 	import { resolveTransferNeighbours } from '$lib/utils/transferNeighbours.js';
 
@@ -1009,6 +1009,26 @@
 	// Sync word selection state to toolbar store
 	$effect(() => {
 		setWordSelection(selectedWord !== null);
+	});
+
+	// Publish the caret's insertion word for Split Part (Studies menu). Same rule as every
+	// structural command here: 'before' → the word, 'after' → the next word in its segment. Cleared
+	// when the page unmounts so a caret from a part no longer shown cannot drive a split.
+	$effect(() => {
+		const sw = selectedWord;
+		const studyId = data.study?.id;
+		if (!sw || !studyId) {
+			setCaretPosition(null);
+			return;
+		}
+		const el =
+			sw.position === 'before'
+				? null
+				: document.querySelector(
+						`.selectable-word[data-passage-index="${sw.passageIndex}"][data-word-id="${sw.wordId}"]`
+					);
+		setCaretPosition({ studyId, insertionWordId: getInsertionWordId(sw, el) });
+		return () => setCaretPosition(null);
 	});
 
 	// Sync active segment state to toolbar store
@@ -2852,7 +2872,7 @@
 	// is the wrong tax on the wrong operation.
 	//
 	// The dry run stays, because it is doing a different job: it surfaces a refusal — an ineligible
-	// seam, or the mid-verse caret rule — BEFORE the gesture rather than as an `alert()` after it.
+	// seam, or a display limit — BEFORE the gesture rather than as an `alert()` after it.
 	/**
 	 * Move text up or down, committing directly.
 	 *
@@ -2860,8 +2880,8 @@
 	 */
 	async function startMoveText(request) {
 		try {
-			// Pre-flight: a cross-part move can be refused for reasons the menu cannot know (the caret
-			// must sit at a verse start, the seam must be eligible). Asking first means the refusal
+			// Pre-flight: a cross-part move can be refused for reasons the menu cannot know (
+			// the seam must be eligible, display limits must hold). Asking first means the refusal
 			// explains itself instead of arriving after the fact.
 			const dryRes = await fetch('/api/passages/segments/move-text', {
 				method: 'POST',
