@@ -415,11 +415,18 @@
 		}
 	}
 
-	// Whether THIS heading is the one currently selected for commentary (via its
-	// hover select button). Driven by the shared toolbar store so only one heading
-	// across the whole study is selected at a time.
+	// Whether THIS heading is selected — on its own via its hover select button, or as
+	// part of a Markup menu "Select All" multi-selection. Driven by the shared toolbar
+	// store's activeHeadingIds list.
 	let isHeadingSelected = $derived(
-		$toolbarState.hasActiveHeading && headingId != null && $toolbarState.activeHeadingId === headingId
+		$toolbarState.hasActiveHeading &&
+		headingId != null &&
+		($toolbarState.activeHeadingIds ?? []).includes(headingId)
+	);
+	// More than one heading selected (Select All): clicking a round button narrows the
+	// selection to just that heading instead of toggling it off.
+	let isMultiHeadingSelection = $derived(
+		$toolbarState.hasActiveHeading && ($toolbarState.activeHeadingIds?.length ?? 0) > 1
 	);
 
 	/**
@@ -432,7 +439,7 @@
 		event?.stopPropagation();
 		event?.preventDefault();
 		if (!headingId) return;
-		if (isHeadingSelected) {
+		if (isHeadingSelected && !isMultiHeadingSelection) {
 			setActiveHeading(false);
 		} else {
 			setActiveHeading(true, headingId, {

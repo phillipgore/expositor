@@ -19,6 +19,7 @@
 		setActiveSection,
 		setActiveColumn,
 		setActiveHeading,
+		setStudyHeadings,
 		setActiveConnection,
 		setDocumentCommentaryEditorOpen,
 		setHeadingOrNoteEditorActive,
@@ -36,6 +37,7 @@
 	import { buildVerseSectionMap, extractSegmentText } from '$lib/utils/passageText.js';
 	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
 	import { rangeEndWordId } from '$lib/utils/wordIds.js';
+	import { collectStudyHeadings } from '$lib/utils/studyHeadings.js';
 	import { formatScriptureReference } from '$lib/utils/bibleData.js';
 	import { hoverCaret } from '$lib/composables/useHoverCaret.svelte.js';
 	import { getInsertionWordId, initialCaretPosition } from '$lib/utils/caretPosition.js';
@@ -1325,7 +1327,28 @@
 	// active at a time — activating any clears the others — so the Comment toolbar
 	// button enables against exactly one item regardless of its kind.
 	let activeDocHeadingId = $state(/** @type {string | null} */ (null));
+	// Every selected heading id, for highlighting. Mirrors the toolbar store so a Markup
+	// menu "Select All" multi-selection highlights every matching heading here too.
+	let selectedDocHeadingIds = $derived(
+		$toolbarState.hasActiveHeading ? new Set($toolbarState.activeHeadingIds ?? []) : new Set()
+	);
 	let activeDocConnectionKey = $state(/** @type {string | null} */ (null));
+
+	// Publish the study's saved headings for the Markup menu's Select All items.
+	$effect(() => {
+		setStudyHeadings(collectStudyHeadings(data.passagesWithText));
+		return () => setStudyHeadings([]);
+	});
+
+	// activeDocHeadingId is the single heading the Comment button acts on. A Select All
+	// multi-selection (or a store-side clear, e.g. after a bulk delete) has no single
+	// commentary subject, so drop it.
+	$effect(() => {
+		const multi = $toolbarState.hasActiveHeading && ($toolbarState.activeHeadingIds?.length ?? 0) > 1;
+		if ((multi || !$toolbarState.hasActiveHeading) && activeDocHeadingId) {
+			activeDocHeadingId = null;
+		}
+	});
 
 
 	/* ============================================================
@@ -1830,7 +1853,7 @@
 	 * clearActiveSegment / clearStructuralSelection for the heading/connection subjects.
 	 */
 	function clearActiveCommentarySubject() {
-		if (activeDocHeadingId) {
+		if (activeDocHeadingId || selectedDocHeadingIds.size > 1) {
 			activeDocHeadingId = null;
 			setActiveHeading(false);
 		}
@@ -2815,7 +2838,7 @@
 			// heading text / connection card (and outside the commentary toolbar) clears
 			// the subject so the Comment button disables again. Clicks inside the heading,
 			// the connection card, or the toolbar keep it active.
-			if (activeDocHeadingId || activeDocConnectionKey) {
+			if (activeDocHeadingId || activeDocConnectionKey || selectedDocHeadingIds.size > 1) {
 				if (
 					!target?.closest?.(
 						'.doc-heading-editable, .doc-connection, .doc-commentary-editable, .doc-commentary-toolbar, .toolbar, [class*="toolbar"], [class*="menu"]'
@@ -3285,7 +3308,7 @@
 			<h3
 				class="doc-heading doc-heading-one doc-heading-editable"
 				class:doc-first-in-column={block.firstInColumn}
-				class:active={!!block.headingOneId && activeDocHeadingId === block.headingOneId}
+				class:active={!!block.headingOneId && selectedDocHeadingIds.has(block.headingOneId)}
 				data-doc-heading="{block.id}|one"
 
 
@@ -3313,7 +3336,7 @@
 			<h4
 				class="doc-heading doc-heading-two doc-heading-editable"
 				class:doc-first-in-column={block.firstInColumn}
-				class:active={!!block.headingTwoId && activeDocHeadingId === block.headingTwoId}
+				class:active={!!block.headingTwoId && selectedDocHeadingIds.has(block.headingTwoId)}
 				data-doc-heading="{block.id}|two"
 
 
@@ -3341,7 +3364,7 @@
 			<h5
 				class="doc-heading doc-heading-three doc-heading-editable"
 				class:doc-first-in-column={block.firstInColumn}
-				class:active={!!block.headingThreeId && activeDocHeadingId === block.headingThreeId}
+				class:active={!!block.headingThreeId && selectedDocHeadingIds.has(block.headingThreeId)}
 				data-doc-heading="{block.id}|three"
 
 

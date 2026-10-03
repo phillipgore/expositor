@@ -154,6 +154,9 @@ async function persistPreference(updates) {
  * @property {boolean} hasActiveHeading - Whether a heading (passage_heading row) is currently selected for commentary
  * @property {string|null} activeHeadingId - The ID of the currently selected heading row
  * @property {string|null} activeHeadingType - Level of the selected heading: 'one', 'two', 'three', or null
+ * @property {string[]} activeHeadingIds - IDs of ALL selected headings (one via the round select button, or many via the Markup menu's Select All items)
+ * @property {string|null} activeHeadingsType - Shared level of the selected headings, or null when they span several levels
+ * @property {{id: string, type: 'one'|'two'|'three', segmentId: string}[]} studyHeadings - Every saved heading in the open study, published by the active view (drives the Select All items)
  * @property {boolean} activeHeadingSegmentHasOne - Whether the selected heading's segment has a heading one
  * @property {boolean} activeHeadingSegmentHasTwo - Whether the selected heading's segment has a heading two
  * @property {boolean} activeHeadingSegmentHasThree - Whether the selected heading's segment has a heading three
@@ -302,6 +305,12 @@ const defaultState = {
 	hasActiveHeading: false,
 	activeHeadingId: null,
 	activeHeadingType: null,
+	// Multi-heading selection (Markup menu → Select All Headings / Heading One/Two/Three).
+	// activeHeadingId stays set only while exactly ONE heading is selected, so
+	// single-subject features (commentary, convert-in-place) never see a multi-selection.
+	activeHeadingIds: [],
+	activeHeadingsType: null,
+	studyHeadings: [],
 	activeHeadingSegmentHasOne: false,
 	activeHeadingSegmentHasTwo: false,
 	activeHeadingSegmentHasThree: false,
@@ -561,7 +570,7 @@ export function updateToolbarForRoute(pathname) {
 				//    SELECTED commentary-capable item (a segment), or closes the open one.
 				//    So on Document it's enabled only when such an item is selected OR an
 				//    editor is already open (so the user can toggle it closed).
-				canToggleComment: isAnalyzeRoute || (isDocumentView && (state.hasActiveSegment || state.hasActiveHeading || state.hasActiveConnection || state.documentCommentaryEditorOpen)),
+				canToggleComment: isAnalyzeRoute || (isDocumentView && (state.hasActiveSegment || (state.hasActiveHeading && !!state.activeHeadingId) || state.hasActiveConnection || state.documentCommentaryEditorOpen)),
 
 
 
@@ -1570,7 +1579,9 @@ export function setActiveSegment(hasSegment, segmentId = null, options) {
 		activeConnectionIds: hasSegment ? [] : state.activeConnectionIds,
 		// Deselect any heading when a segment becomes active
 		hasActiveHeading: hasSegment ? false : state.hasActiveHeading,
-		activeHeadingId: hasSegment ? null : state.activeHeadingId
+		activeHeadingId: hasSegment ? null : state.activeHeadingId,
+		activeHeadingIds: hasSegment ? [] : state.activeHeadingIds,
+		activeHeadingsType: hasSegment ? null : state.activeHeadingsType
 	}));
 }
 
@@ -1637,7 +1648,9 @@ export function setActiveColumn(hasColumn, columnId = null, isFirst = false, col
 		isActiveColumnFirstInPassage: hasColumn ? isFirst : false,
 		// Deselect any heading when a column becomes active
 		hasActiveHeading: hasColumn ? false : state.hasActiveHeading,
-		activeHeadingId: hasColumn ? null : state.activeHeadingId
+		activeHeadingId: hasColumn ? null : state.activeHeadingId,
+		activeHeadingIds: hasColumn ? [] : state.activeHeadingIds,
+		activeHeadingsType: hasColumn ? null : state.activeHeadingsType
 	}));
 }
 
@@ -1749,6 +1762,8 @@ export function setActiveHeading(hasHeading, headingId = null, options = {}) {
 		...state,
 		hasActiveHeading: hasHeading,
 		activeHeadingId: hasHeading ? headingId : null,
+		activeHeadingIds: hasHeading && headingId ? [headingId] : [],
+		activeHeadingsType: hasHeading ? (options.headingType ?? null) : null,
 		// Level of the selected heading and which levels its segment already holds —
 		// drives the Markup menu's Convert to Heading One/Two/Three items (a heading
 		// can't be converted into a level the segment already has).
@@ -1767,6 +1782,55 @@ export function setActiveHeading(hasHeading, headingId = null, options = {}) {
 		hasActiveConnection: hasHeading ? false : state.hasActiveConnection,
 		activeConnectionIds: hasHeading ? [] : state.activeConnectionIds
 	}));
+}
+
+/**
+ * Select MANY headings at once (Markup menu → Select All Headings / Heading One/Two/Three).
+ * With exactly one id this is identical to `setActiveHeading` for that heading; with more,
+ * `activeHeadingId` is null so commentary and single-heading convert stay disabled, while
+ * Delete and the multi-heading Convert items act on `activeHeadingIds`. Like
+ * setActiveHeading, it clears the other selection subjects. An empty list clears it.
+ * @param {string[]} headingIds - passage_heading row ids to select
+ * @param {'one'|'two'|'three'|null} headingsType - Shared level, or null for mixed levels
+ * @param {Object} [singleOptions] - Segment-level flags used when only one heading is selected
+ */
+export function setActiveHeadings(headingIds, headingsType = null, singleOptions = {}) {
+	if (!headingIds?.length) {
+		setActiveHeading(false);
+		return;
+	}
+	if (headingIds.length === 1) {
+		setActiveHeading(true, headingIds[0], { headingType: headingsType, ...singleOptions });
+		return;
+	}
+	toolbarStateStore.update(state => ({
+		...state,
+		hasActiveHeading: true,
+		activeHeadingId: null,
+		activeHeadingIds: [...headingIds],
+		activeHeadingsType: headingsType,
+		activeHeadingType: null,
+		activeHeadingSegmentHasOne: false,
+		activeHeadingSegmentHasTwo: false,
+		activeHeadingSegmentHasThree: false,
+		hasActiveSegment: false,
+		activeSegmentId: null,
+		hasActiveSection: false,
+		activeSectionId: null,
+		hasActiveColumn: false,
+		activeColumnId: null,
+		hasActiveConnection: false,
+		activeConnectionIds: []
+	}));
+}
+
+/**
+ * Publish every saved heading of the open study (from the active Analyze/Document view)
+ * so the Markup menu can enable and run its Select All items. Pass [] on unmount.
+ * @param {{id: string, type: 'one'|'two'|'three', segmentId: string}[]} headings
+ */
+export function setStudyHeadings(headings) {
+	toolbarStateStore.update(state => ({ ...state, studyHeadings: headings ?? [] }));
 }
 
 /**
@@ -1912,7 +1976,9 @@ export function setActiveConnection(hasConnection, connectionIds = [], hasNote =
 		activeSegmentId: hasConnection ? null : state.activeSegmentId,
 		// Deselect any heading when a connection is selected
 		hasActiveHeading: hasConnection ? false : state.hasActiveHeading,
-		activeHeadingId: hasConnection ? null : state.activeHeadingId
+		activeHeadingId: hasConnection ? null : state.activeHeadingId,
+		activeHeadingIds: hasConnection ? [] : state.activeHeadingIds,
+		activeHeadingsType: hasConnection ? null : state.activeHeadingsType
 	}));
 }
 

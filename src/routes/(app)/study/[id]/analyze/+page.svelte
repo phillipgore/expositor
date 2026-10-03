@@ -50,8 +50,9 @@
 	} from '$lib/utils/passageText.js';
 	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
 	import { rangeEndWordId } from '$lib/utils/wordIds.js';
-	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
 	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
+	import { collectStudyHeadings } from '$lib/utils/studyHeadings.js';
 	import { resolveTransferNeighbours } from '$lib/utils/transferNeighbours.js';
 
 
@@ -1301,6 +1302,13 @@
 			if (activeSections.length > 0) activeSections = [];
 			if (selectedWord !== null) { selectedWord = null; suppressHoverCaret = null; }
 		}
+	});
+
+	// Publish the study's saved headings for the Markup menu's Select All items.
+	$effect(() => {
+		const headings = collectStudyHeadings(data.passagesWithText);
+		setStudyHeadings(headings);
+		return () => setStudyHeadings([]);
 	});
 
 	// When a heading is selected for commentary (via its hover select button), clear all

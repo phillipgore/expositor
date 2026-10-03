@@ -6,7 +6,11 @@
 	 * Items add a new element to the current selection; removal is handled elsewhere
 	 * (the Delete toolbar action while editing a heading or note).
 	 * 
-	 * Items:
+	 * Items (Select All comes first in every menu that has it, matching Structure):
+	 * - Select All Headings / Heading One / Two / Three — select every saved heading in the
+	 *   study (or every heading of one level), lighting each heading's round select button.
+	 *   The toolbar's Delete then removes them all (after confirmation), and a one-level
+	 *   selection can be converted to another level in one step.
 	 * - Heading One / Two / Three — add a heading at the given level to the active segment
 	 * - Convert to Heading One / Two / Three — change the level of the heading selected via its
 	 *   round select button. Levels the heading's segment already has are disabled.
@@ -27,7 +31,11 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
     import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
-	import { toolbarState, showPassageNotes, showDocumentPassageNotes, showHeadings } from '$lib/stores/toolbar.js';
+	import { invalidate } from '$app/navigation';
+	import { tick } from 'svelte';
+	import { toolbarState, showPassageNotes, showDocumentPassageNotes, showHeadings, setActiveHeadings } from '$lib/stores/toolbar.js';
+	import { showPopover, showPopoverError } from '$lib/stores/popover.js';
+	import { planHeadingConversion, segmentHeadingFlags } from '$lib/utils/studyHeadings.js';
 
 
 
@@ -62,9 +70,109 @@
 	// has (including the heading's own level) is disabled.
 	let canConvertHeading = $derived($toolbarState.hasActiveHeading && !!$toolbarState.activeHeadingId);
 
+	// ── Select All ──
+	// The active view publishes the study's saved headings (studyHeadings). The items are
+	// disabled while that view's headings are hidden, since the selection wouldn't be visible.
+	let headingsShown = $derived(
+		view === 'document' ? $toolbarState.documentHeadingsVisible : $toolbarState.headingsVisible
+	);
+	let studyHeadings = $derived($toolbarState.studyHeadings ?? []);
+	let selectDisabled = $derived(!headingsShown || $toolbarState.overviewMode);
+
+	/** @param {'one'|'two'|'three'|null} headingType - null selects every level */
+	function countHeadings(headingType) {
+		return headingType ? studyHeadings.filter((h) => h.type === headingType).length : studyHeadings.length;
+	}
+
+	/** @param {'one'|'two'|'three'|null} headingType - null selects every level */
+	function selectAllHeadings(headingType) {
+		closeMenu();
+		const matches = headingType ? studyHeadings.filter((h) => h.type === headingType) : studyHeadings;
+		if (matches.length === 0) return;
+		const levels = new Set(matches.map((h) => h.type));
+		const sharedType = levels.size === 1 ? matches[0].type : null;
+		setActiveHeadings(
+			matches.map((h) => h.id),
+			sharedType,
+			matches.length === 1 ? segmentHeadingFlags(studyHeadings, matches[0].segmentId) : {}
+		);
+	}
+
+	// ── Convert several selected headings ──
+	// Allowed only when they all share one level (mixed levels would collide inside a
+	// segment holding several). Headings whose segment already has the target level are
+	// skipped and reported.
+	let isMultiHeadingSelection = $derived(
+		$toolbarState.hasActiveHeading && ($toolbarState.activeHeadingIds?.length ?? 0) > 1
+	);
+
+	/** @param {'one'|'two'|'three'} headingType */
+	function isConvertDisabled(headingType) {
+		if (isMultiHeadingSelection) {
+			return !$toolbarState.activeHeadingsType || $toolbarState.activeHeadingsType === headingType;
+		}
+		const segmentHas = {
+			one: $toolbarState.activeHeadingSegmentHasOne,
+			two: $toolbarState.activeHeadingSegmentHasTwo,
+			three: $toolbarState.activeHeadingSegmentHasThree
+		};
+		return !canConvertHeading || segmentHas[headingType];
+	}
+
+	/** @param {'one'|'two'|'three'} headingType */
+	async function convertSelectedHeadings(headingType) {
+		const selectedIds = [...($toolbarState.activeHeadingIds ?? [])];
+		const { convertible, skipped } = planHeadingConversion(studyHeadings, selectedIds, headingType);
+
+		let failed = 0;
+		for (const heading of convertible) {
+			try {
+				const response = await fetch(`/api/passages/headings/${heading.id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ headingType })
+				});
+				if (!response.ok) failed++;
+			} catch (error) {
+				console.error('Convert heading network error:', error);
+				failed++;
+			}
+		}
+
+		if (convertible.length > 0) {
+			await invalidate('app:studies');
+			await tick();
+		}
+
+		// Keep the same headings selected (ids survive conversion), unless the user has
+		// selected something else meanwhile.
+		const stillSelected =
+			$toolbarState.hasActiveHeading &&
+			($toolbarState.activeHeadingIds ?? []).join() === selectedIds.join();
+		if (stillSelected) {
+			const current = $toolbarState.studyHeadings ?? [];
+			const kept = current.filter((h) => selectedIds.includes(h.id));
+			const levels = new Set(kept.map((h) => h.type));
+			setActiveHeadings(kept.map((h) => h.id), levels.size === 1 ? kept[0].type : null);
+		}
+
+		if (failed > 0) {
+			showPopoverError(`${failed} heading${failed === 1 ? '' : 's'} could not be converted.`);
+		} else if (skipped.length > 0) {
+			showPopover(
+				`${skipped.length} heading${skipped.length === 1 ? ' was' : 's were'} skipped because ${skipped.length === 1 ? 'its passage already has' : 'their passages already have'} a heading at that level.`,
+				5000
+			);
+		}
+	}
+
 	/** @param {'one'|'two'|'three'} headingType */
 	function convertSelectedHeading(headingType) {
 		closeMenu();
+		if (isMultiHeadingSelection) {
+			convertSelectedHeadings(headingType);
+			return;
+		}
 		window.dispatchEvent(
 			new CustomEvent('convert-selected-heading', {
 				detail: { headingId: $toolbarState.activeHeadingId, headingType }
@@ -74,6 +182,45 @@
 </script>
 
 <Menu {menuId} ariaLabel="Outline menu">
+	<!-- Select All comes first, matching the Structure menu: select, then act. -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-select-all"
+		label="Select All Headings"
+		role="menuitem"
+		handleClick={() => selectAllHeadings(null)}
+		isDisabled={selectDisabled || countHeadings(null) === 0}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-one-select-all"
+		label="Select All Heading One"
+		role="menuitem"
+		handleClick={() => selectAllHeadings('one')}
+		isDisabled={selectDisabled || countHeadings('one') === 0}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-two-select-all"
+		label="Select All Heading Two"
+		role="menuitem"
+		handleClick={() => selectAllHeadings('two')}
+		isDisabled={selectDisabled || countHeadings('two') === 0}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="heading-three-select-all"
+		label="Select All Heading Three"
+		role="menuitem"
+		handleClick={() => selectAllHeadings('three')}
+		isDisabled={selectDisabled || countHeadings('three') === 0}
+	/>
+
+	<DividerHorizontal />
+
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one"
@@ -127,7 +274,7 @@
 		label="Convert to Heading One"
 		role="menuitem"
 		handleClick={() => convertSelectedHeading('one')}
-		isDisabled={!canConvertHeading || $toolbarState.activeHeadingSegmentHasOne}
+		isDisabled={isConvertDisabled('one')}
 	/>
 
 	<IconButton
@@ -136,7 +283,7 @@
 		label="Convert to Heading Two"
 		role="menuitem"
 		handleClick={() => convertSelectedHeading('two')}
-		isDisabled={!canConvertHeading || $toolbarState.activeHeadingSegmentHasTwo}
+		isDisabled={isConvertDisabled('two')}
 	/>
 
 	<IconButton
@@ -145,7 +292,7 @@
 		label="Convert to Heading Three"
 		role="menuitem"
 		handleClick={() => convertSelectedHeading('three')}
-		isDisabled={!canConvertHeading || $toolbarState.activeHeadingSegmentHasThree}
+		isDisabled={isConvertDisabled('three')}
 	/>
 
 	<DividerHorizontal />

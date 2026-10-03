@@ -72,8 +72,9 @@
 	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
 
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
+	import DeleteHeadingsConfirmationModal from '$lib/componentWidgets/modals/DeleteHeadingsConfirmationModal.svelte';
 	import { getAppToolbarConfig } from '$lib/utils/toolbarConfig.js';
-	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleFocus, toggleHeadings, toggleConnections, toggleNotes, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview, toggleCommentary, setZoomLevel, setZoomMode, setDeleteConfirmationOpen } from '$lib/stores/toolbar.js';
+	import { toolbarState, updateToolbarForRoute, toggleStudiesPanel, toggleFocus, toggleHeadings, toggleConnections, toggleNotes, toggleReferences, toggleVerses, toggleParagraphBreaks, toggleWide, toggleOverview, toggleCommentary, setZoomLevel, setZoomMode, setDeleteConfirmationOpen, setActiveHeading } from '$lib/stores/toolbar.js';
 
 
 	import { invalidate } from '$app/navigation';
@@ -240,6 +241,40 @@
 		showDeleteModal = false;
 		pendingDeleteItem = null;
 		setDeleteConfirmationOpen(false);
+	}
+
+	// Multi-heading delete (Markup menu → Select All, then Delete). The ids are captured
+	// when the modal opens, so it deletes exactly what was selected at that moment.
+	let showDeleteHeadingsModal = $state(false);
+	let deleteHeadingsViaKeyboard = $state(false);
+	let pendingDeleteHeadingIds = $state(/** @type {string[]} */ ([]));
+
+	/** @param {string[]} headingIds @param {boolean} viaKeyboard */
+	function openDeleteHeadingsModal(headingIds, viaKeyboard) {
+		pendingDeleteHeadingIds = [...headingIds];
+		deleteHeadingsViaKeyboard = viaKeyboard;
+		showDeleteHeadingsModal = true;
+	}
+
+	function closeDeleteHeadingsModal() {
+		showDeleteHeadingsModal = false;
+		pendingDeleteHeadingIds = [];
+	}
+
+	/** Delete every captured heading in one request (all-or-nothing on the server). */
+	async function handleDeleteHeadingsConfirm() {
+		const response = await fetch('/api/passages/headings', {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ headingIds: pendingDeleteHeadingIds })
+		});
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({}));
+			throw new Error(error.error || 'Failed to delete headings');
+		}
+		closeDeleteHeadingsModal();
+		setActiveHeading(false);
+		await invalidate('app:studies');
 	}
 
 	// Get toolbar configuration
@@ -413,7 +448,10 @@
 	 * 2. Connection selected → dispatch remove-connection event
 	 * 3. Active segment with headings/note → dispatch all applicable remove events
 	 */
-	function handleDeleteAction() {
+	function handleDeleteAction(event) {
+		// A click event with detail 0 came from the keyboard (Enter/Space), which moves
+		// focus to Cancel in the confirmation modal.
+		const viaKeyboard = event instanceof MouseEvent && event.detail === 0;
 		// Priority 1: Studies/groups selected in the panel
 		if ($toolbarState.canDelete && $toolbarState.selectedItem) {
 			// Snapshot the selection and lock the Finder's selection while the modal is open,
@@ -443,8 +481,16 @@
 			return;
 		}
 
-		// Priority 5: A heading is selected for commentary (circular select button) —
-		// delete that heading. The owning editor/page resolves it by its passage_heading id.
+		// Priority 5a: Several headings selected (Markup menu → Select All) — confirm,
+		// then delete them all in one request.
+		const selectedHeadingIds = $toolbarState.activeHeadingIds ?? [];
+		if ($toolbarState.hasActiveHeading && selectedHeadingIds.length > 1) {
+			openDeleteHeadingsModal(selectedHeadingIds, viaKeyboard);
+			return;
+		}
+
+		// Priority 5b: One heading is selected (circular select button) — delete it
+		// immediately. The owning editor/page resolves it by its passage_heading id.
 		if ($toolbarState.hasActiveHeading && $toolbarState.activeHeadingId) {
 			window.dispatchEvent(
 				new CustomEvent('remove-selected-heading', { detail: { headingId: $toolbarState.activeHeadingId } })
@@ -636,7 +682,7 @@
 										// (so the button can toggle it closed). Read LIVE selection state
 										// here rather than the route-level `canToggleComment`, which is only
 										// recomputed on route changes — not when a segment is selected.
-										? !($toolbarState.hasActiveSegment || $toolbarState.hasActiveHeading || $toolbarState.hasActiveConnection || $toolbarState.documentCommentaryEditorOpen)
+										? !($toolbarState.hasActiveSegment || ($toolbarState.hasActiveHeading && !!$toolbarState.activeHeadingId) || $toolbarState.hasActiveConnection || $toolbarState.documentCommentaryEditorOpen)
 										: !$toolbarState.canToggleComment)
 								: button.disabledCheck
 									? button.disabledCheck($toolbarState)
@@ -715,5 +761,14 @@
 	onConfirm={handleDeleteConfirm}
 	onClose={handleDeleteModalClose}
 	openedViaKeyboard={deleteOpenedViaKeyboard}
+/>
+
+<!-- Multi-heading Delete Confirmation Modal -->
+<DeleteHeadingsConfirmationModal
+	isOpen={showDeleteHeadingsModal}
+	count={pendingDeleteHeadingIds.length}
+	onConfirm={handleDeleteHeadingsConfirm}
+	onClose={closeDeleteHeadingsModal}
+	openedViaKeyboard={deleteHeadingsViaKeyboard}
 />
 

@@ -135,6 +135,7 @@
 	   ============================================ */
 	select {
 		appearance: none;
+		display: block;
 		border: solid 0.1rem var(--gray-700);
 		border-radius: 0.3rem;
 		height: 2.8rem;
@@ -164,14 +165,15 @@
 		width: 1.8rem;
 		height: 1.8rem;
 		background-color: var(--blue);
-		top: 0;
-		right: 0;
+		top: 50%;
+		right: 0.4rem;
+		transform: translateY(-50%);
 		z-index: 100;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: center;
 		padding: 0.2rem;
-		margin: 0.4rem;
 		border-radius: 0.3rem;
 		pointer-events: none;
 	}

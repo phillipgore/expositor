@@ -97,8 +97,10 @@ export function getAppToolbarConfig() {
 						// 3. The user has clicked inside a heading or note to edit it
 						//    (segment/column/section being active alone is not enough)
 						const hasSegmentDelete = state.hasActiveHeadingOrNoteEditor;
-						// 4. A heading is selected for commentary (its circular select button)
-						const hasHeadingDelete = state.hasActiveHeading && !!state.activeHeadingId;
+						// 4. One heading selected (its circular select button), or several
+						//    (Markup menu → Select All)
+						const hasHeadingDelete =
+							state.hasActiveHeading && (!!state.activeHeadingId || (state.activeHeadingIds?.length ?? 0) > 0);
 						return !hasStudiesDelete && !hasConnectionDelete && !hasSegmentDelete && !hasHeadingDelete;
 					}
 				}

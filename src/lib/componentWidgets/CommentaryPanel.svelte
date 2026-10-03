@@ -216,7 +216,7 @@
 		     connection toolbar state; without this guard the hidden editor would mount
 		     and steal focus from the Document view's own inline heading/commentary
 		     editor the instant a heading is clicked. -->
-		{#if isOpen && ($toolbarState.hasActiveHeading || $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1))}
+		{#if isOpen && (($toolbarState.hasActiveHeading && !!$toolbarState.activeHeadingId) || $toolbarState.hasActiveSegment || ($toolbarState.hasActiveConnection && $toolbarState.activeConnectionIds.length === 1))}
 
 			{#key currentSubject?.id}
 				<CommentaryEditor

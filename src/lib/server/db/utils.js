@@ -1027,6 +1027,52 @@ export async function updateHeadingCommentary(dbInstance, userId, headingId, com
 		.where(eq(passageHeading.id, headingId));
 }
 
+/**
+ * Delete many headings at once (Markup menu → Select All, then the toolbar's Delete).
+ * Deleting a heading row also discards its commentary.
+ *
+ * All-or-nothing: every id must exist and belong to the user, otherwise nothing is
+ * deleted. The delete runs in a single transaction.
+ *
+ * @param {Object} dbInstance - Database instance
+ * @param {string} userId - User ID for authorization
+ * @param {string[]} headingIds - passage_heading row ids
+ * @returns {Promise<{deleted: number}>}
+ */
+export async function deleteHeadings(dbInstance, userId, headingIds) {
+	const { study: studyTable } = await import('$lib/server/db/schema.js');
+
+	const ids = [...new Set(headingIds)];
+	if (ids.length === 0) return { deleted: 0 };
+
+	// Verify ownership by walking heading → segment → section → column → passage → study.
+	const rows = await dbInstance
+		.select({
+			headingId: passageHeading.id,
+			userId: studyTable.userId
+		})
+		.from(passageHeading)
+		.innerJoin(passageSegment, eq(passageHeading.passageSegmentId, passageSegment.id))
+		.innerJoin(passageSection, eq(passageSegment.passageSectionId, passageSection.id))
+		.innerJoin(passageColumn, eq(passageSection.passageColumnId, passageColumn.id))
+		.innerJoin(passage, eq(passageColumn.passageId, passage.id))
+		.innerJoin(studyTable, eq(passage.studyId, studyTable.id))
+		.where(inArray(passageHeading.id, ids));
+
+	if (rows.length !== ids.length) {
+		throw new Error('Heading not found');
+	}
+	if (rows.some((row) => row.userId !== userId)) {
+		throw new Error('User not authorized to delete these headings');
+	}
+
+	await dbInstance.transaction(async (tx) => {
+		await tx.delete(passageHeading).where(inArray(passageHeading.id, ids));
+	});
+
+	return { deleted: ids.length };
+}
+
 
 /**
  * Update a segment's note
