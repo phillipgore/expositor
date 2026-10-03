@@ -367,6 +367,69 @@ try {
 	check('the split part is still first', order[0].id, partId);
 	check('the new part is second', order[1].id, newPartId);
 	check('and the pre-existing part shifted to third', order[2].id, fillerId);
+
+	// ── Regression: DEFAULT structure (one segment at the part's first verse) ──
+	//
+	// Production, I Peter 4:1–5:14 split after chapter 4: the part's only segment started at 4:1, so
+	// nothing started at/after the 5:1 boundary, nothing moved, and the new part got no column at all
+	// — a blank page. The new passage must now receive a column/section/segment anchored at 5:1.
+	console.log('\n── regression: default single-segment structure gets a tail in the new part ──');
+
+	const dPart = id('d-part');
+	const dPass = id('d-pass');
+	const dCol = id('d-col');
+	const dSec = id('d-sec');
+	const dSeg = id('d-seg');
+	const dNewPart = id('d-new-part');
+	const dNewPass = id('d-new-pass');
+	await sql`
+		INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at)
+		VALUES (${dPart}, 'Romans 4:1-5:21', 'esv', ${owner.id}, ${seriesId}, 3, now(), now())
+	`;
+	await sql`
+		INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at)
+		VALUES (${dPass}, ${dPart}, 'NT', 'RO', 'Romans', 4, 1, 4, 25, 0, now())
+	`;
+	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${dCol}, ${dPass}, ${w(4, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${dSec}, ${dCol}, ${w(4, 1)}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${dSeg}, ${dSec}, ${w(4, 1)}, 'keep me', now(), now())`;
+	await sql`
+		INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at)
+		VALUES (${dNewPart}, 'Romans 5:1-21', 'esv', ${owner.id}, ${seriesId}, 4, now(), now())
+	`;
+	await sql`
+		INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at)
+		VALUES (${dNewPass}, ${dNewPart}, 'NT', 'RO', 'Romans', 5, 1, 5, 21, 0, now())
+	`;
+
+	const dMoved = await db.transaction((tx) =>
+		splitPassageStructure(tx, {
+			passageId: dPass,
+			newPassageId: dNewPass,
+			boundaryWordId: w(5, 1),
+			newStudyId: dNewPart,
+			seriesId
+		})
+	);
+	check('one column cloned into the new part', dMoved.clonedColumns, 1);
+
+	const newTree = await sql`
+		SELECT col.starting_word_id AS col_w, sec.starting_word_id AS sec_w, sec.color,
+			s.starting_word_id AS seg_w, s.note
+		FROM passage_column col
+		JOIN passage_section sec ON sec.passage_column_id = col.id
+		JOIN passage_segment s ON s.passage_section_id = sec.id
+		WHERE col.passage_id = ${dNewPass}
+	`;
+	check('the new part has exactly one segment (not blank)', newTree.length, 1);
+	check('its column starts at 5:1', newTree[0]?.col_w, w(5, 1));
+	check('its section starts at 5:1', newTree[0]?.sec_w, w(5, 1));
+	check('and keeps the section colour', newTree[0]?.color, 'green');
+	check('its segment starts at 5:1', newTree[0]?.seg_w, w(5, 1));
+	check('the tail is empty — the note stays with the original', newTree[0]?.note, null);
+	const [orig] = await sql`SELECT passage_section_id, note FROM passage_segment WHERE id = ${dSeg}`;
+	check('the original segment stays put', orig?.passage_section_id, dSec);
+	check('with its note', orig?.note, 'keep me');
 } catch (error) {
 	fail += 1;
 	console.log(`\n✗ threw: ${error.message}`);

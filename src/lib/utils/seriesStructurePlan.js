@@ -85,18 +85,45 @@ function flatten(tree) {
  *
  * @param {Array} tree - Loaded columns[] → sections[] → segments[] for the source passage
  * @param {string} boundaryWordId - First word id belonging to the SECOND part
+ * @param {{ boundaryInsidePassage?: boolean }} [options] - true when the boundary lies within the
+ *   passage's range, so a segment that starts before it and is the last to do so CONTAINS it and
+ *   must be divided (a `tail: true` section entry asks the executor for a new segment there)
  * @returns {{
  *   moveColumns: string[],
- *   cloneColumns: Array<{ from: Object, sections: Array<{ from: Object, segmentIds: string[] }> }>,
+ *   cloneColumns: Array<{ from: Object, sections: Array<{ from: Object, segmentIds: string[], tail?: boolean }> }>,
  *   movedSegmentIds: string[],
  *   stayingSegmentIds: string[]
  * }}
  */
-export function planStructureSplit(tree, boundaryWordId) {
+export function planStructureSplit(tree, boundaryWordId, { boundaryInsidePassage = false } = {}) {
 	const moveColumns = [];
 	const cloneColumns = [];
 	const movedSegmentIds = [];
 	const stayingSegmentIds = [];
+
+	// ⚠️ A segment spans from its own anchor up to the NEXT segment's anchor, so the boundary word
+	// is covered by some segment even when no segment STARTS there. The classic case is a part that
+	// still has its default structure — one column/section/segment anchored at the part's first
+	// verse. Classifying only by start word moves nothing, the new passage receives no column at
+	// all, and the new part renders as a blank page (seen in production: I Peter 4–5 split at 5:1).
+	// So if no segment begins exactly at the boundary, the segment containing it is divided: the
+	// containing section is cloned and a fresh, empty "tail" segment is anchored at the boundary.
+	//
+	// The tree alone cannot tell "inside the last segment" from "past the end of the passage", so
+	// the caller states it: a chapter-line split's boundary is always inside the passage being
+	// divided, and the split executor passes `boundaryInsidePassage: true`. Default false keeps a
+	// boundary past the end a no-op.
+	const allEntries = flatten(tree);
+	const boundaryHasSegment = allEntries.some(
+		(e) => compareWordIds(e.segment.startingWordId, boundaryWordId) === 0
+	);
+	let containing = null;
+	if (boundaryInsidePassage && !boundaryHasSegment) {
+		for (const e of allEntries) {
+			if (compareWordIds(e.segment.startingWordId, boundaryWordId) < 0) containing = e;
+			else break;
+		}
+	}
 
 	for (const column of tree ?? []) {
 		const entries = flatten([column]);
@@ -120,7 +147,9 @@ export function planStructureSplit(tree, boundaryWordId) {
 		for (const e of moving) movedSegmentIds.push(e.segment.id);
 		for (const e of staying) stayingSegmentIds.push(e.segment.id);
 
-		if (moving.length === 0) continue;
+		const holdsTail = containing !== null && containing.column.id === column.id;
+
+		if (moving.length === 0 && !holdsTail) continue;
 
 		if (staying.length === 0) {
 			// Wholly on the far side: one parent-id update carries the entire subtree.
@@ -137,7 +166,18 @@ export function planStructureSplit(tree, boundaryWordId) {
 			else bySection.set(e.section.id, { from: e.section, segmentIds: [e.segment.id] });
 		}
 
-		cloneColumns.push({ from: column, sections: [...bySection.values()] });
+		if (holdsTail) {
+			const sid = containing.section.id;
+			const existing = bySection.get(sid);
+			if (existing) existing.tail = true;
+			else bySection.set(sid, { from: containing.section, segmentIds: [], tail: true });
+		}
+
+		// Word order, so the clone's sections come out in the same order as the original's.
+		const sections = [...bySection.values()].sort((a, b) =>
+			compareWordIds(a.from.startingWordId, b.from.startingWordId)
+		);
+		cloneColumns.push({ from: column, sections });
 	}
 
 	return { moveColumns, cloneColumns, movedSegmentIds, stayingSegmentIds };

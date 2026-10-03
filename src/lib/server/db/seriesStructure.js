@@ -197,7 +197,8 @@ async function assertPassageEmpty(tx, passageId) {
  */
 export async function inspectPassageSplit(dbx, { passageId, boundaryWordId }) {
 	const tree = await loadPassageTree(dbx, passageId);
-	const plan = planStructureSplit(tree, boundaryWordId);
+	// Same option as the commit, so the preview describes what the commit does.
+	const plan = planStructureSplit(tree, boundaryWordId, { boundaryInsidePassage: true });
 	const whole = descendantIds(tree, plan.moveColumns);
 
 	const movedIds = {
@@ -241,7 +242,8 @@ export async function splitPassageStructure(
 	{ passageId, newPassageId, boundaryWordId, newStudyId, seriesId }
 ) {
 	const tree = await loadPassageTree(tx, passageId);
-	const plan = planStructureSplit(tree, boundaryWordId);
+	// A chapter-line split always divides INSIDE this passage — see planStructureSplit.
+	const plan = planStructureSplit(tree, boundaryWordId, { boundaryInsidePassage: true });
 	const now = new Date();
 
 	// Ids that end up on the new passage. Whole columns contribute their whole subtree; cloned
@@ -305,10 +307,26 @@ export async function splitPassageStructure(
 				updatedAt: now
 			});
 
-			await tx
-				.update(passageSegment)
-				.set({ passageSectionId: newSectionId, updatedAt: now })
-				.where(inArray(passageSegment.id, section.segmentIds));
+			// The boundary fell INSIDE a segment (see `planStructureSplit`): the far half of that
+			// segment needs its own row here, or the new passage has no segment covering its first
+			// words. Empty — notes, commentary and headings stay with the original, which keeps
+			// its id and its place in part 1.
+			if (section.tail) {
+				await tx.insert(passageSegment).values({
+					id: uuidv4(),
+					passageSectionId: newSectionId,
+					startingWordId: boundaryWordId,
+					createdAt: now,
+					updatedAt: now
+				});
+			}
+
+			if (section.segmentIds.length > 0) {
+				await tx
+					.update(passageSegment)
+					.set({ passageSectionId: newSectionId, updatedAt: now })
+					.where(inArray(passageSegment.id, section.segmentIds));
+			}
 		}
 	}
 

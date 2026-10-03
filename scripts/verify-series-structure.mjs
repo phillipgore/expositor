@@ -132,6 +132,39 @@ check('no column moves', noneMove.moveColumns.length, 0);
 check('no clone', noneMove.cloneColumns.length, 0);
 check('every segment stays', noneMove.stayingSegmentIds.length, 5);
 
+console.log('\n── regression: boundary INSIDE a segment (default structure, I Peter 4–5 at 5:1) ──');
+
+// A part never edited has one column/section/segment at its first verse. Classified by start word
+// alone, nothing moved and the new part got NO column — rendered as a blank page in production.
+const pristine = [col('pc', w(4, 1), [sec('ps', w(4, 1), [seg('pg', w(4, 1))])])];
+
+const legacy = planStructureSplit(pristine, w(5, 1));
+check('without the flag the old behaviour stands (no-op)', legacy.cloneColumns.length, 0);
+
+const pristineSplit = planStructureSplit(pristine, w(5, 1), { boundaryInsidePassage: true });
+check('the column is cloned so the new passage has structure', pristineSplit.cloneColumns.length, 1);
+check('nothing is re-parented whole', pristineSplit.moveColumns.length, 0);
+check('one section is cloned', pristineSplit.cloneColumns[0].sections.length, 1);
+check('cloned from the containing section', pristineSplit.cloneColumns[0].sections[0].from.id, 'ps');
+check('it asks for a tail segment', pristineSplit.cloneColumns[0].sections[0].tail, true);
+check('no existing segment moves', pristineSplit.movedSegmentIds.length, 0);
+check('the original segment stays in part 1', pristineSplit.stayingSegmentIds[0], 'pg');
+
+// A segment already AT the boundary covers it — no tail needed, existing behaviour unchanged.
+const atBoundary = planStructureSplit(straddle, w(3, 1), { boundaryInsidePassage: true });
+assert(
+	'no tail when a segment starts exactly at the boundary',
+	atBoundary.cloneColumns.every((c) => c.sections.every((s) => !s.tail))
+);
+
+// Boundary inside a section whose later segments also move: tail is added to that same clone.
+const mid = planStructureSplit(straddle, w(3, 5), { boundaryInsidePassage: true });
+check('one clone', mid.cloneColumns.length, 1);
+check('one cloned section (s2)', mid.cloneColumns[0].sections.length, 1);
+check('carrying the tail', mid.cloneColumns[0].sections[0].tail, true);
+check('and g5, which starts after the boundary', mid.cloneColumns[0].sections[0].segmentIds.join(), 'g5');
+assert('g4 (contains the boundary) stays', mid.stayingSegmentIds.includes('g4'));
+
 console.log('\n── §8 Join: every column re-parents, nothing is folded ──');
 
 const absorbed = [
