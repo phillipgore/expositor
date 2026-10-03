@@ -151,6 +151,7 @@ async function persistPreference(updates) {
  * @property {string[]} activeConnectionIds - The IDs of the currently selected connections
  * @property {boolean} activeConnectionHasNote - Whether the currently selected connection has a quick note
  * @property {number} activeConnectionNoteCount - How many of the currently selected connections have a quick note (drives multi-select note-placement actions)
+ * @property {boolean} activeConnectionHasBend - Whether any selected connection has a manual line shape (enables "Reset Connection Shape")
  * @property {boolean} hasActiveHeading - Whether a heading (passage_heading row) is currently selected for commentary
  * @property {string|null} activeHeadingId - The ID of the currently selected heading row
  * @property {string|null} activeHeadingType - Level of the selected heading: 'one', 'two', 'three', or null
@@ -300,6 +301,7 @@ const defaultState = {
 	activeConnectionIds: [],
 	activeConnectionHasNote: false,
 	activeConnectionNoteCount: 0,
+	activeConnectionHasBend: false,
 	// A heading (passage_heading row) selected via its hover select button, for
 	// attaching commentary. Independent of the heading EDITOR (edit-the-text) state.
 	hasActiveHeading: false,

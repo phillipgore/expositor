@@ -488,6 +488,22 @@ export const segmentConnection = pgTable('segment_connection', {
 	 * render unchanged. Anchor/edge selection is shared by every route.
 	 */
 	lineRoute: text('line_route'),
+	/**
+	 * User-adjusted line shape (the draggable shaping handle). Both are stored
+	 * RELATIVE to the anchor-to-anchor chord so a bend survives layout changes:
+	 *   bendAlong — curved only: where along the chord (0…1) the handle sits.
+	 *   bendPerp  — signed offset off the chord as a fraction of chord length
+	 *               (curved: the handle point; cornered: the middle run).
+	 * NULL = automatic shape (no manual bend). Changing lineRoute clears both.
+	 */
+	bendAlong: real('bend_along'),
+	bendPerp: real('bend_perp'),
+	/**
+	 * Line color: a named color ('red' … 'pink') draws the line and its end nodes
+	 * in that solid color; 'mixed' fades from the FROM end's section color to the
+	 * TO end's (end nodes take their end's color). NULL = default gray.
+	 */
+	lineColor: text('line_color'),
 	// Rich text commentary for this connection (mirrors passage_segment.commentary)
 
 	commentary: text('commentary'),

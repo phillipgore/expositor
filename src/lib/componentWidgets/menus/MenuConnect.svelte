@@ -195,6 +195,20 @@
 		isDisabled={!$toolbarState.hasActiveConnection}
 	/>
 
+	<!-- Undo a manual bend made with the line's shaping handle (the hollow ring
+	     on a selected connection), returning it to its automatic shape. -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="connect"
+		label="Reset Connection Shape"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('connection-reset-shape'));
+		}}
+		isDisabled={!($toolbarState.hasActiveConnection && $toolbarState.activeConnectionHasBend)}
+	/>
+
 
 	<DividerHorizontal />
 

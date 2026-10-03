@@ -6,6 +6,11 @@ import { eq, and } from 'drizzle-orm';
 
 const VALID_TYPES = ['segment', 'section', 'column'];
 const VALID_LINE_ROUTES = ['curved', 'straight', 'cornered'];
+// 'gray' (default, stored as NULL), 'mixed' (fade between the ends' colors), or
+// any of the eight named colors as a solid line color.
+const VALID_LINE_COLORS = ['gray', 'mixed', 'red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'];
+/** Max |bendPerp| (fraction of chord length) — mirrors ConnectionsOverlay's BEND_PERP_MAX. */
+const BEND_PERP_MAX = 1.5;
 
 /**
  * Get a single connection record (including commentary).
@@ -94,9 +99,21 @@ export const PATCH = async ({ params, request }) => {
 			'noteAnchorSide' in body || 'noteAnchorT' in body || 'noteOffset' in body || 'noteLead' in body;
 
 		const updatingLineRoute = 'lineRoute' in body;
+		const updatingBend = 'bendAlong' in body || 'bendPerp' in body;
+		const updatingLineColor = 'lineColor' in body;
 
-		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote && !updatingNotePlacement && !updatingLineRoute) {
-			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, noteLead, lineRoute, or commentary)' }, { status: 400 });
+		if (!updatingFrom && !updatingTo && !updatingCommentary && !updatingNote && !updatingNotePlacement && !updatingLineRoute && !updatingBend && !updatingLineColor) {
+			return json({ error: 'Must provide at least one field to update (from*, to*, note, noteAnchorSide, noteAnchorT, noteOffset, noteLead, lineRoute, bendAlong, bendPerp, lineColor, or commentary)' }, { status: 400 });
+		}
+
+		if (updatingLineColor && body.lineColor !== null && !VALID_LINE_COLORS.includes(body.lineColor)) {
+			return json({ error: `Invalid lineColor: must be one of ${VALID_LINE_COLORS.join(', ')}, or null` }, { status: 400 });
+		}
+
+		for (const key of ['bendAlong', 'bendPerp']) {
+			if (key in body && body[key] !== null && (typeof body[key] !== 'number' || !Number.isFinite(body[key]))) {
+				return json({ error: `Invalid ${key}: must be a number or null` }, { status: 400 });
+			}
 		}
 
 		if (updatingLineRoute && body.lineRoute !== null && !VALID_LINE_ROUTES.includes(body.lineRoute)) {
@@ -188,6 +205,25 @@ export const PATCH = async ({ params, request }) => {
 		// the default stays the single source of truth for unstyled rows.
 		if (updatingLineRoute) {
 			updates.lineRoute = body.lineRoute === 'curved' ? null : (body.lineRoute ?? null);
+			// A new route starts from its automatic shape — a bend made for one
+			// route means nothing for another. (Overridden below when the same
+			// request also sets a bend, e.g. dragging a straight line into a curve.)
+			updates.bendAlong = null;
+			updates.bendPerp = null;
+		}
+
+		// Line color. 'gray' is the default and is stored as NULL.
+		if (updatingLineColor) {
+			updates.lineColor = body.lineColor === 'gray' ? null : (body.lineColor ?? null);
+		}
+
+		// Manual line shape (shaping handle). Stored relative to the chord; clamped
+		// so a stray value can't fling the line across the canvas.
+		if ('bendAlong' in body) {
+			updates.bendAlong = body.bendAlong === null ? null : Math.min(0.9, Math.max(0.1, body.bendAlong));
+		}
+		if ('bendPerp' in body) {
+			updates.bendPerp = body.bendPerp === null ? null : Math.min(BEND_PERP_MAX, Math.max(-BEND_PERP_MAX, body.bendPerp));
 		}
 
 		// Commentary update (independent of rerouting)

@@ -137,7 +137,9 @@
 	 * @typedef {'segment'|'section'|'column'} ConnType
 	 * @typedef {'solid'|'dashed'|'dotted'|'dashdot'} LineStyle
 	 * @typedef {'curved'|'straight'|'cornered'} LineRoute
-	 * @typedef {{ route: LineRoute, routeShift: number, id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, noteLead: number, noteCardX: number, noteCardY: number, handleCorner: 'tl'|'tr'|'bl'|'br', fromSlide: { axis: 'x'|'y', lo: number, hi: number }|null, toSlide: { axis: 'x'|'y', lo: number, hi: number }|null }} PathEntry
+	 * @typedef {'gray'|'mixed'|'red'|'orange'|'yellow'|'green'|'aqua'|'blue'|'purple'|'pink'} LineColor
+	 * @typedef {{ x: number, y: number, baseX: number, baseY: number, axis: 'x'|'y'|null }} ShapeHandle
+	 * @typedef {{ route: LineRoute, routeShift: number, bendAlong: number|null, bendPerp: number|null, bendShift: number, chord: { x1: number, y1: number, x2: number, y2: number }, shapeHandle: ShapeHandle|null, lineColor: LineColor, fromColor: string|null, toColor: string|null, id: string, d: string, x1: number, y1: number, x2: number, y2: number, mx: number, my: number, cx1: number, cy1: number, cx2: number, cy2: number, fromType: ConnType, toType: ConnType, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineStyle: LineStyle, note: string|null, notePlacement: 'center'|'right'|'left'|'above'|'below', noteAnchorSide: 'top'|'right'|'bottom'|'left', noteAnchorT: number, noteAnchorX: number, noteAnchorY: number, noteOffset: number, noteLead: number, noteCardX: number, noteCardY: number, handleCorner: 'tl'|'tr'|'bl'|'br', fromSlide: { axis: 'x'|'y', lo: number, hi: number }|null, toSlide: { axis: 'x'|'y', lo: number, hi: number }|null }} PathEntry
 
 
 
@@ -249,12 +251,37 @@
 	 */
 	let routeOverrides = $state({});
 
+	/**
+	 * Live shaping-handle overrides during a drag, keyed by connection id. `route`
+	 * is set when the drag changes the route (straight → curved). Dropped once the
+	 * PATCH + invalidate lands the persisted bend.
+	 * @type {Record<string, { along: number|null, perp: number|null, route?: LineRoute }>}
+	 */
+	let bendOverrides = $state({});
+
+	/**
+	 * Live line-color overrides (Color menu → a color, Gray or Mixed), keyed by connection
+	 * id. Applied instantly, dropped once the PATCH + invalidate lands.
+	 * @type {Record<string, LineColor>}
+	 */
+	let colorOverrides = $state({});
+
+	/**
+	 * Active shaping-handle drag, or null when idle. Positions are in layout
+	 * units; the drag moves `base` by the pointer delta (never snaps to cursor).
+	 * @type {{ id: string, startX: number, startY: number, baseX: number, baseY: number, route: LineRoute, axis: 'x'|'y'|null, startShift: number, chord: { x1: number, y1: number, x2: number, y2: number } } | null}
+	 */
+	let shapeDrag = $state(null);
+
+	/** True once the active shaping drag has passed NOTE_DRAG_THRESHOLD. */
+	let shapeDidDrag = $state(false);
+
 
 	/**
 	 * Active note-placement drag, or null when idle.
 	 *   mode 'dot'  → dragging the anchor dot ALONG the connection curve (sets t)
 	 *   mode 'card' → sliding the card along its attached edge (sets offset)
-	 * @type {{ id: string, mode: 'dot'|'card', startX: number, startY: number, startOffset: number, startLead: number, placement: ('center'|'right'|'left'|'above'|'below'), side: ('top'|'right'|'bottom'|'left') } | null}
+	 * @type {{ id: string, mode: 'dot'|'card', startX: number, startY: number, startAnchorX?: number, startAnchorY?: number, startOffset: number, startLead: number, placement: ('center'|'right'|'left'|'above'|'below'), side: ('top'|'right'|'bottom'|'left') } | null}
 	 */
 	let notePlacementDrag = $state(null);
 
@@ -344,6 +371,8 @@
 	 * can remove exactly what it added. @type {SVGElement[]}
 	 */
 	let exportColorEls = /** @type {SVGElement[]} */ ([]);
+	/** Colored lines: only stroke-width is pinned for export (their inline stroke is Svelte-managed). */
+	let exportWidthOnlyEls = /** @type {SVGElement[]} */ ([]);
 
 	/**
 	 * Overlay SVGs we pinned with an explicit viewBox/width/height during export.
@@ -434,9 +463,18 @@
 
 		/** @type {SVGElement[]} */
 		const touched = [];
-		// Connection lines: solid gray stroke, no fill.
+		// Connection lines: solid gray stroke, no fill. Mixed lines keep their
+		// gradient stroke (concrete stop colors survive the clone) — only the
+		// width/fill are pinned for them.
 		layer.querySelectorAll('.connection-path').forEach((el) => {
 			const svg = /** @type {SVGElement} */ (el);
+			if (svg.classList.contains('connection-path--colored')) {
+				// Keep the Svelte-managed inline gradient stroke; cleanup must not
+				// strip it, so pin only the width and track it separately.
+				svg.style.setProperty('stroke-width', '2');
+				exportWidthOnlyEls.push(svg);
+				return;
+			}
 			svg.style.setProperty('stroke', lineColor);
 			svg.style.setProperty('stroke-width', '2');
 			svg.style.setProperty('fill', 'none');
@@ -445,6 +483,8 @@
 		// Endpoint nodes (square / diamond / circle): gray fill + lighter stroke.
 		layer.querySelectorAll('.connection-node').forEach((el) => {
 			const svg = /** @type {SVGElement} */ (el);
+			// Colored-line nodes already carry their end color inline; keep it.
+			if (svg.classList.contains('connection-node--colored')) return;
 			svg.style.setProperty('fill', nodeFill);
 			svg.style.setProperty('stroke', nodeStroke);
 			touched.push(svg);
@@ -487,6 +527,8 @@
 			s.removeProperty('fill');
 		}
 		exportColorEls = [];
+		for (const el of exportWidthOnlyEls) /** @type {SVGElement} */ (el).style.removeProperty('stroke-width');
+		exportWidthOnlyEls = [];
 	}
 
 	const handleExportPrepare = () => {
@@ -889,7 +931,8 @@
 		const b = { x: p.x2, y: p.y2 };
 		if (p.route !== 'cornered') return [a, b];
 
-		const shift = p.routeShift || 0;
+		// Pass E's separation shift plus the user's shaping-handle shift.
+		const shift = (p.routeShift || 0) + (p.bendShift || 0);
 		const ea = cornerExit(p.fromEdge, a.x, a.y, b.x, b.y);
 		const eb = cornerExit(p.toEdge,   b.x, b.y, a.x, a.y);
 
@@ -1123,6 +1166,181 @@
 	function routePointAt(p, t) {
 		if (p.route === 'curved') return cubicBezierPoint(t, p.x1, p.y1, p.cx1, p.cy1, p.cx2, p.cy2, p.x2, p.y2);
 		return polylinePointAt(simplifyPolyline(routePoints(p)), t);
+	}
+
+	// ─── Shaping handle (user-adjusted line shape) ────────────────────────────
+	//
+	// A selected connection shows a hollow ring the user drags to reshape it:
+	//   curved   → the curve is pulled through the handle point
+	//   straight → becomes curved, pulled through the handle point
+	//   cornered → the middle run slides sideways (bends stay square)
+	// The bend is stored RELATIVE to the anchor-to-anchor chord (bendAlong /
+	// bendPerp as fractions of chord length) so it survives reflow and zoom.
+
+	/** Clamp for bendAlong — keeps the pulled point away from the anchors. */
+	const BEND_ALONG_MIN = 0.1;
+	const BEND_ALONG_MAX = 0.9;
+	/** Max |bendPerp| (fraction of chord length). Mirrored server-side. */
+	const BEND_PERP_MAX = 1.5;
+	/** Min distance (layout units) kept between the shaping handle and a note dot. */
+	const SHAPE_HANDLE_NOTE_CLEARANCE = 14;
+
+	/**
+	 * Unit chord frame for a path: direction u (from → to) and its left normal n.
+	 * @param {{ x1: number, y1: number, x2: number, y2: number }} c
+	 */
+	function chordFrame(c) {
+		const L = Math.hypot(c.x2 - c.x1, c.y2 - c.y1) || 1;
+		const ux = (c.x2 - c.x1) / L, uy = (c.y2 - c.y1) / L;
+		return { L, ux, uy, nx: -uy, ny: ux };
+	}
+
+	/**
+	 * The middle run of a cornered route (the segment a shift moves), or null for
+	 * an L-shape, which has no run to slide.
+	 * @param {PathEntry} p
+	 * @returns {{ a: { x: number, y: number }, b: { x: number, y: number }, axis: 'x'|'y' } | null}
+	 */
+	function cornerMidRun(p) {
+		const raw = routePoints(p);
+		if (raw.length === 4) {
+			const axis = Math.abs(raw[1].y - raw[2].y) < 0.01 ? 'y' : 'x';
+			return { a: raw[1], b: raw[2], axis };
+		}
+		if (raw.length === 5) {
+			// Z-shape: the shifted run is the HORIZONTAL one among the two inner segments.
+			const i = Math.abs(raw[1].y - raw[2].y) < 0.01 ? 1 : 2;
+			return { a: raw[i], b: raw[i + 1], axis: 'y' };
+		}
+		return null;
+	}
+
+	/**
+	 * Where to draw a path's shaping handle. `base` is the point the drag moves
+	 * (the curve's pull point / the run's centre); the drawn position may be
+	 * nudged along the line to keep clear of the note's anchor dot. Dragging uses
+	 * the pointer delta, so the nudge never changes how the drag behaves.
+	 * @param {PathEntry} p
+	 * @returns {ShapeHandle|null}
+	 */
+	function computeShapeHandle(p) {
+		/** @type {Array<{ x: number, y: number }>} */
+		let candidates;
+		/** @type {'x'|'y'|null} */
+		let axis = null;
+		if (p.route === 'cornered') {
+			const run = cornerMidRun(p);
+			if (!run) return null;
+			axis = run.axis;
+			const at = (/** @type {number} */ f) => ({ x: run.a.x + (run.b.x - run.a.x) * f, y: run.a.y + (run.b.y - run.a.y) * f });
+			candidates = [at(0.5), at(0.25), at(0.75)];
+		} else if (p.route === 'curved') {
+			const a = p.bendAlong ?? 0.5;
+			candidates = [a, a - 0.2, a + 0.2].map(t => routePointAt(p, Math.min(0.95, Math.max(0.05, t))));
+		} else {
+			const at = (/** @type {number} */ f) => ({ x: p.x1 + (p.x2 - p.x1) * f, y: p.y1 + (p.y2 - p.y1) * f });
+			candidates = [at(0.5), at(0.3), at(0.7)];
+		}
+		const base = candidates[0];
+		let drawn = base;
+		if (p.note) {
+			const clear = candidates.find(c => Math.hypot(c.x - p.noteAnchorX, c.y - p.noteAnchorY) >= SHAPE_HANDLE_NOTE_CLEARANCE);
+			if (clear) drawn = clear;
+		}
+		return { x: drawn.x, y: drawn.y, baseX: base.x, baseY: base.y, axis };
+	}
+
+	// ─── Line color (gray default · a solid color · 'mixed' fade) ─────────────
+
+	/** The eight named colors (mirrors the section color CHECK); usable as solid line colors. */
+	const SECTION_COLORS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'];
+
+	/**
+	 * Resolve the color of one connection end as a CONCRETE css color string
+	 * (e.g. "hsl(145, 65%, 45%)"), so it also survives export cloning, which drops
+	 * CSS variables. Uses the main shade (--green, --red …) of the end's section:
+	 *   segment → its section, section → itself, column → its first visible
+	 *   section (where the column anchor attaches; see columnAnchorRect).
+	 * Falls back to the default line gray when no color can be found.
+	 * @param {Element} el — the end's element (from getElementForConnection)
+	 * @param {ConnType} type
+	 * @returns {string}
+	 */
+	function endColor(el, type) {
+		/** @type {Element|null} */
+		let sectionEl = null;
+		if (type === 'column') {
+			for (const sec of el.querySelectorAll('.section[data-section-id]')) {
+				if (sec.classList.contains('compare-hidden')) continue;
+				const r = sec.getBoundingClientRect();
+				if (r.width === 0 || r.height === 0) continue;
+				sectionEl = sec;
+				break;
+			}
+		} else {
+			sectionEl = el.closest('.section[data-section-id]') ?? (el.matches('.section') ? el : null);
+		}
+		const color = sectionEl ? SECTION_COLORS.find(c => sectionEl?.classList.contains(c)) : null;
+		return namedColor(color ?? 'gray');
+	}
+
+	/**
+	 * Concrete css color for a named color (main shade, e.g. --green), or the
+	 * default line gray for 'gray' / unknown names.
+	 * @param {string} name
+	 * @returns {string}
+	 */
+	function namedColor(name) {
+		const root = getComputedStyle(document.documentElement);
+		const value = SECTION_COLORS.includes(name) ? root.getPropertyValue(`--${name}`).trim() : '';
+		return value || root.getPropertyValue('--gray-300').trim() || '#545251';
+	}
+
+	/**
+	 * Normalise a stored/override line color to a known value ('gray' default).
+	 * @param {unknown} value
+	 * @returns {LineColor}
+	 */
+	function normalizeLineColor(value) {
+		return value === 'mixed' || SECTION_COLORS.includes(/** @type {string} */ (value))
+			? /** @type {LineColor} */ (value)
+			: 'gray';
+	}
+
+	/**
+	 * True when the line is shown in its interaction color (hover / selection /
+	 * endpoint drag). Only the endpoint NODES switch to blue then — the line
+	 * itself always keeps its own color (see pathStrokeStyle).
+	 * @param {PathEntry} path
+	 */
+	function isLineHighlighted(path) {
+		return selectedPathIds.has(path.id) || hoveredPathId === path.id || (!!drag && drag.connectionId === path.id);
+	}
+
+	/**
+	 * Inline stroke for a mixed line's path (its gradient), or '' to fall back
+	 * to the CSS gray / highlight colors.
+	 * @param {PathEntry} path
+	 * @returns {string}
+	 */
+	function pathStrokeStyle(path) {
+		// The line keeps its color while hovered/selected (only nodes/handles turn blue).
+		if (path.lineColor === 'gray') return '';
+		if (path.lineColor !== 'mixed') return `stroke: ${path.fromColor};`;
+		return `stroke: url(#connection-gradient-${path.id});`;
+	}
+
+	/**
+	 * Inline fill for a mixed line's endpoint node: the color of the element that
+	 * end connects to. '' falls back to the CSS gray / highlight colors.
+	 * @param {PathEntry} path
+	 * @param {'from'|'to'} end
+	 * @returns {string}
+	 */
+	function nodeColorStyle(path, end) {
+		if (path.lineColor === 'gray' || isLineHighlighted(path)) return '';
+		const c = end === 'from' ? path.fromColor : path.toColor;
+		return c ? `fill: ${c}; stroke: ${c};` : '';
 	}
 
 	// ─── Line style determination ─────────────────────────────────────────────
@@ -1430,7 +1648,7 @@
 		// register both endpoints into per-edge groups so they can be fanned out.
 		/**
 		 * @typedef {{ key: string, edge: 'top'|'bottom'|'left'|'right', rect: DOMRect, otherCX: number, otherCY: number }} Endpoint
-		 * @type {Array<{ connection: any, fromType: ConnType, toType: ConnType, fromCX: number, toCX: number, sameCol: boolean, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right' }>}
+		 * @type {Array<{ connection: any, fromType: ConnType, toType: ConnType, fromCX: number, toCX: number, sameCol: boolean, fromEdge: 'top'|'bottom'|'left'|'right', toEdge: 'top'|'bottom'|'left'|'right', lineColor: LineColor, fromColor: string|null, toColor: string|null }>}
 		 */
 		const resolved = [];
 		/**
@@ -1526,7 +1744,15 @@
 			groups.get(fromGroupKey)?.push({ key: `${connection.id}|from`, edge: fromEdge, rect: fromRect, otherCX: toCX,   otherCY: toCY   });
 			groups.get(toGroupKey)?.push(  { key: `${connection.id}|to`,   edge: toEdge,   rect: toRect,   otherCX: fromCX, otherCY: fromCY });
 
-			resolved.push({ connection, fromType, toType, fromCX, toCX, sameCol, fromEdge, toEdge });
+			// Line color (live menu override wins over the stored value):
+			//   gray  → default CSS gray (no inline color)
+			//   mixed → fade from the FROM end's section color to the TO end's
+			//   red…  → one solid color: both stops (and both end nodes) use it
+			const lineColor = normalizeLineColor(colorOverrides[connection.id] ?? connection.lineColor);
+			const fromColor = lineColor === 'mixed' ? endColor(fromEl, fromType) : lineColor === 'gray' ? null : namedColor(lineColor);
+			const toColor   = lineColor === 'mixed' ? endColor(toEl, toType)     : lineColor === 'gray' ? null : namedColor(lineColor);
+
+			resolved.push({ connection, fromType, toType, fromCX, toCX, sameCol, fromEdge, toEdge, lineColor, fromColor, toColor });
 		}
 
 		// ── Pass B: slide endpoints toward their opposite end along each edge ──
@@ -1601,7 +1827,7 @@
 
 		// ── Pass C: build the bezier path for each connection ─────────────────
 		for (const r of resolved) {
-			const { connection, fromType, toType, sameCol, fromEdge, toEdge } = r;
+			const { connection, fromType, toType, sameCol, fromEdge, toEdge, lineColor, fromColor, toColor } = r;
 
 			const from = anchorMap.get(`${connection.id}|from`);
 			const to   = anchorMap.get(`${connection.id}|to`);
@@ -1687,7 +1913,10 @@
 			// Line route: a live menu override wins over the persisted value. Only the
 			// curved route uses the bezier controls; straight/cornered are rebuilt from
 			// the same anchors by refreshPathCurve() once the entry exists.
-			const route = normalizeRoute(routeOverrides[connection.id] ?? connection.lineRoute);
+			// A live shaping-handle drag can also override the route (dragging a
+			// straight line previews it as curved).
+			const bendOv = bendOverrides[connection.id];
+			const route = normalizeRoute(bendOv?.route ?? routeOverrides[connection.id] ?? connection.lineRoute);
 
 			const hasNoteForCurve = !!(connection.note ?? null) || noteEditingId === connection.id;
 			const verticalish = !(fromSide2 && toSide2); // at least one top/bottom end
@@ -1710,6 +1939,29 @@
 
 
 
+
+			// ── User bend (shaping handle) ───────────────────────────────────
+			// Stored relative to the chord: the pull point P sits bendAlong of the
+			// way along it and bendPerp × length off it. For curved lines we add the
+			// SAME delta D to both control points so the curve passes exactly
+			// through P at t = bendAlong: B(t) moves by 3t(1−t)·D, so
+			// D = (P − B_auto(t)) / (3t(1−t)). The automatic curve stays the base,
+			// so with no bend stored nothing changes. Cornered lines turn bendPerp
+			// into a sideways shift of their middle run (see routePoints).
+			const bendAlong = bendOv ? bendOv.along : (connection.bendAlong ?? null);
+			const bendPerp  = bendOv ? bendOv.perp  : (connection.bendPerp  ?? null);
+			const chord = { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+			const frame = chordFrame(chord);
+			if (route === 'curved' && bendPerp != null) {
+				const t = Math.min(BEND_ALONG_MAX, Math.max(BEND_ALONG_MIN, bendAlong ?? 0.5));
+				const px = from.x + frame.ux * t * frame.L + frame.nx * bendPerp * frame.L;
+				const py = from.y + frame.uy * t * frame.L + frame.ny * bendPerp * frame.L;
+				const cur = cubicBezierPoint(t, from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
+				const k = 3 * t * (1 - t);
+				const ddx = (px - cur.x) / k, ddy = (py - cur.y) / k;
+				cx1 += ddx; cy1 += ddy; cx2 += ddx; cy2 += ddy;
+			}
+			const bendShift = route === 'cornered' && bendPerp != null ? bendPerp * frame.L : 0;
 
 			d = `M ${from.x},${from.y} C ${cx1},${cy1} ${cx2},${cy2} ${to.x},${to.y}`;
 			const { mx, my } = cubicBezierMidpoint(from.x, from.y, cx1, cy1, cx2, cy2, to.x, to.y);
@@ -1740,6 +1992,9 @@
 		/** @type {PathEntry} */
 		const entry = {
 			route, routeShift: 0,
+			bendAlong: route === 'curved' && bendPerp != null ? (bendAlong ?? 0.5) : null,
+			bendPerp, bendShift, chord, shapeHandle: null,
+			lineColor, fromColor, toColor,
 			id: connection.id,
 			d, x1: from.x, y1: from.y, x2: to.x, y2: to.y,
 			mx, my, cx1, cy1, cx2, cy2,
@@ -1771,6 +2026,9 @@
 		// direction, so they separate into parallel-ish arcs while their endpoints
 		// stay welded to their anchors.
 		separateOverlappingLines(newPaths);
+
+		// Shaping-handle positions, measured on the FINAL (post-separation) lines.
+		for (const p of newPaths) p.shapeHandle = computeShapeHandle(p);
 
 		// ── Pass D: pick a collision-free grab-handle corner per note ─────────
 		// Each note's slide handle sits just outside one corner of its card, on the
@@ -2221,6 +2479,29 @@
 			}
 		}
 	}
+
+
+	/**
+	 * Which card edge carries a note's move handle: the edge OPPOSITE the side the
+	 * card is anchored on, i.e. the edge FARTHEST from the connection line. The
+	 * note's anchor dot and the line's shaping handle both live on the line, so
+	 * the card itself always sits between them and this handle.
+	 *   anchor top    (card below the dot) → bottom edge
+	 *   anchor bottom (card above the dot) → top edge
+	 *   anchor left   (card right of dot)  → right edge
+	 *   anchor right  (card left of dot)   → left edge
+	 * @param {'top'|'right'|'bottom'|'left'} anchorSide
+	 * @returns {'top'|'right'|'bottom'|'left'}
+	 */
+	function noteHandleEdge(anchorSide) {
+		switch (anchorSide) {
+			case 'top':    return 'bottom';
+			case 'bottom': return 'top';
+			case 'left':   return 'right';
+			default:       return 'left';
+		}
+	}
+
 
 
 	// ─── Drop handle computation ──────────────────────────────────────────────
@@ -2879,9 +3160,10 @@
 	}
 
 	/**
-	 * Begin dragging a note's ANCHOR DOT along its connection curve. The dot rides
-	 * the bezier (its parameter t follows the cursor's nearest point on the curve)
-	 * while the card stays welded to whichever side it's attached to.
+	 * Begin sliding a note ALONG its connection line. Started from the three-dot
+	 * line-slide handle on the card's far edge (the anchor dot itself is a marker
+	 * only). The dot rides the line — its start point moved by the pointer delta,
+	 * snapped to the nearest point on the line — and the card stays welded to it.
 	 * @param {PointerEvent} event
 	 * @param {PathEntry} path
 	 */
@@ -2906,6 +3188,8 @@
 			mode: 'dot',
 			startX: event.clientX,
 			startY: event.clientY,
+			startAnchorX: path.noteAnchorX,
+			startAnchorY: path.noteAnchorY,
 			startOffset: 0,
 			startLead: path.noteLead,
 			placement: path.notePlacement,
@@ -2969,9 +3253,12 @@
 
 		if (drag.mode === 'dot') {
 
-			// Map the cursor to the nearest point on the curve → new t.
-			const { x, y } = toSvgCoords(event.clientX, event.clientY);
-			const t = nearestTOnCurve(path, x, y);
+			// The drag starts on the card's edge handle, away from the line, so use
+			// RELATIVE motion: move the dot's start point by the pointer delta and
+			// snap that to the nearest point on the line → new t. No jump on grab.
+			const dx = (event.clientX - drag.startX) / scale;
+			const dy = (event.clientY - drag.startY) / scale;
+			const t = nearestTOnCurve(path, (drag.startAnchorX ?? path.noteAnchorX) + dx, (drag.startAnchorY ?? path.noteAnchorY) + dy);
 			notePlacementOverrides = {
 				...notePlacementOverrides,
 				[drag.id]: { ...(notePlacementOverrides[drag.id] ?? { side: null, offset: null }), t }
@@ -3125,6 +3412,11 @@
 		const overrides = { ...routeOverrides };
 		for (const id of ids) overrides[id] = route;
 		routeOverrides = overrides;
+		// Picking a route starts it from its automatic shape (the server clears the
+		// stored bend too), so preview that by blanking any bend right away.
+		const bends = { ...bendOverrides };
+		for (const id of ids) bends[id] = { along: null, perp: null };
+		bendOverrides = bends;
 		scheduleCalculate();
 
 		Promise.all(
@@ -3146,9 +3438,187 @@
 				const rest = { ...routeOverrides };
 				for (const id of ids) delete rest[id];
 				routeOverrides = rest;
+				const restBends = { ...bendOverrides };
+				for (const id of ids) delete restBends[id];
+				bendOverrides = restBends;
 				scheduleCalculate();
 			});
 	}
+
+	/**
+	 * Color menu → any color, Gray or Mixed. Applies to EVERY selected
+	 * connection, redraws instantly via colorOverrides, persists each, then drops
+	 * the overrides.
+	 * @param {CustomEvent<{ color: LineColor }>} event
+	 */
+	function handleSetColor(event) {
+		const color = normalizeLineColor(event.detail?.color);
+		const ids = [...selectedPathIds].filter(id => connections.some(c => c.id === id));
+		if (ids.length === 0) return;
+
+		const overrides = { ...colorOverrides };
+		for (const id of ids) overrides[id] = color;
+		colorOverrides = overrides;
+		scheduleCalculate();
+
+		Promise.all(
+			ids.map(async id => {
+				try {
+					const response = await fetch(`/api/segments/connections/${id}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ lineColor: color })
+					});
+					if (!response.ok) console.error('Connection line color save error:', await response.json());
+				} catch (err) {
+					console.error('Connection line color save network error:', err);
+				}
+			})
+		)
+			.then(() => invalidate('app:studies'))
+			.finally(() => {
+				const rest = { ...colorOverrides };
+				for (const id of ids) delete rest[id];
+				colorOverrides = rest;
+				scheduleCalculate();
+			});
+	}
+
+	// ─── Shaping handle drag ─────────────────────────────────────────────────
+
+	/**
+	 * Begin dragging a connection's shaping handle.
+	 * @param {PointerEvent} event
+	 * @param {PathEntry} path
+	 */
+	function startShapeDrag(event, path) {
+		if (!path.shapeHandle) return;
+		event.preventDefault();
+		event.stopPropagation();
+		shapeDidDrag = false;
+		shapeDrag = {
+			id: path.id,
+			startX: event.clientX,
+			startY: event.clientY,
+			baseX: path.shapeHandle.baseX,
+			baseY: path.shapeHandle.baseY,
+			route: path.route,
+			axis: path.shapeHandle.axis,
+			startShift: path.bendShift,
+			chord: { ...path.chord }
+		};
+		document.body.style.cursor = 'grabbing';
+		document.body.style.userSelect = 'none';
+	}
+
+	/**
+	 * Convert the current drag into a bend (relative to the chord at drag start).
+	 * @param {NonNullable<typeof shapeDrag>} drag
+	 * @param {number} clientX @param {number} clientY
+	 * @returns {{ along: number|null, perp: number, route: LineRoute }}
+	 */
+	function bendFromDrag(drag, clientX, clientY) {
+		const dx = (clientX - drag.startX) / scale;
+		const dy = (clientY - drag.startY) / scale;
+		const f = chordFrame(drag.chord);
+		if (drag.route === 'cornered') {
+			// Slide the middle run across its own axis only (bends stay square).
+			const shift = drag.startShift + (drag.axis === 'y' ? dy : dx);
+			const perp = Math.max(-BEND_PERP_MAX, Math.min(BEND_PERP_MAX, shift / f.L));
+			return { along: null, perp, route: 'cornered' };
+		}
+		// Curved (or straight → curved): the curve passes through the moved point.
+		const px = drag.baseX + dx - drag.chord.x1;
+		const py = drag.baseY + dy - drag.chord.y1;
+		const along = Math.max(BEND_ALONG_MIN, Math.min(BEND_ALONG_MAX, (px * f.ux + py * f.uy) / f.L));
+		const perp = Math.max(-BEND_PERP_MAX, Math.min(BEND_PERP_MAX, (px * f.nx + py * f.ny) / f.L));
+		return { along, perp, route: 'curved' };
+	}
+
+	/** @param {PointerEvent} event */
+	function handleShapeMove(event) {
+		if (!shapeDrag) return;
+		event.preventDefault();
+		if (!shapeDidDrag) {
+			if (Math.hypot(event.clientX - shapeDrag.startX, event.clientY - shapeDrag.startY) < NOTE_DRAG_THRESHOLD) return;
+			shapeDidDrag = true;
+		}
+		const b = bendFromDrag(shapeDrag, event.clientX, event.clientY);
+		bendOverrides = { ...bendOverrides, [shapeDrag.id]: b };
+		scheduleCalculate();
+	}
+
+	/** @param {PointerEvent} event */
+	async function handleShapeUp(event) {
+		if (!shapeDrag) return;
+		const drag = shapeDrag;
+		shapeDrag = null;
+		document.body.style.cursor = '';
+		document.body.style.userSelect = '';
+		// Keep the connection selected after releasing the handle.
+		suppressNextDocumentClick = true;
+		if (!shapeDidDrag) return;
+
+		const b = bendFromDrag(drag, event.clientX, event.clientY);
+		/** @type {Record<string, unknown>} */
+		const body = {
+			bendAlong: b.along === null ? null : Math.round(b.along * 1000) / 1000,
+			bendPerp: Math.round(b.perp * 1000) / 1000
+		};
+		// Straight → curved: switch the route in the same request (the server
+		// clears the bend on a route change unless the request also sets one).
+		if (drag.route !== b.route) body.lineRoute = b.route;
+		await saveConnectionShape([drag.id], body);
+	}
+
+	/**
+	 * PATCH a shape change for each id, refresh, then drop live overrides.
+	 * @param {string[]} ids
+	 * @param {Record<string, unknown>} body
+	 */
+	async function saveConnectionShape(ids, body) {
+		await Promise.all(ids.map(async id => {
+			try {
+				const response = await fetch(`/api/segments/connections/${id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body)
+				});
+				if (!response.ok) console.error('Connection shape save error:', await response.json());
+			} catch (err) {
+				console.error('Connection shape save network error:', err);
+			}
+		}));
+		await invalidate('app:studies');
+		const rest = { ...bendOverrides };
+		for (const id of ids) delete rest[id];
+		bendOverrides = rest;
+		scheduleCalculate();
+	}
+
+	/** Connect menu → Reset Connection Shape: back to the automatic shape. */
+	function handleResetShape() {
+		const ids = [...selectedPathIds].filter(id => {
+			const c = connections.find(x => x.id === id);
+			return c && (c.bendPerp != null || c.bendAlong != null);
+		});
+		if (ids.length === 0) return;
+		const overrides = { ...bendOverrides };
+		for (const id of ids) overrides[id] = { along: null, perp: null };
+		bendOverrides = overrides;
+		scheduleCalculate();
+		saveConnectionShape(ids, { bendAlong: null, bendPerp: null });
+	}
+
+	// Tell the Connect menu whether any selected connection has a manual bend
+	// (enables "Reset Connection Shape").
+	$effect(() => {
+		const has = [...selectedPathIds].some(id => {
+			const c = connections.find(x => x.id === id);
+			return !!c && (c.bendPerp != null || c.bendAlong != null);
+		});
+		if ($toolbarState.activeConnectionHasBend !== has) setToolbarState('activeConnectionHasBend', has);
+	});
 
 	// ─── Reactivity ──────────────────────────────────────────────────────────
 
@@ -3223,6 +3693,10 @@
 		window.addEventListener('connection-remove-note', handleRemoveConnectionNote);
 		window.addEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
 		window.addEventListener('connection-set-route', /** @type {EventListener} */ (handleSetRoute));
+		window.addEventListener('connection-reset-shape', handleResetShape);
+		window.addEventListener('connection-set-color', /** @type {EventListener} */ (handleSetColor));
+		window.addEventListener('pointermove', handleShapeMove, { passive: false });
+		window.addEventListener('pointerup', handleShapeUp);
 		// Structure → "Select All Connections": select every currently visible line.
 		window.addEventListener('select-all-connections', handleSelectAllConnections);
 		// Auto-select a freshly inserted connection (dispatched by the analyze page).
@@ -3262,6 +3736,10 @@
 		window.removeEventListener('connection-remove-note', handleRemoveConnectionNote);
 		window.removeEventListener('connection-note-set-side', /** @type {EventListener} */ (handleSetNoteSide));
 		window.removeEventListener('connection-set-route', /** @type {EventListener} */ (handleSetRoute));
+		window.removeEventListener('connection-reset-shape', handleResetShape);
+		window.removeEventListener('connection-set-color', /** @type {EventListener} */ (handleSetColor));
+		window.removeEventListener('pointermove', handleShapeMove);
+		window.removeEventListener('pointerup', handleShapeUp);
 		window.removeEventListener('select-all-connections', handleSelectAllConnections);
 		window.removeEventListener('select-connection', /** @type {EventListener} */ (handleSelectConnection));
 		window.removeEventListener('analyze-layout-changed', handleLayoutChanged);
@@ -3305,6 +3783,8 @@
 			<!-- From-end: column=■ square, section=◆ diamond, segment=● circle -->
 			{#if path.fromType === 'column'}
 				<rect class="connection-node connection-node--square"
+					style={nodeColorStyle(path, 'from')}
+					class:connection-node--colored={path.lineColor !== 'gray'}
 					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
 					class:connection-node--selected={selectedPathIds.has(path.id)}
 					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
@@ -3316,6 +3796,8 @@
 				/>
 			{:else if path.fromType === 'section'}
 				<polygon class="connection-node connection-node--diamond"
+					style={nodeColorStyle(path, 'from')}
+					class:connection-node--colored={path.lineColor !== 'gray'}
 					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
 					class:connection-node--selected={selectedPathIds.has(path.id)}
 					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
@@ -3327,6 +3809,8 @@
 				/>
 			{:else if path.fromType === 'segment'}
 				<circle class="connection-node"
+					style={nodeColorStyle(path, 'from')}
+					class:connection-node--colored={path.lineColor !== 'gray'}
 					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
 					class:connection-node--selected={selectedPathIds.has(path.id)}
 					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
@@ -3340,6 +3824,8 @@
 			<!-- To-end: column=■ square, section=◆ diamond, segment=● circle -->
 			{#if path.toType === 'column'}
 				<rect class="connection-node connection-node--square"
+					style={nodeColorStyle(path, 'to')}
+					class:connection-node--colored={path.lineColor !== 'gray'}
 					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
 					class:connection-node--selected={selectedPathIds.has(path.id)}
 					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
@@ -3351,6 +3837,8 @@
 				/>
 			{:else if path.toType === 'section'}
 				<polygon class="connection-node connection-node--diamond"
+					style={nodeColorStyle(path, 'to')}
+					class:connection-node--colored={path.lineColor !== 'gray'}
 					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
 					class:connection-node--selected={selectedPathIds.has(path.id)}
 					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
@@ -3362,6 +3850,8 @@
 				/>
 			{:else if path.toType === 'segment'}
 				<circle class="connection-node"
+					style={nodeColorStyle(path, 'to')}
+					class:connection-node--colored={path.lineColor !== 'gray'}
 					class:connection-node--hovered={hoveredPathId === path.id && !selectedPathIds.has(path.id)}
 					class:connection-node--selected={selectedPathIds.has(path.id)}
 					class:connection-node--dragging={!!drag && drag.connectionId === path.id}
@@ -3406,10 +3896,32 @@
 			</g>
 		{/each}
 
+		<!-- Mixed-color lines: a linear gradient per line running from its FROM
+		     anchor to its TO anchor (userSpaceOnUse, so it follows the line's actual
+		     endpoints for every route). Stops are concrete colors so export clones
+		     keep them. -->
+		<defs>
+			{#each visiblePaths as path (path.id)}
+				{#if path.lineColor === 'mixed'}
+					<linearGradient
+						id="connection-gradient-{path.id}"
+						gradientUnits="userSpaceOnUse"
+						x1={path.x1} y1={path.y1}
+						x2={path.x2 === path.x1 && path.y2 === path.y1 ? path.x2 + 0.01 : path.x2} y2={path.y2}
+					>
+						<stop offset="0%" stop-color={path.fromColor} />
+						<stop offset="100%" stop-color={path.toColor} />
+					</linearGradient>
+				{/if}
+			{/each}
+		</defs>
+
 		<!-- Pass 1: lines + hit-targets -->
 		{#each visiblePaths as path (path.id)}
 			<path
+				style={pathStrokeStyle(path)}
 				class="connection-path"
+				class:connection-path--colored={path.lineColor !== 'gray'}
 				class:connection-path--dashed={path.lineStyle === 'dashed'}
 				class:connection-path--dotted={path.lineStyle === 'dotted'}
 				class:connection-path--dashdot={path.lineStyle === 'dashdot'}
@@ -3444,6 +3956,29 @@
 				{@render endpointNodes(path)}
 			{/if}
 		{/each}
+
+		<!-- Pass 4: shaping handles — a hollow ring on each SELECTED line. Drag to
+		     bend a curved/straight line or slide a cornered line's middle run.
+		     Hidden during export and while an endpoint is being rerouted. -->
+		{#if exportScaleOverride === null && !drag}
+			{#each visiblePaths as path (path.id)}
+				{#if selectedPathIds.has(path.id) && path.shapeHandle}
+					<circle
+						class="connection-shape-handle-target"
+						cx={path.shapeHandle.x} cy={path.shapeHandle.y} r="9"
+						class:connection-shape-handle-target--x={path.route === 'cornered' && path.shapeHandle.axis === 'x'}
+						class:connection-shape-handle-target--y={path.route === 'cornered' && path.shapeHandle.axis === 'y'}
+						onpointerdown={(e) => startShapeDrag(e, path)}
+						onclick={(e) => e.stopPropagation()}
+					/>
+					<circle
+						class="connection-shape-handle"
+						class:connection-shape-handle--dragging={shapeDrag?.id === path.id}
+						cx={path.shapeHandle.x} cy={path.shapeHandle.y} r="4.5"
+					/>
+				{/if}
+			{/each}
+		{/if}
 
 
 		<!-- ── Drop handles (shown only while dragging) ── -->
@@ -3579,6 +4114,28 @@
 							<span class="connection-note-handle-dot"></span>
 							<span class="connection-note-handle-dot"></span>
 						</div>
+						{@const slideEdge = noteHandleEdge(path.noteAnchorSide)}
+						{@const slideRow = slideEdge === 'top' || slideEdge === 'bottom'}
+						<!-- Line-slide handle: three dots centred on the card edge FARTHEST from
+						     the line. Dragging it slides the note ALONG the connection line
+						     (noteAnchorT), replacing the old drag on the anchor dot, which now
+						     only marks where the note attaches. Same dot style as the corner
+						     handle; row on top/bottom edges, stacked on left/right. -->
+						<div
+							class="connection-note-slide-handle connection-note-slide-handle--{slideEdge}"
+							class:connection-note-handle--visible={hoveredPathId === path.id || selectedPathIds.has(path.id) || noteSelectedId === path.id}
+							class:connection-note-handle--sliding={notePlacementDrag?.id === path.id && notePlacementDrag?.mode === 'dot'}
+							class:connection-note-slide-handle--column={!slideRow}
+							onpointerdown={(e) => startNoteDotDrag(e, path)}
+							onclick={(e) => e.stopPropagation()}
+							role="separator"
+							aria-label="Slide connection note along line"
+							aria-orientation={slideRow ? 'horizontal' : 'vertical'}
+						>
+							<span class="connection-note-handle-dot"></span>
+							<span class="connection-note-handle-dot"></span>
+							<span class="connection-note-handle-dot"></span>
+						</div>
 					{/if}
 				</div>
 			{/if}
@@ -3610,8 +4167,6 @@
 					<circle
 						class="connection-note-dot-target"
 						cx={path.noteAnchorX} cy={path.noteAnchorY} r="9"
-
-						onpointerdown={(e) => startNoteDotDrag(e, path)}
 						onpointerenter={() => { hoveredPathId = path.id; }}
 						onpointerleave={() => { if (hoveredPathId === path.id) hoveredPathId = null; }}
 					/>
@@ -3720,12 +4275,10 @@
 	   only to drive visibility toggles and endpoint shapes (anchor points stay
 	   distinct per type). No stroke-dasharray means every line is solid. */
 
-	.connection-path--hovered  { stroke: var(--blue); }
-	.connection-path--selected { stroke: var(--blue); stroke-width: 2.5; }
-
-	/* While dragging an endpoint, the original arc keeps its line style but
-	   renders in a lighter blue. Placed after hovered/selected so it wins. */
-	.connection-path--dragging { stroke: var(--blue-light); }
+	/* Hover / selection never recolor the LINE — it keeps its own color (gray,
+	   a solid color, or a mixed fade). Only the endpoint nodes, note dot and
+	   drag-handle dots turn blue. A selected line is drawn a touch thicker. */
+	.connection-path--selected { stroke-width: 2.5; }
 
 	/* Wide transparent hit-target for easy hover/click on thin lines */
 	.connection-hit-target {
@@ -3828,8 +4381,38 @@
 		transition: stroke 0.15s;
 	}
 
+	/* Lines keep their color on hover/selection (only dots turn blue), so the
+	   leader line stays gray too; the class is kept as a hook. */
 	.connection-note-leader--active {
+		stroke: var(--gray-400);
+	}
+
+	/* Shaping handle — hollow ring (distinct from the solid note dot) on a
+	   selected line; drag it to bend the line. */
+	.connection-shape-handle {
+		fill: var(--white);
 		stroke: var(--blue);
+		stroke-width: 1.5;
+		pointer-events: none;
+	}
+
+	.connection-shape-handle--dragging {
+		fill: var(--blue);
+	}
+
+	.connection-shape-handle-target {
+		fill: transparent;
+		pointer-events: all;
+		cursor: grab;
+	}
+
+	/* Cornered lines only slide their middle run along one axis. */
+	.connection-shape-handle-target--x {
+		cursor: ew-resize;
+	}
+
+	.connection-shape-handle-target--y {
+		cursor: ns-resize;
 	}
 
 	/* Note anchor dot — ties the note box to the bezier arc */
@@ -3852,17 +4435,12 @@
 		fill: var(--blue);
 	}
 
-	/* Invisible, larger hit-target around the dot so it's easy to grab and slide
-	   along the connection line. It's the only interactive element in the dots
-	   overlay, hence pointer-events:all here while the SVG itself stays none. */
+	/* Invisible, larger hover target around the dot so hovering it highlights the
+	   connection. The dot is a marker only — the note is slid along the line with
+	   the three-dot handle on the card's far edge (.connection-note-slide-handle). */
 	.connection-note-dot-target {
 		fill: transparent;
 		pointer-events: all;
-		cursor: grab;
-	}
-
-	.connection-note-dot-target:active {
-		cursor: grabbing;
 	}
 
 	.connection-note-display {
@@ -3958,6 +4536,83 @@
 		height: 0.6rem;
 		border-radius: 50%;
 		background-color: var(--blue);
+	}
+
+	/* ── Note line-slide handle (three dots on the card's far edge) ──────────
+	   Slides the note ALONG its connection line (replaces dragging the anchor
+	   dot). Same dots, spacing, visibility and cursor states as the corner
+	   handle above (shares .connection-note-handle-dot / --visible / --sliding);
+	   only its shape differs: a straight row centred on the top/bottom edge, or
+	   a stacked column centred on the left/right edge. It sits on the edge
+	   FARTHEST from the line (see noteHandleEdge), straddling the border so it
+	   never covers the note text, the anchor dot, or the line's shaping handle. */
+	.connection-note-slide-handle {
+		position: absolute;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.3rem;
+		/* Padding enlarges the grab area around the small dots. */
+		padding: 0.4rem;
+		cursor: grab;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 80ms ease-in-out;
+		z-index: 1;
+	}
+
+	/* Shown on hover/selection and while sliding. These need the compound
+	   selector: the base rule above sits AFTER the shared --visible / --sliding
+	   rules with equal specificity, so on its own it would win and keep the
+	   handle hidden and unclickable. */
+	.connection-note-slide-handle.connection-note-handle--visible,
+	.connection-note-slide-handle.connection-note-handle--sliding {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.connection-note-slide-handle.connection-note-handle--sliding {
+		cursor: grabbing;
+	}
+
+	.connection-note-slide-handle--column {
+		flex-direction: column;
+	}
+
+	/* Pin each dot to EXACTLY the corner handle's dot size (0.6rem): a flex item
+	   may otherwise be shrunk/stretched by the flex layout, while the corner
+	   bracket's dots sit in fixed 0.6rem grid cells. */
+	.connection-note-slide-handle .connection-note-handle-dot {
+		flex: 0 0 0.6rem;
+	}
+
+	/* Placement: the dots' OUTER edge lines up with the corner bracket's outer
+	   edge. The bracket (two 0.6rem cells + 0.3rem gap = 1.5rem) overlaps the
+	   card by 0.4rem, so its dots reach 1.1rem beyond the card edge. This strip
+	   has 0.4rem padding, so its box sits 1.5rem out (dots at 1.1rem → 0.5rem),
+	   i.e. the same band as the bracket's outer row/column of dots. */
+	.connection-note-slide-handle--top {
+		top: -1.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+	}
+
+	.connection-note-slide-handle--bottom {
+		bottom: -1.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+	}
+
+	.connection-note-slide-handle--left {
+		left: -1.5rem;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+	.connection-note-slide-handle--right {
+		right: -1.5rem;
+		top: 50%;
+		transform: translateY(-50%);
 	}
 
 	.connection-note-edit {
