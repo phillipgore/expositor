@@ -4,7 +4,7 @@
 	 * 
 	 * Color menu. The 8 colors (red, orange, yellow, green, aqua, blue, purple,
 	 * pink) color the selected sections/segments — or, when connection lines are
-	 * selected, those lines. Gray (the default) and Mixed (fade between the two
+	 * selected, those lines. Gray (the default) and Color to Color (fade between the two
 	 * connected items' colors) are reserved for connection lines.
 	 * 
 	 * Usage:
@@ -44,7 +44,7 @@
 
 	/**
 	 * Color the selected connection line(s). Any of the eight colors, plus the
-	 * connection-only Gray and Mixed. ConnectionsOverlay listens for the event
+	 * connection-only Gray and Color to Color (stored as 'mixed'). ConnectionsOverlay listens for the event
 	 * (handleSetColor) and applies the color to every selected connection.
 	 * @param {string} color
 	 */
@@ -99,12 +99,26 @@
 		isDisabled={!$toolbarState.hasActiveConnection}
 	/>
 
-	<!-- Mixed: the icon's circle is drawn in CSS (a two-tone split) rather than
-	     from icons.json — see .icon-fill-line-mixed below. -->
+	<!-- Color to Color: the standard circle icon, filled with a left→right color
+	     fade (see .icon-fill-line-mixed below). The gradient is defined once here. -->
+	<svg class="color-to-color-defs" aria-hidden="true" focusable="false">
+		<defs>
+			<linearGradient id="color-to-color-fade" x1="0" y1="0" x2="1" y2="0">
+				<stop offset="0%" class="color-to-color-stop-start" />
+				<stop offset="100%" class="color-to-color-stop-end" />
+			</linearGradient>
+			<!-- Border: the same left→right fade in the colors' darker shades, as
+			     each color circle's outline uses its own -darker shade. -->
+			<linearGradient id="color-to-color-border" x1="0" y1="0" x2="1" y2="0">
+				<stop offset="0%" class="color-to-color-border-start" />
+				<stop offset="100%" class="color-to-color-border-end" />
+			</linearGradient>
+		</defs>
+	</svg>
 	<IconButton
 		classes="menu-light icon-fill-line-mixed justify-content-left"
 		iconId="circle"
-		label="Mixed"
+		label="Color to Color"
 		role="menuitem"
 		handleClick={() => handleConnectionColorSelect('mixed')}
 		isDisabled={!$toolbarState.hasActiveConnection}
@@ -112,26 +126,55 @@
 </Menu>
 
 <style>
-	/* Gray (connection lines): the default line gray, outlined like the other
-	   color circles. */
-	:global(button.menu-light:enabled.icon-fill-line-gray .icon path) {
-		fill: var(--gray-300);
+	/* Gray (connection lines): styled like the other color circles — a light
+	   center with a darker outline (cf. --green-light / --green-darker). Also
+	   held on hover/focus so the menu's hover style doesn't repaint it. */
+	:global(button.menu-light:enabled.icon-fill-line-gray .icon path),
+	:global(button.menu-light:enabled:hover.icon-fill-line-gray .icon path),
+	:global(button.menu-light:enabled:focus-visible.icon-fill-line-gray .icon path) {
+		fill: var(--gray-light);
 		stroke: var(--gray-darker);
 		stroke-width: 0.15rem;
 	}
 
-	/* Mixed (connection lines): hide the SVG circle and paint a CSS circle with a
-	   diagonal two-tone split in its place, same size as the other circles. */
-	:global(button.menu-light.icon-fill-line-mixed .icon path) {
-		fill: transparent;
+	/* Color to Color (connection lines): the SAME SVG circle as the other color
+	   items (so size and outline match exactly), filled with a smooth left→right
+	   fade (#color-to-color-fade, defined in the template) instead of one color.
+	   Held on hover/focus so the menu's hover style doesn't repaint it. */
+	:global(button.menu-light:enabled.icon-fill-line-mixed .icon path),
+	:global(button.menu-light:enabled:hover.icon-fill-line-mixed .icon path),
+	:global(button.menu-light:enabled:focus-visible.icon-fill-line-mixed .icon path) {
+		fill: url(#color-to-color-fade);
+		stroke: url(#color-to-color-border);
+		stroke-width: 0.15rem;
 	}
 
-	:global(button.menu-light.icon-fill-line-mixed .icon) {
-		border-radius: 50%;
-		width: 1.4rem;
-		box-sizing: border-box;
-		border: 0.1rem solid var(--gray-darker);
-		background: linear-gradient(135deg, var(--red-light) 50%, var(--blue-light) 50%);
+	/* Fade stops: light aqua → light purple (the light shades used by the other
+	   color circles). */
+	.color-to-color-stop-start {
+		stop-color: var(--aqua-light);
+	}
+
+	.color-to-color-stop-end {
+		stop-color: var(--purple-light);
+	}
+
+	/* Border fade: the darker shades, matching how each color circle is outlined
+	   in its own -darker shade (e.g. aqua: --aqua-light fill, --aqua-darker edge). */
+	.color-to-color-border-start {
+		stop-color: var(--aqua-darker);
+	}
+
+	.color-to-color-border-end {
+		stop-color: var(--purple-darker);
+	}
+
+	/* Holds only the gradient definition; takes no space and is never seen. */
+	.color-to-color-defs {
+		position: absolute;
+		width: 0;
+		height: 0;
+		overflow: hidden;
 	}
 
 	/* Disabled: plain gray, matching the disabled color circles. */
@@ -140,8 +183,8 @@
 		stroke: var(--gray-200);
 	}
 
-	:global(button.menu-light:disabled.icon-fill-line-mixed .icon) {
-		background: var(--gray-700);
-		border-color: var(--gray-200);
+	:global(button.menu-light:disabled.icon-fill-line-mixed .icon path) {
+		fill: var(--gray-700);
+		stroke: var(--gray-200);
 	}
 </style>
