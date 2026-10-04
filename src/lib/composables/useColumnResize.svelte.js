@@ -1,3 +1,5 @@
+import { getRenderedScale } from '$lib/utils/zoomScale.js';
+
 /**
  * Column Resize Composable
  *
@@ -72,6 +74,8 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 	let draggedLeftX = 0; // dragged column's left edge (viewport px) — fixed during its own resize
 	let tooltipY = 0; // fixed viewport Y for the tooltip during the drag
 	let renderedStartWidth = 0; // dragged column's rendered width at start (viewport px)
+	let startCssWidth = 0; // dragged column's layout width at start (CSS px, zoom-independent)
+	let dragScale = 1; // painted zoom scale captured at drag start
 	let baseWidth = BASE_WIDTH; // base (1×) column width in CSS px for the active layout
 	let snapWidths = []; // array of { width, multiple } snap targets (CSS px)
 
@@ -91,13 +95,16 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		);
 		if (!columnEl) return;
 
-		const scale = getScale() || 1;
+		// Painted scale (correct even mid zoom-transition), captured for the whole drag.
+		const scale = getRenderedScale(getScale() || 1);
+		dragScale = scale;
 
 		startX = event.clientX;
 
 		const rect = columnEl.getBoundingClientRect();
 		draggedLeftX = rect.left;
 		renderedStartWidth = rect.width;
+		startCssWidth = columnEl.offsetWidth;
 
 		// Anchor the tooltip vertically at the TOP of the resize indicator bar so it clears
 		// the handle the same way the segment tooltip clears its indicator. The handle is
@@ -118,7 +125,8 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 			visible: true,
 			x: draggedLeftX + renderedStartWidth,
 			y: tooltipY,
-			height: Math.round(renderedStartWidth / scale),
+			// offsetWidth is layout (CSS) px — unaffected by the zoom transform.
+			height: Math.round(columnEl.offsetWidth),
 			label: null
 		};
 
@@ -135,12 +143,12 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 	function handleResizeMove(event) {
 		if (!activeColumnId) return;
 
-		const scale = getScale() || 1;
+		const scale = dragScale;
 		const deltaViewport = event.clientX - startX;
-		const newRenderedWidth = renderedStartWidth + deltaViewport;
 
-		// Convert the dragged width to CSS px (pre-zoom).
-		let newWidth = newRenderedWidth / scale;
+		// Start from the LAYOUT width (CSS px) and add the cursor delta converted to
+		// CSS px, so the result is exact at any zoom / mid zoom-transition.
+		let newWidth = startCssWidth + deltaViewport / scale;
 
 		// Snap: compare the current CSS width against each base-width multiple. The
 		// snap threshold is given in viewport px, so convert it to CSS px for the test.
@@ -273,8 +281,8 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 			document.querySelector(`[data-column-id="${columnId}"]`)
 		);
 		if (!columnEl) return 0;
-		const scale = getScale() || 1;
-		return columnEl.getBoundingClientRect().width / scale;
+		// Layout width (CSS px) — independent of zoom and any in-flight zoom transition.
+		return columnEl.offsetWidth;
 	}
 
 	/**

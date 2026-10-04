@@ -1,3 +1,4 @@
+import { getRenderedScale } from '$lib/utils/zoomScale.js';
 /**
  * Section Reposition Composable
  *
@@ -64,6 +65,7 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 	let defaultMargin = 0; // the floor: section's default margin-top (CSS px)
 	let draggedCenterX = 0; // dragged section's horizontal center (viewport px) — fixed during drag
 	let snapCandidates = []; // array of viewport Y values (other columns' section/segment edges)
+	let dragScale = 1; // painted zoom scale captured at drag start
 
 
 	/**
@@ -82,6 +84,8 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		if (!sectionEl) return;
 
 		startY = event.clientY;
+		// Painted scale (correct even mid zoom-transition), captured for the whole drag.
+		dragScale = getRenderedScale(getScale() || 1);
 
 
 		const rect = sectionEl.getBoundingClientRect();
@@ -167,7 +171,7 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 	function handleRepositionMove(event) {
 		if (!activeSectionId) return;
 
-		const scale = getScale() || 1;
+		const scale = dragScale;
 		const deltaViewport = event.clientY - startY;
 
 		// Projected top edge of the dragged section in viewport coordinates.

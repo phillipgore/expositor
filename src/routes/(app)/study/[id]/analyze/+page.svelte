@@ -209,6 +209,16 @@
 		tick().then(() => segmentResize.scheduleRecompute());
 	});
 
+	// Re-equalize linked groups once a ZOOM change has settled. Group heights are
+	// measured in layout px (zoom-independent), but text can re-wrap differently at a
+	// new scale due to sub-pixel font rounding, and any stale value from before this
+	// fix must be corrected. Wait past the 0.2s zoom transition before measuring.
+	$effect(() => {
+		const _scale = currentScale;
+		const timer = setTimeout(() => segmentResize.scheduleRecompute(), 260);
+		return () => clearTimeout(timer);
+	});
+
 	// Gate the Layout → Link / Unlink Segment Height buttons on the current selection:
 	//  - Link  : 2+ segments selected that aren't already all in the SAME group.
 	//  - Unlink: the selection includes at least one linked segment.
@@ -331,14 +341,15 @@
 
 	/**
 	 * Measure the selected segments and open the Set Height modal.
-	 * - tallest = max current rendered height (÷ scale → CSS px) → default value
-	 * - min     = max natural/content height (÷ scale → CSS px)  → floor
+	 * - tallest = max current layout height (CSS px)  → default value
+	 * - min     = max natural/content height (CSS px) → floor
 	 */
 	function openSetHeightModal() {
 		const ids = activeSegments.map((s) => s.segmentId);
 		if (ids.length === 0) return;
 
-		const scale = currentScale || 1;
+		// offsetHeight is LAYOUT (CSS) px — unaffected by the zoom transform and by an
+		// in-flight zoom transition — so no ÷ scale is needed (or correct).
 		let tallest = 0;
 		let minFloor = 0;
 
@@ -349,13 +360,13 @@
 			if (!el) continue;
 
 			// Current rendered height (includes any applied min-height).
-			const current = el.getBoundingClientRect().height / scale;
+			const current = el.offsetHeight;
 			if (current > tallest) tallest = current;
 
 			// Natural content height: momentarily clear inline min-height to measure.
 			const prevMinHeight = el.style.minHeight;
 			el.style.minHeight = '0px';
-			const natural = el.getBoundingClientRect().height / scale;
+			const natural = el.offsetHeight;
 			el.style.minHeight = prevMinHeight;
 			if (natural > minFloor) minFloor = natural;
 		}
@@ -4565,7 +4576,11 @@
 				const newScrollLeft = newCenterX - viewportWidth / 2;
 				const newScrollTop = newCenterY - viewportHeight / 2;
 				
-				scrollContainer.scrollTo(newScrollLeft, newScrollTop);
+				// Scroll AFTER the wrapper has been resized to the new scaled size.
+				// When zooming IN the scrollable area grows; scrolling synchronously
+				// here (before wrapperDimensions is flushed to the DOM) clamps the
+				// target to the OLD, smaller scroll range and loses the center point.
+				tick().then(() => scrollContainer.scrollTo(newScrollLeft, newScrollTop));
 			}
 			
 			previousZoomLevel = currentZoomLevel;
@@ -4634,7 +4649,6 @@
 	 *   - $effect runs after the DOM is fully updated; tick() additionally flushes
 	 *     all pending Svelte batch updates so measurements are guaranteed accurate.
 	 */
-	let wrapperDimensions = $state('');
 
 	/*
 	 * Last-measured NATURAL (un-scaled) layout size of .analyze-content-inner.
@@ -4683,16 +4697,14 @@
 	 * wrapper always matches the VISUAL (scaled) height of the content and the footer is
 	 * pushed to the true bottom at every zoom level and in every content state.
 	 */
-	$effect(() => {
-		const scale = currentScale;
-		const w = lastNaturalWidth;
-		const h = lastNaturalHeight;
-		if (w > 0 && h > 0) {
-			wrapperDimensions = `width: ${w * scale}px; height: ${h * scale}px;`;
-		} else {
-			wrapperDimensions = '';
-		}
-	});
+	// $derived (not $state + $effect) so the wrapper size updates in the SAME flush as
+	// the zoom transform — no extra effect pass, and the zoom-centering scroll (which
+	// runs after tick()) always sees the new scroll range.
+	let wrapperDimensions = $derived(
+		lastNaturalWidth > 0 && lastNaturalHeight > 0
+			? `width: ${lastNaturalWidth * currentScale}px; height: ${lastNaturalHeight * currentScale}px;`
+			: ''
+	);
 
 	/**
 	 * Compute the scale factor for fit-width and fit-study modes.
@@ -4715,8 +4727,10 @@
 
 		// scrollWidth/scrollHeight reflect the CSS layout dimensions and are NOT affected
 		// by CSS transforms, so we can measure them without touching the transform.
-		const naturalWidth = contentInnerRef.scrollWidth;
-		const naturalHeight = contentInnerRef.scrollHeight;
+		// Prefer the ResizeObserver-tracked natural size (always current, including
+		// after segment-height / column-width / spacing changes).
+		const naturalWidth = lastNaturalWidth || contentInnerRef.scrollWidth;
+		const naturalHeight = lastNaturalHeight || contentInnerRef.scrollHeight;
 
 		if (naturalWidth === 0 || naturalHeight === 0) return;
 
@@ -4743,14 +4757,29 @@
 
 		// Access passagesWithText to re-run this effect when content changes
 		const _dep = data.passagesWithText;
+		// Also re-fit whenever the natural content size changes for ANY reason
+		// (user-set segment heights, column widths, spacing, toggles, reflow).
+		const _w = lastNaturalWidth;
+		const _h = lastNaturalHeight;
 
+		// Only jump to the top-left when the fit mode is first ENTERED — not on every
+		// content-size change, which would yank the user's scroll position mid-edit.
+		const entering = mode !== lastFitMode;
+		lastFitMode = mode;
 
 		tick().then(() => {
 			computeFitScale();
-			if (mode === 'fit-study' && analyzeContentRef) {
+			if (entering && mode === 'fit-study' && analyzeContentRef) {
 				analyzeContentRef.scrollTo(0, 0);
 			}
 		});
+	});
+
+	/** Non-reactive record of the last fit mode applied (see effect above). */
+	let lastFitMode = /** @type {string|null} */ (null);
+	$effect(() => {
+		const mode = $toolbarState.analyzeZoomMode;
+		if (mode !== 'fit-width' && mode !== 'fit-study') lastFitMode = null;
 	});
 
 	/**

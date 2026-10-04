@@ -1,3 +1,5 @@
+import { getRenderedScale } from '$lib/utils/zoomScale.js';
+
 /**
  * Segment Resize Composable
  *
@@ -78,6 +80,7 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 
 	// Internal (non-reactive) drag bookkeeping.
 	let startY = 0; // pointer Y at mousedown (viewport px)
+	let dragScale = 1; // painted zoom scale captured at drag start (viewport px per CSS px)
 	let renderedStartHeight = 0; // dragged segment's rendered height at start (viewport px)
 	let naturalContentHeight = 0; // minimum allowed height (CSS px) = tallest natural text height across the group
 	let snapCandidates = []; // array of viewport Y values (other columns' segment edges)
@@ -90,6 +93,24 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 	let groupObserver = null;
 	let recomputeScheduled = false;
 	let suppressObserver = false;
+
+	/**
+	 * Measure a segment's NATURAL (content) height in CSS px by momentarily clearing
+	 * its inline min-height. Uses offsetHeight — the layout height — which is NOT
+	 * affected by the zoom transform, so the result is correct at any zoom level and
+	 * even while a zoom transition is animating. (The previous
+	 * getBoundingClientRect().height ÷ targetScale was wrong mid-transition and could
+	 * inflate/deflate linked-group heights, overriding user-set heights.)
+	 * @param {HTMLElement} el
+	 * @returns {number}
+	 */
+	function measureNaturalHeight(el) {
+		const prevMinHeight = el.style.minHeight;
+		el.style.minHeight = '0px';
+		const natural = el.offsetHeight;
+		el.style.minHeight = prevMinHeight;
+		return natural;
+	}
 
 	/**
 	 * Resolve the link-group members for a segment from the DOM. Returns the segment's
@@ -130,7 +151,10 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		);
 		if (!segmentEl) return;
 
-		const scale = getScale() || 1;
+		// Use the scale ACTUALLY painted right now (correct even mid zoom-transition),
+		// not the target zoom, for every viewport<->CSS px conversion in this drag.
+		const scale = getRenderedScale(getScale() || 1);
+		dragScale = scale;
 		startY = event.clientY;
 
 		const rect = segmentEl.getBoundingClientRect();
@@ -153,11 +177,8 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 			memberGeometry.push({ id, topY: r.top, centerX: r.left + r.width / 2 });
 
 			// Measure natural height by momentarily clearing the inline min-height.
-			const prevMinHeight = el.style.minHeight;
-			el.style.minHeight = '0px';
-			const naturalRendered = el.getBoundingClientRect().height;
-			el.style.minHeight = prevMinHeight;
-			const natural = naturalRendered / scale;
+			// offsetHeight is the LAYOUT height (CSS px, unaffected by the zoom transform).
+			const natural = measureNaturalHeight(el);
 			if (natural > naturalContentHeight) naturalContentHeight = natural;
 		}
 
@@ -177,7 +198,7 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		});
 
 		// Seed the live-height tooltip(s): one per member at its own bottom edge.
-		const startContentHeight = Math.round(renderedStartHeight / scale);
+		const startContentHeight = Math.round(segmentEl.offsetHeight);
 		const isLinked = groupIds.length > 1;
 		dragTooltips = memberGeometry.map((m) => ({
 			segmentId: m.id,
@@ -202,7 +223,7 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 	function handleResizeMove(event) {
 		if (!activeSegmentId) return;
 
-		const scale = getScale() || 1;
+		const scale = dragScale;
 		const deltaViewport = event.clientY - startY;
 		let newRenderedHeight = renderedStartHeight + deltaViewport;
 
@@ -348,7 +369,6 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 			return;
 		}
 		hoveredGroupId = groupId;
-		const scale = getScale() || 1;
 		const tips = [];
 		document.querySelectorAll(`[data-height-group-id="${groupId}"]`).forEach((el) => {
 			if (el.classList.contains('compare-hidden')) return;
@@ -358,8 +378,6 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 			tips.push({ segmentId: id, x: r.left + r.width / 2, y: r.bottom, label: 'Linked' });
 		});
 		hoverTooltips = tips;
-		// Reposition again on the next frame in case layout settled.
-		void scale;
 	}
 
 	/**
@@ -391,8 +409,6 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		recomputeScheduled = false;
 		if (activeSegmentId) return; // never fight an in-progress drag
 
-		const scale = getScale() || 1;
-
 		// Bucket grouped segment elements by group id.
 		/** @type {Map<string, HTMLElement[]>} */
 		const groups = new Map();
@@ -415,11 +431,8 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		for (const [, els] of groups) {
 			let tallest = 0;
 			for (const el of els) {
-				const prevMinHeight = el.style.minHeight;
-				el.style.minHeight = '0px';
-				const naturalRendered = el.getBoundingClientRect().height;
-				el.style.minHeight = prevMinHeight;
-				const natural = naturalRendered / scale;
+				// Layout px — independent of zoom and of any in-flight zoom transition.
+				const natural = measureNaturalHeight(el);
 				if (natural > tallest) tallest = natural;
 			}
 			const rounded = Math.round(tallest);

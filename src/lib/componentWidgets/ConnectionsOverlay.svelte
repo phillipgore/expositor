@@ -399,6 +399,10 @@
 	 */
 	let rafScheduled = false;
 	function scheduleCalculate() {
+		// While a zoom transition is in flight the DOM is painted at an intermediate
+		// scale, so any measurement now would be wrong. The settle handler
+		// (transitionend / fallback timer) recomputes once it lands.
+		if (zoomSettleTimer) return;
 		if (rafScheduled) return;
 		rafScheduled = true;
 		requestAnimationFrame(() => {
@@ -407,8 +411,36 @@
 		});
 	}
 
-	/** Re-calculate paths once the zoom CSS transition finishes. */
-	const handleTransitionEnd = () => scheduleCalculate();
+	/**
+	 * Re-calculate paths once the zoom CSS transition finishes.
+	 *
+	 * `transitionend` BUBBLES, so without a filter every hover/selection opacity
+	 * fade on any segment/section/column inside the study triggered a full
+	 * calculatePaths() (which measures every segment). Only react to the zoom
+	 * transform transition on .analyze-content-inner itself.
+	 * @param {TransitionEvent} event
+	 */
+	const handleTransitionEnd = (event) => {
+		if (event.target !== contentInner || event.propertyName !== 'transform') return;
+		const wasSettling = !!zoomSettleTimer;
+		clearZoomSettleTimer();
+		if (wasSettling) scheduleCalculate();
+	};
+
+	/**
+	 * Fallback for when `transitionend` never fires after a zoom change (e.g. the
+	 * transition was interrupted by another zoom, the tab was hidden, or reduced
+	 * motion removed the transition). Slightly longer than the 0.2s CSS transition.
+	 */
+	const ZOOM_SETTLE_FALLBACK_MS = 260;
+	/** @type {ReturnType<typeof setTimeout> | null} */
+	let zoomSettleTimer = null;
+	function clearZoomSettleTimer() {
+		if (zoomSettleTimer) {
+			clearTimeout(zoomSettleTimer);
+			zoomSettleTimer = null;
+		}
+	}
 
 	/**
 	 * Recompute on column/section spacing changes (live drag + modal apply/reset).
@@ -4174,9 +4206,29 @@
 
 	// ─── Reactivity ──────────────────────────────────────────────────────────
 
+	// Zoom changes: do NOT recompute immediately. The zoom is a 0.2s CSS transform
+	// transition, so measuring now would capture an intermediate frame (wrong
+	// anchors) and then we'd recompute again on transitionend — double the work
+	// on every zoom step. Instead wait for the transition to settle: transitionend
+	// (filtered in handleTransitionEnd) or a timer fallback. Export overrides are
+	// applied with the transform already removed, so they recompute synchronously
+	// via their own handlers and are skipped here.
+	let lastZoomScale = /** @type {number|null} */ (null);
+	$effect(() => {
+		const s = scaleProp;
+		if (lastZoomScale === null) { lastZoomScale = s; return; }
+		if (s === lastZoomScale) return;
+		lastZoomScale = s;
+		if (exportScaleOverride !== null) return;
+		clearZoomSettleTimer();
+		zoomSettleTimer = setTimeout(() => {
+			zoomSettleTimer = null;
+			scheduleCalculate();
+		}, ZOOM_SETTLE_FALLBACK_MS);
+	});
+
 	$effect(() => {
 		const _conn       = connections;
-		const _scale      = scale;
 		const _visible    = $toolbarState.connectionsVisible;
 		const _colVis     = $toolbarState.columnConnectionsVisible;
 		const _secVis     = $toolbarState.sectionConnectionsVisible;
@@ -4280,6 +4332,7 @@
 		resizeObserver?.disconnect();
 		scrollContainer?.removeEventListener('scroll', scheduleCalculate);
 		contentInner?.removeEventListener('transitionend', handleTransitionEnd);
+		clearZoomSettleTimer();
 		window.removeEventListener('pointermove', handlePointerMove);
 		window.removeEventListener('pointerup', handlePointerUp);
 		window.removeEventListener('pointermove', handleNotePlacementMove);

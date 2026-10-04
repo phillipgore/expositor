@@ -1,3 +1,5 @@
+import { getRenderedScale } from '$lib/utils/zoomScale.js';
+
 /**
  * Column Reposition Composable
  *
@@ -63,6 +65,7 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 	let maxMargin = 0; // max allowed per-side offset (CSS px)
 	let tooltipY = 0; // fixed viewport Y for the tooltip during the drag
 	let activeIsCross = false; // whether the active drag spans a passage divider
+	let dragScale = 1; // painted zoom scale captured at drag start
 
 	/**
 	 * Classify a column for spacing purposes and locate the element whose RIGHT edge
@@ -132,7 +135,8 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		const info = classifyColumn(colEl);
 		if (!info) return 0;
 
-		const scale = getScale() || 1;
+		// Painted scale — correct even while a zoom transition is animating.
+		const scale = getRenderedScale(getScale() || 1);
 
 		// Temporarily zero this column's offset so margin-left collapses to 0. For a
 		// cross-passage column, also zero the left divider's margin so both per-side
@@ -174,7 +178,8 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		const info = classifyColumn(colEl);
 		if (!info) return 0;
 
-		const scale = getScale() || 1;
+		// Painted scale — correct even while a zoom transition is animating.
+		const scale = getRenderedScale(getScale() || 1);
 		const colRect = colEl.getBoundingClientRect();
 		const prevRect = info.prevRightEl.getBoundingClientRect();
 		return (colRect.left - prevRect.right) / scale;
@@ -203,6 +208,7 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		activeIsCross = info.isCross;
 
 		startX = event.clientX;
+		dragScale = getRenderedScale(getScale() || 1);
 
 		const rect = colEl.getBoundingClientRect();
 		startEdgeX = rect.left;
@@ -257,7 +263,7 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 	function handleRepositionMove(event) {
 		if (!activeColumnId) return;
 
-		const scale = getScale() || 1;
+		const scale = dragScale;
 		const deltaViewport = event.clientX - startX;
 
 		// Number of sides that grow with the per-side offset: 1 for a within-passage
