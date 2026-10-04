@@ -199,7 +199,7 @@
 	     on a selected connection), returning it to its automatic shape. -->
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="connect"
+		iconId="connect-reset-shape"
 		label="Reset Connection Shape"
 		role="menuitem"
 		handleClick={() => {
@@ -213,7 +213,7 @@
 	     (closest spot on the nearest allowed side). -->
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="connect"
+		iconId="connect-reset-points"
 		label="Reset Connection Points"
 		role="menuitem"
 		handleClick={() => {
