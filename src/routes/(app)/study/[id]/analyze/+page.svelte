@@ -50,7 +50,7 @@
 	} from '$lib/utils/passageText.js';
 	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
 	import { rangeEndWordId } from '$lib/utils/wordIds.js';
-	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability, setSelectorsPeek } from '$lib/stores/toolbar.js';
 	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
 	import { collectStudyHeadings } from '$lib/utils/studyHeadings.js';
 	import { resolveTransferNeighbours } from '$lib/utils/transferNeighbours.js';
@@ -143,6 +143,8 @@
 	// Clear the global loading flag if this page is torn down mid-stream (e.g. the
 	// user navigates away before the content resolves), so the overlay never sticks.
 	onMount(() => () => setStudyContentLoading(false));
+	// Clear the transient Command+Option selection-controls peek if we navigate away mid-hold.
+	onMount(() => () => setSelectorsPeek(false));
 
 	let data = $derived({
 		...rawData,
@@ -4330,6 +4332,10 @@
 			isCommandKeyHeld = true;
 			console.log('[KEY] Command/Ctrl key pressed - multi-select mode enabled');
 		}
+
+		// Command+Option (Ctrl+Alt): temporarily reveal all selection controls while held.
+		// Read live modifier state so press order doesn't matter.
+		setSelectorsPeek((event.metaKey || event.ctrlKey) && event.altKey);
 	}
 	
 	/**
@@ -4342,6 +4348,9 @@
 			isCommandKeyHeld = false;
 			console.log('[KEY] Command/Ctrl key released - multi-select mode disabled');
 		}
+
+		// Releasing either Command/Ctrl or Option/Alt ends the selection-controls peek.
+		setSelectorsPeek((event.metaKey || event.ctrlKey) && event.altKey);
 	}
 
 	/**
@@ -4354,6 +4363,7 @@
 	 * `visibilitychange` but not `blur`, so we cover both.
 	 */
 	function resetCommandKeyHeld() {
+		setSelectorsPeek(false);
 		if (isCommandKeyHeld) {
 			isCommandKeyHeld = false;
 			console.log('[KEY] Focus/visibility lost - resetting multi-select mode');
@@ -5019,7 +5029,7 @@
 															<!-- Section toolbar: Command (held while a Column/Section/Segment is selected, or
 															     multiple column/section selections) shows all even with no single selection;
 															     single-select shows controls only for the active column in this column. -->
-															{#if $toolbarState.selectorsVisible
+															{#if $toolbarState.selectorsVisible || $toolbarState.selectorsPeek
 															     || showAllSelectorsViaCommand
 															     || hasMultipleStructuralSelections
 															     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}
@@ -5061,7 +5071,7 @@
 													<!-- Column toolbar: Command (held while a Column/Section/Segment is selected, or
 													     multiple column/section selections) shows all even with no single selection;
 													     single-select shows controls only for the active column in this column. -->
-													{#if $toolbarState.selectorsVisible
+													{#if $toolbarState.selectorsVisible || $toolbarState.selectorsPeek
 													     || showAllSelectorsViaCommand
 													     || hasMultipleStructuralSelections
 													     || (!isInMultiSelectMode && ((activeSegments.length > 0 && activeSegments.some(seg => isSegmentInColumn(column, seg.segmentId))) || activeSections.some(sId => getColumnIdFromSectionId(sId) === column.id) || activeColumns.includes(column.id)))}

@@ -578,7 +578,7 @@
 				type="button"
 				class="heading-radio"
 				class:active={isHeadingSelected}
-				class:always-visible={$toolbarState.selectorsVisible}
+				class:always-visible={$toolbarState.selectorsVisible || $toolbarState.selectorsPeek}
 				title="Select Heading"
 				aria-label="Select Heading"
 				aria-pressed={isHeadingSelected}

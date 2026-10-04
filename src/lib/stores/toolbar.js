@@ -95,6 +95,7 @@ async function persistPreference(updates) {
  * @property {boolean} wideLayout - Whether wide layout is active (wider passage columns)
  * @property {boolean} overviewMode - Whether overview mode is active (hides passage text, shows only structure)
  * @property {boolean} selectorsVisible - Whether the Column/Section selector buttons are shown without holding Command/Ctrl
+ * @property {boolean} selectorsPeek - Transient (not persisted): true while Command+Option (Ctrl+Alt) is held, temporarily revealing all selection controls
  * @property {boolean} layoutControlsVisible - Whether the Column/Section/Segment layout handles (reposition/resize) are shown without hovering
  * @property {boolean} passageDividersVisible - Whether the vertical divider line between adjacent passages is shown (also controls whether the cross-passage gap is double width)
  * @property {number} analyzeZoomLevel - Analyze view's zoom level as percentage (25-400)
@@ -236,6 +237,7 @@ const defaultState = {
 	wideLayout: false,
 	overviewMode: false,
 	selectorsVisible: false,
+	selectorsPeek: false,
 	layoutControlsVisible: false,
 	passageDividersVisible: true,
 	// Document view's OWN copy of the visibility toggles (independent of the
@@ -1180,6 +1182,18 @@ export function toggleSelectors() {
 	const newValue = !get(toolbarStateStore).selectorsVisible;
 	toolbarStateStore.update(state => ({ ...state, selectorsVisible: newValue }));
 	persistPreference({ selectorsVisible: newValue });
+}
+
+/**
+ * Set the transient "peek" state for selection controls.
+ * While Command+Option (Ctrl+Alt) is held, all selection controls are shown as if
+ * View → Selection Controls were on. Never persisted. Only updates the store when
+ * the value actually changes (keydown auto-repeat fires constantly).
+ * @param {boolean} value
+ */
+export function setSelectorsPeek(value) {
+	if (get(toolbarStateStore).selectorsPeek === value) return;
+	toolbarStateStore.update(state => ({ ...state, selectorsPeek: value }));
 }
 
 /**
