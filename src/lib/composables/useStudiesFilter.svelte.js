@@ -19,16 +19,33 @@ import { formatPassageReference } from '$lib/utils/passageFormatting.js';
  */
 export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, getSearchQuery, getUngroupedSeries = () => []) {
 	/**
+	 * Lower-cased title + formatted references per study object, built once per object.
+	 *
+	 * ⚠️ PERFORMANCE. Matching used to call `formatPassageReference` and `toLowerCase` for every
+	 * study and every passage on EVERY keystroke. Keyed by object identity in a WeakMap, so it
+	 * stays correct for free: `invalidate('app:studies')` delivers new study objects, which miss
+	 * the cache and are recomputed, and the old entries are garbage-collected with their objects.
+	 */
+	const searchKeys = new WeakMap();
+	function searchKeyFor(study) {
+		let key = searchKeys.get(study);
+		if (key === undefined) {
+			key = {
+				title: study.title.toLowerCase(),
+				refs: (study.passages ?? []).map((p) => formatPassageReference(p).toLowerCase())
+			};
+			searchKeys.set(study, key);
+		}
+		return key;
+	}
+
+	/**
 	 * Check if a study matches the search query
 	 */
 	function studyMatchesQuery(study, query) {
-		if (study.title.toLowerCase().includes(query)) return true;
-		if (study.passages && study.passages.length > 0) {
-			return study.passages.some(passage => 
-				formatPassageReference(passage).toLowerCase().includes(query)
-			);
-		}
-		return false;
+		const key = searchKeyFor(study);
+		if (key.title.includes(query)) return true;
+		return key.refs.some((ref) => ref.includes(query));
 	}
 
 	/**
@@ -188,9 +205,29 @@ export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, get
 	 * Get combined and sorted groups and ungrouped studies
 	 */
 	function getSortedGroupsAndStudies() {
+		return getFilteredView().items;
+	}
+
+	/**
+	 * Filtered groups, filtered ungrouped studies AND the combined, sorted top-level list, from a
+	 * single filtering pass.
+	 *
+	 * ⚠️ PERFORMANCE. StudiesPanel needs all three on every render. Deriving them separately ran the
+	 * group and study filters twice per keystroke, because `getSortedGroupsAndStudies` re-ran
+	 * the very filters whose results the panel had just derived on its own.
+	 */
+	function getFilteredView() {
 		const filteredGroups = getFilteredGroups();
 		const filteredUngroupedStudies = getFilteredUngroupedStudies();
-		const filteredUngroupedSeries = getFilteredUngroupedSeries();
+		const items = buildTopLevelItems(
+			filteredGroups,
+			filteredUngroupedStudies,
+			getFilteredUngroupedSeries()
+		);
+		return { groups: filteredGroups, ungroupedStudies: filteredUngroupedStudies, items };
+	}
+
+	function buildTopLevelItems(filteredGroups, filteredUngroupedStudies, filteredUngroupedSeries) {
 		const items = [];
 		
 		filteredGroups.forEach(group => {
@@ -228,6 +265,7 @@ export function useStudiesFilter(getStudies, getGroups, getUngroupedStudies, get
 		getFilteredGroups,
 		getFilteredUngroupedStudies,
 		getFilteredUngroupedSeries,
-		getSortedGroupsAndStudies
+		getSortedGroupsAndStudies,
+		getFilteredView
 	};
 }

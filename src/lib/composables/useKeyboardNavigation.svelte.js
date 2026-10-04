@@ -5,16 +5,16 @@
  * Provides arrow key, Home/End, and PageUp/PageDown navigation.
  */
 
-import { getFlattenedItemsList } from '$lib/utils/groupFlattening.js';
-
 /**
  * Create a keyboard navigation manager
- * 
- * @param {Function} getSortedGroupsAndStudies - Function that returns sorted items
+ *
+ * @param {Function} getFlattenedItems - Function that returns the Finder already flattened into
+ *   display order (`getFlattenedItemsList` output). The caller derives it once; flattening it
+ *   here again on every keypress was a full tree walk per arrow key.
  * @param {Function} onToggleCollapse - Callback to toggle group collapse state
  * @returns {Object} Navigation state and handlers
  */
-export function useKeyboardNavigation(getSortedGroupsAndStudies, onToggleCollapse) {
+export function useKeyboardNavigation(getFlattenedItems, onToggleCollapse) {
 	let focusedItemIndex = $state(-1);
 
 	/**
@@ -84,8 +84,7 @@ export function useKeyboardNavigation(getSortedGroupsAndStudies, onToggleCollaps
 	 * Handle keyboard navigation through the list
 	 */
 	function handleListKeyDown(event) {
-		const sortedGroupsAndStudies = getSortedGroupsAndStudies();
-		const flattenedItems = getFlattenedItemsList(sortedGroupsAndStudies);
+		const flattenedItems = getFlattenedItems();
 		const itemCount = flattenedItems.length;
 		
 		if (itemCount === 0) return;

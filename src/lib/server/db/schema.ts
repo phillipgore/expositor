@@ -147,7 +147,10 @@ export const studyGroup = pgTable('study_group', {
 	updatedAt: timestamp('updated_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()
-});
+}, (table) => ({
+	// The Finder's layout load filters by user on every page (migration 0054).
+	userIdIdx: index('study_group_user_id_idx').on(table.userId)
+}));
 
 /**
  * A Series is an ordered run of studies ("parts") covering one continuous stretch
@@ -243,7 +246,9 @@ export const study = pgTable('study', {
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()
 }, (table) => ({
-	seriesIdIdx: index('study_series_id_idx').on(table.seriesId)
+	seriesIdIdx: index('study_series_id_idx').on(table.seriesId),
+	// The Finder's layout load filters by user on every page (migration 0054).
+	userIdIdx: index('study_user_id_idx').on(table.userId)
 }));
 
 
@@ -278,7 +283,10 @@ export const passage = pgTable('passage', {
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()
-});
+}, (table) => ({
+	// Every load of a study's passages, and the Finder's layout join, filter on this (0054).
+	studyIdIdx: index('passage_study_id_idx').on(table.studyId, table.displayOrder)
+}));
 
 export const passageColumn = pgTable('passage_column', {
 	id: text('id').primaryKey(),

@@ -8,8 +8,7 @@
 	import Icon from '$lib/componentElements/Icon.svelte';
 	import StudyItem from './StudyItem.svelte';
 	import StudySeries from './StudySeries.svelte';
-	import { slide } from 'svelte/transition';
-	import { flip } from 'svelte/animate';
+	import { finderFlip, finderSlide } from '$lib/utils/finderMotion.js';
 
 	let {
 		group,
@@ -48,7 +47,9 @@
 		// Which series row (if any) is the current drop target for an "add to series" drag (Q17)
 		dropTargetSeriesId = null,
 		// For search - force expand groups during search
-		forceExpanded = false
+		forceExpanded = false,
+		// False while a search is active: see $lib/utils/finderMotion.js for why (and the numbers)
+		motion = true
 	} = $props();
 	
 	// Compute if THIS group is the drop target
@@ -112,11 +113,11 @@
 	</div>
 	
 	{#if !group.isCollapsed || forceExpanded}
-		<div class="group-contents" transition:slide={{ duration: 200 }}>
+		<div class="group-contents" transition:finderSlide={{ duration: 200, enabled: motion }}>
 			<!-- Render nested groups FIRST -->
 			{#if group.subgroups && group.subgroups.length > 0}
 				{#each group.subgroups as subgroup (subgroup.id)}
-					<div animate:flip={{ duration: 300 }}>
+					<div animate:finderFlip={{ duration: 300, enabled: motion }}>
 						<svelte:self
 							group={subgroup}
 							depth={depth + 1}
@@ -146,6 +147,7 @@
 							{onSeriesHeaderClick}
 							{dropTargetSeriesId}
 							{forceExpanded}
+							{motion}
 						/>
 					</div>
 				{/each}
@@ -154,7 +156,7 @@
 			<!-- Then series, which occupy a group slot exactly as a study does -->
 			{#if group.series && group.series.length > 0}
 				{#each group.series as series (series.id)}
-					<div animate:flip={{ duration: 300 }}>
+					<div animate:finderFlip={{ duration: 300, enabled: motion }}>
 						<StudySeries
 							{series}
 							depth={depth + 1}
@@ -175,6 +177,7 @@
 							{dropTargetSeriesId}
 							{formatPassageReference}
 							{forceExpanded}
+							{motion}
 						/>
 					</div>
 				{/each}
@@ -184,7 +187,7 @@
 			{#if group.studies && group.studies.length > 0}
 				<ul class="studies-list grouped">
 					{#each group.studies as study (study.id)}
-						<li role="presentation" animate:flip={{ duration: 300 }}>
+						<li role="presentation" animate:finderFlip={{ duration: 300, enabled: motion }}>
 							<StudyItem
 								{study}
 								depth={depth + 1}

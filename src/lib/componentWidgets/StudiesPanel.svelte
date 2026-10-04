@@ -30,7 +30,9 @@
 	import AddToSeriesModal from './modals/AddToSeriesModal.svelte';
 	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { flip } from 'svelte/animate';
+	import { finderFlip } from '$lib/utils/finderMotion.js';
+	import { SvelteMap } from 'svelte/reactivity';
+	import { untrack } from 'svelte';
 
 	let {
 		isOpen = false,
@@ -43,6 +45,24 @@
 
 	// Search state
 	let searchQuery = $state('');
+	let isSearching = $derived(searchQuery.trim() !== '');
+
+	/**
+	 * Whether the Finder animates this update. Off while searching AND on the update that leaves
+	 * search: both swap the whole result set at once, which in Safari made animation ~80% of a
+	 * search's cost (numbers in $lib/utils/finderMotion.js). Back on as soon as the list has
+	 * settled, so ordinary moves and expand/collapse keep their motion.
+	 */
+	let motion = $state(true);
+	$effect.pre(() => {
+		if (isSearching) {
+			motion = false;
+		} else if (!untrack(() => motion)) {
+			// Leaving search: stay off for this update, re-enable after it has rendered.
+			const t = setTimeout(() => (motion = true), 0);
+			return () => clearTimeout(t);
+		}
+	});
 
 	// Initialize composables
 	const multiSelect = useMultiSelect();
@@ -84,20 +104,86 @@
 		return collected;
 	});
 
+	/**
+	 * Optimistic disclosure state: `group:<id>` / `series:<id>` → isCollapsed. See
+	 * `persistCollapse`. Applied on top of the server's tree below, so every consumer — the
+	 * rendered rows, the flattened keyboard/selection list — sees the same state.
+	 */
+	const collapseOverrides = new SvelteMap();
+
+	/** `items` with any overridden `isCollapsed` applied; untouched objects are passed through. */
+	function applySeriesOverrides(seriesList) {
+		if (!seriesList?.length) return seriesList;
+		let changed = false;
+		const next = seriesList.map((sr) => {
+			const o = collapseOverrides.get(`series:${sr.id}`);
+			if (o === undefined || o === sr.isCollapsed) return sr;
+			changed = true;
+			return { ...sr, isCollapsed: o };
+		});
+		return changed ? next : seriesList;
+	}
+	function applyGroupOverrides(groupList) {
+		if (!groupList?.length) return groupList;
+		let changed = false;
+		const next = groupList.map((g) => {
+			const o = collapseOverrides.get(`group:${g.id}`);
+			const subgroups = applyGroupOverrides(g.subgroups);
+			const series = applySeriesOverrides(g.series);
+			const isCollapsed = o === undefined ? g.isCollapsed : o;
+			if (isCollapsed === g.isCollapsed && subgroups === g.subgroups && series === g.series) {
+				return g;
+			}
+			changed = true;
+			return { ...g, isCollapsed, subgroups, series };
+		});
+		return changed ? next : groupList;
+	}
+	// Fast path: with no overrides these are the props themselves, so nothing is copied.
+	let displayGroups = $derived(collapseOverrides.size ? applyGroupOverrides(groups) : groups);
+	let displayUngroupedSeries = $derived(
+		collapseOverrides.size ? applySeriesOverrides(ungroupedSeries) : ungroupedSeries
+	);
+
 	// Initialize filter composable
 	const studiesFilter = useStudiesFilter(
 		() => studies,
-		() => groups,
+		() => displayGroups,
 		() => ungroupedStudies,
 		() => searchQuery,
-		() => ungroupedSeries
+		() => displayUngroupedSeries
 	);
 
-	// Derived filtered/sorted data
+	// Derived filtered/sorted data — ONE filtering pass per change (see `getFilteredView`).
+	let filteredView = $derived(studiesFilter.getFilteredView());
+	let filteredGroups = $derived(filteredView.groups);
+	let filteredUngroupedStudies = $derived(filteredView.ungroupedStudies);
+	let sortedGroupsAndStudies = $derived(filteredView.items);
+	// Only the empty-state fallback list reads this, and it is lazy: a `$derived` that nothing
+	// renders is never computed, so the common case no longer pays to filter + sort every study.
 	let sortedStudies = $derived(studiesFilter.getSortedStudies());
-	let filteredGroups = $derived(studiesFilter.getFilteredGroups());
-	let filteredUngroupedStudies = $derived(studiesFilter.getFilteredUngroupedStudies());
-	let sortedGroupsAndStudies = $derived(studiesFilter.getSortedGroupsAndStudies());
+
+	/**
+	 * The Finder in display order, and `type:id` → its flat index.
+	 *
+	 * ⚠️ PERFORMANCE. This was rebuilt from scratch with `getFlattenedItemsList` — and then
+	 * linearly searched — inside every click handler, every row's `onfocus` (so on every arrow
+	 * key) and the auto-select effect. It only changes when the tree, a collapse flag or the search
+	 * changes, so it is derived once and every caller reads it.
+	 */
+	let flatItems = $derived(getFlattenedItemsList(sortedGroupsAndStudies));
+	let flatIndexByKey = $derived.by(() => {
+		const map = new Map();
+		for (const item of flatItems) map.set(`${item.type}:${item.id}`, item);
+		return map;
+	});
+	/** @returns {any} the flat-list entry for a row, or undefined when it is not shown */
+	const flatItemFor = (type, id) => flatIndexByKey.get(`${type}:${id}`);
+	/** Keep keyboard navigation's cursor on the row that just took focus. */
+	const syncFocusedIndex = (type, id) => {
+		const item = flatItemFor(type, id);
+		if (item) keyboardNav.updateFocusedIndex(item.index);
+	};
 
 	// Initialize keyboard navigation.
 	//
@@ -105,7 +191,7 @@
 	// (`/api/series/[id]`, not `/api/groups/[id]`), so passing `toggleGroupCollapse` directly would
 	// PATCH a group id that does not exist and silently fail to collapse the row.
 	const keyboardNav = useKeyboardNavigation(
-		() => sortedGroupsAndStudies,
+		() => flatItems,
 		(id, currentState, type) =>
 			type === 'series'
 				? toggleSeriesCollapse(id, currentState)
@@ -192,20 +278,8 @@
 	/**
 	 * Toggle group collapsed state
 	 */
-	async function toggleGroupCollapse(groupId, currentState) {
-		try {
-			const response = await fetch(`/api/groups/${groupId}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ isCollapsed: !currentState })
-			});
-
-			if (response.ok) {
-				await invalidate('app:studies');
-			}
-		} catch (error) {
-			console.error('Error toggling group:', error);
-		}
+	function toggleGroupCollapse(groupId, currentState) {
+		return persistCollapse('group', `/api/groups/${groupId}`, groupId, !currentState);
 	}
 
 	/**
@@ -214,21 +288,68 @@
 	 * Separate endpoint from groups because a series is a separate table (SERIES_PLAN §4);
 	 * the persisted flag is studySeries.isCollapsed, mirroring studyGroup.isCollapsed.
 	 */
-	async function toggleSeriesCollapse(seriesId, currentState) {
+	function toggleSeriesCollapse(seriesId, currentState) {
+		return persistCollapse('series', `/api/series/${seriesId}`, seriesId, !currentState);
+	}
+
+	/**
+	 * Flip a row's disclosure state IMMEDIATELY, then persist it.
+	 *
+	 * ⚠️ PERFORMANCE. This used to wait for the PATCH and then `invalidate('app:studies')` — a full
+	 * re-run of the (app) layout load (user prefs, every group, series, study and passage) — before
+	 * the chevron moved, so every expand/collapse cost two round trips plus re-rendering the tree.
+	 * The flag is the only thing that changed and the server just confirmed it, so there is nothing
+	 * to reload: the override in `collapseOverrides` IS the new state, and the next load for any
+	 * other reason delivers the same value from the database.
+	 *
+	 * On failure the override is dropped, which puts the row back to the server's state.
+	 */
+	async function persistCollapse(type, url, id, isCollapsed) {
+		const key = `${type}:${id}`;
+		collapseOverrides.set(key, isCollapsed);
+		pendingCollapse.set(key, (pendingCollapse.get(key) ?? 0) + 1);
 		try {
-			const response = await fetch(`/api/series/${seriesId}`, {
+			const response = await fetch(url, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ isCollapsed: !currentState })
+				body: JSON.stringify({ isCollapsed })
 			});
-
-			if (response.ok) {
-				await invalidate('app:studies');
-			}
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
 		} catch (error) {
-			console.error('Error toggling series:', error);
+			console.error(`Error toggling ${type}:`, error);
+			// Only revert if no later toggle of the same row has superseded this one.
+			if (collapseOverrides.get(key) === isCollapsed) collapseOverrides.delete(key);
+		} finally {
+			const n = (pendingCollapse.get(key) ?? 1) - 1;
+			if (n > 0) pendingCollapse.set(key, n);
+			else pendingCollapse.delete(key);
 		}
 	}
+
+	/**
+	 * In-flight PATCH count per row. Plain Map, not reactive: only read by the pruning effect.
+	 * @type {Map<string, number>}
+	 */
+	const pendingCollapse = new Map();
+
+	/**
+	 * Drop settled overrides whenever fresh layout data arrives.
+	 *
+	 * Once a row's PATCH has completed, any later load already carries that value from the database,
+	 * so the override is redundant — and keeping it would mask a change made elsewhere (another
+	 * tab, a restructure that recreated the row). Rows with a PATCH still in flight keep theirs, or
+	 * a load that raced the write would flip the chevron back for a moment.
+	 */
+	$effect(() => {
+		// Dependencies: a new tree from the server.
+		void groups;
+		void ungroupedSeries;
+		untrack(() => {
+			for (const key of [...collapseOverrides.keys()]) {
+				if (!pendingCollapse.has(key)) collapseOverrides.delete(key);
+			}
+		});
+	});
 
 	/**
 	 * Handle series header click.
@@ -264,7 +385,7 @@
 			'series',
 			series.id,
 			series,
-			getFlattenedItemsList(sortedGroupsAndStudies)
+			flatItems
 		);
 
 		// Only navigate without modifiers, and only when the destination differs from the current
@@ -293,7 +414,7 @@
 			'group',
 			group.id,
 			group,
-			getFlattenedItemsList(sortedGroupsAndStudies)
+			flatItems
 		);
 
 		// Only navigate if no modifier keys are pressed, and only when the destination
@@ -322,7 +443,7 @@
 			'study',
 			study.id,
 			study,
-			getFlattenedItemsList(sortedGroupsAndStudies)
+			flatItems
 		);
 
 		// Selecting a study deselects any active connection, segment, or note editor inside the study
@@ -552,8 +673,7 @@
 	 * @returns {boolean} whether the series was found and selected
 	 */
 	function selectOnlySeries(seriesId) {
-		const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-		const seriesItem = flatList.find((item) => item.type === 'series' && item.id === seriesId);
+		const seriesItem = flatItemFor('series', seriesId);
 		if (!seriesItem) return false;
 
 		multiSelect.selectedItems = [
@@ -601,8 +721,7 @@
 		} else if (activeGroupId) {
 			previousActiveSeriesId = null;
 			// Find the group in the flattened list
-			const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-			const groupItem = flatList.find((item) => item.type === 'group' && item.id === activeGroupId);
+			const groupItem = flatItemFor('group', activeGroupId);
 
 			if (groupItem && !multiSelect.isItemSelected('group', activeGroupId)) {
 				// Select the active group
@@ -626,10 +745,7 @@
 			// do nothing — let the study remain in "active only" (unselected) state.
 			if (activeStudyId !== previousActiveStudyId) {
 				previousActiveStudyId = activeStudyId;
-				const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-				const studyItem = flatList.find(
-					(item) => item.type === 'study' && item.id === activeStudyId
-				);
+				const studyItem = flatItemFor('study', activeStudyId);
 
 				if (studyItem) {
 					// Select the active study
@@ -791,7 +907,7 @@
 			{:else}
 				<div class="studies-container" onkeydown={keyboardNav.handleListKeyDown}>
 					{#each sortedGroupsAndStudies as item, index (item.type + '-' + item.data.id)}
-						<div role="presentation" animate:flip={{ duration: 300 }}>
+						<div role="presentation" animate:finderFlip={{ duration: 300, enabled: motion }}>
 							{#if item.type === 'group'}
 								<StudyGroup
 									group={item.data}
@@ -824,14 +940,9 @@
 									onToggleSeriesCollapse={toggleSeriesCollapse}
 									onSeriesHeaderClick={handleSeriesHeaderClick}
 									onSeriesMouseDown={handleSeriesMouseDown}
-									forceExpanded={searchQuery.trim() !== ''}
-									onfocus={() => {
-										const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-										const itemIndex = flatList.findIndex(
-											(i) => i.type === 'group' && i.id === item.data.id
-										);
-										if (itemIndex !== -1) keyboardNav.updateFocusedIndex(itemIndex);
-									}}
+									forceExpanded={isSearching}
+									{motion}
+									onfocus={() => syncFocusedIndex('group', item.data.id)}
 								/>
 							{:else if item.type === 'series'}
 								<StudySeries
@@ -853,7 +964,8 @@
 									isDragging={dragDrop.isDragging}
 									dropTargetSeriesId={dragDrop.dropTargetSeriesId}
 									{formatPassageReference}
-									forceExpanded={searchQuery.trim() !== ''}
+									forceExpanded={isSearching}
+									{motion}
 								/>
 							{:else}
 								<div class="study-wrapper">
@@ -869,13 +981,7 @@
 										{formatPassageReference}
 										onMouseDown={handleStudyMouseDown}
 										onClick={handleStudyClick}
-										onfocus={() => {
-											const flatList = getFlattenedItemsList(sortedGroupsAndStudies);
-											const itemIndex = flatList.findIndex(
-												(i) => i.type === 'study' && i.id === item.data.id
-											);
-											if (itemIndex !== -1) keyboardNav.updateFocusedIndex(itemIndex);
-										}}
+										onfocus={() => syncFocusedIndex('study', item.data.id)}
 									/>
 								</div>
 							{/if}

@@ -147,20 +147,71 @@ export async function load({ request, depends }) {
 			.orderBy(asc(study.title));
 
 		
-		// For each study, load its passages
-		const studiesWithPassages = await Promise.all(
-			studiesData.map(async (s) => {
-				const passages = await db
-					.select()
-					.from(passage)
-					.where(eq(passage.studyId, s.id))
-					.orderBy(passage.displayOrder);
-				
-				return {
-					...s,
-					passages
-				};
-			})
+		// Load every passage for this user's studies in ONE query, with only the columns the
+		// Finder and its menus read.
+		//
+		// ⚠️ PERFORMANCE — two things this must not regress to (see FINDER_PERFORMANCE_REPORT.md):
+		//  1. One query per study (an N+1). That was 1 + N round trips on every layout load and
+		//     every `invalidate('app:studies')` — 500 studies meant 501 queries.
+		//  2. `select()` of the whole row. `passage.cachedText` is the full processed HTML of the
+		//     passage (migration 0035, tens of KB each). This layout runs on every page, and its
+		//     data is serialised to the browser, so selecting it shipped the user's entire cached
+		//     Bible text to the client just to draw reference strings like "Romans 8:1-11".
+		//     Pages that need the text load it in their own loaders.
+		const passageRows =
+			studiesData.length === 0
+				? []
+				: await db
+						.select({
+							id: passage.id,
+							studyId: passage.studyId,
+							testament: passage.testament,
+							bookId: passage.bookId,
+							bookName: passage.bookName,
+							fromChapter: passage.fromChapter,
+							toChapter: passage.toChapter,
+							fromVerse: passage.fromVerse,
+							toVerse: passage.toVerse,
+							fromWord: passage.fromWord,
+							toWord: passage.toWord,
+							displayOrder: passage.displayOrder
+						})
+						.from(passage)
+						.innerJoin(study, eq(passage.studyId, study.id))
+						.where(eq(study.userId, session.user.id))
+						.orderBy(asc(passage.studyId), asc(passage.displayOrder));
+
+		/** @type {Map<string, any[]>} */
+		const passagesByStudy = new Map();
+		for (const p of passageRows) {
+			const list = passagesByStudy.get(p.studyId);
+			if (list) list.push(p);
+			else passagesByStudy.set(p.studyId, [p]);
+		}
+
+		const studiesWithPassages = studiesData.map((s) => ({
+			...s,
+			passages: passagesByStudy.get(s.id) ?? []
+		}));
+
+		/**
+		 * Bucket `items` by `keyOf(item)` in one pass. The tree below used to `filter()` the whole
+		 * study / series / group list once PER group and once per series, which is quadratic in
+		 * library size; every lookup is now a Map hit.
+		 */
+		const bucket = (items, keyOf) => {
+			const map = new Map();
+			for (const item of items) {
+				const key = keyOf(item) ?? null;
+				const list = map.get(key);
+				if (list) list.push(item);
+				else map.set(key, [item]);
+			}
+			return map;
+		};
+		const partsBySeries = bucket(
+			studiesWithPassages.filter((s) => s.seriesId),
+			(s) => s.seriesId
 		);
 		
 		// Attach parts to their series.
@@ -174,8 +225,8 @@ export async function load({ request, depends }) {
 		// seeds it at creation and must never be re-derived here (§4, trap 11).
 		const seriesWithParts = seriesData
 			.map((series) => {
-				const parts = studiesWithPassages
-					.filter((s) => s.seriesId === series.id)
+				const parts = (partsBySeries.get(series.id) ?? [])
+					.slice()
 					.sort((a, b) => (a.seriesOrder ?? 0) - (b.seriesOrder ?? 0));
 				return { ...series, parts, partCount: parts.length };
 			})
@@ -186,25 +237,29 @@ export async function load({ request, depends }) {
 		// Studies that are not parts of a series. Everything below treats these as before.
 		const standaloneStudies = studiesWithPassages.filter((s) => !s.seriesId);
 
-		// Build hierarchical group tree
-		function buildGroupTree(groups, parentId = null, depth = 0) {
-			return groups
-				.filter(g => g.parentGroupId === parentId)
+		// Build hierarchical group tree from pre-bucketed children (linear, not groups × items).
+		const groupsByParent = bucket(groupsData, (g) => g.parentGroupId);
+		const studiesByGroup = bucket(standaloneStudies, (s) => s.groupId);
+		const seriesByGroup = bucket(seriesWithParts, (sr) => sr.groupId);
+
+		function buildGroupTree(parentId = null, depth = 0) {
+			return (groupsByParent.get(parentId) ?? [])
+				.slice()
 				.sort((a, b) => a.displayOrder - b.displayOrder)
 				.map(group => ({
 					...group,
 					depth,
-					subgroups: buildGroupTree(groups, group.id, depth + 1),
-					studies: standaloneStudies
-						.filter(s => s.groupId === group.id)
+					subgroups: buildGroupTree(group.id, depth + 1),
+					studies: (studiesByGroup.get(group.id) ?? [])
+						.slice()
 						.sort((a, b) => a.title.localeCompare(b.title)),
-					series: seriesWithParts
-						.filter(sr => sr.groupId === group.id)
+					series: (seriesByGroup.get(group.id) ?? [])
+						.slice()
 						.sort((a, b) => a.name.localeCompare(b.name))
 				}));
 		}
 		
-		const groupsWithStudies = buildGroupTree(groupsData);
+		const groupsWithStudies = buildGroupTree();
 
 		// Get ungrouped studies (standalone only — parts live under their series row)
 		const ungroupedStudies = standaloneStudies

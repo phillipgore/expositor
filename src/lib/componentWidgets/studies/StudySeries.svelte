@@ -71,11 +71,13 @@
 		dropTargetSeriesId = null,
 		formatPassageReference,
 		// For search — force expand during search, matching StudyGroup
-		forceExpanded = false
+		forceExpanded = false,
+		// False while a search is active: see $lib/utils/finderMotion.js for why (and the numbers)
+		motion = true
 	} = $props();
 
 	import StudyItem from './StudyItem.svelte';
-	import { slide } from 'svelte/transition';
+	import { finderSlide } from '$lib/utils/finderMotion.js';
 
 	let isEffectivelyExpanded = $derived(!series.isCollapsed || forceExpanded);
 
@@ -171,7 +173,7 @@
 	</div>
 
 	{#if isEffectivelyExpanded}
-		<div class="series-contents" transition:slide={{ duration: 200 }}>
+		<div class="series-contents" transition:finderSlide={{ duration: 200, enabled: motion }}>
 			<!-- Structurally identical to StudyGroup's studies list, and deliberately so: a series
 			     and a group present the same way in the Finder, and only the ICON distinguishes
 			     them. The parts are NOT numbered here — a number gutter beside each row pushed the

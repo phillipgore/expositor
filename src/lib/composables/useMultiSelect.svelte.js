@@ -18,10 +18,37 @@ export function useMultiSelect(updateToolbarCallback) {
 	const DOUBLE_CLICK_THRESHOLD = 300; // ms
 
 	/**
+	 * `type:id` → selection position ('first' | 'middle' | 'last' | 'isolated'), recomputed ONCE
+	 * per selection change.
+	 *
+	 * ⚠️ PERFORMANCE. Every Finder row asks `isItemSelected` and `getSelectionPosition` while
+	 * rendering, so both run (rows × selection) times per change. They used to scan
+	 * `selectedItems` linearly and `getSelectionPosition` re-sorted a copy of it per row — with
+	 * 600 rows and a 200-item shift-selection that is ~120k comparisons plus 600 sorts on one
+	 * click. Both are now Map lookups against this one derived pass.
+	 */
+	const positionByKey = $derived.by(() => {
+		const map = new Map();
+		const sorted = [...selectedItems].sort((a, b) => a.index - b.index);
+		for (let i = 0; i < sorted.length; i++) {
+			const item = sorted[i];
+			const prev = sorted[i - 1];
+			const next = sorted[i + 1];
+			const hasPrev = prev !== undefined && prev.index === item.index - 1;
+			const hasNext = next !== undefined && next.index === item.index + 1;
+			map.set(
+				`${item.type}:${item.id}`,
+				!hasPrev && !hasNext ? 'isolated' : !hasPrev ? 'first' : !hasNext ? 'last' : 'middle'
+			);
+		}
+		return map;
+	});
+
+	/**
 	 * Check if an item is selected
 	 */
 	function isItemSelected(type, id) {
-		return selectedItems.some(item => item.type === type && item.id === id);
+		return positionByKey.has(`${type}:${id}`);
 	}
 
 	/**
@@ -83,10 +110,15 @@ export function useMultiSelect(updateToolbarCallback) {
 				item => item.index >= startIndex && item.index <= endIndex
 			);
 			
-			// Add range to selection (avoiding duplicates)
+			// Add range to selection (avoiding duplicates). A local Set rather than
+			// `isItemSelected`: that reads `positionByKey`, which each push invalidates, so asking
+			// it inside this loop would rebuild the whole map once per row in the range. One
+			// assignment at the end also means one reactive update instead of one per row.
+			const already = new Set(selectedItems.map((i) => `${i.type}:${i.id}`));
+			const additions = [];
 			for (const item of rangeItems) {
-				if (!isItemSelected(item.type, item.id)) {
-					selectedItems.push({
+				if (!already.has(`${item.type}:${item.id}`)) {
+					additions.push({
 						type: item.type,
 						id: item.id,
 						data: item.data,
@@ -94,6 +126,7 @@ export function useMultiSelect(updateToolbarCallback) {
 					});
 				}
 			}
+			if (additions.length > 0) selectedItems = [...selectedItems, ...additions];
 			
 		} else if (isCmd) {
 			// Cmd/Ctrl+Click: Toggle individual item
@@ -182,28 +215,9 @@ export function useMultiSelect(updateToolbarCallback) {
 	 * @returns {'first' | 'middle' | 'last' | 'isolated' | null}
 	 */
 	function getSelectionPosition(type, id) {
-		if (selectedItems.length === 0) return null;
-		
-		// Find the item in selected items
-		const item = selectedItems.find(i => i.type === type && i.id === id);
-		if (!item) return null;
-		
-		// Sort selected items by index
-		const sortedItems = [...selectedItems].sort((a, b) => a.index - b.index);
-		const itemIndex = sortedItems.findIndex(i => i.id === id && i.type === type);
-		
-		// Check if adjacent items are consecutive in the flattened list
-		const prevItem = sortedItems[itemIndex - 1];
-		const nextItem = sortedItems[itemIndex + 1];
-		
-		const hasConsecutivePrev = prevItem && prevItem.index === item.index - 1;
-		const hasConsecutiveNext = nextItem && nextItem.index === item.index + 1;
-		
-		// Determine position
-		if (!hasConsecutivePrev && !hasConsecutiveNext) return 'isolated';
-		if (!hasConsecutivePrev && hasConsecutiveNext) return 'first';
-		if (hasConsecutivePrev && !hasConsecutiveNext) return 'last';
-		return 'middle';
+		// Precomputed in `positionByKey`: consecutive runs in the flattened list are joined
+		// visually, so the position depends on the neighbours' indexes, not on this item alone.
+		return positionByKey.get(`${type}:${id}`) ?? null;
 	}
 
 	/**
