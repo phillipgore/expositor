@@ -5041,6 +5041,7 @@
 																			prevVisibleSegmentHasBorderBottom={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree || (section.segments[segmentIndex - 1]?.note && $toolbarState.passageNotesVisible))}
 																			prevSegmentHasRef={!!(headingReferences[section.segments[segmentIndex - 1]?.id]?.segmentRef)}
 																			isFirstInSection={segmentIndex === 0}
+																			isLastInSection={segmentIndex === section.segments.length - 1}
 																			isFirstVisibleInSection={segmentIndex === 0}
 																			height={$toolbarState.overviewMode ? null : segmentResize.getEffectiveHeight(segment.id, resolveSegmentFloor(segment))}
 																			resizeEnabled={!$toolbarState.overviewMode && !isHideMode}

@@ -32,6 +32,9 @@
 		prevSegmentHasRef = false,
 		isFirstInSection = false,
 		isFirstVisibleInSection = false,
+		/** Last segment in its section. Used instead of :last-child, since the section
+		 *  also renders a reposition handle / toolbar after its segments. */
+		isLastInSection = false,
 		isVerseSubdivided = false,
 		/** Effective min-height in CSS px (persisted height or live drag override). null = flexible. */
 		height = null,
@@ -201,6 +204,7 @@
 	     class:has-segment-ref={!$toolbarState.overviewMode && segmentRef && $toolbarState.referencesVisible && (!effectiveHeadingsVisible || (!heading2 && !heading3) || (isVerseSubdivided && !heading3))}
      class:has-note={(note || noteInputMode) && $toolbarState.passageNotesVisible}
      class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.passageNotesVisible)}
+     class:is-last-in-section={isLastInSection}
      class:compare-hidden={isCompareHidden}
      class:is-resizing={isResizing}
      class:show-layout-controls={resizeEnabled && $toolbarState.layoutControlsVisible}
@@ -494,8 +498,8 @@
 		padding-top: 0;
 	}
 
-	.segment:last-child,
-	.segment:last-child .text {
+	.segment.is-last-in-section,
+	.segment.is-last-in-section .text {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
@@ -533,22 +537,22 @@
 		border-top-left-radius: 0.3rem;
 	}
 
-	:global(.section) .segment:last-child,
-	:global(.section) .segment:last-child .text {
+	:global(.section) .segment.is-last-in-section,
+	:global(.section) .segment.is-last-in-section .text {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
 
 	/* Add bottom border radius to notes in last segment of section */
-	:global(.section) .segment:last-child:global(.has-note) :global(.note),
-	:global(.section) .segment:last-child:global(.has-note) :global(.note-input textarea) {
+	:global(.section) .segment.is-last-in-section:global(.has-note) :global(.note),
+	:global(.section) .segment.is-last-in-section:global(.has-note) :global(.note-input textarea) {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
 
 	/* Remove bottom border and radius from text when segment has a note */
 	.segment:global(.has-note) .text,
-	.segment:last-child:global(.has-note) .text {
+	.segment.is-last-in-section:global(.has-note) .text {
 		border-bottom: 0.0rem;
 		border-bottom-right-radius: 0.0rem;
 		border-bottom-left-radius: 0.0rem;
@@ -585,7 +589,7 @@
 	}
 
 	/* Segment reference placeholder in last segment gets bottom radius (when no note) */
-	:global(.analyze-content):not(.overview-mode) :global(.section) .segment.has-segment-ref:last-child:not(.has-note) .segment-ref-placeholder {
+	:global(.analyze-content):not(.overview-mode) :global(.section) .segment.has-segment-ref.is-last-in-section:not(.has-note) .segment-ref-placeholder {
 		border-bottom-right-radius: 0.0rem;
 		border-bottom-left-radius: 0.0rem;
 	}
@@ -624,7 +628,7 @@
 	}
 
 	/* Last segment: rounded bottom corners + bottom border */
-	:global(.analyze-content.overview-mode) :global(.section) .segment.has-no-headings-indicator:last-child:not(.has-note) .no-headings-indicator {
+	:global(.analyze-content.overview-mode) :global(.section) .segment.has-no-headings-indicator.is-last-in-section:not(.has-note) .no-headings-indicator {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 		border-bottom: 0.1rem solid;
