@@ -4,7 +4,7 @@
  * Finds the shortest square (right-angle) route between two connection points
  * that never enters a passage box (inflated by a clearance margin), so a line
  * never crosses text or runs along a study border. Each end leaves straight
- * out of its side. An optional handle point steers the route: the line is
+ * out of its side or along its edge, whichever is shorter. An optional handle point steers the route: the line is
  * forced through the clear grid point nearest the handle (the handle picks
  * the lane; it can't push the line into text).
  *
@@ -19,6 +19,8 @@
 export const ROUTE_MARGIN = 10;
 export const ROUTE_STUB = 20;
 export const ROUTE_BEND_COST = 30;
+/** Small preference for leaving straight out of the side over sliding along it. */
+export const ROUTE_SIDEWAYS_COST = 15;
 
 const DX = [1, -1, 0, 0];
 const DY = [0, 0, 1, -1];
@@ -52,7 +54,29 @@ function simplify(pts) {
  * @returns {{ pts: Pt[], handle: Pt } | null} null when no clear route exists
  */
 export function routeCorner({ a, b, fromEdge, toEdge, obstacles, bounds, handle = null }) {
-	const da = outDir(fromEdge), db = outDir(toEdge);
+	// Each end may leave straight out of its side OR sideways along the edge
+	// (never back into its own item). Try every combination; keep the cheapest.
+	const oa = outDir(fromEdge), ob = outDir(toEdge);
+	let best = null;
+	for (const da of [0, 1, 2, 3]) {
+		if (da === OPP[oa]) continue;
+		for (const db of [0, 1, 2, 3]) {
+			if (db === OPP[ob]) continue;
+			const r = routeOnce({ a, b, da, db, obstacles, bounds, handle });
+			if (!r) continue;
+			const cost = r.cost + (da === oa ? 0 : ROUTE_SIDEWAYS_COST) + (db === ob ? 0 : ROUTE_SIDEWAYS_COST);
+			if (!best || cost < best.cost - 0.01) best = { ...r, cost };
+		}
+	}
+	return best ? { pts: best.pts, handle: best.handle } : null;
+}
+
+/**
+ * One routing attempt with fixed leaving directions.
+ * @param {{ a: Pt, b: Pt, da: number, db: number, obstacles: Box[], bounds: Bounds, handle: Pt | null }} opts
+ * @returns {{ pts: Pt[], handle: Pt, cost: number } | null}
+ */
+function routeOnce({ a, b, da, db, obstacles, bounds, handle }) {
 	const S = { x: a.x + DX[da] * ROUTE_STUB, y: a.y + DY[da] * ROUTE_STUB };
 	const T = { x: b.x + DX[db] * ROUTE_STUB, y: b.y + DY[db] * ROUTE_STUB };
 	const boxes = obstacles.map(o => ({
@@ -132,7 +156,7 @@ class Heap {
  * Dijkstra over (grid node, heading, phase); phase 1 = already passed the
  * handle's lane point. Cost = length + a penalty per bend; no U-turns.
  * @param {{ a: Pt, b: Pt, xs: number[], ys: number[], N: number, ny: number, step: (i: number, j: number, d: number) => number, sNode: number, tNode: number, hNode: number, da: number, db: number }} g
- * @returns {{ pts: Pt[], handle: Pt } | null}
+ * @returns {{ pts: Pt[], handle: Pt, cost: number } | null}
  */
 function search({ a, b, xs, ys, N, ny, step, sNode, tNode, hNode, da, db }) {
 	const phases = hNode >= 0 ? 2 : 1;
@@ -192,5 +216,5 @@ function search({ a, b, xs, ys, N, ny, step, sNode, tNode, hNode, da, db }) {
 			if (len > best) { best = len; h = { x: (pts[k].x + pts[k - 1].x) / 2, y: (pts[k].y + pts[k - 1].y) / 2 }; }
 		}
 	}
-	return { pts, handle: h };
+	return { pts, handle: h, cost: dist[goal] };
 }

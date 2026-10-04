@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
 import { segmentConnection, study } from '$lib/server/db/schema.js';
 import { auth } from '$lib/server/auth.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
+import { resolveStructureOwners } from '$lib/server/db/structureOwners.js';
 
 const VALID_TYPES = ['segment', 'section', 'column'];
 const VALID_LINE_ROUTES = ['curved', 'straight', 'cornered'];
@@ -326,6 +327,64 @@ export const PATCH = async ({ params, request }) => {
 			}
 			updates[edgeKey] = edge;
 			updates[posKey] = Math.min(1, Math.max(0, pos));
+		}
+
+		// ── Ends that moved: series scope, owning part, duplicates ────────────
+		// A cross-part line (or a line dragged in Focus across parts) can land on an
+		// item in ANY part of the same series. Both ends must resolve to parts of
+		// that series owned by this user; the row is owned by the FROM end's part and
+		// keeps series_id only while its ends really are in different parts.
+		if (updatingFrom || updatingTo) {
+			/** @param {'from'|'to'} end */
+			const endRef = (end) => {
+				const type = updates[`${end}Type`] ?? connection[`${end}Type`] ?? 'segment';
+				const key = type === 'segment' ? `${end}SegmentId` : type === 'section' ? `${end}SectionId` : `${end}ColumnId`;
+				return { type, id: key in updates ? updates[key] : connection[key] };
+			};
+			const f = endRef('from'), t = endRef('to');
+			if (!f.id || !t.id) return json({ error: 'Connection endpoint missing' }, { status: 400 });
+			if (f.type === t.type && f.id === t.id) {
+				return json({ error: 'Cannot connect an element to itself' }, { status: 400 });
+			}
+			const owners = await resolveStructureOwners(db, [f.id, t.id]);
+			const fromPart = owners[f.id], toPart = owners[t.id];
+			if (!fromPart || !toPart) return json({ error: 'Connection endpoint not found' }, { status: 400 });
+			const homeSeries = studyResult[0].seriesId ?? null;
+			if (fromPart !== connection.studyId || toPart !== connection.studyId) {
+				// Leaving the current part is only allowed within its series.
+				if (!homeSeries) return json({ error: 'Both ends must be in this study' }, { status: 403 });
+				const parts = await db
+					.select({ id: study.id })
+					.from(study)
+					.where(and(eq(study.seriesId, homeSeries), eq(study.userId, session.user.id), inArray(study.id, [fromPart, toPart])));
+				const ok = new Set(parts.map((p) => p.id));
+				if (!ok.has(fromPart) || !ok.has(toPart)) {
+					return json({ error: 'Both ends must be in parts of this series' }, { status: 403 });
+				}
+			}
+			updates.studyId = fromPart;
+			updates.seriesId = fromPart !== toPart ? homeSeries : null;
+
+			// No two connections between the same pair of items (either direction,
+			// in any part of the series).
+			const ids = [f.id, t.id];
+			const others = await db
+				.select()
+				.from(segmentConnection)
+				.where(inArray(segmentConnection.studyId, [...new Set([fromPart, toPart])]));
+			/** @param {any} c @param {'from'|'to'} end */
+			const refOf = (c, end) => {
+				const type = c[`${end}Type`] ?? 'segment';
+				return { type, id: type === 'segment' ? c[`${end}SegmentId`] : type === 'section' ? c[`${end}SectionId`] : c[`${end}ColumnId`] };
+			};
+			const same = (/** @type {any} */ a, /** @type {any} */ b) => a.type === b.type && a.id === b.id;
+			const dup = others.some((c) => {
+				if (c.id === connectionId) return false;
+				const a = refOf(c, 'from'), b = refOf(c, 'to');
+				if (!ids.includes(a.id) || !ids.includes(b.id)) return false;
+				return (same(a, f) && same(b, t)) || (same(a, t) && same(b, f));
+			});
+			if (dup) return json({ error: 'These items are already connected' }, { status: 409 });
 		}
 
 		const [updated] = await db

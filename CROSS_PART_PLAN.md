@@ -69,3 +69,18 @@ limited to one part. These steps let the user work across parts.
 - Stubs are still not selectable as connections (no Quick Note, colour or style changes from the stub
   side); select both endpoints and use Remove to delete one.
 - No migration has been needed so far.
+
+## Cross-part lines (on a single part's page)
+
+Built. A connection whose other end is in another part is drawn as a short line (36 units,
+shortened to stop before the next passage box, min 16) out of the item, ending in an open chevron.
+
+- The point uses normal placement: column → top, section → top (or a placed edge), segment → the
+  side facing the other part. It shares the edge fan-out with other points, and a placed point is kept.
+- Correct node shape (square/diamond/circle), standard width, assigned colour (Color to Color uses
+  this item's colour).
+- Selectable (click / Cmd-click) like any line; Delete and colour work by id. The point can't be
+  dragged and there is no shaping ring.
+- Hover: point turns blue, black type badge (Column/Section/Segment).
+- Selected: point turns blue, blue "Go to Part N" button below it, Focus enabled → Focus across
+  both parts (`?focus=`), where the line is drawn in full.

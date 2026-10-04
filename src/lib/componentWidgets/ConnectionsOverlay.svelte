@@ -54,6 +54,7 @@
 	import { QUICK_NOTE_MAX_CHARS } from '$lib/constants/notes.js';
 	import { endpointOf, stubLabel } from '$lib/utils/connectionStubs.js';
 	import { routeCorner } from '$lib/utils/cornerRouting.js';
+	import Button from '$lib/componentElements/buttons/Button.svelte';
 	import { setPartItems, requestReveal } from '$lib/stores/seriesSelection.js';
 
 
@@ -71,13 +72,45 @@
 	} = $props();
 
 	/**
-	 * Edge stubs for connections whose other endpoint lives in a different part.
-	 * @type {Array<{ id: string, x1: number, y1: number, x2: number, y2: number, d: string, label: string, short: string, direction: 'forward'|'backward', lineStyle: string, otherPartId: string, otherEnd: { type: string, id: string|null } }>}
+	 * Short cross-part lines: connections whose other end is in a different part. Each runs a
+	 * short way out of the item on this page and ends in a chevron (CROSS_PART_PLAN).
+	 * @type {Array<{ id: string, type: ConnType, edge: 'top'|'bottom'|'left'|'right', x1: number, y1: number, x2: number, y2: number, d: string, arrow: string, lineColor: LineColor, color: string|null, label: string, short: string, direction: 'forward'|'backward', lineStyle: string, otherPartId: string, otherEnd: { type: string, id: string|null } }>}
 	 */
 	let stubs = $state([]);
 
-	/** Length (layout units) of a stub's tail, and the gap it leaves at the canvas edge. */
-	const STUB_LENGTH = 26;
+	/** Preferred / minimum length (layout units) of a cross-part line. */
+	const CROSS_PART_LENGTH = 36;
+	const CROSS_PART_MIN = 16;
+	/** Gap left before the next passage box when a cross-part line is shortened. */
+	const CROSS_PART_GAP = 4;
+
+	/**
+	 * Length of a cross-part line leaving point `a` in direction `dir`: the preferred
+	 * length, shortened so it stops before the next passage box (never below the minimum).
+	 * Boxes containing `a` (the item's own section) are ignored.
+	 * @param {{ x: number, y: number }} a
+	 * @param {{ x: number, y: number }} dir — unit axis direction
+	 * @param {Array<{ x: number, y: number, w: number, h: number }>} boxes
+	 * @returns {number}
+	 */
+	function crossPartLength(a, dir, boxes) {
+		let len = CROSS_PART_LENGTH;
+		const EPS = 1;
+		for (const b of boxes) {
+			const inside = a.x > b.x + EPS && a.x < b.x + b.w - EPS && a.y > b.y + EPS && a.y < b.y + b.h - EPS;
+			if (inside) continue;
+			let dist = Infinity;
+			if (dir.x !== 0) {
+				if (a.y < b.y || a.y > b.y + b.h) continue;
+				dist = dir.x > 0 ? b.x - a.x : a.x - (b.x + b.w);
+			} else {
+				if (a.x < b.x || a.x > b.x + b.w) continue;
+				dist = dir.y > 0 ? b.y - a.y : a.y - (b.y + b.h);
+			}
+			if (dist > EPS) len = Math.min(len, dist - CROSS_PART_GAP);
+		}
+		return Math.max(CROSS_PART_MIN, len);
+	}
 
 	/**
 	 * Describe the stub for a connection with one endpoint off this page, or null if it is not a
@@ -189,6 +222,16 @@
 			if (path.lineStyle === 'dashed') return $toolbarState.sectionConnectionsVisible;
 			if (path.lineStyle === 'dotted') return $toolbarState.columnConnectionsVisible;
 			return $toolbarState.crossItemConnectionsVisible; // dashdot (cross-item)
+		})
+	);
+
+	/** Cross-part lines, filtered by the same per-type visibility toggles. */
+	let visibleStubs = $derived(
+		stubs.filter(stub => {
+			if (stub.lineStyle === 'solid')  return $toolbarState.segmentConnectionsVisible;
+			if (stub.lineStyle === 'dashed') return $toolbarState.sectionConnectionsVisible;
+			if (stub.lineStyle === 'dotted') return $toolbarState.columnConnectionsVisible;
+			return $toolbarState.crossItemConnectionsVisible;
 		})
 	);
 
@@ -1981,7 +2024,7 @@
 		/**
 		 * Connections with exactly ONE endpoint on this page — cross-part links preserved by phase 3.
 		 * Collected during the resolve pass and turned into edge stubs after it, once the SVG box is known.
-		 * @type {Array<{ connection: any, presentEnd: 'from'|'to', el: Element, label: string, short: string, direction: 'forward'|'backward', otherPartId: string, otherEnd: { type: string, id: string|null } }>}
+		 * @type {Array<{ connection: any, presentEnd: 'from'|'to', type: ConnType, edge: 'top'|'bottom'|'left'|'right', lineColor: LineColor, color: string|null, label: string, short: string, direction: 'forward'|'backward', otherPartId: string, otherEnd: { type: string, id: string|null } }>}
 		 */
 		const stubCandidates = [];
 		/** @type {Map<string, Endpoint[]>} key = `${elementId}|${edge}` */
@@ -2013,10 +2056,32 @@
 				// resolvable part and is skipped — drawing a marker for it would promise a continuation
 				// that does not exist.
 				if (stub) {
+					const el = /** @type {Element} */ (fromEl || toEl);
+					const type = /** @type {ConnType} */ ((presentEnd === 'from' ? connection.fromType : connection.toType) || 'segment');
+					const rect = type === 'column' ? columnAnchorRect(el) : el.getBoundingClientRect();
+					if (rect.width === 0) continue;
+					const placed = placedAnchor(connection, presentEnd, type);
+					// Same edges as a normal line: column → top, section → top,
+					// segment → the side facing the other part.
+					const edge = placed ? placed.edge
+						: type === 'segment' ? (stub.direction === 'backward' ? 'left' : 'right')
+						: 'top';
+					const elId = endpointOf(connection, presentEnd).id;
+					const gk = `${elId}|${edge}`;
+					if (!groups.has(gk)) groups.set(gk, []);
+					groups.get(gk)?.push({
+						key: `${connection.id}|${presentEnd}`, edge, rect,
+						// Aim at a far point toward the other part (off-page left or right),
+						// so the point slides along its edge toward that part and fans out
+						// with the other points exactly like a normal line's end does.
+						otherCX: stub.direction === 'backward' ? svgRect.left - 100000 : svgRect.right + 100000,
+						otherCY: (rect.top + rect.bottom) / 2,
+						placedPos: placed?.pos ?? null
+					});
+					const lineColor = normalizeLineColor(colorOverrides[connection.id] ?? connection.lineColor);
 					stubCandidates.push({
-						connection,
-						presentEnd,
-						el: /** @type {Element} */ (fromEl || toEl),
+						connection, presentEnd, type, edge, lineColor,
+						color: lineColor === 'gray' ? null : lineColor === 'mixed' ? endColor(el, type) : namedColor(lineColor),
 						label: stub.label,
 						short: stub.short,
 						direction: stub.direction,
@@ -2106,6 +2171,7 @@
 		//   midpoint (a single segment endpoint stays exactly at the midpoint).
 		/** @type {Map<string, { x: number, y: number }>} key = `${connId}|${end}` */
 		const anchorMap = new Map();
+		const crossPartKeys = new Set(stubCandidates.map(c => `${c.connection.id}|${c.presentEnd}`));
 		// Per-endpoint slide range along its edge — consumed by Pass E so it can
 		// separate overlapping lines by sliding endpoints (staying straight, on-edge)
 		// before resorting to bending. axis 'x' for top/bottom edges, 'y' for
@@ -2154,6 +2220,7 @@
 			// case nudge them apart by ANCHOR_SPACING (the smallest move needed).
 			// Unplaced segment points that share the midpoint spread symmetrically
 			// about it, exactly as before.
+			const sharesCrossPart = members.some(m => crossPartKeys.has(m.key));
 			const ideals = members.map(ideal);
 			const ps = distributeAlongEdge(ideals, lo, hi);
 			if (!horizontal) {
@@ -2171,11 +2238,68 @@
 				anchorMap.set(m.key, horizontal ? { x: ps[i], y: base.y } : { x: base.x, y: ps[i] });
 				// User-placed points stay where they were put: Pass E may not slide
 				// them to separate overlapping lines (it bends those lines instead).
-				if (m.placedPos == null) slideMap.set(m.key, { axis: horizontal ? 'x' : 'y', lo, hi });
+				// An edge shared with a cross-part point is also left alone: sliding a
+				// normal end there could land it on the cross-part point.
+				if (m.placedPos == null && !sharesCrossPart) slideMap.set(m.key, { axis: horizontal ? 'x' : 'y', lo, hi });
 			}
 		}
 
 
+
+		// Each element edge is spread separately, but a column's top edge and its
+		// first section's top edge sit at the same height — so their points can
+		// land on top of each other. Nudge cross-part points along their own
+		// edge until they clear every other connection point.
+		for (const c of stubCandidates) {
+			const key = `${c.connection.id}|${c.presentEnd}`;
+			const a = anchorMap.get(key);
+			if (!a) continue;
+			const horizontal = c.edge === 'top' || c.edge === 'bottom';
+			const member = [...groups.values()].flat().find(m => m.key === key);
+			if (!member) continue;
+			const r = member.rect;
+			const lo = horizontal ? (r.left - svgRect.left) / scale + ANCHOR_EDGE_PAD : (r.top - svgRect.top) / scale + ANCHOR_EDGE_PAD;
+			const hi = horizontal ? (r.right - svgRect.left) / scale - ANCHOR_EDGE_PAD : (r.bottom - svgRect.top) / scale - ANCHOR_EDGE_PAD;
+			const others = [...anchorMap.entries()].filter(([k]) => k !== key).map(([, p]) => p);
+			const clash = (/** @type {{x:number,y:number}} */ p) =>
+				others.some(o => Math.abs(o.x - p.x) < ANCHOR_SPACING && Math.abs(o.y - p.y) < ANCHOR_SPACING);
+			if (!clash(a)) continue;
+			// Try spots stepping away from the current one, nearest first, both ways.
+			let best = null;
+			for (let step = 1; step <= 40 && !best; step++) {
+				for (const sgn of [-1, 1]) {
+					const v = (horizontal ? a.x : a.y) + sgn * step * (ANCHOR_SPACING / 2);
+					if (v < lo || v > hi) continue;
+					const p = horizontal ? { x: v, y: a.y } : { x: a.x, y: v };
+					if (!clash(p)) { best = p; break; }
+				}
+			}
+			if (best) anchorMap.set(key, best);
+		}
+
+		// ── Cross-part lines: a short run out of the item ending in a chevron ──
+		stubs = stubCandidates.flatMap((c) => {
+			const a = anchorMap.get(`${c.connection.id}|${c.presentEnd}`);
+			if (!a) return [];
+			const dir = c.edge === 'top' ? { x: 0, y: -1 } : c.edge === 'bottom' ? { x: 0, y: 1 }
+				: c.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 };
+			const len = crossPartLength(a, dir, routeObstacles);
+			const b = { x: a.x + dir.x * len, y: a.y + dir.y * len };
+			// Open chevron at the tip, pointing along the line.
+			const px = -dir.y, py = dir.x, back = 6, wing = 5;
+			const arrow = `M ${b.x - dir.x * back + px * wing} ${b.y - dir.y * back + py * wing} L ${b.x} ${b.y} L ${b.x - dir.x * back - px * wing} ${b.y - dir.y * back - py * wing}`;
+			return [{
+				id: c.connection.id, type: c.type, edge: c.edge,
+				presentEnd: c.presentEnd,
+				fromType: c.connection.fromType || 'segment', toType: c.connection.toType || 'segment',
+				x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+				d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, arrow,
+				lineColor: c.lineColor, color: c.color,
+				label: c.label, short: c.short, direction: c.direction,
+				otherPartId: c.otherPartId, otherEnd: c.otherEnd,
+				lineStyle: getLineStyle(c.connection.fromType || 'segment', c.connection.toType || 'segment')
+			}];
+		});
 
 		/** @type {PathEntry[]} */
 		const newPaths = [];
@@ -2413,45 +2537,6 @@
 
 		paths = newPaths;
 
-		// ── Pass F: edge stubs for cross-part connections (§8 (c), phase 3) ────
-		//
-		// A stub is a short arc from the endpoint that IS on this page, running to a labelled marker at
-		// the nearest vertical edge of the canvas. It is NOT an arc to something off-screen: there is no
-		// geometry for an element that is not mounted, which is exactly why authoring a cross-part
-		// connection remains impossible (Q42). The stub says "this link continues", and the label says
-		// where.
-		//
-		// Direction follows the sequence, not the geometry: a link whose other end is in a LATER part
-		// exits right, an earlier part exits left. That makes the stub agree with the prev/next arrows
-		// §7 puts in the header, so the marker points the way the user would actually travel.
-		stubs = stubCandidates.map((candidate) => {
-			const rect = candidate.el.getBoundingClientRect();
-			const y = (rect.top + rect.bottom) / 2 - svgRect.top;
-			const anchorX =
-				candidate.direction === 'backward'
-					? rect.left - svgRect.left
-					: rect.right - svgRect.left;
-			const edgeX = candidate.direction === 'backward' ? STUB_LENGTH : svgRect.width - STUB_LENGTH;
-
-			return {
-				id: candidate.connection.id,
-				x1: anchorX,
-				y1: y,
-				x2: edgeX,
-				y2: y,
-				// A gentle bow so a stub reads as a connection rather than a rule.
-				d: `M ${anchorX} ${y} C ${(anchorX + edgeX) / 2} ${y}, ${(anchorX + edgeX) / 2} ${y}, ${edgeX} ${y}`,
-				label: candidate.label,
-				short: candidate.short,
-				direction: candidate.direction,
-				otherPartId: candidate.otherPartId,
-				otherEnd: candidate.otherEnd,
-				lineStyle: getLineStyle(
-					candidate.connection.fromType || 'segment',
-					candidate.connection.toType || 'segment'
-				)
-			};
-		});
 	}
 
 	// ─── Pass E helpers: overlapping-line separation ──────────────────────────
@@ -2992,6 +3077,21 @@
 	}
 
 	// ─── Drag handlers ────────────────────────────────────────────────────────
+
+	/**
+	 * Start dragging the on-page end of a cross-part line. It works like a
+	 * standard end drag: slide along its own item, or drop on another item. The
+	 * far end lives in another part, so the preview line runs from the arrow tip.
+	 * @param {PointerEvent} event @param {any} stub
+	 */
+	function startStubDrag(event, stub) {
+		const end = stub.presentEnd;
+		// startDrag reads the dragged end from (x1,y1)/(x2,y2) by end, so order them.
+		const p = end === 'from'
+			? { ...stub, x1: stub.x1, y1: stub.y1, x2: stub.x2, y2: stub.y2 }
+			: { ...stub, x1: stub.x2, y1: stub.y2, x2: stub.x1, y2: stub.y1 };
+		startDrag(event, p, end);
+	}
 
 	/**
 	 * @param {PointerEvent} event
@@ -4318,50 +4418,66 @@
 		{/snippet}
 
 		<!--
-			Edge stubs for cross-part connections (§8 strategy (c), phase 3).
-
-			Drawn FIRST so they sit beneath every real arc and endpoint node: a stub is context, not a
-			thing to interact with. Deliberately inert — no hit-target, no drag handle, no click — because
-			its far end is not on this page, so every gesture a real connection offers would have nothing
-			to act on. The label is a plain <title>, which gives it a tooltip and a screen-reader name
-			without inventing a control.
+			Cross-part lines (CROSS_PART_PLAN): a short line out of the item on this page, ending in
+			a chevron because its other end is in another part. Selectable like any line; selecting it
+			shows a "Go to Part N" button and enables Focus (both ends side by side).
 		-->
-		{#each stubs as stub (stub.id)}
-			<g class="connection-stub" class:connection-stub--backward={stub.direction === 'backward'}>
+		{#each visibleStubs as stub (stub.id)}
+			{@const active = selectedPathIds.has(stub.id) || hoveredPathId === stub.id}
+			{@const colorStyle = stub.color ? `stroke: ${stub.color};` : ''}
+			{@const nodeStyle = stub.color && !active ? `fill: ${stub.color}; stroke: ${stub.color};` : ''}
+			<g class="connection-cross-part">
 				<title>{stub.label}</title>
-				<path
-					class="connection-stub-path"
-					class:connection-path--dashed={stub.lineStyle === 'dashed'}
-					class:connection-path--dotted={stub.lineStyle === 'dotted'}
-					class:connection-path--dashdot={stub.lineStyle === 'dashdot'}
-					d={stub.d}
-					fill="none"
-				/>
-				<!-- A small open chevron at the canvas edge, pointing the way the user would travel to
-				     reach the other end (§7's prev/next direction). -->
-				<path
-					class="connection-stub-arrow"
-					d={stub.direction === 'backward'
-						? `M ${stub.x2 + 6} ${stub.y2 - 5} L ${stub.x2} ${stub.y2} L ${stub.x2 + 6} ${stub.y2 + 5}`
-						: `M ${stub.x2 - 6} ${stub.y2 - 5} L ${stub.x2} ${stub.y2} L ${stub.x2 - 6} ${stub.y2 + 5}`}
-					fill="none"
-				/>
+				<path class="connection-path" class:connection-path--colored={!!stub.color}
+					class:connection-path--selected={selectedPathIds.has(stub.id)}
+					style={colorStyle} d={stub.d} fill="none" />
+				<path class="connection-path connection-cross-part-arrow" class:connection-path--colored={!!stub.color}
+					class:connection-path--selected={selectedPathIds.has(stub.id)}
+					style={colorStyle} d={stub.arrow} fill="none" />
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<path class="connection-hit-target" d={stub.d}
+					onpointerenter={() => { hoveredPathId = stub.id; }}
+					onpointerleave={() => { if (hoveredPathId === stub.id) hoveredPathId = null; }}
+					onclick={(e) => handlePathClick(e, /** @type {any} */ (stub))} />
+				{#if stub.type === 'column'}
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<rect class="connection-node connection-node--square connection-node--draggable"
+						class:connection-node--colored={!!stub.color}
+						class:connection-node--hovered={hoveredPathId === stub.id && !selectedPathIds.has(stub.id)}
+						class:connection-node--selected={selectedPathIds.has(stub.id)}
+						style={nodeStyle} x={stub.x1 - 4} y={stub.y1 - 4} width="8" height="8"
+						onpointerdown={(e) => startStubDrag(e, stub)}
+						onpointerenter={() => { hoveredPathId = stub.id; }}
+						onpointerleave={() => { if (hoveredPathId === stub.id) hoveredPathId = null; }}
+						onclick={(e) => handlePathClick(e, /** @type {any} */ (stub))} />
+				{:else if stub.type === 'section'}
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<polygon class="connection-node connection-node--diamond connection-node--draggable"
+						class:connection-node--colored={!!stub.color}
+						class:connection-node--hovered={hoveredPathId === stub.id && !selectedPathIds.has(stub.id)}
+						class:connection-node--selected={selectedPathIds.has(stub.id)}
+						style={nodeStyle} points={diamondPoints(stub.x1, stub.y1)}
+						onpointerdown={(e) => startStubDrag(e, stub)}
+						onpointerenter={() => { hoveredPathId = stub.id; }}
+						onpointerleave={() => { if (hoveredPathId === stub.id) hoveredPathId = null; }}
+						onclick={(e) => handlePathClick(e, /** @type {any} */ (stub))} />
+				{:else}
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<circle class="connection-node connection-node--draggable"
+						class:connection-node--colored={!!stub.color}
+						class:connection-node--hovered={hoveredPathId === stub.id && !selectedPathIds.has(stub.id)}
+						class:connection-node--selected={selectedPathIds.has(stub.id)}
+						style={nodeStyle} cx={stub.x1} cy={stub.y1} r="4"
+						onpointerdown={(e) => startStubDrag(e, stub)}
+						onpointerenter={() => { hoveredPathId = stub.id; }}
+						onpointerleave={() => { if (hoveredPathId === stub.id) hoveredPathId = null; }}
+						onclick={(e) => handlePathClick(e, /** @type {any} */ (stub))} />
+				{/if}
 			</g>
-			<!-- Clickable "Part N" label at the page edge: goes to the part holding the other end
-			     and scrolls to it (CROSS_PART_PLAN step 2). The line itself stays inert. -->
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<text
-				class="connection-stub-label"
-				class:connection-stub-label--backward={stub.direction === 'backward'}
-				x={stub.direction === 'backward' ? stub.x2 + 2 : stub.x2 - 2}
-				y={stub.y2 - 9}
-				text-anchor={stub.direction === 'backward' ? 'start' : 'end'}
-				role="link"
-				tabindex="0"
-				aria-label={stub.label}
-				onclick={() => goToStubEnd(stub)}
-				onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToStubEnd(stub); } }}
-			><title>{stub.label}</title>{stub.short}</text>
 		{/each}
 
 		<!-- Mixed-color lines: a linear gradient per line running from its FROM
@@ -4638,6 +4754,22 @@
 		</svg>
 	{/if}
 
+	<!-- Cross-part lines: type badge on hover, "Go to Part N" button when selected. -->
+	{#each visibleStubs as stub (stub.id)}
+		{#if hoveredPathId === stub.id}
+			<div class="connection-anchor-tooltip"
+				style="left: {stub.x1}px; top: {stub.y1}px; transform: {anchorTooltipTransform(stub.edge === 'bottom' ? 'below' : 'above')};">
+				{anchorLabel(stub.type)}
+			</div>
+		{/if}
+		{#if selectedPathIds.has(stub.id)}
+			<div class="connection-cross-part-go"
+				style="left: {stub.x1}px; top: {stub.y1 + 12}px;">
+				<Button classes="blue" handleClick={(/** @type {MouseEvent} */ e) => { e?.stopPropagation?.(); goToStubEnd(stub); }}>Go to {stub.short}</Button>
+			</div>
+		{/if}
+	{/each}
+
 	<!-- ── Anchor type tooltips (hover) ────────────────────────────────────── -->
 	<!-- When a connection line (or either endpoint) is hovered, show a small    -->
 	<!-- black tooltip above each anchor point naming what kind of element it    -->
@@ -4702,45 +4834,16 @@
 		/* segment-segment: solid (default) */
 	}
 
-	/* ── Cross-part edge stubs (§8 strategy (c), phase 3) ──
-	   Lighter than a real connection on purpose: the link is real, but only half of it is on this page,
-	   and giving it the same weight as a complete arc would overstate what the user can see or act on.
-	   Fully inert — `pointer-events: none` on the group, so it can never intercept a gesture meant for
-	   the structure underneath. */
-	.connection-stub {
-		pointer-events: none;
-		opacity: 0.55;
-	}
-
-	.connection-stub-path {
-		stroke: var(--gray-300);
-		stroke-width: 2;
-		fill: none;
-		stroke-linecap: round;
-	}
-
-	.connection-stub-label {
-		font-size: 1rem;
-		font-weight: 700;
-		fill: var(--gray-300);
-		cursor: pointer;
+	/* ── Cross-part lines (short line + chevron) ── */
+	.connection-cross-part-arrow { stroke-linejoin: round; }
+	/* Cross-part points drag like standard points (slide along the item or re-attach). */
+	.connection-node--draggable { cursor: grab; }
+	.connection-cross-part-go {
+		position: absolute;
+		transform: translateX(-50%);
 		pointer-events: all;
-		user-select: none;
-	}
-
-	.connection-stub-label:hover,
-	.connection-stub-label:focus-visible {
-		fill: var(--blue);
-		text-decoration: underline;
-		outline: none;
-	}
-
-	.connection-stub-arrow {
-		stroke: var(--gray-300);
-		stroke-width: 2;
-		fill: none;
-		stroke-linecap: round;
-		stroke-linejoin: round;
+		z-index: 21;
+		white-space: nowrap;
 	}
 
 	/* All connection lines render solid; the line-style classes are retained
