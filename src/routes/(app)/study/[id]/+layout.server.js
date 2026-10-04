@@ -13,7 +13,7 @@ import {
 
 
 import { auth } from '$lib/server/auth.js';
-import { eq, asc, inArray, sql, or } from 'drizzle-orm';
+import { eq, and, asc, inArray, sql, or } from 'drizzle-orm';
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 import { getBoundaryDisabledReason } from '$lib/utils/seriesRuns.js';
 import { selectPrefetchTarget } from '$lib/utils/seriesPrefetch.js';
@@ -43,7 +43,7 @@ function perfTimer(label) {
 }
 
 /** @type {import('./$types').LayoutServerLoad} */
-export async function load({ params, request, depends }) {
+export async function load({ params, request, depends, url }) {
 	depends('app:studies');
 	const endShell = perfTimer(`study ${params.id} shell (light queries)`);
 	// Get the current user from session (guaranteed by layout)
@@ -259,6 +259,32 @@ export async function load({ params, request, depends }) {
 		}
 
 		const translation = studyData.translation || 'esv';
+
+		// ── Cross-part Focus (CROSS_PART_PLAN step 4) ──
+		// `?focus=<partId>,<partId>` adds OTHER parts of this series to the page so
+		// Focus can show selected items from several parts on the normal study page.
+		// Only parts of the same series owned by the user are accepted; unknown ids
+		// are ignored. Their passages are appended in series order, after the shell
+		// (so `passages` stays this study's own) — only the streamed content grows.
+		const focusParam = url.searchParams.get('focus');
+		/** @type {Array<{ id: string, translation: string|null, seriesOrder: number|null }>} */
+		let focusParts = [];
+		if (focusParam && studyData.seriesId) {
+			const ids = focusParam.split(',').map((x) => x.trim()).filter((x) => x && x !== studyId).slice(0, 50);
+			if (ids.length) {
+				focusParts = await db
+					.select({ id: study.id, translation: study.translation, seriesOrder: study.seriesOrder })
+					.from(study)
+					.where(
+						and(
+							eq(study.seriesId, studyData.seriesId),
+							eq(study.userId, session.user.id),
+							inArray(study.id, ids)
+						)
+					);
+			}
+		}
+		const focusPartIds = focusParts.map((p) => p.id);
 		endShell();
 
 		// Kicked off without `await`: the page does not depend on it, and a slow provider must not delay
@@ -279,8 +305,29 @@ export async function load({ params, request, depends }) {
 		// client. The page renders its shell instantly and shows a Spinner until
 		// this resolves. This is the key win for large studies on slow connections.
 		const contentPromise = (async () => {
+			// Passages to render: this study's, plus (cross-part Focus) the focused
+			// parts' in series order, with this study in its own series position.
+			let contentPassages = passagesData;
+			/** @type {Record<string, string>} passage id → owning study id */
+			const passageOwner = {};
+			for (const p of passagesData) passageOwner[p.id] = studyId;
+			if (focusParts.length) {
+				const extra = await db
+					.select()
+					.from(passage)
+					.where(inArray(passage.studyId, focusPartIds))
+					.orderBy(passage.displayOrder);
+				const order = [...focusParts, { id: studyId, seriesOrder: studyData.seriesOrder }]
+					.sort((a, b) => (a.seriesOrder ?? 0) - (b.seriesOrder ?? 0))
+					.map((p) => p.id);
+				contentPassages = order.flatMap((id) => (id === studyId ? passagesData : extra.filter((p) => p.studyId === id)));
+				for (const p of extra) passageOwner[p.id] = p.studyId;
+			}
+			const translationOf = (/** @type {string} */ sid) =>
+				sid === studyId ? translation : (focusParts.find((p) => p.id === sid)?.translation || 'esv');
+
 			const endContent = perfTimer(
-				`study ${studyId} content (${passagesData.length} passages)`
+				`study ${studyId} content (${contentPassages.length} passages)`
 			);
 			// Fetch passage text, preferring the per-passage cache. Passages whose
 			// cache is empty (newly created, range changed, or legacy rows) are
@@ -288,15 +335,26 @@ export async function load({ params, request, depends }) {
 			// fast and don't re-hit the translation API.
 			const endText = perfTimer(`  └ passage text fetch`);
 			let cacheFilled = false;
-			const passagesWithText = await fetchPassagesTextWithCache(passagesData, translation, {
-				onFetched: async (passageRow, result) => {
-					await db
-						.update(passage)
-						.set({ cachedText: result.text, textCachedAt: new Date() })
-						.where(eq(passage.id, passageRow.id));
-					cacheFilled = true;
-				}
+			const onFetched = async (/** @type {any} */ passageRow, /** @type {any} */ result) => {
+				await db
+					.update(passage)
+					.set({ cachedText: result.text, textCachedAt: new Date() })
+					.where(eq(passage.id, passageRow.id));
+				cacheFilled = true;
+			};
+			// One fetch per translation (a series normally shares one, so usually one call).
+			const byTranslation = new Map();
+			contentPassages.forEach((p, i) => {
+				const t = translationOf(passageOwner[p.id]);
+				if (!byTranslation.has(t)) byTranslation.set(t, []);
+				byTranslation.get(t).push(i);
 			});
+			/** @type {any[]} */
+			const passagesWithText = new Array(contentPassages.length);
+			for (const [t, idxs] of byTranslation) {
+				const texts = await fetchPassagesTextWithCache(idxs.map((/** @type {number} */ i) => contentPassages[i]), t, { onFetched });
+				idxs.forEach((/** @type {number} */ i, /** @type {number} */ k) => (passagesWithText[i] = texts[k]));
+			}
 			endText();
 
 			// ── Enforce the local-storage cap (COMPLIANCE.md §5 item 1) ──────
@@ -327,7 +385,7 @@ export async function load({ params, request, depends }) {
 			// remote DB where each round-trip carries real latency.
 			const endStructure = perfTimer(`  └ structure queries (batched)`);
 
-			const passageIds = passagesData.map((p) => p.id);
+			const passageIds = contentPassages.map((p) => p.id);
 
 			// 1. All columns across every passage in this study.
 			const allColumns = passageIds.length
@@ -432,7 +490,7 @@ export async function load({ params, request, depends }) {
 			// Stitch the assembled structure back onto each passage's text payload,
 			// preserving the original passage order.
 			const passagesWithStructure = passagesWithText.map((passageText, index) => {
-				const passageData = passagesData[index];
+				const passageData = contentPassages[index];
 				if (!passageData) {
 					return passageText; // Return without structure if passage not found
 				}
@@ -472,7 +530,7 @@ export async function load({ params, request, depends }) {
 						.from(segmentConnection)
 						.where(
 							or(
-								eq(segmentConnection.studyId, studyId),
+								inArray(segmentConnection.studyId, [studyId, ...focusPartIds]),
 								eq(segmentConnection.seriesId, studyData.seriesId)
 							)
 						)
@@ -524,6 +582,19 @@ export async function load({ params, request, depends }) {
 				if (foreignIds.size > 0) {
 					structureOwnership = await resolveStructureOwners(db, [...foreignIds]);
 				}
+
+				// Cross-part Focus: items of the focused parts are on this page but belong
+				// to other parts. Record their owner (no extra query: passage → study is
+				// known), so selection and connections tag them with the right part.
+				if (focusParts.length) {
+					const owners = /** @type {Record<string, string>} */ ({ ...(structureOwnership ?? {}) });
+					const colPassage = new Map(allColumns.map((c) => [c.id, c.passageId]));
+					const secColumn = new Map(allSections.map((x) => [x.id, x.passageColumnId]));
+					for (const c of allColumns) owners[c.id] = passageOwner[c.passageId];
+					for (const x of allSections) owners[x.id] = passageOwner[colPassage.get(x.passageColumnId)];
+					for (const g of allSegments) owners[g.id] = passageOwner[colPassage.get(secColumn.get(g.passageSectionId))];
+					structureOwnership = owners;
+				}
 			}
 
 			endContent();
@@ -531,7 +602,11 @@ export async function load({ params, request, depends }) {
 			return {
 				passagesWithText: passagesWithStructure,
 				connections,
-				structureOwnership
+				structureOwnership,
+				// Parts added for cross-part Focus (empty normally), and the passage rows
+				// matching passagesWithText index-for-index (this study's alone normally).
+				focusPartIds,
+				contentPassages
 			};
 		})();
 

@@ -1,6 +1,6 @@
 <script>
 	import { invalidate, goto } from '$app/navigation';
-	import { navigating } from '$app/stores';
+	import { navigating, page } from '$app/stores';
 	import { onMount, tick, untrack } from 'svelte';
 
 	import Alert from '$lib/componentElements/Alert.svelte';
@@ -59,7 +59,7 @@
 
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
 	import { showPopover, showPopoverError } from '$lib/stores/popover.js';
-	import { seriesSelection, useSeries, itemsForPart, sameItems, setPartItems, takeReveal, seriesFocus, startSeriesFocus, endSeriesFocus, focusedPartIds } from '$lib/stores/seriesSelection.js';
+	import { seriesSelection, useSeries, itemsForPart, sameItems, setPartItems, takeReveal, startSeriesFocus, endSeriesFocus, seriesFocus } from '$lib/stores/seriesSelection.js';
 	import messages from '$lib/data/messages.json';
 
 
@@ -79,7 +79,7 @@
 	// out-of-part endpoint id to the part that owns it, which is what turns a dropped connection into a
 	// labelled edge stub. Null for a standalone study.
 	let streamedContent = $state(
-		/** @type {{ passagesWithText: any[], connections: any[], structureOwnership?: Record<string, string>|null } | null} */ (
+		/** @type {{ passagesWithText: any[], connections: any[], structureOwnership?: Record<string, string>|null, focusPartIds?: string[], contentPassages?: any[] } | null} */ (
 			null
 		)
 	);
@@ -151,7 +151,11 @@
 		// Resolved alongside the connections it labels (§8 (c), phase 3), so it must arrive by the same
 		// streamed route — reading it off `rawData` would find nothing and every cross-part stub would
 		// silently go unlabelled and therefore undrawn.
-		structureOwnership: streamedContent?.structureOwnership
+		structureOwnership: streamedContent?.structureOwnership,
+		// Other parts loaded onto this page for cross-part Focus (CROSS_PART_PLAN step 4).
+		focusPartIds: streamedContent?.focusPartIds ?? [],
+		// Passage rows matching passagesWithText (includes Focus parts' passages).
+		contentPassages: streamedContent?.contentPassages ?? rawData.passages
 	});
 
 	// ─── Segment height resize ────────────────────────────────────────────────
@@ -1304,62 +1308,6 @@
 	/** Part whose items have been restored into the page (sync waits for it). */
 	let selectionRestoredFor = $state(/** @type {string|null} */ (null));
 
-	/** Part whose visible items were last set from the series Focus snapshot. */
-	let seriesFocusAppliedFor = $state(/** @type {string|null} */ (null));
-
-	// ── Series Focus travels between parts (CROSS_PART_PLAN step 3, Option B) ──
-	// The page component is reused when moving to another part, so Focus stays
-	// on. When a part opens while focused, show only THAT part's snapshotted items.
-	$effect(() => {
-		const focus = $seriesFocus;
-		const partId = data.study?.id;
-		const content = streamedContent;
-		if (!focus || !partId || !content) return;
-		if (focus.seriesId !== (data.seriesContext?.id ?? null)) return;
-		if (untrack(() => seriesFocusAppliedFor) === partId) return;
-		const mine = focus.items.filter((i) => i.partId === partId);
-		const selection = {
-			columns: mine.filter((i) => i.type === 'column').map((i) => i.id),
-			sections: mine.filter((i) => i.type === 'section').map((i) => i.id),
-			segments: mine
-				.filter((i) => i.type === 'segment')
-				.map((i) => ({ segmentId: i.id, passageIndex: 0, segmentIndex: 0, activateSection: false, generation: 0 }))
-		};
-		untrack(() => {
-			const visible = calculateVisibleItems(selection);
-			visibleColumnIds = new Set(visible.columns);
-			visibleSectionIds = new Set(visible.sections);
-			visibleSegmentIds = new Set(visible.segments);
-			originalFocusSelection = selection;
-			focusEnteredViaConnections = false;
-			activeColumns = [];
-			activeSections = [];
-			activeSegments = [];
-			selectedWord = null;
-			if (!isFocusMode) isFocusMode = true;
-			if (!$toolbarState.focusMode) setToolbarState('focusMode', true);
-			seriesFocusAppliedFor = partId;
-			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
-		});
-	});
-
-	// Opening a study outside the focused series ends Focus.
-	$effect(() => {
-		const focus = $seriesFocus;
-		const seriesId = data.seriesContext?.id ?? null;
-		if (focus && focus.seriesId !== seriesId) {
-			untrack(() => setToolbarState('focusMode', false));
-		}
-	});
-
-	/** True while series Focus is on and THIS part has no focused items. */
-	let seriesFocusEmptyHere = $derived(
-		isFocusMode &&
-		!!$seriesFocus &&
-		$seriesFocus.seriesId === (data.seriesContext?.id ?? null) &&
-		!$seriesFocus.items.some((i) => i.partId === data.study?.id)
-	);
-
 	/**
 	 * Store items for the ends of the selected connection lines, tagged with the
 	 * part each end lives in (a cross-part line's far end is in another part).
@@ -1415,7 +1363,7 @@
 	$effect(() => {
 		const partId = data.study?.id;
 		const content = streamedContent;
-		if (!partId || !content || selectionRestoredFor === partId || isFocusMode) return;
+		if (!partId || !content || selectionRestoredFor === partId || isFocusMode || crossPartFocusPending || $page.url.searchParams.has('focus')) return;
 		tick().then(() => {
 			if (data.study?.id !== partId) return;
 			const stored = itemsForPart($seriesSelection, partId);
@@ -1451,7 +1399,7 @@
 	$effect(() => {
 		activeColumns; activeSections; activeSegments;
 		const partId = data.study?.id;
-		if (!partId || selectionRestoredFor !== partId || isFocusMode || isCompareMode) return;
+		if (!partId || selectionRestoredFor !== partId || isFocusMode || isCompareMode || crossPartFocusPending || crossPartFocusActive) return;
 		const next = currentPartSelectionItems();
 		// Store read untracked: this effect follows the PAGE selection only, so a
 		// removal made in the header list isn't immediately written back.
@@ -1473,7 +1421,7 @@
 		const state = $seriesSelection;
 		const partId = data.study?.id;
 		untrack(() => {
-			if (!partId || selectionRestoredFor !== partId || isFocusMode || isCompareMode) return;
+			if (!partId || selectionRestoredFor !== partId || isFocusMode || isCompareMode || crossPartFocusPending || crossPartFocusActive) return;
 			const keys = new Set(itemsForPart(state, partId).map((i) => `${i.type}:${i.id}`));
 			const cols = activeColumns.filter((id) => keys.has(`column:${id}`));
 			const secs = activeSections.filter((id) => keys.has(`section:${id}`));
@@ -1626,18 +1574,25 @@
 				focusEnteredViaConnections = false;
 			}
 
-			// 1b. In a series, snapshot the focused items of EVERY part so Focus
-			//     travels with the user (CROSS_PART_PLAN step 3, Option B).
+			// 1b. Cross-part Focus (CROSS_PART_PLAN step 4): when the focused items
+			//     span more than this part, reload THIS page with the other parts added
+			//     (`?focus=`); the effect below then applies Focus over all of them.
 			const seriesId = data.seriesContext?.id ?? null;
-			if (seriesId) {
+			if (seriesId && !crossPartFocusPending) {
 				const items = focusEnteredViaConnections
 					? connectionEndpointItems()
 					: [
 						...currentPartSelectionItems(),
 						...untrack(() => $seriesSelection.items).filter((i) => i.partId !== data.study.id)
 					];
-				startSeriesFocus(seriesId, items);
-				seriesFocusAppliedFor = data.study.id;
+				const otherParts = [...new Set(items.filter((i) => i.partId !== data.study.id).map((i) => i.partId))];
+				if (otherParts.length > 0) {
+					startSeriesFocus(seriesId, items, focusEnteredViaConnections);
+					crossPartFocusPending = true;
+					// isFocusMode stays false until the parts have loaded.
+					goto(`/study/${data.study.id}/analyze?focus=${otherParts.join(',')}`, { noScroll: true });
+					return;
+				}
 			}
 
 			// 2. Calculate which items remain visible (containers + children of selection)
@@ -1659,13 +1614,6 @@
 			// 5. Reset scroll to the top-left corner
 			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
 
-			// 6. Series Focus with nothing in THIS part: go to the first part that has some.
-			const focus = untrack(() => $seriesFocus);
-			if (focus && !focus.items.some((i) => i.partId === data.study.id)) {
-				const first = focusedPartIds(focus, data.seriesContext?.parts)[0];
-				if (first) goto(`/study/${first}/analyze`);
-			}
-
 		} else if (!$toolbarState.focusMode && isFocusMode) {
 			// EXITING FOCUS MODE
 
@@ -1678,21 +1626,11 @@
 			//    When focus was entered via a connection selection, the connection remains
 			//    selected in the toolbar store; we must NOT restore the derived structural
 			//    endpoint items, so structural selections stay empty.
-			const wasSeriesFocus = untrack(() => $seriesFocus) !== null;
-			endSeriesFocus();
-			seriesFocusAppliedFor = null;
 			if (focusEnteredViaConnections) {
 				activeColumns = [];
 				activeSections = [];
 				activeSegments = [];
 				selectionRestoredFor = data.study?.id ?? null;
-			} else if (wasSeriesFocus) {
-				// The user may have moved to another part while focused: restore THIS
-				// part's items from the series selection (the restore effect re-runs).
-				activeColumns = [];
-				activeSections = [];
-				activeSegments = [];
-				selectionRestoredFor = null;
 			} else {
 				activeColumns = [...originalFocusSelection.columns];
 				activeSections = [...originalFocusSelection.sections];
@@ -1709,9 +1647,90 @@
 			focusEnteredViaConnections = false;
 			isFocusMode = false;
 
-			// 4. Scroll the restored selection into view, as centered as possible
+			// 4. Cross-part Focus: drop the other parts (back to the plain address).
+			//    The current part's selection is restored from the series selection
+			//    once the page reloads, like opening the part.
+			if (crossPartFocusActive) {
+				crossPartFocusActive = false;
+				endSeriesFocus();
+				activeColumns = [];
+				activeSections = [];
+				activeSegments = [];
+				selectionRestoredFor = null;
+				goto(`/study/${data.study.id}/analyze`, { noScroll: true, replaceState: true });
+				return;
+			}
+
+			// 5. Scroll the restored selection into view, as centered as possible
 			tick().then(() => scrollSelectionIntoView(restoredSelection));
 		}
+	});
+
+	// ── Cross-part Focus on the normal study page (CROSS_PART_PLAN step 4) ──
+	/** Focus pressed; waiting for the `?focus=` parts to load. */
+	let crossPartFocusPending = $state(false);
+	/** This page is showing other parts for Focus. */
+	let crossPartFocusActive = $state(false);
+
+	// Leaving a cross-part Focus page any other way (Finder, part arrows, Back)
+	// ends Focus, so the next page isn't filtered by the old visible items.
+	$effect(() => {
+		const hasParam = $page.url.searchParams.has('focus');
+		const studyId = data.study?.id;
+		untrack(() => {
+			if (crossPartFocusActive && (!hasParam || studyId !== focusStudyId)) {
+				crossPartFocusActive = false;
+				endSeriesFocus();
+				visibleColumnIds = new Set();
+				visibleSectionIds = new Set();
+				visibleSegmentIds = new Set();
+				isFocusMode = false;
+				selectionRestoredFor = null;
+				setToolbarState('focusMode', false);
+			}
+		});
+	});
+
+	/** Study whose page is showing the cross-part Focus. */
+	let focusStudyId = /** @type {string|null} */ (null);
+
+	// Once the other parts are on the page, enter Focus over every part's items.
+	// Also covers a reload of a `?focus=` address (Focus snapshot from the
+	// selection, kept for the session).
+	$effect(() => {
+		const wanted = $page.url.searchParams.get('focus');
+		const loaded = data.focusPartIds;
+		const content = streamedContent;
+		if (!wanted || !content || !loaded.length || untrack(() => crossPartFocusActive)) return;
+		untrack(() => {
+			const seriesId = data.seriesContext?.id ?? null;
+			const snap = $seriesFocus?.seriesId === seriesId ? $seriesFocus : null;
+			const items = snap ? snap.items : ($seriesSelection.seriesId === seriesId ? $seriesSelection.items : []);
+			const selection = {
+				columns: items.filter((i) => i.type === 'column').map((i) => i.id),
+				sections: items.filter((i) => i.type === 'section').map((i) => i.id),
+				segments: items
+					.filter((i) => i.type === 'segment')
+					.map((i) => ({ segmentId: i.id, passageIndex: 0, segmentIndex: 0, activateSection: false, generation: 0 }))
+			};
+			const visible = calculateVisibleItems(selection);
+			visibleColumnIds = new Set(visible.columns);
+			visibleSectionIds = new Set(visible.sections);
+			visibleSegmentIds = new Set(visible.segments);
+			// On exit the current part's selection is restored from the series store.
+			originalFocusSelection = { columns: [], sections: [], segments: [] };
+			focusEnteredViaConnections = !!snap?.fromConnections;
+			selectedWord = null;
+			activeColumns = [];
+			activeSections = [];
+			activeSegments = [];
+			crossPartFocusPending = false;
+			crossPartFocusActive = true;
+			focusStudyId = data.study.id;
+			isFocusMode = true;
+			if (!$toolbarState.focusMode) setToolbarState('focusMode', true);
+			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
+		});
 	});
 
 
@@ -4855,10 +4874,6 @@
 				     NavigationIndicator overlay covers the wait (see stores/loading.js),
 				     so there is no in-page spinner here. -->
 				<div class="passage-wrapper">
-					{#if seriesFocusEmptyHere}
-						<p class="series-focus-empty">Nothing in this part is in Focus. Use the Focus parts in the header to move between focused parts, or turn Focus off.</p>
-					{/if}
-
 					{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}
 							{@const firstColumn = ('structure' in passageText) ? passageText.structure?.columns?.[0] : null}
@@ -4893,7 +4908,7 @@
 										{@const verseSectionMap = buildVerseSectionMap(allSegments)}
 										{@const verseOccurrences = Object.keys(verseSectionMap).filter(verseId => verseSectionMap[verseId] >= 2).reduce((acc, verseId) => ({ ...acc, [verseId]: 0 }), {})}
 										{@const segmentSectionEndIdxMap = buildSegmentSectionEndIdxMap(passageText.structure.columns)}
-										{@const passageEndWordId = getPassageEndWordId(allSegments, data.passages[passageIndex])}
+										{@const passageEndWordId = getPassageEndWordId(allSegments, data.contentPassages[passageIndex])}
 										{@const headingReferences = calculateHeadingReferences(allSegments, verseSectionMap, segmentSectionEndIdxMap, passageEndWordId)}
 											{#each passageText.structure.columns as column, columnIndex}
 												{@const columnOffset = columnReposition.getLiveOffset(column.id) ?? column.leftOffset ?? 0}
@@ -6128,11 +6143,6 @@
 		display: none !important;
 	}
 
-	.series-focus-empty {
-		margin: 2rem;
-		font-size: 1.4rem;
-		color: var(--gray-400);
-	}
 
 	/* ============================================================ */
 	/* Compare Mode - Dynamic positioning classes */

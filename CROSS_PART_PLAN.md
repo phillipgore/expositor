@@ -22,8 +22,9 @@ limited to one part. These steps let the user work across parts.
 
 - A **plain click** replaces the selection in every part; **Cmd-click** keeps other parts' items.
 - The selection **survives a page reload** for the session (sessionStorage), not closing the tab.
-- Both Focus options are wanted: **B** (Focus travels with you) may be built first, then **A**
-  (combined view), but nothing merges until both are done.
+- Cross-part Focus shows the selected items of every part on the **normal study page** (no
+  separate page, no extra header text). Option B was built, then dropped.
+  Nothing merges until everything is done.
 - Header indicator label: **"N Selections"** (blue button, toolbar triangle caret). Dropdown grouped
   by part, "(Current Part)" on the open part, solid structure icons, red × remove, red **Clear All**,
   light-gray hover.
@@ -43,20 +44,24 @@ limited to one part. These steps let the user work across parts.
    - Stubs are clickable: a "Part N" label at the page edge goes to the other part and scrolls to the
      other end. Stub direction now uses the part being viewed (it previously used the row's owning
      part, which pointed the wrong way when viewed from the other end).
-3. **Focus that travels with you (Option B)** — ✅ built (awaiting browser testing).
-   - Pressing Focus snapshots the focused items of every part (`seriesFocus` in
-     `seriesSelection.js`, memory only). Focus stays on while moving between parts; each part
-     shows only its own snapshotted items.
-   - `SeriesFocusNav.svelte` in the header: "Focus: Part 1 · Part 3", current part in blue.
-   - If the open part has nothing focused, Focus jumps to the first part that does; a part reached
-     some other way shows a short "Nothing in this part is in Focus" note.
-   - A selected cross-part connection focuses both ends, each in its own part.
-   - Turning Focus off (from any part) restores that part's selection. Opening a study outside the
-     series ends Focus.
-4. **Combined Focus view (Option A)** — later.
-   - Selected items from every part shown together under "Part N" headings, read-only at first;
-     cross-part connection lines drawn in full there.
-   - Needs a server request returning structure for several parts and a multi-part renderer.
+3. ~~**Focus that travels with you (Option B)**~~ — **dropped** at the user's request. Per-part
+   Focus and the "Focus: Part 1 · Part 3" header row were removed; the Selections dropdown gives
+   per-part detail instead.
+4. **Focus across parts** — ✅ built (awaiting browser testing). Uses the **normal study page**.
+   - Pressing Focus with items selected in more than one part (or a selected cross-part
+     connection) reloads the same Analyze page as `/study/<part>/analyze?focus=<partId>,…`.
+   - The study loader (`+layout.server.js`) reads `?focus=`, checks each part is in the same series
+     and owned by the user, and adds those parts' passages, text and structure in series order.
+     It also returns which part owns each item, so selection and connections tag them correctly.
+   - Focus then hides everything except the selected items, exactly as in one part. Header,
+     Selections dropdown, toolbar, styling and View settings are the normal ones. Cross-part
+     connection lines are drawn in full (style, bend, colour, Quick Note) because both ends are on
+     the page.
+   - Pressing Focus again returns to the plain address and restores the part's selection. Leaving
+     any other way (Finder, part arrows) also ends Focus. A reload keeps Focus (snapshot in
+     sessionStorage).
+   - The separate `/series/[id]/focus` page and its API were built and then removed.
+
 5. **Test everything together, then merge** — run production migrations at merge time only.
 
 ## Known limits / open questions

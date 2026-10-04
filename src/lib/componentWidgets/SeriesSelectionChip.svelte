@@ -49,8 +49,9 @@
 	/** @param {any} part @param {any} item */
 	function goToItem(part, item) {
 		open = false;
-		if (part.id === currentPartId) {
-			const el = document.querySelector(`[data-${item.type}-id="${item.id}"]`);
+		// Already on screen (this part, or the side-by-side Focus view): scroll to it.
+		const el = document.querySelector(`[data-${item.type}-id="${item.id}"]`);
+		if (el || part.id === currentPartId) {
 			el?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 			return;
 		}

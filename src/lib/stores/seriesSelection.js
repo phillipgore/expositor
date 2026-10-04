@@ -129,22 +129,48 @@ export function takeReveal(partId) {
 	return true;
 }
 
-// ── Series Focus (CROSS_PART_PLAN step 3, Option B) ─────────────────────────
-// Focus that travels with the user between parts. When Focus is entered in a
-// part of a series, the focused items of EVERY part are snapshotted here; each
-// part the user then opens shows only its own snapshotted items. Kept separate
-// from the live selection so Cmd-clicks during Focus don't change what is shown.
+// ── Cross-part Focus (CROSS_PART_PLAN step 4) ───────────────────────────────────
+// When Focus is pressed with items in more than one part, the focused items are
+// snapshotted here and the study page reloads with those parts added
+// (`?focus=`). The snapshot carries a selected connection's two ends (which are
+// not the selection) through that reload; sessionStorage lets a reload of the
+// `?focus=` address restore the same Focus.
 
-/** @typedef {{ seriesId: string, items: SeriesSelItem[] } | null} SeriesFocusState */
+/** @typedef {{ seriesId: string, items: SeriesSelItem[], fromConnections: boolean } | null} SeriesFocusState */
 
-// Memory only: the toolbar's focusMode isn't persisted either, so a reload
-// leaves Focus (and this snapshot) off together.
+const FOCUS_KEY = 'expositor:series-focus';
+
+/** @returns {SeriesFocusState} */
+function loadFocus() {
+	if (typeof sessionStorage === 'undefined') return null;
+	try {
+		const parsed = JSON.parse(sessionStorage.getItem(FOCUS_KEY) ?? 'null');
+		return parsed?.seriesId && Array.isArray(parsed.items) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
 /** @type {import('svelte/store').Writable<SeriesFocusState>} */
-export const seriesFocus = writable(/** @type {SeriesFocusState} */ (null));
+export const seriesFocus = writable(loadFocus());
 
-/** @param {string} seriesId @param {SeriesSelItem[]} items */
-export function startSeriesFocus(seriesId, items) {
-	seriesFocus.set({ seriesId, items: dedupe(items) });
+seriesFocus.subscribe((value) => {
+	if (typeof sessionStorage === 'undefined') return;
+	try {
+		if (value) sessionStorage.setItem(FOCUS_KEY, JSON.stringify(value));
+		else sessionStorage.removeItem(FOCUS_KEY);
+	} catch {
+		/* storage unavailable: memory copy still works */
+	}
+});
+
+/**
+ * @param {string} seriesId
+ * @param {SeriesSelItem[]} items
+ * @param {boolean} [fromConnections] - items are a selected connection's ends (not the selection)
+ */
+export function startSeriesFocus(seriesId, items, fromConnections = false) {
+	seriesFocus.set({ seriesId, items: dedupe(items), fromConnections });
 }
 
 export function endSeriesFocus() {
@@ -160,14 +186,4 @@ function dedupe(items) {
 		seen.add(k);
 		return true;
 	});
-}
-
-/**
- * Part ids that have focused items, in series order.
- * @param {SeriesFocusState} focus @param {Array<{ id: string }>} parts
- */
-export function focusedPartIds(focus, parts) {
-	if (!focus) return [];
-	const ids = new Set(focus.items.map((i) => i.partId));
-	return (parts ?? []).map((p) => p.id).filter((id) => ids.has(id));
 }
