@@ -2,7 +2,7 @@
 	/**
 	 * # DeleteHeadingsConfirmationModal Component
 	 *
-	 * Confirms deleting several headings at once (Markup menu → Select All, then the
+	 * Confirms deleting several headings at once (Selection menu → Select All, then the
 	 * toolbar's Delete). Deleting one heading stays instant and doesn't use this modal.
 	 *
 	 * ## Props

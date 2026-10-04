@@ -1,5 +1,5 @@
 /**
- * Helpers for the Markup menu's Select All Headings / Heading One / Two / Three items.
+ * Helpers for the Selection menu's Select All Headings / Heading One / Two / Three items.
  *
  * The Analyze and Document views publish the open study's saved headings to the toolbar
  * store (`setStudyHeadings`). The menu uses that list to enable its Select All items,

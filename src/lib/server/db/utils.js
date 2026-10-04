@@ -1036,7 +1036,7 @@ export async function updateHeadingCommentary(dbInstance, userId, headingId, com
 }
 
 /**
- * Delete many headings at once (Markup menu → Select All, then the toolbar's Delete).
+ * Delete many headings at once (Selection menu → Select All, then the toolbar's Delete).
  * Deleting a heading row also discards its commentary.
  *
  * All-or-nothing: every id must exist and belong to the user, otherwise nothing is

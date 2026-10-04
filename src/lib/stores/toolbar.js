@@ -157,7 +157,7 @@ async function persistPreference(updates) {
  * @property {boolean} hasActiveHeading - Whether a heading (passage_heading row) is currently selected for commentary
  * @property {string|null} activeHeadingId - The ID of the currently selected heading row
  * @property {string|null} activeHeadingType - Level of the selected heading: 'one', 'two', 'three', or null
- * @property {string[]} activeHeadingIds - IDs of ALL selected headings (one via the round select button, or many via the Markup menu's Select All items)
+ * @property {string[]} activeHeadingIds - IDs of ALL selected headings (one via the round select button, or many via the Selection menu's Select All items)
  * @property {string|null} activeHeadingsType - Shared level of the selected headings, or null when they span several levels
  * @property {{id: string, type: 'one'|'two'|'three', segmentId: string}[]} studyHeadings - Every saved heading in the open study, published by the active view (drives the Select All items)
  * @property {boolean} activeHeadingSegmentHasOne - Whether the selected heading's segment has a heading one
@@ -311,7 +311,7 @@ const defaultState = {
 	hasActiveHeading: false,
 	activeHeadingId: null,
 	activeHeadingType: null,
-	// Multi-heading selection (Markup menu → Select All Headings / Heading One/Two/Three).
+	// Multi-heading selection (Selection menu → Select All Headings / Heading One/Two/Three).
 	// activeHeadingId stays set only while exactly ONE heading is selected, so
 	// single-subject features (commentary, convert-in-place) never see a multi-selection.
 	activeHeadingIds: [],
@@ -1804,7 +1804,7 @@ export function setActiveHeading(hasHeading, headingId = null, options = {}) {
 }
 
 /**
- * Select MANY headings at once (Markup menu → Select All Headings / Heading One/Two/Three).
+ * Select MANY headings at once (Selection menu → Select All Headings / Heading One/Two/Three).
  * With exactly one id this is identical to `setActiveHeading` for that heading; with more,
  * `activeHeadingId` is null so commentary and single-heading convert stay disabled, while
  * Delete and the multi-heading Convert items act on `activeHeadingIds`. Like
@@ -1845,7 +1845,7 @@ export function setActiveHeadings(headingIds, headingsType = null, singleOptions
 
 /**
  * Publish every saved heading of the open study (from the active Analyze/Document view)
- * so the Markup menu can enable and run its Select All items. Pass [] on unmount.
+ * so the Selection menu can enable and run its Select All items. Pass [] on unmount.
  * @param {{id: string, type: 'one'|'two'|'three', segmentId: string}[]} headings
  */
 export function setStudyHeadings(headings) {

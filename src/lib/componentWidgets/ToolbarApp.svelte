@@ -25,6 +25,7 @@
 	 * ## Menu Integration
 	 * Integrates with several dropdown menus:
 	 * - MenuZoom: Zoom level control
+	 * - MenuSelection: Select All columns/sections/segments/connections/headings
 	 * - MenuStructure: Structure options
 	 * - MenuHeadings: Heading insertion options
 	 * - MenuLiterary: Literary device highlighting
@@ -61,6 +62,7 @@
 	import SpacerFlex from '$lib/componentElements/SpacerFlex.svelte';
 	import Toolbar from '$lib/componentElements/Toolbar.svelte';
 	import MenuZoom from '$lib/componentWidgets/menus/MenuZoom.svelte';
+	import MenuSelection from '$lib/componentWidgets/menus/MenuSelection.svelte';
 	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
 	import MenuLayout from '$lib/componentWidgets/menus/MenuLayout.svelte';
 	import MenuConnect from '$lib/componentWidgets/menus/MenuConnect.svelte';
@@ -247,7 +249,7 @@
 		setDeleteConfirmationOpen(false);
 	}
 
-	// Multi-heading delete (Markup menu → Select All, then Delete). The ids are captured
+	// Multi-heading delete (Selection menu → Select All, then Delete). The ids are captured
 	// when the modal opens, so it deletes exactly what was selected at that moment.
 	let showDeleteHeadingsModal = $state(false);
 	let deleteHeadingsViaKeyboard = $state(false);
@@ -485,7 +487,7 @@
 			return;
 		}
 
-		// Priority 5a: Several headings selected (Markup menu → Select All) — confirm,
+		// Priority 5a: Several headings selected (Selection menu → Select All) — confirm,
 		// then delete them all in one request.
 		const selectedHeadingIds = $toolbarState.activeHeadingIds ?? [];
 		if ($toolbarState.hasActiveHeading && selectedHeadingIds.length > 1) {
@@ -733,6 +735,7 @@
 
 <MenuZoom menuId="MenuZoom" onselect={handleZoomChange} currentLabel={zoomLabel} />
 
+<MenuSelection menuId="MenuSelection" view={activeModeButton} />
 <MenuStructure menuId="MenuStructure" view={activeModeButton} />
 
 <MenuLayout menuId="MenuLayout" view={activeModeButton} />

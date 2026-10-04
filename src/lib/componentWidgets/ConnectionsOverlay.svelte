@@ -3256,7 +3256,7 @@
 	}
 
 	/**
-	 * Select every CURRENTLY VISIBLE connection (Structure → "Select All
+	 * Select every CURRENTLY VISIBLE connection (Selection → "Select All
 	 * Connections"). Only visiblePaths are selected, so connections hidden by a
 	 * per-type visibility toggle are intentionally left out — selecting lines the
 	 * user can't see would be confusing. Mirrors handlePathClick's note bookkeeping.
@@ -4250,7 +4250,7 @@
 		window.addEventListener('connection-set-color', /** @type {EventListener} */ (handleSetColor));
 		window.addEventListener('pointermove', handleShapeMove, { passive: false });
 		window.addEventListener('pointerup', handleShapeUp);
-		// Structure → "Select All Connections": select every currently visible line.
+		// Selection → "Select All Connections": select every currently visible line.
 		window.addEventListener('select-all-connections', handleSelectAllConnections);
 		// Auto-select a freshly inserted connection (dispatched by the analyze page).
 		window.addEventListener('select-connection', /** @type {EventListener} */ (handleSelectConnection));

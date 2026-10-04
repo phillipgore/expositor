@@ -4,7 +4,7 @@ import { auth } from '$lib/server/auth';
 import { json } from '@sveltejs/kit';
 
 /**
- * DELETE many headings in one transaction (Markup menu → Select All, then Delete).
+ * DELETE many headings in one transaction (Selection menu → Select All, then Delete).
  *
  * Body: `{ headingIds: string[] }`. All-or-nothing: if any id is missing (404) or not
  * owned by the user (403), nothing is deleted. Each heading's commentary goes with it.

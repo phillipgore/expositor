@@ -416,7 +416,7 @@
 	}
 
 	// Whether THIS heading is selected — on its own via its hover select button, or as
-	// part of a Markup menu "Select All" multi-selection. Driven by the shared toolbar
+	// part of a Selection menu "Select All" multi-selection. Driven by the shared toolbar
 	// store's activeHeadingIds list.
 	let isHeadingSelected = $derived(
 		$toolbarState.hasActiveHeading &&

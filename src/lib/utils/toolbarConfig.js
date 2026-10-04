@@ -98,7 +98,7 @@ export function getAppToolbarConfig() {
 						//    (segment/column/section being active alone is not enough)
 						const hasSegmentDelete = state.hasActiveHeadingOrNoteEditor;
 						// 4. One heading selected (its circular select button), or several
-						//    (Markup menu → Select All)
+						//    (Selection menu → Select All)
 						const hasHeadingDelete =
 							state.hasActiveHeading && (!!state.activeHeadingId || (state.activeHeadingIds?.length ?? 0) > 0);
 						return !hasStudiesDelete && !hasConnectionDelete && !hasSegmentDelete && !hasHeadingDelete;
@@ -136,6 +136,16 @@ export function getAppToolbarConfig() {
 			id: 'formatting',
 
 			items: [
+				{
+					// Selection comes first: select, then act with the menus to its right.
+					type: 'menu',
+					iconId: 'select',
+					menuId: 'MenuSelection',
+					underLabel: 'Selection',
+					classes: 'toolbar-dark',
+					underLabelClasses: 'light',
+					disabledCheck: (state) => !state.canStructure || state.overviewMode
+				},
 				{
 					type: 'menu',
 					iconId: 'section',

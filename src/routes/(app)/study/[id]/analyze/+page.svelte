@@ -1460,7 +1460,7 @@
 		}
 	});
 
-	// Publish the study's saved headings for the Markup menu's Select All items.
+	// Publish the study's saved headings for the Selection menu's Select All items.
 	$effect(() => {
 		const headings = collectStudyHeadings(data.passagesWithText);
 		setStudyHeadings(headings);

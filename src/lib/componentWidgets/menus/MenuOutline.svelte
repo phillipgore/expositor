@@ -6,11 +6,8 @@
 	 * Items add a new element to the current selection; removal is handled elsewhere
 	 * (the Delete toolbar action while editing a heading or note).
 	 * 
-	 * Items (Select All comes first in every menu that has it, matching Structure):
-	 * - Select All Headings / Heading One / Two / Three — select every saved heading in the
-	 *   study (or every heading of one level), lighting each heading's round select button.
-	 *   The toolbar's Delete then removes them all (after confirmation), and a one-level
-	 *   selection can be converted to another level in one step.
+	 * Items (the heading "Select All" items now live in MenuSelection; a one-level selection
+	 * made there can be converted to another level here in one step):
 	 * - Heading One / Two / Three — add a heading at the given level to the active segment
 	 * - Convert to Heading One / Two / Three — change the level of the heading selected via its
 	 *   round select button. Levels the heading's segment already has are disabled.
@@ -35,7 +32,7 @@
 	import { tick } from 'svelte';
 	import { toolbarState, showPassageNotes, showDocumentPassageNotes, showHeadings, setActiveHeadings } from '$lib/stores/toolbar.js';
 	import { showPopover, showPopoverError } from '$lib/stores/popover.js';
-	import { planHeadingConversion, segmentHeadingFlags } from '$lib/utils/studyHeadings.js';
+	import { planHeadingConversion } from '$lib/utils/studyHeadings.js';
 
 
 
@@ -70,33 +67,9 @@
 	// has (including the heading's own level) is disabled.
 	let canConvertHeading = $derived($toolbarState.hasActiveHeading && !!$toolbarState.activeHeadingId);
 
-	// ── Select All ──
-	// The active view publishes the study's saved headings (studyHeadings). The items are
-	// disabled while that view's headings are hidden, since the selection wouldn't be visible.
-	let headingsShown = $derived(
-		view === 'document' ? $toolbarState.documentHeadingsVisible : $toolbarState.headingsVisible
-	);
+	// The active view publishes the study's saved headings (studyHeadings); conversion uses
+	// them to skip headings whose segment already has the target level.
 	let studyHeadings = $derived($toolbarState.studyHeadings ?? []);
-	let selectDisabled = $derived(!headingsShown || $toolbarState.overviewMode);
-
-	/** @param {'one'|'two'|'three'|null} headingType - null selects every level */
-	function countHeadings(headingType) {
-		return headingType ? studyHeadings.filter((h) => h.type === headingType).length : studyHeadings.length;
-	}
-
-	/** @param {'one'|'two'|'three'|null} headingType - null selects every level */
-	function selectAllHeadings(headingType) {
-		closeMenu();
-		const matches = headingType ? studyHeadings.filter((h) => h.type === headingType) : studyHeadings;
-		if (matches.length === 0) return;
-		const levels = new Set(matches.map((h) => h.type));
-		const sharedType = levels.size === 1 ? matches[0].type : null;
-		setActiveHeadings(
-			matches.map((h) => h.id),
-			sharedType,
-			matches.length === 1 ? segmentHeadingFlags(studyHeadings, matches[0].segmentId) : {}
-		);
-	}
 
 	// ── Convert several selected headings ──
 	// Allowed only when they all share one level (mixed levels would collide inside a
@@ -182,45 +155,6 @@
 </script>
 
 <Menu {menuId} ariaLabel="Outline menu">
-	<!-- Select All comes first, matching the Structure menu: select, then act. -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="heading-select-all"
-		label="Select All Headings"
-		role="menuitem"
-		handleClick={() => selectAllHeadings(null)}
-		isDisabled={selectDisabled || countHeadings(null) === 0}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="heading-one-select-all"
-		label="Select All Heading One"
-		role="menuitem"
-		handleClick={() => selectAllHeadings('one')}
-		isDisabled={selectDisabled || countHeadings('one') === 0}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="heading-two-select-all"
-		label="Select All Heading Two"
-		role="menuitem"
-		handleClick={() => selectAllHeadings('two')}
-		isDisabled={selectDisabled || countHeadings('two') === 0}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="heading-three-select-all"
-		label="Select All Heading Three"
-		role="menuitem"
-		handleClick={() => selectAllHeadings('three')}
-		isDisabled={selectDisabled || countHeadings('three') === 0}
-	/>
-
-	<DividerHorizontal />
-
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one"

@@ -1334,7 +1334,7 @@
 	);
 	let activeDocConnectionKey = $state(/** @type {string | null} */ (null));
 
-	// Publish the study's saved headings for the Markup menu's Select All items.
+	// Publish the study's saved headings for the Selection menu's Select All items.
 	$effect(() => {
 		setStudyHeadings(collectStudyHeadings(data.passagesWithText));
 		return () => setStudyHeadings([]);
