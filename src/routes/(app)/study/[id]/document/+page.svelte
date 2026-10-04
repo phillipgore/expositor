@@ -3,7 +3,7 @@
 	import { navigating } from '$app/stores';
 	import { onMount, tick } from 'svelte';
 
-	import Spinner from '$lib/componentElements/Spinner.svelte';
+	import LoadingText from '$lib/componentElements/LoadingText.svelte';
 	import GlossaryBadge from '$lib/componentElements/GlossaryBadge.svelte';
 	import DocumentCommentaryToolbar from '$lib/componentWidgets/DocumentCommentaryToolbar.svelte';
 	import DocumentCommentaryEditor from '$lib/componentWidgets/DocumentCommentaryEditor.svelte';
@@ -63,7 +63,7 @@
 
 		if (isStudySwitch) {
 			// Real study switch: clear the previous study's resolved content immediately
-			// and flag the global loader so the single navigation Spinner stays up
+			// and flag the global loader so the single navigation loader stays up
 			// continuously until the new stream lands.
 			streamedContent = null;
 			setStudyContentLoading(true);
@@ -73,7 +73,7 @@
 			// global loading curtain is DOWN. This self-heals the case where a redundant
 			// same-URL navigation (e.g. re-selecting the already-active study in the
 			// Studies panel) armed the curtain via +layout.svelte but produced no study
-			// switch to clear it — without this the spinner would hang forever.
+			// switch to clear it — without this the loader would hang forever.
 			setStudyContentLoading(false);
 		}
 
@@ -3561,16 +3561,16 @@
 
 	{:else if !streamedContent}
 
-		<!-- Still streaming: show an in-page spinner on an empty page. Server-rendered
+		<!-- Still streaming: show an in-page "Loading…" text on an empty page. Server-rendered
 		     so it appears in the first paint on a fresh load (covering the pre-hydration
 		     gap that the client-only global overlay can't). Suppressed while `$navigating`
 		     OR the global content loader is active, so in-app navigations show only the
-		     single global overlay rather than two spinners. -->
+		     single global overlay rather than two loaders. -->
 		<div class="page">
 			{@render headerContent()}
 			{#if !$navigating && !$studyContentLoading}
 				<div class="content-loading">
-					<Spinner size="lg" label="Loading study…" />
+					<LoadingText />
 				</div>
 			{/if}
 		</div>

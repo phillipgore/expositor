@@ -12,6 +12,7 @@
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Badge from '$lib/componentElements/Badge.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 
 	/** @type {import('./$types').PageData} */
 	export let data;
@@ -95,7 +96,11 @@
 							>
 								<input type="hidden" name="userId" value={user.id} />
 								<button type="submit" class="verify-button" disabled={verifyingId === user.id}>
-									{verifyingId === user.id ? 'Verifying…' : 'Verify'}
+									{#if verifyingId === user.id}
+										<Spinner size="sm" inline color="var(--white)" label="Verifying…" showLabel />
+									{:else}
+										Verify
+									{/if}
 								</button>
 							</form>
 						{/if}

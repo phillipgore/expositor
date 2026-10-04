@@ -302,7 +302,7 @@ export async function load({ params, request, depends, url }) {
 		// the per-passage column/section/segment structure, and the study's
 		// connections are the slow parts. We DON'T await this promise here — we
 		// hand it back nested under `streamed` so SvelteKit streams it to the
-		// client. The page renders its shell instantly and shows a Spinner until
+		// client. The page renders its shell instantly and shows a "Loading…" text until
 		// this resolves. This is the key win for large studies on slow connections.
 		const contentPromise = (async () => {
 			// Passages to render: this study's, plus (cross-part Focus) the focused

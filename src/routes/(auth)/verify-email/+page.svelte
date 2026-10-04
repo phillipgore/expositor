@@ -5,6 +5,7 @@
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
+	import Spinner from '$lib/componentElements/Spinner.svelte';
 	import InputField from '$lib/componentWidgets/InputField.svelte';
 	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
 	import InstructionText from '$lib/componentElements/InstructionText.svelte';
@@ -139,12 +140,13 @@
 				/>
 
 			<FormButtonBar>
-				<Button 
-					type="submit"
-					label={isResending ? 'Sending…' : 'Resend'}
-					classes="blue"
-					isDisabled={isResending}
-				/>
+				<Button type="submit" classes="blue" isDisabled={isResending}>
+					{#if isResending}
+						<Spinner size="sm" inline color="var(--white)" label="Sending…" showLabel />
+					{:else}
+						Resend
+					{/if}
+				</Button>
 			</FormButtonBar>
 		</form>
 	{/if}

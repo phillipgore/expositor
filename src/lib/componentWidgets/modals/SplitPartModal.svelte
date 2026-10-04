@@ -38,7 +38,7 @@
 	import { untrack } from 'svelte';
 	import Modal from '$lib/componentElements/Modal.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
-	import Spinner from '$lib/componentElements/Spinner.svelte';
+	import LoadingText from '$lib/componentElements/LoadingText.svelte';
 	import { messageForFailure } from '$lib/utils/apiErrors.js';
 
 	let {
@@ -138,7 +138,9 @@
 	{isOpen}
 	title="Split Part"
 	size="medium"
-	confirmLabel={submitting ? 'Splitting…' : 'Split'}
+	confirmLabel="Split"
+	confirmBusy={submitting}
+	confirmBusyLabel="Splitting…"
 	confirmClasses="blue"
 	{confirmDisabled}
 	onConfirm={handleConfirm}
@@ -147,7 +149,7 @@
 >
 	{#if !ready}
 		<div class="loading">
-			<Spinner size="sm" inline label="Preparing the split…" showLabel />
+			<LoadingText label="Preparing the split…" />
 		</div>
 	{:else if preview?.ok}
 		<p class="explain">This part will be divided at the caret.</p>

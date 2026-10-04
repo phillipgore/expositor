@@ -196,7 +196,9 @@
 	{isOpen}
 	title="Add to Series"
 	size="medium"
-	confirmLabel={submitting ? 'Adding…' : 'Add to Series'}
+	confirmLabel="Add to Series"
+	confirmBusy={submitting}
+	confirmBusyLabel="Adding…"
 	confirmClasses="blue"
 	{confirmDisabled}
 	onConfirm={handleConfirm}

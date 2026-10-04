@@ -104,7 +104,9 @@
 	{isOpen}
 	{title}
 	size="small"
-	confirmLabel={joinInProgress ? 'Joining…' : 'Join'}
+	confirmLabel="Join"
+	confirmBusy={joinInProgress}
+	confirmBusyLabel="Joining…"
 	confirmClasses="blue"
 	cancelLabel="Cancel"
 	onConfirm={handleConfirm}

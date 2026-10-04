@@ -171,7 +171,6 @@
 </script>
 
 {#if $isAuthenticated}
-	<NavigationIndicator delay={120} />
 	<ToolbarApp groups={data.groups || []} series={data.series || []} isAdmin={data.isAdmin || false}></ToolbarApp>
 
 	<div class="app-container">
@@ -183,8 +182,17 @@
 			ungroupedSeries={data.ungroupedSeries || []}
 			initialWidth={data.studiesPanelWidth || 300}
 		/>
-		<div class="content-wrapper">
-			{@render children()}
+		<!--
+			`.content-area` is the positioning context for the NavigationIndicator so the
+			loader covers only the study/content area (toolbar and side panels stay visible).
+			It is a non-scrolling sibling wrapper so the overlay does not scroll away with
+			`.content-wrapper`'s content.
+		-->
+		<div class="content-area">
+			<div class="content-wrapper">
+				{@render children()}
+			</div>
+			<NavigationIndicator delay={120} />
 		</div>
 		<CommentaryPanel 
 			isOpen={$toolbarState.commentaryPanelOpen}
@@ -219,6 +227,17 @@
 		flex-grow: 1;
 		min-height: 0; /* Allow flex item to shrink below content size */
 		overflow: hidden;
+	}
+
+	/* ============================================
+	   CONTENT AREA (positioning context for the loader)
+	   ============================================ */
+	.content-area {
+		position: relative;
+		display: flex;
+		flex-grow: 1;
+		min-width: 0;
+		min-height: 0;
 	}
 
 	/* ============================================
@@ -270,6 +289,9 @@
 		.app-container {
 			display: block;
 			overflow: visible;
+		}
+		.content-area {
+			display: block;
 		}
 		.content-wrapper {
 			overflow: visible;

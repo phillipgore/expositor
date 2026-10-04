@@ -222,7 +222,9 @@
 	{isOpen}
 	title="Join Parts"
 	size="medium"
-	confirmLabel={submitting ? 'Joining…' : 'Join'}
+	confirmLabel="Join"
+	confirmBusy={submitting}
+	confirmBusyLabel="Joining…"
 	confirmClasses="blue"
 	{confirmDisabled}
 	onConfirm={handleConfirm}

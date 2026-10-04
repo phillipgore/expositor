@@ -37,6 +37,12 @@
 	 * @component
 	 */
 	import Button from './buttons/Button.svelte';
+	import Spinner from './Spinner.svelte';
+
+	// Busy state for the confirm button (app convention: buttons show an inline
+	// Spinner + busy label while working; the button is disabled meanwhile).
+	//   confirmBusy      - true while the confirm action is in progress
+	//   confirmBusyLabel - label shown beside the spinner (e.g. 'Deleting…')
 
 	let {
 		isOpen = false,
@@ -47,6 +53,8 @@
 		cancelLabel = 'Cancel',
 		confirmClasses = 'blue',
 		confirmDisabled = false,
+		confirmBusy = false,
+		confirmBusyLabel = '',
 		showConfirm = true,
 		showCancel = true,
 
@@ -175,11 +183,16 @@
 				{/if}
 				{#if showConfirm}
 					<Button
-						label={confirmLabel}
 						classes={confirmClasses}
-						isDisabled={confirmDisabled}
+						isDisabled={confirmDisabled || confirmBusy}
 						handleClick={handleConfirm}
-					/>
+					>
+						{#if confirmBusy}
+							<Spinner size="sm" inline color="var(--white)" label={confirmBusyLabel || confirmLabel} showLabel />
+						{:else}
+							{confirmLabel}
+						{/if}
+					</Button>
 				{/if}
 
 			</div>

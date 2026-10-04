@@ -2,12 +2,12 @@
 	/**
 	 * # Spinner Component
 	 *
-	 * The single, app-wide loading primitive. Used everywhere a "working…" state
-	 * needs to be communicated — navigation overlays, streamed content, inline
-	 * async actions, and inside submit buttons — just at different sizes.
+	 * The busy indicator for BUTTONS. App convention:
+	 * - Buttons: inline `sm` Spinner + busy label (e.g. "Saving…"); the label inherits
+	 *   the button's text color so it stays white on blue/red buttons.
+	 * - Content areas / pages: use `LoadingText` (quiet gray "Loading…"), not a Spinner.
 	 *
-	 * Rather than maintaining two loader styles (spinner + skeletons), this one
-	 * primitive scales contextually so the loading language stays consistent.
+	 * The `md`/`lg` sizes are kept for completeness but are currently unused.
 	 *
 	 * ## Features
 	 * - Three sizes: `sm` (inline / buttons), `md` (default), `lg` (full-page / overlay)
@@ -25,7 +25,7 @@
 	 *
 	 * Centered with a label:
 	 * ```svelte
-	 * <Spinner size="lg" label="Loading study…" />
+	 * <Spinner size="sm" inline color="var(--white)" label="Saving…" showLabel />
 	 * ```
 	 *
 	 * @typedef {'sm' | 'md' | 'lg'} SpinnerSize
@@ -133,6 +133,13 @@
 
 	.sm .spinner-label {
 		font-size: 1.2rem;
+	}
+
+	/* Inside a button the label must keep the button's own text color (e.g. white
+	   on blue/red), not the gray used for standalone status text. */
+	.inline,
+	.inline .spinner-label {
+		color: inherit;
 	}
 
 	.visually-hidden {

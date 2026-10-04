@@ -107,7 +107,9 @@
 	{isOpen}
 	title="Split into a Series"
 	size="medium"
-	confirmLabel={isSubmitting ? 'Creating…' : 'Create Series'}
+	confirmLabel="Create Series"
+	confirmBusy={isSubmitting}
+	confirmBusyLabel="Creating…"
 	cancelLabel="Cancel"
 	confirmDisabled={!canCreate}
 	onConfirm={handleCreate}

@@ -10,8 +10,8 @@ import { writable } from 'svelte/store';
  *
  * This store bridges that gap: the document/analyze pages set it `true` while their
  * `streamedContent` is null and `false` once it resolves. NavigationIndicator ORs it
- * with `$navigating` so the single global Spinner stays up continuously from
- * navigation start until the content is actually ready (no two-spinner handoff).
+ * with `$navigating` so the single global "Loading…" indicator stays up continuously from
+ * navigation start until the content is actually ready (no two-loader handoff).
  *
  * @type {import('svelte/store').Writable<boolean>}
  */

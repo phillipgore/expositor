@@ -58,7 +58,9 @@
 	{isOpen}
 	title="Delete Headings"
 	size="small"
-	confirmLabel={deleteInProgress ? 'Deleting…' : 'Delete'}
+	confirmLabel="Delete"
+	confirmBusy={deleteInProgress}
+	confirmBusyLabel="Deleting…"
 	confirmClasses="red"
 	cancelLabel="Cancel"
 	onConfirm={handleConfirm}

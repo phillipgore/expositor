@@ -168,7 +168,9 @@
 	{isOpen}
 	title="Reorder Series"
 	size="medium"
-	confirmLabel={submitting ? 'Saving…' : 'Save Order'}
+	confirmLabel="Save Order"
+	confirmBusy={submitting}
+	confirmBusyLabel="Saving…"
 	confirmClasses="blue"
 	confirmDisabled={submitting}
 	onConfirm={handleConfirm}

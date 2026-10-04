@@ -4,7 +4,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 
 	import Alert from '$lib/componentElements/Alert.svelte';
-	import Spinner from '$lib/componentElements/Spinner.svelte';
+	import LoadingText from '$lib/componentElements/LoadingText.svelte';
 
 
 	import Heading from '$lib/componentElements/Heading.svelte';
@@ -96,7 +96,7 @@
 		//
 		//  1. Study switch (navigation to a different study): clear the previous study's
 		//     resolved content immediately and flag the global loader so the single
-		//     navigation Spinner stays up continuously until the new stream lands.
+		//     navigation loader stays up continuously until the new stream lands.
 		//
 		//  2. Same-study re-invalidation: EVERY feature that persists a change calls
 		//     invalidate('app:studies'), which re-runs `load` and produces a brand-new
@@ -121,7 +121,7 @@
 			// curtain is DOWN. This self-heals the case where a redundant same-URL
 			// navigation (e.g. re-selecting the already-active study in the Studies
 			// panel) armed the curtain via +layout.svelte but produced no study switch
-			// to clear it — without this the spinner would hang forever over loaded content.
+			// to clear it — without this the loader would hang forever over loaded content.
 			setStudyContentLoading(false);
 		}
 
@@ -4907,7 +4907,7 @@
 
 				<!-- While the streamed content resolves, the single global
 				     NavigationIndicator overlay covers the wait (see stores/loading.js),
-				     so there is no in-page spinner here. -->
+				     so there is no in-page loader here. -->
 				<div class="passage-wrapper">
 					{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}
@@ -5208,16 +5208,16 @@
 
 	<!-- Streamed-content loading overlay. SERVER-RENDERED so on a fresh load / refresh
 
-	     the spinner is present in the very first paint — before client JS hydrates and
+	     the loader is present in the very first paint — before client JS hydrates and
 	     before `$navigating`/`studyContentLoading` (which the global NavigationIndicator
-	     depends on) exist. That closes the Safari first-load "blank, no spinner" gap on
+	     depends on) exist. That closes the Safari first-load "blank, no loader" gap on
 	     large studies. Placed here as a sibling of `.analyze-content` (outside the
 	     zoom-transformed inner wrapper) so it is never scaled and stays centered.
 	     Suppressed while `$navigating` OR the global content loader is active, so in-app
-	     navigations show only the single global overlay rather than two spinners. -->
+	     navigations show only the single global overlay rather than two loaders. -->
 	{#if !streamedContent && !$navigating && !$studyContentLoading}
 		<div class="content-loading">
-			<Spinner size="lg" label="Loading study…" />
+			<LoadingText />
 		</div>
 	{/if}
 
