@@ -155,23 +155,20 @@
 
 	/**
 	 * Handle color selection from MenuColor.
-	 * Recolors the ENTIRE current multi-selection across Columns, Sections, and Segments:
-	 *  - Each selected column → PATCH the column endpoint (bulk-updates all its sections).
-	 *  - Each selected section + each section a selected segment belongs to → PATCH the
-	 *    section endpoint. These two are merged and deduped so a section is only hit once.
+	 * Color lives on segments, so every request ultimately recolors segments:
+	 *  - Each selected column  → PATCH the column endpoint (all segments in the column).
+	 *  - Each selected section → PATCH the section endpoint (all segments in the section).
+	 *  - Each selected segment → PATCH the segment endpoint (just that segment).
+	 * Segments are recolored individually — selecting one never recolors its siblings.
 	 * All requests fire in parallel; the batch is treated as failed if any request fails.
 	 * @param {string} colorId - The selected color ID (e.g., "red", "blue")
 	 */
 	async function handleColorChange(colorId) {
 		const columnIds = $toolbarState.activeColumnIds || [];
 		const sectionIds = $toolbarState.activeSectionIds || [];
-		const segmentSectionIds = $toolbarState.activeSegmentSectionIds || [];
+		const segmentIds = Array.from(new Set($toolbarState.activeSegmentIds || []));
 
-		// Merge explicitly-selected sections with the sections of selected segments,
-		// deduped, so a single section is never PATCHed twice.
-		const allSectionIds = Array.from(new Set([...sectionIds, ...segmentSectionIds]));
-
-		if (columnIds.length === 0 && allSectionIds.length === 0) {
+		if (columnIds.length === 0 && sectionIds.length === 0 && segmentIds.length === 0) {
 			console.error('No active column, section, or segment to color');
 			return;
 		}
@@ -185,8 +182,15 @@
 						body: JSON.stringify({ color: colorId })
 					})
 				),
-				...allSectionIds.map((sectionId) =>
+				...sectionIds.map((sectionId) =>
 					fetch(`/api/passages/sections/${sectionId}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ color: colorId })
+					})
+				),
+				...segmentIds.map((segmentId) =>
+					fetch(`/api/segments/${segmentId}`, {
 						method: 'PATCH',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ color: colorId })

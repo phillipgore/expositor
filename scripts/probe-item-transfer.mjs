@@ -80,22 +80,22 @@ try {
 
 	// Part A, column 1: sections s1 {1:1} and s2 {1:16}. s2 is LAST, so it may move right.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('colA1')}, ${passA}, ${w(1, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('secA1')}, ${id('colA1')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('secA1')}, ${id('colA1')}, ${w(1, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segA1')}, ${id('secA1')}, ${w(1, 1)}, 'A1', now(), now())`;
 	// ⚠️ topOffset set deliberately: it aligns s2 against column 1's neighbours, and must not survive
 	// a move into column 2, where it would align against nothing.
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, top_offset, created_at, updated_at) VALUES (${id('secA2')}, ${id('colA1')}, ${w(1, 16)}, 'green', 42, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, top_offset, created_at, updated_at) VALUES (${id('secA2')}, ${id('colA1')}, ${w(1, 16)}, 42, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segA2')}, ${id('secA2')}, ${w(1, 16)}, 'A2', now(), now())`;
 
 	// Part A, column 2: section s3 {2:1}, holding the LAST segment of part A.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('colA2')}, ${passA}, ${w(2, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('secA3')}, ${id('colA2')}, ${w(2, 1)}, 'red', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('secA3')}, ${id('colA2')}, ${w(2, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segA3')}, ${id('secA3')}, ${w(2, 1)}, 'A3', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segA4')}, ${id('secA3')}, ${w(2, 20)}, 'A4', now(), now())`;
 
 	// Part B — the receiver.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('colB1')}, ${passB}, ${w(3, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('secB1')}, ${id('colB1')}, ${w(3, 1)}, 'aqua', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('secB1')}, ${id('colB1')}, ${w(3, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segB1')}, ${id('secB1')}, ${w(3, 1)}, 'B1', now(), now())`;
 
 	// A connection anchored to the segment that will cross into part B. Owned by part A today.

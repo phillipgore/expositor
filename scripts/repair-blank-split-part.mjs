@@ -38,15 +38,16 @@ try {
 
 	for (const b of blanks) {
 		const wordId = `${b.book_id}-${pad(b.from_chapter)}-${pad(b.from_verse)}-001`;
-		// Colour of the last section before this text in the preceding part, else the default.
+		// Colour of the last segment before this text in the preceding part, else the default.
 		const [prev] = await sql`
-			SELECT sec.color FROM passage_section sec
+			SELECT seg.color FROM passage_segment seg
+			JOIN passage_section sec ON sec.id = seg.passage_section_id
 			JOIN passage_column c ON c.id = sec.passage_column_id
 			JOIN passage p ON p.id = c.passage_id
 			JOIN study s ON s.id = p.study_id
 			WHERE s.series_id = ${seriesId} AND s.series_order < ${b.series_order}
-			  AND sec.starting_word_id < ${wordId}
-			ORDER BY s.series_order DESC, sec.starting_word_id DESC LIMIT 1
+			  AND seg.starting_word_id < ${wordId}
+			ORDER BY s.series_order DESC, seg.starting_word_id DESC LIMIT 1
 		`;
 		const color = prev?.color ?? 'blue';
 		console.log(`  ${b.title} (${b.id}) → column/section/segment at ${wordId}, colour ${color}`);
@@ -57,10 +58,10 @@ try {
 			const secId = randomUUID();
 			await tx`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at)
 				VALUES (${colId}, ${b.id}, ${wordId}, now(), now())`;
-			await tx`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at)
-				VALUES (${secId}, ${colId}, ${wordId}, ${color}, now(), now())`;
-			await tx`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, created_at, updated_at)
-				VALUES (${randomUUID()}, ${secId}, ${wordId}, now(), now())`;
+			await tx`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at)
+				VALUES (${secId}, ${colId}, ${wordId}, now(), now())`;
+			await tx`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, color, created_at, updated_at)
+				VALUES (${randomUUID()}, ${secId}, ${wordId}, ${color}, now(), now())`;
 		});
 	}
 	console.log(apply ? 'Applied.' : 'Dry run — pass --apply to write.');

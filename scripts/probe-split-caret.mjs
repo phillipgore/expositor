@@ -48,7 +48,7 @@ async function passageRow(pid, studyId, book, name, fc, fv, tc, tv, order) {
 /** The default shape new studies get: one column, section and segment at the first word. */
 async function defaultStructure(passageId, wordId, tag) {
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id(tag + '-col')}, ${passageId}, ${wordId}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id(tag + '-sec')}, ${id(tag + '-col')}, ${wordId}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id(tag + '-sec')}, ${id(tag + '-col')}, ${wordId}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id(tag + '-seg')}, ${id(tag + '-sec')}, ${wordId}, ${tag + ' note'}, now(), now())`;
 }
 async function treeOf(studyId) {

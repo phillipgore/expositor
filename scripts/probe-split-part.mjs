@@ -12,8 +12,8 @@
  *
  * That clone is where a database can disagree with reasoning in ways a pure test cannot see:
  *
- *   - the clone spreads the original's fields to preserve `width` / `leftOffset` / `color` /
- *     `topOffset` — a split must not silently restyle the user's document. If the spread ever sent a
+ *   - the clone spreads the original's fields to preserve `width` / `leftOffset` /
+ *     `topOffset` (color lives on segments, which move with their own color) — a split must not silently restyle the user's document. If the spread ever sent a
  *     key with no matching column, Drizzle would throw; if it dropped the fields, the layout would
  *     quietly reset. Both are asserted.
  *   - the ORIGINAL column keeps its id, so notes, commentary and connections on the near side keep
@@ -70,7 +70,7 @@ async function cleanup() {
 async function liveTree() {
 	return sql`
 		SELECT s.id AS segment_id, s.note, s.commentary, s.starting_word_id,
-			sec.id AS section_id, sec.color, sec.top_offset,
+			sec.id AS section_id, s.color, sec.top_offset,
 			col.id AS column_id, col.width, col.left_offset,
 			p.id AS passage_id, p.study_id
 		FROM passage_segment s
@@ -130,29 +130,29 @@ try {
 		INSERT INTO passage_column (id, passage_id, starting_word_id, width, left_offset, created_at, updated_at)
 		VALUES (${colId}, ${passId}, ${w(1, 1)}, 421, 37, now(), now())
 	`;
-	// Two sections inside it: one wholly before the boundary, one straddling it. Both carry a colour
-	// and a topOffset the clone must preserve.
+	// Two sections inside it: one wholly before the boundary, one straddling it. Both carry a
+	// topOffset the clone must preserve; their segments carry a colour that must travel with them.
 	await sql`
-		INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, top_offset, created_at, updated_at)
-		VALUES (${secStay}, ${colId}, ${w(1, 1)}, 'purple', 11, now(), now())
+		INSERT INTO passage_section (id, passage_column_id, starting_word_id, top_offset, created_at, updated_at)
+		VALUES (${secStay}, ${colId}, ${w(1, 1)}, 11, now(), now())
 	`;
 	await sql`
-		INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, top_offset, created_at, updated_at)
-		VALUES (${secStraddle}, ${colId}, ${w(2, 1)}, 'orange', 23, now(), now())
+		INSERT INTO passage_section (id, passage_column_id, starting_word_id, top_offset, created_at, updated_at)
+		VALUES (${secStraddle}, ${colId}, ${w(2, 1)}, 23, now(), now())
 	`;
 
 	// Segments: 1:1 (stays), 2:1 (stays), 3:1 (moves), 4:1 (moves). The straddling SECTION owns 2:1,
 	// 3:1 and 4:1, so it is the one that must be cloned.
 	const segs = [
-		[id('s-1-1'), secStay, w(1, 1), 'note 1:1'],
-		[id('s-2-1'), secStraddle, w(2, 1), 'note 2:1'],
-		[id('s-3-1'), secStraddle, w(3, 1), 'note 3:1'],
-		[id('s-4-1'), secStraddle, w(4, 1), 'note 4:1']
+		[id('s-1-1'), secStay, w(1, 1), 'note 1:1', 'purple'],
+		[id('s-2-1'), secStraddle, w(2, 1), 'note 2:1', 'orange'],
+		[id('s-3-1'), secStraddle, w(3, 1), 'note 3:1', 'orange'],
+		[id('s-4-1'), secStraddle, w(4, 1), 'note 4:1', 'orange']
 	];
-	for (const [segId, sectionId, anchor, note] of segs) {
+	for (const [segId, sectionId, anchor, note, color] of segs) {
 		await sql`
-			INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at)
-			VALUES (${segId}, ${sectionId}, ${anchor}, ${note}, ${note + ' commentary'}, now(), now())
+			INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, color, created_at, updated_at)
+			VALUES (${segId}, ${sectionId}, ${anchor}, ${note}, ${note + ' commentary'}, ${color}, now(), now())
 		`;
 	}
 	await sql`
@@ -306,10 +306,10 @@ try {
 	console.log('\n── the clone preserved presentation (a split must not restyle the document) ──');
 	check('the cloned column kept the width', bySeg.get(id('s-3-1'))?.width, 421);
 	check('and the leftOffset', bySeg.get(id('s-3-1'))?.left_offset, 37);
-	check('the cloned section kept its colour', bySeg.get(id('s-3-1'))?.color, 'orange');
+	check('the moved segment kept its colour', bySeg.get(id('s-3-1'))?.color, 'orange');
 	check('and its topOffset', bySeg.get(id('s-3-1'))?.top_offset, 23);
 	check('the original column is unchanged', bySeg.get(id('s-1-1'))?.width, 421);
-	check('and the staying section kept its own colour', bySeg.get(id('s-1-1'))?.color, 'purple');
+	check('and the staying segment kept its own colour', bySeg.get(id('s-1-1'))?.color, 'purple');
 
 	console.log('\n── the two passage ranges abut, and the cache was invalidated ──');
 	const [origRow] =
@@ -391,8 +391,8 @@ try {
 		VALUES (${dPass}, ${dPart}, 'NT', 'RO', 'Romans', 4, 1, 4, 25, 0, now())
 	`;
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${dCol}, ${dPass}, ${w(4, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${dSec}, ${dCol}, ${w(4, 1)}, 'green', now(), now())`;
-	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${dSeg}, ${dSec}, ${w(4, 1)}, 'keep me', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${dSec}, ${dCol}, ${w(4, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, color, created_at, updated_at) VALUES (${dSeg}, ${dSec}, ${w(4, 1)}, 'keep me', 'green', now(), now())`;
 	await sql`
 		INSERT INTO study (id, title, translation, user_id, series_id, series_order, created_at, updated_at)
 		VALUES (${dNewPart}, 'Romans 5:1-21', 'esv', ${owner.id}, ${seriesId}, 4, now(), now())
@@ -414,7 +414,7 @@ try {
 	check('one column cloned into the new part', dMoved.clonedColumns, 1);
 
 	const newTree = await sql`
-		SELECT col.starting_word_id AS col_w, sec.starting_word_id AS sec_w, sec.color,
+		SELECT col.starting_word_id AS col_w, sec.starting_word_id AS sec_w, s.color,
 			s.starting_word_id AS seg_w, s.note
 		FROM passage_column col
 		JOIN passage_section sec ON sec.passage_column_id = col.id
@@ -424,7 +424,7 @@ try {
 	check('the new part has exactly one segment (not blank)', newTree.length, 1);
 	check('its column starts at 5:1', newTree[0]?.col_w, w(5, 1));
 	check('its section starts at 5:1', newTree[0]?.sec_w, w(5, 1));
-	check('and keeps the section colour', newTree[0]?.color, 'green');
+	check('and the tail keeps the divided segment\'s colour', newTree[0]?.color, 'green');
 	check('its segment starts at 5:1', newTree[0]?.seg_w, w(5, 1));
 	check('the tail is empty — the note stays with the original', newTree[0]?.note, null);
 	const [orig] = await sql`SELECT passage_section_id, note FROM passage_segment WHERE id = ${dSeg}`;

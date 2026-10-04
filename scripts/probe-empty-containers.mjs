@@ -85,18 +85,18 @@ try {
 
 	// Part A, column 1 — STAYS. Without it the join would empty the part and be refused outright.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('colA1')}, ${passA}, ${w(1, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('secA1')}, ${id('colA1')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('secA1')}, ${id('colA1')}, ${w(1, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segA1')}, ${id('secA1')}, ${w(1, 1)}, 'A1', now(), now())`;
 
 	// Part A, column 2 — the LAST column of part A, holding exactly one section holding exactly one
 	// segment. That segment is the one joined down, so this whole column is what gets stranded.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('colA2')}, ${passA}, ${w(2, 20)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('secA2')}, ${id('colA2')}, ${w(2, 20)}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('secA2')}, ${id('colA2')}, ${w(2, 20)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segA2')}, ${id('secA2')}, ${w(2, 20)}, 'A2', now(), now())`;
 
 	// Part B — the receiver.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('colB1')}, ${passB}, ${w(3, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('secB1')}, ${id('colB1')}, ${w(3, 1)}, 'red', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('secB1')}, ${id('colB1')}, ${w(3, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segB1')}, ${id('secB1')}, ${w(3, 1)}, 'B1', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('segB2')}, ${id('secB1')}, ${w(3, 10)}, 'B2', now(), now())`;
 

@@ -8,6 +8,7 @@ import { runDatabaseDiagnostics } from '$lib/server/db/health.js';
 // Word-id ordering now lives in a DB-free module so the verifiers can reach it; imported (not
 // just re-exported) because this file calls it internally. See the re-export below.
 import { compareWordIds } from '$lib/utils/wordIds.js';
+import { DEFAULT_SEGMENT_COLOR } from '$lib/utils/segmentColors.js';
 
 /**
  * Get the current database status (health, readiness, and pool metrics).
@@ -162,22 +163,22 @@ export async function createDefaultPassageStructure(passageId, testamentId, book
 		updatedAt: now
 	});
 	
-	// Create default section (blue color)
+	// Create default section
 	const sectionId = uuidv4();
 	await dbx.insert(passageSection).values({
 		id: sectionId,
 		passageColumnId: columnId,
 		startingWordId: firstWordId,
-		color: 'blue',
 		createdAt: now,
 		updatedAt: now
 	});
 	
-	// Create default segment (no headings)
+	// Create default segment (no headings, default color)
 	await dbx.insert(passageSegment).values({
 		id: uuidv4(),
 		passageSectionId: sectionId,
 		startingWordId: firstWordId,
+		color: DEFAULT_SEGMENT_COLOR,
 		createdAt: now,
 		updatedAt: now
 	});
@@ -375,8 +376,7 @@ export async function insertColumn(dbInstance, userId, passageId, columnId, sect
 	const sectionData = await dbInstance
 		.select({
 			sectionId: passageSection.id,
-			startingWordId: passageSection.startingWordId,
-			color: passageSection.color
+			startingWordId: passageSection.startingWordId
 		})
 		.from(passageSection)
 		.innerJoin(passageColumn, eq(passageSection.passageColumnId, passageColumn.id))
@@ -421,19 +421,18 @@ export async function insertColumn(dbInstance, userId, passageId, columnId, sect
 		const isMidSection = sourceSection.startingWordId !== insertionWordId;
 		
 		if (isMidSection) {
-			// Create new section with same color as source
+			// Create new section (its segments carry the color)
 			const [newSection] = await tx.insert(passageSection).values({
 				id: uuidv4(),
 				passageColumnId: newColumn.id,
 				startingWordId: insertionWordId,
-				color: sourceSection.color,
 				createdAt: now,
 				updatedAt: now
 			}).returning();
 			
 			// Get the source segment starting word
 			const segmentData = await tx
-				.select({ startingWordId: passageSegment.startingWordId })
+				.select({ startingWordId: passageSegment.startingWordId, color: passageSegment.color })
 				.from(passageSegment)
 				.where(eq(passageSegment.id, segmentId))
 				.limit(1);
@@ -447,6 +446,8 @@ export async function insertColumn(dbInstance, userId, passageId, columnId, sect
 					id: uuidv4(),
 					passageSectionId: newSection.id,
 					startingWordId: insertionWordId,
+					// Far half of the split segment keeps its color
+					color: segmentData[0].color,
 					createdAt: now,
 					updatedAt: now
 				});
@@ -526,12 +527,11 @@ export async function insertSection(dbInstance, userId, passageId, columnId, sec
 		throw new Error('Unauthorized');
 	}
 	
-	// 2. Verify the section exists and get its color
+	// 2. Verify the section exists
 	const sectionData = await dbInstance
 		.select({
 			sectionId: passageSection.id,
-			startingWordId: passageSection.startingWordId,
-			color: passageSection.color
+			startingWordId: passageSection.startingWordId
 		})
 		.from(passageSection)
 		.innerJoin(passageColumn, eq(passageSection.passageColumnId, passageColumn.id))
@@ -557,19 +557,18 @@ export async function insertSection(dbInstance, userId, passageId, columnId, sec
 	await dbInstance.transaction(async (tx) => {
 		const now = new Date();
 		
-		// Create new section with inherited color
+		// Create new section (its segments carry the color)
 		const [newSection] = await tx.insert(passageSection).values({
 			id: uuidv4(),
 			passageColumnId: columnId,
 			startingWordId: insertionWordId,
-			color: sourceSection.color,
 			createdAt: now,
 			updatedAt: now
 		}).returning();
 		
 		// Get the source segment starting word
 		const segmentData = await tx
-			.select({ startingWordId: passageSegment.startingWordId })
+			.select({ startingWordId: passageSegment.startingWordId, color: passageSegment.color })
 			.from(passageSegment)
 			.where(eq(passageSegment.id, segmentId))
 			.limit(1);
@@ -583,6 +582,8 @@ export async function insertSection(dbInstance, userId, passageId, columnId, sec
 				id: uuidv4(),
 				passageSectionId: newSection.id,
 				startingWordId: insertionWordId,
+				// Far half of the split segment keeps its color
+				color: segmentData[0].color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -677,12 +678,19 @@ export async function insertSegment(dbInstance, userId, passageId, sectionId, in
 		}
 	}
 	
-	// 5. Create new segment
+	// 5. Create new segment. It is the far half of the segment containing the
+	//    insertion point, so it inherits that segment's color.
+	let containingSegment = null;
+	for (const segment of segments) {
+		if (compareWordIds(segment.startingWordId, insertionWordId) < 0) containingSegment = segment;
+		else break;
+	}
 	const now = new Date();
 	await dbInstance.insert(passageSegment).values({
 		id: uuidv4(),
 		passageSectionId: sectionId,
 		startingWordId: insertionWordId,
+		color: containingSegment?.color ?? segments[0]?.color ?? DEFAULT_SEGMENT_COLOR,
 		createdAt: now,
 		updatedAt: now
 	});

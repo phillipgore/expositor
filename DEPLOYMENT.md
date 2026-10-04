@@ -80,7 +80,11 @@ psql "$DATABASE_URL" -At -c "
   union all
   select 'passage.word: ' || coalesce(string_agg(column_name, ','), 'NONE')
     from information_schema.columns
-   where table_name='passage' and column_name in ('from_word','to_word');"
+   where table_name='passage' and column_name in ('from_word','to_word')
+  union all
+  select 'color.on:     ' || coalesce(string_agg(table_name, ','), 'NONE')
+    from information_schema.columns
+   where table_name in ('passage_section','passage_segment') and column_name='color';"
 ```
 
 | Result | Means |
@@ -89,6 +93,7 @@ psql "$DATABASE_URL" -At -c "
 | `app_settings: 1` | `0044_add_app_settings.sql` applied |
 | `study_series: 1` and `study.series: series_id,series_order` | `0046_add_study_series.sql` applied |
 | `user.chapters: chapters_visible,document_chapters_visible` | `0047_add_chapters_visible.sql` applied |
+| `color.on: passage_segment` | `0053_move_color_to_segment.sql` applied (`passage_section` listed ⇒ not applied; run `ENV_FILE=.env.production node scripts/run-migration-53.js`) |
 
 Extend the query with a new probe line as later migrations land.
 

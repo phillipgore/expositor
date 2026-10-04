@@ -112,7 +112,7 @@ try {
 	const segA1 = id('segA1');
 	const segA2 = id('segA2'); // the target
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${colA}, ${passA}, ${w(1, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${secA}, ${colA}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${secA}, ${colA}, ${w(1, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at) VALUES (${segA1}, ${secA}, ${w(1, 1)}, 'A1 note', 'A1 commentary', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at) VALUES (${segA2}, ${secA}, ${w(2, 1)}, 'target note', 'target commentary', now(), now())`;
 	await sql`INSERT INTO passage_heading (id, passage_segment_id, heading_type, text, created_at, updated_at) VALUES (${id('headA')}, ${segA2}, 'one', 'Target heading', now(), now())`;
@@ -123,7 +123,7 @@ try {
 	const segB2 = id('segB2'); // first that STAYS → sets the boundary (3:10)
 	const segB3 = id('segB3');
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${colB}, ${passB}, ${w(3, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${secB}, ${colB}, ${w(3, 1)}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${secB}, ${colB}, ${w(3, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at) VALUES (${segB1}, ${secB}, ${w(3, 1)}, 'joined note', 'joined commentary', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at) VALUES (${segB2}, ${secB}, ${w(3, 10)}, 'B2 note', 'B2 commentary', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at) VALUES (${segB3}, ${secB}, ${w(3, 20)}, 'B3 note', 'B3 commentary', now(), now())`;
@@ -344,14 +344,14 @@ try {
 
 	// Part A: one section with one segment (the join target's container).
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s2-colA')}, ${s2PassA}, ${w(1, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s2-secA')}, ${id('s2-colA')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s2-secA')}, ${id('s2-colA')}, ${w(1, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s2-a1')}, ${id('s2-secA')}, ${w(1, 1)}, 'A1', now(), now())`;
 
 	// Part B: one column, TWO sections. The first (3:1 and 3:5) is joined backwards; the second (3:20)
 	// stays, so the boundary must land at 3:20 — not at 3:5.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s2-colB')}, ${s2PassB}, ${w(3, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s2-secX')}, ${id('s2-colB')}, ${w(3, 1)}, 'green', now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s2-secY')}, ${id('s2-colB')}, ${w(3, 20)}, 'red', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s2-secX')}, ${id('s2-colB')}, ${w(3, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s2-secY')}, ${id('s2-colB')}, ${w(3, 20)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s2-x1')}, ${id('s2-secX')}, ${w(3, 1)}, 'X1', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s2-x2')}, ${id('s2-secX')}, ${w(3, 5)}, 'X2', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s2-y1')}, ${id('s2-secY')}, ${w(3, 20)}, 'Y1', now(), now())`;
@@ -430,20 +430,20 @@ try {
 
 	// Part A: the target column, with its own section and segment.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, width, created_at, updated_at) VALUES (${id('s3-colA')}, ${s3PassA}, ${w(1, 1)}, 300, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s3-secA')}, ${id('s3-colA')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s3-secA')}, ${id('s3-colA')}, ${w(1, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s3-a1')}, ${id('s3-secA')}, ${w(1, 1)}, 'A1', now(), now())`;
 
 	// Part B, column 1 (JOINED): two sections, each with a segment. Both sections must survive the move.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s3-colB1')}, ${s3PassB}, ${w(3, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s3-secB1')}, ${id('s3-colB1')}, ${w(3, 1)}, 'green', now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s3-secB2')}, ${id('s3-colB1')}, ${w(3, 5)}, 'pink', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s3-secB1')}, ${id('s3-colB1')}, ${w(3, 1)}, now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s3-secB2')}, ${id('s3-colB1')}, ${w(3, 5)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s3-b1')}, ${id('s3-secB1')}, ${w(3, 1)}, 'B1', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s3-b2')}, ${id('s3-secB2')}, ${w(3, 5)}, 'B2', now(), now())`;
 	await sql`INSERT INTO passage_heading (id, passage_segment_id, heading_type, text, created_at, updated_at) VALUES (${id('s3-h')}, ${id('s3-b2')}, 'one', 'Moving heading', now(), now())`;
 
 	// Part B, column 2 (STAYS): sets the boundary at 3:20.
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s3-colB2')}, ${s3PassB}, ${w(3, 20)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s3-secB3')}, ${id('s3-colB2')}, ${w(3, 20)}, 'red', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s3-secB3')}, ${id('s3-colB2')}, ${w(3, 20)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s3-b3')}, ${id('s3-secB3')}, ${w(3, 20)}, 'B3', now(), now())`;
 
 	const colPlan = await analyzeCrossPartJoin(db, owner.id, s3PassB, id('s3-colB1'), 'column');
@@ -601,10 +601,10 @@ try {
 	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${s4PA}, ${s4A}, 'NT', 'RO', 'Romans', 1, 1, 2, 29, 0, now())`;
 	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${s4PB}, ${s4B}, 'NT', 'RO', 'Romans', 3, 1, 4, 25, 0, now())`;
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s4-colA')}, ${s4PA}, ${w(1, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s4-secA')}, ${id('s4-colA')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s4-secA')}, ${id('s4-colA')}, ${w(1, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s4-a1')}, ${id('s4-secA')}, ${w(1, 1)}, 'A1', now(), now())`;
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('s4-colB')}, ${s4PB}, ${w(3, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('s4-secB')}, ${id('s4-colB')}, ${w(3, 1)}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('s4-secB')}, ${id('s4-colB')}, ${w(3, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s4-b1')}, ${id('s4-secB')}, ${w(3, 1)}, 'B1', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('s4-b2')}, ${id('s4-secB')}, ${w(3, 10, 5)}, 'B2', now(), now())`;
 

@@ -50,7 +50,7 @@
 	} from '$lib/utils/passageText.js';
 	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
 	import { rangeEndWordId } from '$lib/utils/wordIds.js';
-	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentSectionIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability } from '$lib/stores/toolbar.js';
 	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
 	import { collectStudyHeadings } from '$lib/utils/studyHeadings.js';
 	import { resolveTransferNeighbours } from '$lib/utils/transferNeighbours.js';
@@ -1092,20 +1092,16 @@
 		}
 	});
 
-	// Sync the parent-section IDs of ALL selected segments (deduped) to the toolbar store
-	// for Color. This is SEPARATE from the gated segment effect above because that effect
-	// only runs in pure-segment mode and clears its state otherwise. In a MIXED multi-select
-	// (segments selected alongside columns and/or sections), that effect's else-branch would
-	// drop the segments' sections, so Color couldn't recolor them. This always-on effect
-	// keeps the mapping current for every selection shape; it's empty when no segments are
-	// selected. handleColorChange merges these with activeColumnIds/activeSectionIds (deduped).
+	// Sync the IDs of ALL selected segments (deduped) to the toolbar store for Color.
+	// Color lives on segments, so a segment selection recolors exactly those segments.
+	// This is SEPARATE from the gated segment effect above because that effect only runs
+	// in pure-segment mode and clears its state otherwise. In a MIXED multi-select
+	// (segments selected alongside columns and/or sections), that effect's else-branch
+	// would drop the segments, so Color couldn't recolor them. This always-on effect keeps
+	// the list current for every selection shape; it's empty when no segments are
+	// selected. handleColorChange recolors these alongside activeColumnIds/activeSectionIds.
 	$effect(() => {
-		const sectionIds = [];
-		for (const seg of activeSegments) {
-			const secId = getSectionIdFromSegmentId(seg.segmentId);
-			if (secId && !sectionIds.includes(secId)) sectionIds.push(secId);
-		}
-		setActiveSegmentSectionIds(sectionIds);
+		setActiveSegmentIds([...new Set(activeSegments.map(seg => seg.segmentId))]);
 	});
 
 	// Resolve WHICH passage the current selection sits in, and publish the index.
@@ -4951,7 +4947,7 @@
 														{#each column.sections as section, sectionIndex}
 															{@const sectionOffset = sectionReposition.getLiveOffset(section.id) ?? section.topOffset ?? 0}
 															<div
-																class="section {section.color}"
+																class="section {section.segments?.[0]?.color ?? 'blue'}"
 																data-section-id="{section.id}"
 																class:compare-hidden={isHideMode && !visibleSectionIds.has(section.id)}
 																class:is-repositioning={sectionReposition.activeSectionId === section.id}
@@ -4993,6 +4989,7 @@
 																			heading3Ref={headingReferences[segment.id]?.heading3Ref}
 																			segmentRef={headingReferences[segment.id]?.segmentRef}
 																			note={segment.note}
+														color={segment.color}
 																			text={segmentHtml}
 																			{passageIndex}
 																			isActive={activeSegments.some(s => s.segmentId === segment.id)}
@@ -5072,7 +5069,7 @@
 
 															columnId={column.id} 
 															isActive={activeColumns.includes(column.id)}
-															sectionColor={column.sections[0]?.color}
+															sectionColor={column.sections[0]?.segments?.[0]?.color}
 														/>
 
 													{/if}

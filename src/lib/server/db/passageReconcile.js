@@ -30,6 +30,7 @@ import { v4 as uuidv4 } from 'uuid';
 import bibleData from '$lib/data/bible.json';
 import { compareWordIds } from '$lib/server/db/utils.js';
 import { truncateNote, mergedNoteWillTruncate } from '$lib/constants/notes.js';
+import { DEFAULT_SEGMENT_COLOR } from '$lib/utils/segmentColors.js';
 
 
 /* ------------------------------------------------------------------ */
@@ -1055,7 +1056,6 @@ async function createDefaultStructureTx(tx, passageId, firstWord) {
 			id: sectionId,
 			passageColumnId: columnId,
 			startingWordId: firstWord,
-			color: 'blue',
 			createdAt: now,
 			updatedAt: now
 		});
@@ -1065,6 +1065,7 @@ async function createDefaultStructureTx(tx, passageId, firstWord) {
 			id: uuidv4(),
 			passageSectionId: sectionId,
 			startingWordId: firstWord,
+			color: DEFAULT_SEGMENT_COLOR,
 			createdAt: now,
 			updatedAt: now
 		});
@@ -1083,7 +1084,8 @@ async function applyAddStart(tx, passageId, newFirst, placement, inheritColor) {
 	const firstColumn = tree[0];
 	const firstSection = firstColumn.sections[0];
 	const now = new Date();
-	const color = inheritColor || (firstSection ? firstSection.color : 'blue');
+	// Color lives on segments: new structure takes the color of the passage's first segment.
+	const color = inheritColor || firstSection?.segments[0]?.color || DEFAULT_SEGMENT_COLOR;
 
 	if (placement === 'extend' || !placement) {
 		await reanchorFirst(tx, passageId, newFirst);
@@ -1099,6 +1101,7 @@ async function applyAddStart(tx, passageId, newFirst, placement, inheritColor) {
 				id: uuidv4(),
 				passageSectionId: firstSection.id,
 				startingWordId: newFirst,
+				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1121,7 +1124,6 @@ async function applyAddStart(tx, passageId, newFirst, placement, inheritColor) {
 				id: newSectionId,
 				passageColumnId: firstColumn.id,
 				startingWordId: newFirst,
-				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1131,6 +1133,7 @@ async function applyAddStart(tx, passageId, newFirst, placement, inheritColor) {
 				id: uuidv4(),
 				passageSectionId: newSectionId,
 				startingWordId: newFirst,
+				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1159,7 +1162,6 @@ async function applyAddStart(tx, passageId, newFirst, placement, inheritColor) {
 				id: newSectionId,
 				passageColumnId: newColumnId,
 				startingWordId: newFirst,
-				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1169,6 +1171,7 @@ async function applyAddStart(tx, passageId, newFirst, placement, inheritColor) {
 				id: uuidv4(),
 				passageSectionId: newSectionId,
 				startingWordId: newFirst,
+				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1185,7 +1188,8 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
 	const lastColumn = tree[tree.length - 1];
 	const lastSection = lastColumn.sections[lastColumn.sections.length - 1];
 	const now = new Date();
-	const color = inheritColor || (lastSection ? lastSection.color : 'blue');
+	// Color lives on segments: new structure takes the color of the passage's last segment.
+	const color = inheritColor || lastSection?.segments[lastSection.segments.length - 1]?.color || DEFAULT_SEGMENT_COLOR;
 
 	if (placement === 'extend' || !placement) {
 		// Last segment has no stored end — new verses flow in automatically.
@@ -1199,6 +1203,7 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
 				id: uuidv4(),
 				passageSectionId: lastSection.id,
 				startingWordId: firstAddedWord,
+				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1213,7 +1218,6 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
 				id: newSectionId,
 				passageColumnId: lastColumn.id,
 				startingWordId: firstAddedWord,
-				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1223,6 +1227,7 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
 				id: uuidv4(),
 				passageSectionId: newSectionId,
 				startingWordId: firstAddedWord,
+				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1247,7 +1252,6 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
 				id: newSectionId,
 				passageColumnId: newColumnId,
 				startingWordId: firstAddedWord,
-				color,
 				createdAt: now,
 				updatedAt: now
 			});
@@ -1257,6 +1261,7 @@ async function applyAddEnd(tx, passageId, firstAddedWord, placement, inheritColo
 				id: uuidv4(),
 				passageSectionId: newSectionId,
 				startingWordId: firstAddedWord,
+				color,
 				createdAt: now,
 				updatedAt: now
 			});

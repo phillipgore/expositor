@@ -96,7 +96,7 @@ async function buildFixture(ownerId) {
 		const col = `${part.passage}-col`;
 		const sec = `${part.passage}-sec`;
 		await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${col}, ${part.passage}, ${part.anchor}, now(), now())`;
-		await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${sec}, ${col}, ${part.anchor}, 'blue', now(), now())`;
+		await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${sec}, ${col}, ${part.anchor}, now(), now())`;
 		// Two segments per part, both with content.
 		await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at) VALUES (${part.passage + '-s1'}, ${sec}, ${part.anchor}, ${part.study + ' note 1'}, ${part.study + ' comm 1'}, now(), now())`;
 		await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at) VALUES (${part.passage + '-s2'}, ${sec}, ${w(part.from[0], 10)}, ${part.study + ' note 2'}, ${part.study + ' comm 2'}, now(), now())`;

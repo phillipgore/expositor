@@ -80,7 +80,7 @@ try {
 	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${id('pass2')}, ${fillerId}, 'NT', 'RO', 'Romans', 6, 1, 6, 23, 0, now())`;
 
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('col')}, ${passId}, ${w(1, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('sec')}, ${id('col')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('sec')}, ${id('col')}, ${w(1, 1)}, now(), now())`;
 	for (const [segId, ch] of [
 		[id('s1'), 1],
 		[id('s2'), 2],

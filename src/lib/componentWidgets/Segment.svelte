@@ -17,6 +17,8 @@
 
 		segmentRef = null,
 		note = null,
+		/** The segment's own color (one of SEGMENT_COLORS); drives the --section-* variables below. */
+		color = 'blue',
 		text = '',
 		passageIndex = 0,
 		wrapWordsInHtml = null,
@@ -191,7 +193,7 @@
 	});
 </script>
 
-<div class="segment" 
+<div class="segment {color}" 
      class:active={isActive} 
      class:has-heading-one={(heading1 && effectiveHeadingsVisible) || headingOneInputMode}
      class:has-heading-two={(heading2 && effectiveHeadingsVisible) || headingTwoInputMode}
@@ -330,6 +332,66 @@
 		   created by a user-set min-height, keeping the bottom border at the bottom. */
 		display: flex;
 		flex-direction: column;
+	}
+
+	/* Per-segment color. Color lives on the segment (passage_segment.color), so each
+	   segment re-defines the --section-* variables for itself; its borders, headings,
+	   notes and the hover caret all inherit them. The parent .section only sets these
+	   for its own chrome (glow, reposition dots, section toolbar). */
+	.segment.red {
+		--section-darker: var(--red-darker);
+		--section-dark: var(--red-dark);
+		--section-light: var(--red-light);
+		--section-lighter: var(--red-lighter);
+	}
+
+	.segment.orange {
+		--section-darker: var(--orange-darker);
+		--section-dark: var(--orange-dark);
+		--section-light: var(--orange-light);
+		--section-lighter: var(--orange-lighter);
+	}
+
+	.segment.yellow {
+		--section-darker: var(--yellow-darker);
+		--section-dark: var(--yellow-dark);
+		--section-light: var(--yellow-light);
+		--section-lighter: var(--yellow-lighter);
+	}
+
+	.segment.green {
+		--section-darker: var(--green-darker);
+		--section-dark: var(--green-dark);
+		--section-light: var(--green-light);
+		--section-lighter: var(--green-lighter);
+	}
+
+	.segment.aqua {
+		--section-darker: var(--aqua-darker);
+		--section-dark: var(--aqua-dark);
+		--section-light: var(--aqua-light);
+		--section-lighter: var(--aqua-lighter);
+	}
+
+	.segment.blue {
+		--section-darker: var(--blue-darker);
+		--section-dark: var(--blue-dark);
+		--section-light: var(--blue-light);
+		--section-lighter: var(--blue-lighter);
+	}
+
+	.segment.purple {
+		--section-darker: var(--purple-darker);
+		--section-dark: var(--purple-dark);
+		--section-light: var(--purple-light);
+		--section-lighter: var(--purple-lighter);
+	}
+
+	.segment.pink {
+		--section-darker: var(--pink-darker);
+		--section-dark: var(--pink-dark);
+		--section-light: var(--pink-light);
+		--section-lighter: var(--pink-lighter);
 	}
 
 	/* Active glow lives on a pseudo-element, NOT on the segment. Giving the segment

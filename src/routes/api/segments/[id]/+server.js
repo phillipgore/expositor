@@ -3,6 +3,7 @@ import { passageSegment } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth';
 import { json } from '@sveltejs/kit';
+import { SEGMENT_COLORS, isValidSegmentColor } from '$lib/utils/segmentColors.js';
 
 /** @type {import('./$types').RequestHandler} */
 export async function GET({ request, params }) {
@@ -44,8 +45,13 @@ export async function PATCH({ request, params }) {
 
 	try {
 		const body = await request.json();
-		const { commentary, height } = body;
+		const { commentary, height, color } = body;
 		const segmentId = params.id;
+
+		// Validate color: one of the eight named segment colors
+		if (color !== undefined && !isValidSegmentColor(color)) {
+			return json({ error: 'Invalid color. Must be one of: ' + SEGMENT_COLORS.join(', ') }, { status: 400 });
+		}
 
 		// Validate commentary
 		if (commentary !== undefined && typeof commentary !== 'string') {
@@ -65,6 +71,7 @@ export async function PATCH({ request, params }) {
 		const updateData = { updatedAt: new Date() };
 		if (commentary !== undefined) updateData.commentary = commentary;
 		if (height !== undefined) updateData.height = height === null ? null : Math.round(height);
+		if (color !== undefined) updateData.color = color;
 
 		await db.update(passageSegment)
 			.set(updateData)

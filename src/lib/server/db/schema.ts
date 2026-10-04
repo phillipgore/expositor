@@ -321,7 +321,8 @@ export const passageSection = pgTable('passage_section', {
 		.notNull()
 		.references(() => passageColumn.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
-	color: text('color').notNull().default('blue'),
+	// NOTE: color lives on passage_segment (migration 0053). A section's color is
+	// the color of its segments; recoloring a section recolors all of them.
 	/**
 	 * Extra vertical spacing (in CSS px) ADDED above this section beyond its default
 	 * gap. NULL/0 = default spacing. Used to push a section down so it visually aligns
@@ -338,8 +339,7 @@ export const passageSection = pgTable('passage_section', {
 }, (table) => ({
 	columnIdIdx: index('passage_section_column_id_idx').on(table.passageColumnId),
 
-	startingWordIdx: index('passage_section_starting_word_idx').on(table.startingWordId),
-	colorCheck: sql`CHECK (color IN ('red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'))`
+	startingWordIdx: index('passage_section_starting_word_idx').on(table.startingWordId)
 }));
 
 export const passageSegment = pgTable('passage_segment', {
@@ -350,6 +350,12 @@ export const passageSegment = pgTable('passage_segment', {
 	startingWordId: text('starting_word_id').notNull(),
 	note: text('note'),
 	commentary: text('commentary'),
+	/**
+	 * The segment's color (one of SEGMENT_COLORS). Moved here from passage_section
+	 * in 0053 so segments can be colored individually. New segments inherit the
+	 * color of the segment they were split from / sit next to.
+	 */
+	color: text('color').notNull().default('blue'),
 
 	/** User-set minimum height in pixels. NULL = flexible/natural height (content-sized). */
 	height: integer('height'),
@@ -369,7 +375,8 @@ export const passageSegment = pgTable('passage_segment', {
 }, (table) => ({
 	sectionIdIdx: index('passage_segment_section_id_idx').on(table.passageSectionId),
 
-	startingWordIdx: index('passage_segment_starting_word_idx').on(table.startingWordId)
+	startingWordIdx: index('passage_segment_starting_word_idx').on(table.startingWordId),
+	colorCheck: sql`CHECK (color IN ('red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'))`
 }));
 
 /**
@@ -500,7 +507,7 @@ export const segmentConnection = pgTable('segment_connection', {
 	bendPerp: real('bend_perp'),
 	/**
 	 * Line color: a named color ('red' … 'pink') draws the line and its end nodes
-	 * in that solid color; 'mixed' fades from the FROM end's section color to the
+	 * in that solid color; 'mixed' fades from the FROM end's segment color to the
 	 * TO end's (end nodes take their end's color). NULL = default gray.
 	 */
 	lineColor: text('line_color'),

@@ -90,7 +90,7 @@ function flatten(tree) {
  *   must be divided (a `tail: true` section entry asks the executor for a new segment there)
  * @returns {{
  *   moveColumns: string[],
- *   cloneColumns: Array<{ from: Object, sections: Array<{ from: Object, segmentIds: string[], tail?: boolean }> }>,
+ *   cloneColumns: Array<{ from: Object, sections: Array<{ from: Object, segmentIds: string[], tail?: boolean, tailColor?: string|null }> }>,
  *   movedSegmentIds: string[],
  *   stayingSegmentIds: string[]
  * }}
@@ -168,9 +168,13 @@ export function planStructureSplit(tree, boundaryWordId, { boundaryInsidePassage
 
 		if (holdsTail) {
 			const sid = containing.section.id;
+			// The tail is the far half of `containing.segment`, so it keeps that segment's color.
+			const tailColor = containing.segment.color ?? null;
 			const existing = bySection.get(sid);
-			if (existing) existing.tail = true;
-			else bySection.set(sid, { from: containing.section, segmentIds: [], tail: true });
+			if (existing) {
+				existing.tail = true;
+				existing.tailColor = tailColor;
+			} else bySection.set(sid, { from: containing.section, segmentIds: [], tail: true, tailColor });
 		}
 
 		// Word order, so the clone's sections come out in the same order as the original's.

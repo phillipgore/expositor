@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { passageSection } from '$lib/server/db/schema.js';
+import { passageSection, passageSegment } from '$lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
+import { SEGMENT_COLORS, isValidSegmentColor } from '$lib/utils/segmentColors.js';
 
 /**
  * Get a section record
@@ -35,7 +36,7 @@ export const GET = async ({ request, params }) => {
 };
 
 /**
- * Update section color or top-offset
+ * Update section color (all its segments) or top-offset
  * @type {import('./$types').RequestHandler}
  */
 export const PATCH = async ({ request, params }) => {
@@ -72,21 +73,20 @@ export const PATCH = async ({ request, params }) => {
 			return json({ success: true }, { status: 200 });
 		}
 
-		// Handle color update (original behaviour)
+		// Handle color update — color lives on segments, so recolor every segment
+		// in this section.
 		const { color } = body;
 
-		const validColors = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'];
-		if (!color || !validColors.includes(color)) {
-			return json({ error: 'Invalid color. Must be one of: ' + validColors.join(', ') }, { status: 400 });
+		if (!isValidSegmentColor(color)) {
+			return json({ error: 'Invalid color. Must be one of: ' + SEGMENT_COLORS.join(', ') }, { status: 400 });
 		}
 
-		// Update section color
-		await db.update(passageSection)
+		await db.update(passageSegment)
 			.set({ 
 				color,
 				updatedAt: new Date()
 			})
-			.where(eq(passageSection.id, sectionId));
+			.where(eq(passageSegment.passageSectionId, sectionId));
 
 		return json({ success: true }, { status: 200 });
 	} catch (error) {

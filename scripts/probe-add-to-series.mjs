@@ -71,7 +71,7 @@ try {
 	await sql`INSERT INTO study (id, title, translation, user_id, created_at, updated_at) VALUES (${candidate}, 'Romans 5-6', 'esv', ${owner.id}, now(), now())`;
 	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${id('cg')}, ${candidate}, 'NT', 'RO', 'Romans', 5, 1, 6, 23, 0, now())`;
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('cc')}, ${id('cg')}, 'RO-005-001-001', now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('cs')}, ${id('cc')}, 'RO-005-001-001', 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('cs')}, ${id('cc')}, 'RO-005-001-001', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at) VALUES (${id('cseg')}, ${id('cs')}, 'RO-005-001-001', 'my note', 'my commentary', now(), now())`;
 
 	console.log('\nFixture: 2-part Romans series + a standalone Romans 5–6 study with content.\n');

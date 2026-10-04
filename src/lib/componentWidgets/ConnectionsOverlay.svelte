@@ -56,6 +56,7 @@
 	import { routeCorner } from '$lib/utils/cornerRouting.js';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 	import { setPartItems, requestReveal } from '$lib/stores/seriesSelection.js';
+	import { SEGMENT_COLORS } from '$lib/utils/segmentColors.js';
 
 
 
@@ -1618,15 +1619,15 @@
 
 	// ─── Line color (gray default · a solid color · 'mixed' fade) ─────────────
 
-	/** The eight named colors (mirrors the section color CHECK); usable as solid line colors. */
-	const SECTION_COLORS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'];
+	/** The eight named colors (mirrors the segment color CHECK); usable as solid line colors. */
+	const SECTION_COLORS = /** @type {readonly string[]} */ (SEGMENT_COLORS);
 
 	/**
 	 * Resolve the color of one connection end as a CONCRETE css color string
 	 * (e.g. "hsl(145, 65%, 45%)"), so it also survives export cloning, which drops
-	 * CSS variables. Uses the main shade (--green, --red …) of the end's section:
-	 *   segment → its section, section → itself, column → its first visible
-	 *   section (where the column anchor attaches; see columnAnchorRect).
+	 * CSS variables. Color lives on segments (passage_segment.color), so:
+	 *   segment → its own color; section / column → its first visible segment
+	 *   (the column anchor attaches at the first visible section; see columnAnchorRect).
 	 * Falls back to the default line gray when no color can be found.
 	 * @param {Element} el — the end's element (from getElementForConnection)
 	 * @param {ConnType} type
@@ -1634,19 +1635,19 @@
 	 */
 	function endColor(el, type) {
 		/** @type {Element|null} */
-		let sectionEl = null;
-		if (type === 'column') {
-			for (const sec of el.querySelectorAll('.section[data-section-id]')) {
-				if (sec.classList.contains('compare-hidden')) continue;
-				const r = sec.getBoundingClientRect();
+		let segmentEl = null;
+		if (type === 'segment') {
+			segmentEl = el.closest('.segment[data-segment-id]') ?? (el.matches('.segment') ? el : null);
+		} else {
+			for (const seg of el.querySelectorAll('.segment[data-segment-id]')) {
+				if (seg.classList.contains('compare-hidden') || seg.closest('.compare-hidden')) continue;
+				const r = seg.getBoundingClientRect();
 				if (r.width === 0 || r.height === 0) continue;
-				sectionEl = sec;
+				segmentEl = seg;
 				break;
 			}
-		} else {
-			sectionEl = el.closest('.section[data-section-id]') ?? (el.matches('.section') ? el : null);
 		}
-		const color = sectionEl ? SECTION_COLORS.find(c => sectionEl?.classList.contains(c)) : null;
+		const color = segmentEl ? SECTION_COLORS.find(c => segmentEl?.classList.contains(c)) : null;
 		return namedColor(color ?? 'gray');
 	}
 
@@ -2145,7 +2146,7 @@
 
 			// Line color (live menu override wins over the stored value):
 			//   gray  → default CSS gray (no inline color)
-			//   mixed → fade from the FROM end's section color to the TO end's
+			//   mixed → fade from the FROM end's segment color to the TO end's
 			//   red…  → one solid color: both stops (and both end nodes) use it
 			const lineColor = normalizeLineColor(colorOverrides[connection.id] ?? connection.lineColor);
 			const fromColor = lineColor === 'mixed' ? endColor(fromEl, fromType) : lineColor === 'gray' ? null : namedColor(lineColor);

@@ -35,3 +35,4 @@ fix-migrations.sql
 *.swp
 *.swo
 *~
+backups/

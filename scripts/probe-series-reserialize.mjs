@@ -91,8 +91,8 @@ try {
 					values (${passageId}, ${studyId}, 'NT', 'MT', 'Matthew', ${n}, ${n}, 1, ${MT[n]}, 0, now())`;
 				await tx`insert into passage_column (id, passage_id, starting_word_id, created_at, updated_at)
 					values (${columnId}, ${passageId}, ${`MATT-${String(n).padStart(3, '0')}-001-001`}, now(), now())`;
-				await tx`insert into passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at)
-					values (${sectionId}, ${columnId}, ${`MATT-${String(n).padStart(3, '0')}-001-001`}, 'blue', now(), now())`;
+				await tx`insert into passage_section (id, passage_column_id, starting_word_id, created_at, updated_at)
+					values (${sectionId}, ${columnId}, ${`MATT-${String(n).padStart(3, '0')}-001-001`}, now(), now())`;
 				await tx`insert into passage_segment (id, passage_section_id, starting_word_id, note, commentary, created_at, updated_at)
 					values (${segmentId}, ${sectionId}, ${`MATT-${String(n).padStart(3, '0')}-001-001`}, ${`note for ch ${n}`}, ${`commentary for ch ${n}`}, now(), now())`;
 				await tx`insert into passage_heading (id, passage_segment_id, heading_type, text, created_at, updated_at)

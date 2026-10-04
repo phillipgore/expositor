@@ -316,6 +316,8 @@ export async function splitPassageStructure(
 					id: uuidv4(),
 					passageSectionId: newSectionId,
 					startingWordId: boundaryWordId,
+					// The far half of the divided segment keeps that segment's color.
+					...(section.tailColor ? { color: section.tailColor } : {}),
 					createdAt: now,
 					updatedAt: now
 				});

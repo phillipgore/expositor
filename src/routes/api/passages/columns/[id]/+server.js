@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db/index.js';
-import { passageColumn, passageSection } from '$lib/server/db/schema.js';
-import { eq } from 'drizzle-orm';
+import { passageColumn, passageSection, passageSegment } from '$lib/server/db/schema.js';
+import { eq, inArray } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
+import { SEGMENT_COLORS, isValidSegmentColor } from '$lib/utils/segmentColors.js';
 
 /**
  * Get a column record
@@ -35,7 +36,7 @@ export const GET = async ({ request, params }) => {
 };
 
 /**
- * Update column color (all sections), left-offset, or width
+ * Update column color (all segments in all its sections), left-offset, or width
  * @type {import('./$types').RequestHandler}
  */
 export const PATCH = async ({ request, params }) => {
@@ -97,21 +98,24 @@ export const PATCH = async ({ request, params }) => {
 			return json({ success: true }, { status: 200 });
 		}
 
-		// Handle color update (original behaviour — updates all sections in this column)
+		// Handle color update — color lives on segments, so recolor every segment in
+		// every section of this column.
 		const { color } = body;
 
-		const validColors = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'pink'];
-		if (!color || !validColors.includes(color)) {
-			return json({ error: 'Invalid color. Must be one of: ' + validColors.join(', ') }, { status: 400 });
+		if (!isValidSegmentColor(color)) {
+			return json({ error: 'Invalid color. Must be one of: ' + SEGMENT_COLORS.join(', ') }, { status: 400 });
 		}
 
-		// Update all sections in this column to the new color
-		await db.update(passageSection)
+		const sectionIds = db.select({ id: passageSection.id })
+			.from(passageSection)
+			.where(eq(passageSection.passageColumnId, columnId));
+
+		await db.update(passageSegment)
 			.set({ 
 				color,
 				updatedAt: new Date()
 			})
-			.where(eq(passageSection.passageColumnId, columnId));
+			.where(inArray(passageSegment.passageSectionId, sectionIds));
 
 		return json({ success: true }, { status: 200 });
 	} catch (error) {

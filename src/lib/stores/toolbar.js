@@ -126,7 +126,7 @@ async function persistPreference(updates) {
  * @property {string|null} caretInsertionWordId - First word after the caret, or null
  * @property {boolean} hasActiveSegment - Whether a segment is currently active
  * @property {string|null} activeSegmentId - The ID of the currently active segment
- * @property {string[]} activeSegmentSectionIds - The IDs of the section(s) the currently selected segment(s) belong to (for Color)
+ * @property {string[]} activeSegmentIds - The IDs of all currently selected segments (for Color)
  * @property {number} activeSegmentCount - Number of segments currently selected
  * @property {boolean} canLinkSegmentHeight - Whether the "Link Segment Height" action is available (2+ segments selected that aren't already all in one group)
  * @property {boolean} canUnlinkSegmentHeight - Whether the "Unlink Segment Height" action is available (selection includes a linked segment)
@@ -278,7 +278,7 @@ const defaultState = {
 	caretInsertionWordId: null,
 	hasActiveSegment: false,
 	activeSegmentId: null,
-	activeSegmentSectionIds: [],
+	activeSegmentIds: [],
 	activeSegmentCount: 0,
 	canLinkSegmentHeight: false,
 	canUnlinkSegmentHeight: false,
@@ -1591,21 +1591,22 @@ export function setActiveSegment(hasSegment, segmentId = null, options) {
 
 
 /**
- * Set the parent-section IDs of ALL currently selected segments (deduped), for Color.
+ * Set the IDs of ALL currently selected segments (deduped), for Color.
  *
- * This is intentionally SEPARATE from setActiveSegment because that setter is only
- * called in pure-segment mode (and is also called by the heading/note editors, which
- * don't know the selection's section IDs). In a MIXED multi-select — segments selected
- * alongside columns and/or other sections — the gated `hasActiveSegment` effect takes
- * its else-branch and would otherwise clear this, so Color couldn't recolor the sections
- * containing the selected segments. The analyze page keeps this current via a dedicated,
- * always-on effect over `activeSegments`.
- * @param {string[]} sectionIds - The deduped parent-section IDs of the selected segments
+ * Color lives on segments, so recoloring a segment selection PATCHes exactly these
+ * segments (never their sibling segments). This is intentionally SEPARATE from
+ * setActiveSegment because that setter is only called in pure-segment mode (and is
+ * also called by the heading/note editors, which don't know the full selection). In a
+ * MIXED multi-select — segments selected alongside columns and/or sections — the
+ * gated `hasActiveSegment` effect takes its else-branch and would otherwise clear
+ * this, so Color couldn't recolor the selected segments. The analyze page keeps this
+ * current via a dedicated, always-on effect over `activeSegments`.
+ * @param {string[]} segmentIds - The deduped IDs of the selected segments
  */
-export function setActiveSegmentSectionIds(sectionIds = []) {
+export function setActiveSegmentIds(segmentIds = []) {
 	toolbarStateStore.update(state => ({
 		...state,
-		activeSegmentSectionIds: sectionIds
+		activeSegmentIds: segmentIds
 	}));
 }
 

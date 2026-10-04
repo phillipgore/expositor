@@ -90,7 +90,7 @@ async function buildSimpleFixture(ownerId) {
 	const colId = id('col');
 	const secId = id('sec');
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${colId}, ${passId}, ${w(1, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${secId}, ${colId}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${secId}, ${colId}, ${w(1, 1)}, now(), now())`;
 
 	// Three segments, each with its own note so a fold can be traced to its source.
 	for (const [segId, verse, note] of [
@@ -150,13 +150,13 @@ async function buildSeriesFixture(ownerId) {
 	await sql`INSERT INTO passage (id, study_id, testament, book_id, book_name, from_chapter, from_verse, to_chapter, to_verse, display_order, created_at) VALUES (${id('passB')}, ${id('partB')}, 'NT', 'RO', 'Romans', 3, 1, 4, 25, 0, now())`;
 
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('colA')}, ${id('passA')}, ${w(1, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('secA')}, ${id('colA')}, ${w(1, 1)}, 'blue', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('secA')}, ${id('colA')}, ${w(1, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('a1')}, ${id('secA')}, ${w(1, 1)}, 'A1', now(), now())`;
 	// The SELECTED segment: last in part A.
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('a2')}, ${id('secA')}, ${w(2, 1)}, 'A2', now(), now())`;
 
 	await sql`INSERT INTO passage_column (id, passage_id, starting_word_id, created_at, updated_at) VALUES (${id('colB')}, ${id('passB')}, ${w(3, 1)}, now(), now())`;
-	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, color, created_at, updated_at) VALUES (${id('secB')}, ${id('colB')}, ${w(3, 1)}, 'green', now(), now())`;
+	await sql`INSERT INTO passage_section (id, passage_column_id, starting_word_id, created_at, updated_at) VALUES (${id('secB')}, ${id('colB')}, ${w(3, 1)}, now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('b1')}, ${id('secB')}, ${w(3, 1)}, 'B1', now(), now())`;
 	await sql`INSERT INTO passage_segment (id, passage_section_id, starting_word_id, note, created_at, updated_at) VALUES (${id('b2')}, ${id('secB')}, ${w(3, 10)}, 'B2', now(), now())`;
 }

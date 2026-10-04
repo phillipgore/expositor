@@ -3,7 +3,9 @@
 	 * MenuColor Component
 	 * 
 	 * Color menu. The 8 colors (red, orange, yellow, green, aqua, blue, purple,
-	 * pink) color the selected sections/segments — or, when connection lines are
+	 * pink) color the selected columns/sections/segments (color is stored per
+	 * segment: a column or section recolors every segment it contains, a segment
+	 * recolors only itself) — or, when connection lines are
 	 * selected, those lines. Gray (the default) and Color to Color (fade between the two
 	 * connected items' colors) are reserved for connection lines.
 	 * 
@@ -74,7 +76,7 @@
 </script>
 
 <Menu {menuId} ariaLabel="Color highlighting menu">
-	<!-- The eight colors apply to sections/segments, or — when connection lines
+	<!-- The eight colors apply to columns/sections/segments, or — when connection lines
 	     are selected — to those lines (solid color). -->
 	{#each colors as color (color.id)}
 		<IconButton
