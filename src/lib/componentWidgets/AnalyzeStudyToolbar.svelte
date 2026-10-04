@@ -365,7 +365,10 @@
 		transition: opacity 0.15s ease-in-out;
 	}
 
-	.titles:hover .add-subtitle,
+	/* Only reveal when hovering the title itself or the button — not the
+	   whole .titles row, which stretches to the Prev/Next chevrons. */
+	.title:hover + .add-subtitle,
+	.add-subtitle:hover,
 	.add-subtitle:focus-visible {
 		opacity: 0.6;
 		outline: none;
