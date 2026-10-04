@@ -12,6 +12,8 @@
 	import { invalidate } from '$app/navigation';
 	import { showPopoverError } from '$lib/stores/popover.js';
 	import SeriesPartNav from '$lib/componentWidgets/SeriesPartNav.svelte';
+	import SeriesSelectionChip from '$lib/componentWidgets/SeriesSelectionChip.svelte';
+	import SeriesFocusNav from '$lib/componentWidgets/SeriesFocusNav.svelte';
 	import Input from '$lib/componentElements/Input.svelte';
 
 	/** @type {{ studyId?: string | null, title: string, subtitle?: string | null, seriesContext?: any }} */
@@ -227,6 +229,10 @@
 			</button>
 		{/if}
 	</div>
+	{#if seriesContext?.id && studyId}
+		<SeriesFocusNav {seriesContext} currentPartId={studyId} />
+		<SeriesSelectionChip {seriesContext} currentPartId={studyId} />
+	{/if}
 	<SeriesPartNav {seriesContext} view="analyze" />
 </div>
 

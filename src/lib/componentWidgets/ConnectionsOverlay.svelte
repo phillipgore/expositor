@@ -49,11 +49,12 @@
 	 */
 
 	import { onMount, onDestroy } from 'svelte';
-	import { invalidate } from '$app/navigation';
+	import { invalidate, goto } from '$app/navigation';
 	import { toolbarState, setActiveConnection, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey, setToolbarState, clearSelectedItem, setActiveSegment, setActiveSection, setActiveColumn, showConnectionsForTypes } from '$lib/stores/toolbar.js';
 	import { QUICK_NOTE_MAX_CHARS } from '$lib/constants/notes.js';
 	import { endpointOf, stubLabel } from '$lib/utils/connectionStubs.js';
 	import { routeCorner } from '$lib/utils/cornerRouting.js';
+	import { setPartItems, requestReveal } from '$lib/stores/seriesSelection.js';
 
 
 
@@ -63,12 +64,15 @@
 		connections = [],
 		scale: scaleProp = 1,
 		seriesParts = null,
-		structureOwnership = null
+		structureOwnership = null,
+		// The part being viewed. Stub direction is relative to it (the row's own studyId is the part
+		// that OWNS the connection, which is the other end when viewed from the far part).
+		currentPartId = null
 	} = $props();
 
 	/**
 	 * Edge stubs for connections whose other endpoint lives in a different part.
-	 * @type {Array<{ id: string, x1: number, y1: number, x2: number, y2: number, d: string, label: string, direction: 'forward'|'backward', lineStyle: string }>}
+	 * @type {Array<{ id: string, x1: number, y1: number, x2: number, y2: number, d: string, label: string, short: string, direction: 'forward'|'backward', lineStyle: string, otherPartId: string, otherEnd: { type: string, id: string|null } }>}
 	 */
 	let stubs = $state([]);
 
@@ -86,7 +90,7 @@
 	 *
 	 * @param {any} connection
 	 * @param {'from'|'to'} presentEnd
-	 * @returns {{ label: string, direction: 'forward'|'backward' }|null}
+	 * @returns {{ label: string, short: string, direction: 'forward'|'backward', otherPartId: string, otherEnd: { type: string, id: string|null } }|null}
 	 */
 	function describeStub(connection, presentEnd) {
 		if (!seriesParts || !structureOwnership) return null;
@@ -98,16 +102,32 @@
 		const otherPartId = structureOwnership[absent.id];
 		if (!otherPartId) return null;
 
-		const here = seriesParts.findIndex((part) => part.id === connection.studyId);
+		const here = seriesParts.findIndex((part) => part.id === (currentPartId ?? connection.studyId));
 		const there = seriesParts.findIndex((part) => part.id === otherPartId);
 		if (there === -1) return null;
 
 		return {
 			label: stubLabel({ orderedParts: seriesParts, partId: otherPartId }),
+			short: `Part ${there + 1}`,
+			otherPartId,
+			otherEnd: absent,
 			// Compared by position in `seriesOrder`, which is what prev/next follows (§7) — never by the
 			// ranges, since §4 forbids re-deriving the user's arrangement from canonical order.
 			direction: here !== -1 && there < here ? 'backward' : 'forward'
 		};
+	}
+
+	/**
+	 * Go to the part holding a stub's other end and select + scroll to it there
+	 * (the Analyze page restores the series selection when that part opens).
+	 * @param {{ otherPartId: string, otherEnd: { type: string, id: string|null } }} stub
+	 */
+	function goToStubEnd(stub) {
+		if (!stub.otherPartId || !stub.otherEnd?.id) return;
+		const type = /** @type {'column'|'section'|'segment'} */ (stub.otherEnd.type);
+		setPartItems(stub.otherPartId, [{ partId: stub.otherPartId, type, id: stub.otherEnd.id, label: '' }], { keepOtherParts: false });
+		requestReveal(stub.otherPartId);
+		goto(`/study/${stub.otherPartId}/analyze`);
 	}
 
 	/**
@@ -1961,7 +1981,7 @@
 		/**
 		 * Connections with exactly ONE endpoint on this page — cross-part links preserved by phase 3.
 		 * Collected during the resolve pass and turned into edge stubs after it, once the SVG box is known.
-		 * @type {Array<{ connection: any, presentEnd: 'from'|'to', el: Element, label: string, direction: 'forward'|'backward' }>}
+		 * @type {Array<{ connection: any, presentEnd: 'from'|'to', el: Element, label: string, short: string, direction: 'forward'|'backward', otherPartId: string, otherEnd: { type: string, id: string|null } }>}
 		 */
 		const stubCandidates = [];
 		/** @type {Map<string, Endpoint[]>} key = `${elementId}|${edge}` */
@@ -1998,7 +2018,10 @@
 						presentEnd,
 						el: /** @type {Element} */ (fromEl || toEl),
 						label: stub.label,
-						direction: stub.direction
+						short: stub.short,
+						direction: stub.direction,
+						otherPartId: stub.otherPartId,
+						otherEnd: stub.otherEnd
 					});
 				}
 				continue;
@@ -2419,7 +2442,10 @@
 				// A gentle bow so a stub reads as a connection rather than a rule.
 				d: `M ${anchorX} ${y} C ${(anchorX + edgeX) / 2} ${y}, ${(anchorX + edgeX) / 2} ${y}, ${edgeX} ${y}`,
 				label: candidate.label,
+				short: candidate.short,
 				direction: candidate.direction,
+				otherPartId: candidate.otherPartId,
+				otherEnd: candidate.otherEnd,
 				lineStyle: getLineStyle(
 					candidate.connection.fromType || 'segment',
 					candidate.connection.toType || 'segment'
@@ -4321,6 +4347,21 @@
 					fill="none"
 				/>
 			</g>
+			<!-- Clickable "Part N" label at the page edge: goes to the part holding the other end
+			     and scrolls to it (CROSS_PART_PLAN step 2). The line itself stays inert. -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<text
+				class="connection-stub-label"
+				class:connection-stub-label--backward={stub.direction === 'backward'}
+				x={stub.direction === 'backward' ? stub.x2 + 2 : stub.x2 - 2}
+				y={stub.y2 - 9}
+				text-anchor={stub.direction === 'backward' ? 'start' : 'end'}
+				role="link"
+				tabindex="0"
+				aria-label={stub.label}
+				onclick={() => goToStubEnd(stub)}
+				onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToStubEnd(stub); } }}
+			><title>{stub.label}</title>{stub.short}</text>
 		{/each}
 
 		<!-- Mixed-color lines: a linear gradient per line running from its FROM
@@ -4676,6 +4717,22 @@
 		stroke-width: 2;
 		fill: none;
 		stroke-linecap: round;
+	}
+
+	.connection-stub-label {
+		font-size: 1rem;
+		font-weight: 700;
+		fill: var(--gray-300);
+		cursor: pointer;
+		pointer-events: all;
+		user-select: none;
+	}
+
+	.connection-stub-label:hover,
+	.connection-stub-label:focus-visible {
+		fill: var(--blue);
+		text-decoration: underline;
+		outline: none;
 	}
 
 	.connection-stub-arrow {

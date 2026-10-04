@@ -1,5 +1,5 @@
 <script>
-	import { invalidate } from '$app/navigation';
+	import { invalidate, goto } from '$app/navigation';
 	import { navigating } from '$app/stores';
 	import { onMount, tick, untrack } from 'svelte';
 
@@ -59,6 +59,7 @@
 
 	import { setStudyContentLoading, studyContentLoading } from '$lib/stores/loading.js';
 	import { showPopover, showPopoverError } from '$lib/stores/popover.js';
+	import { seriesSelection, useSeries, itemsForPart, sameItems, setPartItems, takeReveal, seriesFocus, startSeriesFocus, endSeriesFocus, focusedPartIds } from '$lib/stores/seriesSelection.js';
 	import messages from '$lib/data/messages.json';
 
 
@@ -971,7 +972,9 @@
 	// not flash the controls.
 	let showAllSelectorsViaCommand = $derived(
 		isCommandKeyHeld &&
-		(activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0)
+		(activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0 ||
+			// …or items are selected in another part of the series (cross-part selection)
+			($seriesSelection.seriesId === (data.seriesContext?.id ?? null) && $seriesSelection.items.length > 0))
 	);
 
 
@@ -986,6 +989,10 @@
 	let isFocusableSelection = $derived.by(() => {
 		const hasStructuralSelection =
 			activeColumns.length > 0 || activeSections.length > 0 || activeSegments.length > 0;
+
+		// Items selected in other parts of the series can always be focused
+		// (Focus then travels between parts — CROSS_PART_PLAN step 3).
+		if (otherPartSelectedItems().length > 0) return true;
 
 		// A selected connection can always be focused (it never covers every segment).
 		if (!hasStructuralSelection) {
@@ -1274,6 +1281,209 @@
 		setFocusEnabled(isFocusableSelection);
 	});
 
+	// ── Series-wide selection (cross-part selection, step 1) ─────────────────
+	// The working selection (activeColumns/Sections/Segments) is per page, so it
+	// is lost when the user moves to another part. Mirror it into the
+	// seriesSelection store (tagged with this part) and restore this part's
+	// items when the part opens. A plain click replaces the selection in EVERY
+	// part; Cmd/Ctrl-click keeps the other parts' items.
+
+	/** Time of the last click without Cmd/Ctrl inside the study (a plain click
+	 *  always replaces the selection in every part, even when it only shrinks it). */
+	let lastPlainClickAt = -Infinity;
+	onMount(() => {
+		const onDown = (/** @type {PointerEvent} */ e) => {
+			if (!e.metaKey && !e.ctrlKey && analyzeContentRef?.contains(/** @type {Node} */ (e.target))) {
+				lastPlainClickAt = performance.now();
+			}
+		};
+		window.addEventListener('pointerdown', onDown, true);
+		return () => window.removeEventListener('pointerdown', onDown, true);
+	});
+
+	/** Part whose items have been restored into the page (sync waits for it). */
+	let selectionRestoredFor = $state(/** @type {string|null} */ (null));
+
+	/** Part whose visible items were last set from the series Focus snapshot. */
+	let seriesFocusAppliedFor = $state(/** @type {string|null} */ (null));
+
+	// ── Series Focus travels between parts (CROSS_PART_PLAN step 3, Option B) ──
+	// The page component is reused when moving to another part, so Focus stays
+	// on. When a part opens while focused, show only THAT part's snapshotted items.
+	$effect(() => {
+		const focus = $seriesFocus;
+		const partId = data.study?.id;
+		const content = streamedContent;
+		if (!focus || !partId || !content) return;
+		if (focus.seriesId !== (data.seriesContext?.id ?? null)) return;
+		if (untrack(() => seriesFocusAppliedFor) === partId) return;
+		const mine = focus.items.filter((i) => i.partId === partId);
+		const selection = {
+			columns: mine.filter((i) => i.type === 'column').map((i) => i.id),
+			sections: mine.filter((i) => i.type === 'section').map((i) => i.id),
+			segments: mine
+				.filter((i) => i.type === 'segment')
+				.map((i) => ({ segmentId: i.id, passageIndex: 0, segmentIndex: 0, activateSection: false, generation: 0 }))
+		};
+		untrack(() => {
+			const visible = calculateVisibleItems(selection);
+			visibleColumnIds = new Set(visible.columns);
+			visibleSectionIds = new Set(visible.sections);
+			visibleSegmentIds = new Set(visible.segments);
+			originalFocusSelection = selection;
+			focusEnteredViaConnections = false;
+			activeColumns = [];
+			activeSections = [];
+			activeSegments = [];
+			selectedWord = null;
+			if (!isFocusMode) isFocusMode = true;
+			if (!$toolbarState.focusMode) setToolbarState('focusMode', true);
+			seriesFocusAppliedFor = partId;
+			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
+		});
+	});
+
+	// Opening a study outside the focused series ends Focus.
+	$effect(() => {
+		const focus = $seriesFocus;
+		const seriesId = data.seriesContext?.id ?? null;
+		if (focus && focus.seriesId !== seriesId) {
+			untrack(() => setToolbarState('focusMode', false));
+		}
+	});
+
+	/** True while series Focus is on and THIS part has no focused items. */
+	let seriesFocusEmptyHere = $derived(
+		isFocusMode &&
+		!!$seriesFocus &&
+		$seriesFocus.seriesId === (data.seriesContext?.id ?? null) &&
+		!$seriesFocus.items.some((i) => i.partId === data.study?.id)
+	);
+
+	/**
+	 * Store items for the ends of the selected connection lines, tagged with the
+	 * part each end lives in (a cross-part line's far end is in another part).
+	 */
+	function connectionEndpointItems() {
+		const selectedIds = $toolbarState.activeConnectionIds;
+		const owners = data.structureOwnership ?? {};
+		/** @type {import('$lib/stores/seriesSelection.js').SeriesSelItem[]} */
+		const items = [];
+		for (const c of (data.connections || []).filter((c) => selectedIds.includes(c.id))) {
+			for (const [type, id] of [[c.fromType, getConnectionFromId(c)], [c.toType, getConnectionToId(c)]]) {
+				if (!id) continue;
+				const partId = owners[id] ?? data.study.id;
+				items.push({ partId, type: /** @type {any} */ (type || 'segment'), id, label: '' });
+			}
+		}
+		return items;
+	}
+
+	// Point the store at this series (null for a plain study → cleared).
+	$effect(() => {
+		useSeries(data.seriesContext?.id ?? null);
+	});
+
+	/**
+	 * Short label for a selected item, for the header list: its first words.
+	 * @param {Element|null} el
+	 */
+	function selectionLabel(el) {
+		const text = (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+		return text.length > 40 ? `${text.slice(0, 40).trimEnd()}…` : text;
+	}
+
+	/** The page's current selection as store items for this part. */
+	function currentPartSelectionItems() {
+		const partId = data.study.id;
+		const root = analyzeContentRef ?? document;
+		/** @type {import('$lib/stores/seriesSelection.js').SeriesSelItem[]} */
+		const items = [];
+		for (const id of activeColumns) {
+			items.push({ partId, type: 'column', id, label: selectionLabel(root.querySelector(`[data-column-id="${id}"] .segment`)) });
+		}
+		for (const id of activeSections) {
+			items.push({ partId, type: 'section', id, label: selectionLabel(root.querySelector(`[data-section-id="${id}"] .segment`)) });
+		}
+		for (const s of activeSegments) {
+			items.push({ partId, type: 'segment', id: s.segmentId, label: selectionLabel(root.querySelector(`[data-segment-id="${s.segmentId}"]`)) });
+		}
+		return items;
+	}
+
+	// Restore this part's stored items once its content is mounted.
+	$effect(() => {
+		const partId = data.study?.id;
+		const content = streamedContent;
+		if (!partId || !content || selectionRestoredFor === partId || isFocusMode) return;
+		tick().then(() => {
+			if (data.study?.id !== partId) return;
+			const stored = itemsForPart($seriesSelection, partId);
+			const root = analyzeContentRef ?? document;
+			const exists = (/** @type {string} */ attr, /** @type {string} */ id) => !!root.querySelector(`[${attr}="${id}"]`);
+			activeColumns = stored.filter((i) => i.type === 'column' && exists('data-column-id', i.id)).map((i) => i.id);
+			activeSections = stored.filter((i) => i.type === 'section' && exists('data-section-id', i.id)).map((i) => i.id);
+			const passages = Array.from(root.querySelectorAll('.passage'));
+			activeSegments = stored
+				.filter((i) => i.type === 'segment')
+				.map((i) => {
+					const el = root.querySelector(`[data-segment-id="${i.id}"]`);
+					const passageEl = el?.closest('.passage');
+					if (!el || !passageEl) return null;
+					return {
+						passageIndex: passages.indexOf(passageEl),
+						segmentIndex: Array.from(passageEl.querySelectorAll('.segment')).indexOf(el),
+						segmentId: i.id,
+						activateSection: false,
+						generation: ++segmentClickGeneration
+					};
+				})
+				.filter((s) => s !== null);
+			selectionRestoredFor = partId;
+			if (takeReveal(partId)) {
+				tick().then(() => scrollSelectionIntoView({ columns: activeColumns, sections: activeSections, segments: activeSegments }));
+			}
+		});
+	});
+
+	// Mirror the page's selection into the store (not while Focus/compare
+	// temporarily clears it, and not before this part's items are restored).
+	$effect(() => {
+		activeColumns; activeSections; activeSegments;
+		const partId = data.study?.id;
+		if (!partId || selectionRestoredFor !== partId || isFocusMode || isCompareMode) return;
+		const next = currentPartSelectionItems();
+		// Store read untracked: this effect follows the PAGE selection only, so a
+		// removal made in the header list isn't immediately written back.
+		const prev = untrack(() => itemsForPart($seriesSelection, partId));
+		if (sameItems(next, prev)) return;
+		// Only a plain (no Cmd/Ctrl) click inside the study — on an item or on
+		// empty space — replaces the selection in every part. Everything else
+		// (Cmd-click, menus, a deleted item dropping out, the Finder) keeps the
+		// other parts' items.
+		const plainClick = !isCommandKeyHeld && performance.now() - lastPlainClickAt < 600;
+		setPartItems(partId, next, { keepOtherParts: !plainClick });
+	});
+
+	// Store → page: an item of THIS part removed from the header list (or
+	// "Clear all") drops out of the page selection too. Only removals are
+	// applied, and the page arrays are read untracked so a fresh Cmd-click is
+	// never undone before the sync effect above has stored it.
+	$effect(() => {
+		const state = $seriesSelection;
+		const partId = data.study?.id;
+		untrack(() => {
+			if (!partId || selectionRestoredFor !== partId || isFocusMode || isCompareMode) return;
+			const keys = new Set(itemsForPart(state, partId).map((i) => `${i.type}:${i.id}`));
+			const cols = activeColumns.filter((id) => keys.has(`column:${id}`));
+			const secs = activeSections.filter((id) => keys.has(`section:${id}`));
+			const segs = activeSegments.filter((s) => keys.has(`segment:${s.segmentId}`));
+			if (cols.length !== activeColumns.length) activeColumns = cols;
+			if (secs.length !== activeSections.length) activeSections = secs;
+			if (segs.length !== activeSegments.length) activeSegments = segs;
+		});
+	});
+
 	// Clear active segments and word selection when overview mode is enabled.
 	// Guards prevent unnecessary reactive assignments (which would create new array
 	// references and trigger a sync-effect → store-update → clear-effect cycle).
@@ -1416,6 +1626,20 @@
 				focusEnteredViaConnections = false;
 			}
 
+			// 1b. In a series, snapshot the focused items of EVERY part so Focus
+			//     travels with the user (CROSS_PART_PLAN step 3, Option B).
+			const seriesId = data.seriesContext?.id ?? null;
+			if (seriesId) {
+				const items = focusEnteredViaConnections
+					? connectionEndpointItems()
+					: [
+						...currentPartSelectionItems(),
+						...untrack(() => $seriesSelection.items).filter((i) => i.partId !== data.study.id)
+					];
+				startSeriesFocus(seriesId, items);
+				seriesFocusAppliedFor = data.study.id;
+			}
+
 			// 2. Calculate which items remain visible (containers + children of selection)
 			const visible = calculateVisibleItems(originalFocusSelection);
 			visibleColumnIds = new Set(visible.columns);
@@ -1435,6 +1659,13 @@
 			// 5. Reset scroll to the top-left corner
 			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
 
+			// 6. Series Focus with nothing in THIS part: go to the first part that has some.
+			const focus = untrack(() => $seriesFocus);
+			if (focus && !focus.items.some((i) => i.partId === data.study.id)) {
+				const first = focusedPartIds(focus, data.seriesContext?.parts)[0];
+				if (first) goto(`/study/${first}/analyze`);
+			}
+
 		} else if (!$toolbarState.focusMode && isFocusMode) {
 			// EXITING FOCUS MODE
 
@@ -1447,10 +1678,21 @@
 			//    When focus was entered via a connection selection, the connection remains
 			//    selected in the toolbar store; we must NOT restore the derived structural
 			//    endpoint items, so structural selections stay empty.
+			const wasSeriesFocus = untrack(() => $seriesFocus) !== null;
+			endSeriesFocus();
+			seriesFocusAppliedFor = null;
 			if (focusEnteredViaConnections) {
 				activeColumns = [];
 				activeSections = [];
 				activeSegments = [];
+				selectionRestoredFor = data.study?.id ?? null;
+			} else if (wasSeriesFocus) {
+				// The user may have moved to another part while focused: restore THIS
+				// part's items from the series selection (the restore effect re-runs).
+				activeColumns = [];
+				activeSections = [];
+				activeSegments = [];
+				selectionRestoredFor = null;
 			} else {
 				activeColumns = [...originalFocusSelection.columns];
 				activeSections = [...originalFocusSelection.sections];
@@ -1753,8 +1995,20 @@
 		return [
 			...activeSegments.map(s => ({ type: 'segment', id: s.segmentId })),
 			...activeSections.map(id => ({ type: 'section', id })),
-			...activeColumns.map(id => ({ type: 'column', id }))
+			...activeColumns.map(id => ({ type: 'column', id })),
+			// Items selected in OTHER parts of the series (cross-part connections,
+			// CROSS_PART_PLAN step 2). The current part's items come from the page.
+			...otherPartSelectedItems()
 		];
+	}
+
+	/** Selected items in other parts of this series (empty for a plain study). */
+	function otherPartSelectedItems() {
+		const seriesId = data.seriesContext?.id ?? null;
+		if (!seriesId || $seriesSelection.seriesId !== seriesId) return [];
+		return $seriesSelection.items
+			.filter((i) => i.partId !== data.study.id)
+			.map((i) => ({ type: i.type, id: i.id }));
 	}
 
 	/**
@@ -1855,6 +2109,9 @@
 		const body = {
 
 			studyId: data.study.id,
+			// In a series the two ends may be in different parts; the server checks both
+			// belong to this series and stores the row under the FROM end's part.
+			seriesId: data.seriesContext?.id ?? undefined,
 			fromType: itemA.type,
 			toType:   itemB.type,
 			fromSegmentId: itemA.type === 'segment' ? itemA.id : undefined,
@@ -2201,9 +2458,13 @@
 		// StudiesPanel calls store functions to clear connections/notes, but cannot
 		// directly clear local arrays. This event bridges that gap.
 		const handleClearAnalyzeSelections = () => {
-			activeSegments = [];
-			activeColumns = [];
-			activeSections = [];
+			// In a series the Finder is how users move between parts, so it keeps
+			// the structural selection (cross-part selection); plain studies clear.
+			if (!data.seriesContext?.id) {
+				activeSegments = [];
+				activeColumns = [];
+				activeSections = [];
+			}
 			selectedWord = null;
 			suppressHoverCaret = null;
 		};
@@ -4559,6 +4820,7 @@
 						scale={currentScale}
 						seriesParts={data.seriesContext?.parts ?? null}
 						structureOwnership={data.structureOwnership ?? null}
+						currentPartId={data.study?.id ?? null}
 					/>
 				</div>
 
@@ -4593,6 +4855,9 @@
 				     NavigationIndicator overlay covers the wait (see stores/loading.js),
 				     so there is no in-page spinner here. -->
 				<div class="passage-wrapper">
+					{#if seriesFocusEmptyHere}
+						<p class="series-focus-empty">Nothing in this part is in Focus. Use the Focus parts in the header to move between focused parts, or turn Focus off.</p>
+					{/if}
 
 					{#if streamedContent && data.passagesWithText && data.passagesWithText.length > 0}
 						{#each data.passagesWithText as passageText, passageIndex}
@@ -5861,6 +6126,12 @@
 	
 	:global(.compare-hidden) {
 		display: none !important;
+	}
+
+	.series-focus-empty {
+		margin: 2rem;
+		font-size: 1.4rem;
+		color: var(--gray-400);
 	}
 
 	/* ============================================================ */
