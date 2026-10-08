@@ -11,6 +11,8 @@ export const appSettings = pgTable('app_settings', {
 	id: text('id').primaryKey(),
 	/** When false, new user sign-ups are blocked (except seeded admin/dev accounts). */
 	signupsEnabled: boolean('signups_enabled').notNull().default(true),
+	/** When false, password reset is disabled (button hidden, pages redirect, APIs blocked). */
+	passwordResetEnabled: boolean('password_reset_enabled').notNull().default(true),
 	updatedAt: timestamp('updated_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()

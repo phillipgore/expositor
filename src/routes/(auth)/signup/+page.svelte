@@ -1,54 +1,20 @@
 <script>
 	import Heading from '$lib/componentElements/Heading.svelte';
-	import Alert from '$lib/componentElements/Alert.svelte';
-	import Button from '$lib/componentElements/buttons/Button.svelte';
-	import Spinner from '$lib/componentElements/Spinner.svelte';
-	import InputField from '$lib/componentWidgets/InputField.svelte';
-	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
+	import SignupForm from '$lib/componentWidgets/forms/SignupForm.svelte';
 	import { signUp } from '$lib/stores/auth.js';
 	import { goto } from '$app/navigation';
-	import messages from '$lib/data/messages.json';
 
-	let firstName = '';
-	let lastName = '';
-	let email = '';
-	let password = '';
-	let confirmPassword = '';
 	let isLoading = false;
 	let error = '';
-	let formSubmitted = false;
 
-	// Email validation function
-	function isValidEmail(emailStr) {
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		return emailRegex.test(emailStr);
-	}
-
-	// Reactive validation messages
-	$: emailWarning = email && !isValidEmail(email) ? messages.validation.emailInvalid : '';
-	$: passwordWarning = password && password.length < 6 ? messages.validation.passwordTooShort : '';
-	$: confirmPasswordWarning = confirmPassword && password !== confirmPassword ? messages.validation.passwordMismatch : '';
-
-	async function handleSubmit(event) {
-		event.preventDefault();
-		formSubmitted = true;
-		
-		// Check if all fields are filled
-		if (!firstName || !lastName || !email || !password || !confirmPassword) {
-			return;
-		}
-
-		// Check for validation warnings
-		if (emailWarning || passwordWarning || confirmPasswordWarning) {
-			return;
-		}
-
+	/** @param {{ firstName: string, lastName: string, email: string, password: string }} values */
+	async function handleSubmit({ firstName, lastName, email, password }) {
 		isLoading = true;
 		error = '';
 
 		// Pass first and last name separately
-		const result = await signUp(firstName.trim(), lastName.trim(), email, password);
-		
+		const result = await signUp(firstName, lastName, email, password);
+
 		if (result.success) {
 			if (result.requiresVerification) {
 				// Redirect to verify-pending page with email parameter
@@ -60,96 +26,11 @@
 		} else {
 			error = result.error;
 		}
-		
+
 		isLoading = false;
 	}
 </script>
 
 <Heading heading="h1">Sign Up</Heading>
 
-<form on:submit={handleSubmit}>
-	<Alert color="red" look="subtle" message={error} />
-	
-	<div class="name-fields">
-		<InputField
-			label="First Name"
-			id="firstName"
-			name="firstName"
-			type="text"
-			bind:value={firstName}
-			isDisabled={isLoading}
-			required={true}
-			requiredMode="onError"
-			hasError={formSubmitted && !firstName}
-		/>
-		<InputField
-			label="Last Name"
-			id="lastName"
-			name="lastName"
-			type="text"
-			bind:value={lastName}
-			isDisabled={isLoading}
-			required={true}
-			requiredMode="onError"
-			hasError={formSubmitted && !lastName}
-		/>
-	</div>
-	<InputField
-		label="Email"
-		id="email"
-		name="email"
-		type="email"
-		bind:value={email}
-		isDisabled={isLoading}
-		required={true}
-		requiredMode="onError"
-		hasError={formSubmitted && !email}
-		infoMessage={emailWarning}
-	/>
-	<InputField
-		label="Password"
-		id="password"
-		name="password"
-		type="password"
-		bind:value={password}
-		isDisabled={isLoading}
-		required={true}
-		requiredMode="onError"
-		hasError={formSubmitted && !password}
-		infoMessage={passwordWarning}
-	/>
-	<InputField
-		label="Confirm Password"
-		id="confirmPassword"
-		name="confirmPassword"
-		type="password"
-		bind:value={confirmPassword}
-		isDisabled={isLoading}
-		required={true}
-		requiredMode="onError"
-		hasError={formSubmitted && !confirmPassword}
-		infoMessage={confirmPasswordWarning}
-	/>
-
-	<FormButtonBar>
-		<Button type="submit" classes="blue" isDisabled={isLoading}>
-			{#if isLoading}
-				<Spinner size="sm" inline color="var(--white)" label="Signing Up…" showLabel />
-			{:else}
-				Sign Up
-			{/if}
-		</Button>
-	</FormButtonBar>
-</form>
-
-<style>
-	.name-fields {
-		display: flex;
-		gap: 2.1rem;
-		margin-bottom: 1.8rem;
-		
-		:global(.input-field) {
-			margin-bottom: 0;
-		}
-	}
-</style>
+<SignupForm {isLoading} {error} onSubmit={handleSubmit} />

@@ -1,7 +1,12 @@
 import { fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { auth } from '$lib/server/auth.js';
-import { getSignupsEnabled, setSignupsEnabled } from '$lib/server/appSettings.js';
+import {
+	getSignupsEnabled,
+	setSignupsEnabled,
+	getPasswordResetEnabled,
+	setPasswordResetEnabled
+} from '$lib/server/appSettings.js';
 
 /**
  * Back Office — Settings page.
@@ -23,9 +28,12 @@ async function requireAdmin(request) {
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load() {
-	const signupsEnabled = await getSignupsEnabled();
+	const [signupsEnabled, passwordResetEnabled] = await Promise.all([
+		getSignupsEnabled(),
+		getPasswordResetEnabled()
+	]);
 
-	return { signupsEnabled };
+	return { signupsEnabled, passwordResetEnabled };
 }
 
 /** @type {import('./$types').Actions} */
@@ -51,5 +59,28 @@ export const actions = {
 		}
 
 		return { success: true, signupsEnabled: enabled };
+	},
+
+	/**
+	 * Toggle whether password reset is allowed.
+	 * Expects form data: `passwordResetEnabled` = 'true' | 'false'.
+	 */
+	updatePasswordReset: async ({ request }) => {
+		const isAdmin = await requireAdmin(request);
+		if (!isAdmin) {
+			return fail(403, { error: 'Not authorized.' });
+		}
+
+		const formData = await request.formData();
+		const enabled = formData.get('passwordResetEnabled') === 'true';
+
+		try {
+			await setPasswordResetEnabled(enabled);
+		} catch (error) {
+			console.error('❌ Error updating passwordResetEnabled setting:', error);
+			return fail(500, { error: 'Failed to update setting.' });
+		}
+
+		return { success: true, passwordResetEnabled: enabled };
 	}
 };

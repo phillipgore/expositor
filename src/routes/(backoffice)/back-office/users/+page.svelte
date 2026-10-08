@@ -4,15 +4,19 @@
 	 *
 	 * Lists all user accounts with their email-verification status. Unverified
 	 * users show a "Verify" button that lets the admin verify them directly,
-	 * bypassing email verification.
+	 * bypassing email verification. Every user has a "Reset" button that opens a
+	 * modal for setting a new password. An "Add User" form (to the left of the
+	 * table) lets the admin create new, pre-verified accounts.
 	 */
 
-	import { enhance } from '$app/forms';
+	import { enhance, deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import Heading from '$lib/componentElements/Heading.svelte';
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Badge from '$lib/componentElements/Badge.svelte';
 	import Spinner from '$lib/componentElements/Spinner.svelte';
+	import SignupForm from '$lib/componentWidgets/forms/SignupForm.svelte';
+	import ResetUserPasswordModal from '$lib/componentWidgets/modals/ResetUserPasswordModal.svelte';
 
 	/** @type {import('./$types').PageData} */
 	export let data;
@@ -21,6 +25,108 @@
 
 	/** Id of the user whose Verify form is currently submitting (disables its button). */
 	let verifyingId = '';
+
+	/** Add User form state. */
+	let signupForm;
+	let isCreating = false;
+	let createError = '';
+	let createSuccess = '';
+
+	/** Reset Password modal state. */
+	/** @type {{ id: string, firstName: string, lastName: string, email: string } | null} */
+	let resetUser = null;
+	let isResetting = false;
+	let resetError = '';
+	let resetSuccess = '';
+
+	/** @param {{ id: string, firstName: string, lastName: string, email: string }} user */
+	function openResetModal(user) {
+		resetUser = user;
+		resetError = '';
+		resetSuccess = '';
+	}
+
+	function closeResetModal() {
+		resetUser = null;
+		resetError = '';
+	}
+
+	/**
+	 * Submit the new password to the `resetPassword` action.
+	 * @param {string} newPassword
+	 */
+	async function handleResetPassword(newPassword) {
+		if (!resetUser) return;
+
+		isResetting = true;
+		resetError = '';
+
+		const body = new FormData();
+		body.append('userId', resetUser.id);
+		body.append('newPassword', newPassword);
+
+		try {
+			const response = await fetch('?/resetPassword', {
+				method: 'POST',
+				body,
+				headers: { 'x-sveltekit-action': 'true' }
+			});
+			const result = deserialize(await response.text());
+
+			if (result.type === 'success') {
+				resetSuccess = `Password reset for ${resetUser.email}.`;
+				resetUser = null;
+			} else {
+				const failureMessage =
+					result.type === 'failure' && typeof result.data?.error === 'string'
+						? result.data.error
+						: '';
+				resetError = failureMessage || 'Failed to reset password. Please try again.';
+			}
+		} catch {
+			resetError = 'Failed to reset password. Please try again.';
+		}
+
+		isResetting = false;
+	}
+
+	/**
+	 * Submit the Add User form to the `createUser` action.
+	 * @param {{ firstName: string, lastName: string, email: string, password: string }} values
+	 */
+	async function handleCreateUser(values) {
+		isCreating = true;
+		createError = '';
+		createSuccess = '';
+
+		const body = new FormData();
+		for (const [key, value] of Object.entries(values)) body.append(key, value);
+
+		try {
+			const response = await fetch('?/createUser', {
+				method: 'POST',
+				body,
+				headers: { 'x-sveltekit-action': 'true' }
+			});
+			const result = deserialize(await response.text());
+
+			if (result.type === 'success') {
+				createSuccess = `User ${values.email} created.`;
+				signupForm.reset();
+				await invalidateAll();
+			} else {
+				const failureMessage =
+					result.type === 'failure' && typeof result.data?.error === 'string'
+						? result.data.error
+						: '';
+				createError = failureMessage || 'Failed to create user. Please try again.';
+			}
+		} catch {
+			createError = 'Failed to create user. Please try again.';
+		}
+
+		isCreating = false;
+	}
 
 	/**
 	 * Format a date for the "Joined" column.
@@ -42,85 +148,172 @@
 
 <Heading heading="h1">Users</Heading>
 
-<Alert color="red" look="subtle" message={error} />
+<div class="users-layout">
+	<section class="add-user">
+		<Heading heading="h2">Add User</Heading>
+		<Alert color="green" look="subtle" message={createSuccess} />
+		<SignupForm
+			bind:this={signupForm}
+			idPrefix="new-user-"
+			submitLabel="Create User"
+			loadingLabel="Creating…"
+			isLoading={isCreating}
+			error={createError}
+			onSubmit={handleCreateUser}
+		/>
+	</section>
 
-{#if data.users.length === 0}
-	<p class="empty-message">No users found.</p>
-{:else}
-	<table class="users-table">
-		<thead>
-			<tr>
-				<th>Name</th>
-				<th>Email</th>
-				<th>Joined</th>
-				<th>Status</th>
-				<th class="actions-column"><span class="visually-hidden">Actions</span></th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each data.users as user (user.id)}
-				<tr>
-					<td>{user.firstName} {user.lastName}</td>
-					<td>{user.email}</td>
-					<td>{formatDate(user.createdAt)}</td>
-					<td>
-						{#if user.emailVerified}
-							<Badge color="green" size="small" look="subtle" message="Verified" />
-						{:else}
-							<Badge color="yellow" size="small" look="subtle" message="Unverified" />
-						{/if}
-					</td>
-					<td class="actions-column">
-						{#if !user.emailVerified}
-							<form
-								method="POST"
-								action="?/verifyUser"
-								use:enhance={() => {
-									verifyingId = user.id;
-									error = '';
+	<div class="layout-divider" role="separator" aria-orientation="vertical"></div>
 
-									return async ({ result }) => {
-										verifyingId = '';
+	<section class="users-list">
+		<Heading heading="h2">Existing Users</Heading>
+		<Alert color="red" look="subtle" message={error} />
+		<Alert color="green" look="subtle" message={resetSuccess} />
 
-										if (result.type === 'success') {
-											await invalidateAll();
-										} else {
-											const failureMessage =
-												result.type === 'failure' && typeof result.data?.error === 'string'
-													? result.data.error
-													: '';
-											error = failureMessage || 'Failed to verify user. Please try again.';
-										}
-									};
-								}}
-							>
-								<input type="hidden" name="userId" value={user.id} />
-								<button type="submit" class="verify-button" disabled={verifyingId === user.id}>
-									{#if verifyingId === user.id}
-										<Spinner size="sm" inline color="var(--white)" label="Verifying…" showLabel />
-									{:else}
-										Verify
-									{/if}
+		{#if data.users.length === 0}
+			<p class="empty-message">No users found.</p>
+		{:else}
+			<table class="users-table">
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Email</th>
+						<th>Joined</th>
+						<th>Status</th>
+						<th>Password</th>
+						<th class="actions-column"><span class="visually-hidden">Actions</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each data.users as user (user.id)}
+						<tr>
+							<td>{user.firstName} {user.lastName}</td>
+							<td>{user.email}</td>
+							<td>{formatDate(user.createdAt)}</td>
+							<td>
+								{#if user.emailVerified}
+									<Badge color="green" size="small" look="subtle" message="Verified" />
+								{:else}
+									<Badge color="yellow" size="small" look="subtle" message="Unverified" />
+								{/if}
+							</td>
+							<td>
+								<button
+									type="button"
+									class="table-button"
+									aria-label="Reset password for {user.email}"
+									title={user.isAdmin
+										? 'The admin password is managed by SEED_ADMIN_PASSWORD'
+										: undefined}
+									disabled={user.isAdmin}
+									on:click={() => openResetModal(user)}
+								>
+									Reset
 								</button>
-							</form>
-						{/if}
-					</td>
-				</tr>
-			{/each}
-		</tbody>
-	</table>
-{/if}
+							</td>
+							<td class="actions-column">
+								{#if !user.emailVerified}
+									<form
+										method="POST"
+										action="?/verifyUser"
+										use:enhance={() => {
+											verifyingId = user.id;
+											error = '';
+
+											return async ({ result }) => {
+												verifyingId = '';
+
+												if (result.type === 'success') {
+													await invalidateAll();
+												} else {
+													const failureMessage =
+														result.type === 'failure' && typeof result.data?.error === 'string'
+															? result.data.error
+															: '';
+													error = failureMessage || 'Failed to verify user. Please try again.';
+												}
+											};
+										}}
+									>
+										<input type="hidden" name="userId" value={user.id} />
+										<button type="submit" class="table-button" disabled={verifyingId === user.id}>
+											{#if verifyingId === user.id}
+												<Spinner
+													size="sm"
+													inline
+													color="var(--white)"
+													label="Verifying…"
+													showLabel
+												/>
+											{:else}
+												Verify
+											{/if}
+										</button>
+									</form>
+								{/if}
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
+	</section>
+</div>
+
+<ResetUserPasswordModal
+	isOpen={resetUser !== null}
+	user={resetUser}
+	isSaving={isResetting}
+	error={resetError}
+	onSubmit={handleResetPassword}
+	onClose={closeResetModal}
+/>
 
 <style>
-	.empty-message {
+	.users-layout {
+		display: flex;
+		align-items: stretch;
+		gap: 3.6rem;
 		margin-top: 1.8rem;
+	}
+
+	.add-user {
+		flex: 0 0 36rem;
+		max-width: 100%;
+	}
+
+	.users-list {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+
+	.layout-divider {
+		flex: 0 0 1px;
+		background-color: var(--gray-light);
+	}
+
+	@media (max-width: 900px) {
+		.users-layout {
+			flex-direction: column;
+		}
+
+		.add-user {
+			flex-basis: auto;
+			width: 100%;
+		}
+
+		.layout-divider {
+			flex-basis: auto;
+			height: 1px;
+		}
+	}
+
+	.empty-message {
 		color: var(--gray-400);
 	}
 
 	.users-table {
-		margin-top: 1.8rem;
 		width: 100%;
-		max-width: 90rem;
 		border-collapse: collapse;
 		font-size: 1.3rem;
 	}
@@ -147,7 +340,7 @@
 		text-align: right;
 	}
 
-	.verify-button {
+	.table-button {
 		height: 2.8rem;
 		min-width: 6.4rem;
 		padding: 0 1.2rem;
@@ -160,12 +353,12 @@
 		cursor: pointer;
 	}
 
-	.verify-button:disabled {
+	.table-button:disabled {
 		opacity: 0.55;
 		cursor: default;
 	}
 
-	.verify-button:focus-visible {
+	.table-button:focus-visible {
 		outline: 0.2rem solid var(--blue);
 		outline-offset: 0.2rem;
 	}

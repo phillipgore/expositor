@@ -18,6 +18,10 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    // Match the app-wide rule ("6 Character Minimum" in messages.json and the
+    // client/server validation). better-auth defaults to 8, which made 6–7
+    // character passwords pass the app's checks but fail sign-up.
+    minPasswordLength: 6,
   },
   user: {
     // The `user` table requires first_name/last_name (NOT NULL). Declaring

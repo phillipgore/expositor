@@ -16,7 +16,7 @@ const SETTINGS_ID = 'app';
 /**
  * Fetch the settings row, creating it with defaults if it doesn't exist.
  *
- * @returns {Promise<{ id: string, signupsEnabled: boolean, updatedAt: Date }>}
+ * @returns {Promise<{ id: string, signupsEnabled: boolean, passwordResetEnabled: boolean, updatedAt: Date }>}
  */
 export async function getAppSettings() {
 	const rows = await db
@@ -31,7 +31,12 @@ export async function getAppSettings() {
 
 	// Self-heal: create the default row. onConflictDoNothing guards against a
 	// concurrent request creating it first.
-	const defaults = { id: SETTINGS_ID, signupsEnabled: true, updatedAt: new Date() };
+	const defaults = {
+		id: SETTINGS_ID,
+		signupsEnabled: true,
+		passwordResetEnabled: true,
+		updatedAt: new Date()
+	};
 	await db.insert(appSettings).values(defaults).onConflictDoNothing();
 
 	const created = await db
@@ -74,5 +79,39 @@ export async function setSignupsEnabled(enabled) {
 	await db
 		.update(appSettings)
 		.set({ signupsEnabled: enabled, updatedAt: new Date() })
+		.where(eq(appSettings.id, SETTINGS_ID));
+}
+
+/**
+ * Whether password reset is currently allowed.
+ *
+ * On any error this fails OPEN (returns true) so a transient database issue
+ * can never lock users out of recovering their accounts.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function getPasswordResetEnabled() {
+	try {
+		const settings = await getAppSettings();
+		return settings.passwordResetEnabled;
+	} catch (error) {
+		console.error('❌ Error reading passwordResetEnabled app setting:', error);
+		return true;
+	}
+}
+
+/**
+ * Enable or disable password reset.
+ *
+ * @param {boolean} enabled
+ * @returns {Promise<void>}
+ */
+export async function setPasswordResetEnabled(enabled) {
+	// Ensure the row exists first (self-healing).
+	await getAppSettings();
+
+	await db
+		.update(appSettings)
+		.set({ passwordResetEnabled: enabled, updatedAt: new Date() })
 		.where(eq(appSettings.id, SETTINGS_ID));
 }

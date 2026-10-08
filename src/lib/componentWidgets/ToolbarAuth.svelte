@@ -33,14 +33,19 @@
 	import { getAuthToolbarConfig } from '$lib/utils/toolbarConfig.js';
 	import { page } from '$app/stores';
 
-	// Get toolbar configuration. When the Back Office "New User Sign Ups"
-	// setting is off (exposed via the root layout's `signupsEnabled` page data),
-	// the Sign Up button is filtered out of the toolbar.
+	// Get toolbar configuration. When the Back Office "New User Sign Ups" or
+	// "Password Reset" settings are off (exposed via the root layout's
+	// `signupsEnabled` / `passwordResetEnabled` page data), the matching Sign Up
+	// or Password button is filtered out of the toolbar.
+	$: hiddenHrefs = [
+		...($page.data.signupsEnabled === false ? ['/signup'] : []),
+		...($page.data.passwordResetEnabled === false ? ['/password'] : [])
+	];
 	$: toolbarConfig = getAuthToolbarConfig().map((item) => {
-		if (item.type === 'section' && $page.data.signupsEnabled === false) {
+		if (item.type === 'section' && hiddenHrefs.length > 0) {
 			return {
 				...item,
-				items: item.items.filter((button) => button.href !== '/signup')
+				items: item.items.filter((button) => !hiddenHrefs.includes(button.href))
 			};
 		}
 		return item;

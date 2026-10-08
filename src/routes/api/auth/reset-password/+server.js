@@ -1,9 +1,10 @@
 import { json } from '@sveltejs/kit';
+import { getPasswordResetEnabled } from '$lib/server/appSettings.js';
 import { verifyPasswordResetToken, deletePasswordResetToken } from '$lib/server/verification.js';
 import { db } from '$lib/server/db/index.js';
-import { account } from '$lib/server/db/schema.js';
+import { user } from '$lib/server/db/schema.js';
+import { setUserPassword } from '$lib/server/passwords.js';
 import { eq } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
 import messages from '$lib/data/messages.json';
 
 /**
@@ -11,6 +12,14 @@ import messages from '$lib/data/messages.json';
  * @type {import('./$types').RequestHandler}
  */
 export const POST = async ({ request }) => {
+	// Enforce the Back Office "Password Reset" setting at the API level.
+	if (!(await getPasswordResetEnabled())) {
+		return json(
+			{ success: false, error: 'Password reset is currently disabled.' },
+			{ status: 403 }
+		);
+	}
+
 	try {
 		const { token, newPassword } = await request.json();
 
@@ -29,17 +38,21 @@ export const POST = async ({ request }) => {
 			return json({ success: false, error: result.error || 'Invalid token' }, { status: 400 });
 		}
 
-		// Hash the new password
-		const hashedPassword = await bcrypt.hash(newPassword, 10);
+		// Look up the user by email (credential accounts are keyed by user id,
+		// not email).
+		const users = await db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.email, result.email))
+			.limit(1);
 
-		// Update the password in the account table
-		await db
-			.update(account)
-			.set({
-				password: hashedPassword,
-				updatedAt: new Date()
-			})
-			.where(eq(account.accountId, result.email));
+		if (users.length === 0) {
+			return json({ success: false, error: 'Invalid token' }, { status: 400 });
+		}
+
+		// Hash with better-auth's hasher (so sign-in works) and sign the user out
+		// everywhere, since their credentials changed.
+		await setUserPassword(users[0].id, newPassword, { revokeSessions: true });
 
 		// Delete the used token
 		await deletePasswordResetToken(token);

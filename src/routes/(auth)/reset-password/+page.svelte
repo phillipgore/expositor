@@ -6,7 +6,7 @@
 	import Alert from '$lib/componentElements/Alert.svelte';
 	import Button from '$lib/componentElements/buttons/Button.svelte';
 	import Spinner from '$lib/componentElements/Spinner.svelte';
-	import InputField from '$lib/componentWidgets/InputField.svelte';
+	import NewPasswordFields from '$lib/componentWidgets/forms/NewPasswordFields.svelte';
 	import FormButtonBar from '$lib/componentElements/FormButtonBar.svelte';
 	import InstructionText from '$lib/componentElements/InstructionText.svelte';
 	import StatusMessage from '$lib/componentElements/StatusMessage.svelte';
@@ -15,17 +15,13 @@
 	let token = '';
 	let email = '';
 	let newPassword = '';
-	let confirmPassword = '';
+	let passwordValid = false;
 	let isLoading = false;
 	let error = '';
 	let successMessage = '';
 	let isValidatingToken = true;
 	let tokenValid = false;
 	let formSubmitted = false;
-
-	// Reactive validation messages
-	$: passwordWarning = newPassword && newPassword.length < 6 ? messages.validation.passwordTooShort : '';
-	$: confirmPasswordWarning = confirmPassword && newPassword !== confirmPassword ? messages.validation.passwordMismatch : '';
 
 	onMount(async () => {
 		token = $page.url.searchParams.get('token') || '';
@@ -65,13 +61,8 @@
 		event.preventDefault();
 		formSubmitted = true;
 		
-		// Check if all fields are filled
-		if (!newPassword || !confirmPassword) {
-			return;
-		}
-
-		// Check for validation warnings
-		if (passwordWarning || confirmPasswordWarning) {
+		// All fields filled and passing validation?
+		if (!passwordValid) {
 			return;
 		}
 
@@ -136,30 +127,11 @@
 	{:else}
 		<Alert color="red" look="subtle" message={error} />
 
-		<InputField
-			label="New Password"
-			id="newPassword"
-			name="newPassword"
-			type="password"
-			bind:value={newPassword}
-			isDisabled={isLoading}
-			required={true}
-			requiredMode="onError"
-			hasError={formSubmitted && !newPassword}
-			warningMessage={passwordWarning}
-		/>
-
-		<InputField
-			label="Confirm Password"
-			id="confirmPassword"
-			name="confirmPassword"
-			type="password"
-			bind:value={confirmPassword}
-			isDisabled={isLoading}
-			required={true}
-			requiredMode="onError"
-			hasError={formSubmitted && !confirmPassword}
-			warningMessage={confirmPasswordWarning}
+		<NewPasswordFields
+			bind:newPassword
+			bind:isValid={passwordValid}
+			{isLoading}
+			{formSubmitted}
 		/>
 
 		<FormButtonBar>

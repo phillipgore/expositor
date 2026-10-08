@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { getPasswordResetEnabled } from '$lib/server/appSettings.js';
 import { verifyPasswordResetToken } from '$lib/server/verification.js';
 import messages from '$lib/data/messages.json';
 
@@ -7,6 +8,14 @@ import messages from '$lib/data/messages.json';
  * @type {import('./$types').RequestHandler}
  */
 export const POST = async ({ request }) => {
+	// Enforce the Back Office "Password Reset" setting at the API level.
+	if (!(await getPasswordResetEnabled())) {
+		return json(
+			{ success: false, error: 'Password reset is currently disabled.' },
+			{ status: 403 }
+		);
+	}
+
 	try {
 		const { token } = await request.json();
 

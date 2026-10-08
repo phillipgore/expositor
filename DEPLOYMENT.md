@@ -84,7 +84,11 @@ psql "$DATABASE_URL" -At -c "
   union all
   select 'color.on:     ' || coalesce(string_agg(table_name, ','), 'NONE')
     from information_schema.columns
-   where table_name in ('passage_section','passage_segment') and column_name='color';"
+   where table_name in ('passage_section','passage_segment') and column_name='color'
+  union all
+  select 'pw_reset:     ' || count(*)::text
+    from information_schema.columns
+   where table_name='app_settings' and column_name='password_reset_enabled';"
 ```
 
 | Result | Means |
@@ -94,6 +98,7 @@ psql "$DATABASE_URL" -At -c "
 | `study_series: 1` and `study.series: series_id,series_order` | `0046_add_study_series.sql` applied |
 | `user.chapters: chapters_visible,document_chapters_visible` | `0047_add_chapters_visible.sql` applied |
 | `color.on: passage_segment` | `0053_move_color_to_segment.sql` applied (`passage_section` listed ⇒ not applied; run `ENV_FILE=.env.production node scripts/run-migration-53.js`) |
+| `pw_reset: 1` | `0055_add_password_reset_setting.sql` applied (`0` ⇒ run `ENV_FILE=.env.production node scripts/run-migration-55.js`) |
 
 Extend the query with a new probe line as later migrations land.
 
