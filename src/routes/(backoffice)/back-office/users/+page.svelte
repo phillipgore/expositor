@@ -326,9 +326,16 @@
 		vertical-align: middle;
 	}
 
+	/* Size/weight match the form field labels (componentElements/Label.svelte). */
 	.users-table th {
-		font-weight: 600;
+		font-size: 1.4rem;
+		font-weight: 500;
 		color: var(--gray-darker);
+		background-color: var(--gray-light);
+	}
+
+	.users-table tbody tr:hover {
+		background-color: var(--gray-lighter);
 	}
 
 	.users-table td :global(.badge) {
