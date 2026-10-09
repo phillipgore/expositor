@@ -5,7 +5,8 @@
 	import { slide } from 'svelte/transition';
 	import Input from '$lib/componentElements/Input.svelte';
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
-	import { toolbarState, setActiveSegment, setActiveHeading, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey } from '$lib/stores/toolbar.js';
+	import { toolbarState, setActiveSegment, setActiveHeading, setActiveHeadings, setHeadingOrNoteEditorActive, clearHeadingOrNoteEditorActiveKey } from '$lib/stores/toolbar.js';
+	import { segmentHeadingFlags } from '$lib/utils/studyHeadings.js';
 
 
 
@@ -439,6 +440,34 @@
 		event?.stopPropagation();
 		event?.preventDefault();
 		if (!headingId) return;
+
+		// Command/Ctrl held: toggle this heading in/out of the multi-selection, just like
+		// Cmd-click does for Columns, Sections and Segments.
+		if (event && (event.metaKey || event.ctrlKey)) {
+			const current = $toolbarState.hasActiveHeading ? [...($toolbarState.activeHeadingIds ?? [])] : [];
+			const nextIds = current.includes(headingId)
+				? current.filter((id) => id !== headingId)
+				: [...current, headingId];
+			const studyHeadings = $toolbarState.studyHeadings ?? [];
+			const typeOf = (/** @type {string} */ id) =>
+				id === headingId ? headingType : studyHeadings.find((h) => h.id === id)?.type ?? null;
+			const levels = new Set(nextIds.map(typeOf));
+			const sharedType = /** @type {'one'|'two'|'three'|null} */ (
+				levels.size === 1 && !levels.has(null) ? typeOf(nextIds[0]) : null
+			);
+			let singleOptions = {};
+			if (nextIds.length === 1) {
+				if (nextIds[0] === headingId) {
+					singleOptions = { hasHeadingOne, hasHeadingTwo, hasHeadingThree };
+				} else {
+					const remaining = studyHeadings.find((h) => h.id === nextIds[0]);
+					if (remaining) singleOptions = segmentHeadingFlags(studyHeadings, remaining.segmentId);
+				}
+			}
+			setActiveHeadings(nextIds, sharedType, singleOptions);
+			return;
+		}
+
 		if (isHeadingSelected && !isMultiHeadingSelection) {
 			setActiveHeading(false);
 		} else {
