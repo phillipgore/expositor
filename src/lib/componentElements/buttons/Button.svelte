@@ -500,9 +500,18 @@
 		fill: var(--blue);
 	}
 
+	/* Grouped (switcher) buttons: unselected state is a darker blue near the toolbar color */
+	button.toolbar-blue.grouped:not(.active) {
+		background-color: color-mix(in srgb, var(--blue) 75%, var(--white));
+	}
+
+	button.toolbar-blue.grouped:not(.active) :global(.icon path) {
+		fill: var(--white);
+	}
+
 	button.toolbar-blue.active:enabled,
 	a.toolbar-blue.active {
-		background-color: var(--blue-lighter);
+		background-color: var(--white);
 		color: var(--blue);
 	}
 
