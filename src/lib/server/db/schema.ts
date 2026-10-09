@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, real, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, real, index, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -282,6 +282,36 @@ export const passage = pgTable('passage', {
 	// complete cache key — invalidated on range change in the edit flow.
 	cachedText: text('cached_text'),
 	textCachedAt: timestamp('text_cached_at'),
+	/**
+	 * ── Text provenance (migration 0056) ──
+	 * Describes the text this passage's word ids were DERIVED from, so a future change to our text
+	 * processing or a translation revision can be detected per verse and structure re-anchored.
+	 * Rules: `$lib/server/textProvenance.js`. NULL = recorded before provenance existed.
+	 *
+	 * ⚠️ Never cleared with `cachedText`. Eviction removes scripture text for the licence; these
+	 * describe the user's word ids and must outlive it. Fingerprints are hashes, not text.
+	 *
+	 * ⚠️ Invariant: these may only change in the same step that re-anchors this passage's
+	 * structure. Until re-anchoring exists, a refetch that differs is LOGGED in `textDrift` and the
+	 * recorded baseline is left alone.
+	 */
+	/** Where the text came from, e.g. 'esv-api:v3', 'net-labs:para'. */
+	textSource: text('text_source'),
+	/** TEXT_RULES_VERSION of the cleaning/splitting code that produced the word ids. */
+	textRulesVersion: integer('text_rules_version'),
+	/** When the baseline below was recorded. */
+	textFetchedAt: timestamp('text_fetched_at'),
+	/**
+	 * Per verse: { "PS-001-004": { raw, words, n } } — `raw` hashes the provider's verse text,
+	 * `words` hashes the word list we derived from it, `n` is the word count. Raw same + words
+	 * different = our processing changed; raw different = the translation changed.
+	 */
+	verseFingerprints: jsonb('verse_fingerprints'),
+	/** Verses whose refetched text no longer matches the baseline: { detectedAt, rulesVersion, verses: [...] } */
+	textDrift: jsonb('text_drift'),
+	/** Words around `fromWord` / `toWord` (mid-verse part bounds). Same shape as anchorContext. */
+	fromWordAnchor: jsonb('from_word_anchor'),
+	toWordAnchor: jsonb('to_word_anchor'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull()
@@ -296,6 +326,12 @@ export const passageColumn = pgTable('passage_column', {
 		.notNull()
 		.references(() => passage.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
+	/**
+	 * Words around `startingWordId` when it was last set (migration 0056), so the start point can be
+	 * found again if word positions shift. { word, before: [..2], after: [..2], rulesVersion }.
+	 * NULL = not yet recorded. See `$lib/server/textProvenance.js`.
+	 */
+	anchorContext: jsonb('anchor_context'),
 	/**
 	 * Extra horizontal spacing (in CSS px) ADDED to the gap on this column's LEADING
 	 * (left) side, beyond its default gap. NULL/0 = default spacing. Used to push a
@@ -331,6 +367,12 @@ export const passageSection = pgTable('passage_section', {
 		.notNull()
 		.references(() => passageColumn.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
+	/**
+	 * Words around `startingWordId` when it was last set (migration 0056), so the start point can be
+	 * found again if word positions shift. { word, before: [..2], after: [..2], rulesVersion }.
+	 * NULL = not yet recorded. See `$lib/server/textProvenance.js`.
+	 */
+	anchorContext: jsonb('anchor_context'),
 	// NOTE: color lives on passage_segment (migration 0053). A section's color is
 	// the color of its segments; recoloring a section recolors all of them.
 	/**
@@ -358,6 +400,12 @@ export const passageSegment = pgTable('passage_segment', {
 		.notNull()
 		.references(() => passageSection.id, { onDelete: 'cascade' }),
 	startingWordId: text('starting_word_id').notNull(),
+	/**
+	 * Words around `startingWordId` when it was last set (migration 0056), so the start point can be
+	 * found again if word positions shift. { word, before: [..2], after: [..2], rulesVersion }.
+	 * NULL = not yet recorded. See `$lib/server/textProvenance.js`.
+	 */
+	anchorContext: jsonb('anchor_context'),
 	note: text('note'),
 	commentary: text('commentary'),
 	/**

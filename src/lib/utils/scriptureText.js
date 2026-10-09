@@ -9,6 +9,19 @@
  */
 
 /**
+ * Version of the text-processing rules that turn provider text into words (and so word ids).
+ *
+ * ⚠️ BUMP THIS for any change in this file, `wrapWords` or `normalizeESVFormatting` that can alter
+ * which words a verse produces or their order, and keep the previous rules callable (e.g. as a
+ * `…V1` function) so existing structure can be re-anchored exactly. Recorded per passage in
+ * `passage.textRulesVersion`; see `$lib/server/textProvenance.js`.
+ *
+ * 1 — 2026-10-09: NET line tags become spaces, acrostic headings dropped; ESV psalm titles start
+ *     verse 1, Psalm 119 stanza names dropped. (Earlier rules were never versioned.)
+ */
+export const TEXT_RULES_VERSION = 1;
+
+/**
  * Block-level tags. The NET marks every poetic line with `<p class="poetry">`, frequently
  * with NO whitespace before it (`wicked!<p class="poetry">Instead`), so these must become a
  * space when stripped or the two lines fuse into one "word".

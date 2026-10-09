@@ -10,6 +10,21 @@ import {
 	splitRangeIntoPassages
 } from '$lib/utils/translationLimits.js';
 import { cleanNETVerseText, isNETParagraphStart, placeESVPsalmHeadings } from '$lib/utils/scriptureText.js';
+import { splitESVRawVerses, verseKey } from '$lib/utils/textProvenance.js';
+import translationsData from '$lib/data/translations.json';
+
+/**
+ * Provenance label recorded on each passage (`passage.textSource`): provider, API shape, and the
+ * edition from translations.json. See `$lib/utils/textProvenance.js`.
+ * @param {string} translation
+ * @param {string} api
+ */
+function textSourceFor(translation, api) {
+	const edition = translationsData.find((t) => t.id === translation)?.textEdition ?? 'unknown';
+	return `${translation}:${edition}:${api}`;
+}
+const ESV_SOURCE = 'api.esv.org/v3/text';
+const NET_SOURCE = 'labs.bible.org/json-para';
 
 
 /**
@@ -217,7 +232,7 @@ function normalizeESVFormatting(text, range, bookAbbr) {
  * Fetch passage text from ESV API
  * @param {string} reference - Passage reference (e.g., "John 3:16-17")
  * @param {Object} passage - Passage object from database
- * @returns {Promise<{text: string, error?: string}>}
+ * @returns {Promise<{text: string, error?: string, rawByVerse?: Record<string, string>, textSource?: string}>}
  */
 async function fetchESVPassage(reference, passage) {
 	const token = ESV_API_TOKEN;
@@ -348,13 +363,17 @@ async function fetchESVPassage(reference, passage) {
 			return { text: '', error: 'Invalid book name' };
 		}
 
+		// Provider text per verse, captured BEFORE our processing so its fingerprint describes
+		// what Crossway sent, not what we made of it (text provenance).
+		const rawByVerse = splitESVRawVerses(text, passage.fromChapter, bookAbbr);
+
 		// Psalm titles -> start of verse 1; Psalm 119 stanza names removed.
 		text = placeESVPsalmHeadings(text, passage.bookName);
 
 		// Normalize ESV formatting to match NET format
 		text = normalizeESVFormatting(text, passage, bookAbbr);
 
-		return { text: text.trim() };
+		return { text: text.trim(), rawByVerse, textSource: textSourceFor('esv', ESV_SOURCE) };
 	} catch (error) {
 		console.error('Error fetching ESV passage:', error);
 		return { text: '', error: error.message };
@@ -364,7 +383,7 @@ async function fetchESVPassage(reference, passage) {
 /**
  * Fetch passage text from NET API
  * @param {string} reference - Passage reference (e.g., "John 3:16-17")
- * @returns {Promise<{text: string, error?: string}>}
+ * @returns {Promise<{text: string, error?: string, rawByVerse?: Record<string, string>, textSource?: string}>}
  */
 async function fetchNETPassage(reference) {
 	const baseUrl = NET_API_BASE_URL || 'https://labs.bible.org/api/';
@@ -400,6 +419,10 @@ async function fetchNETPassage(reference) {
 			console.error('Could not find book abbreviation for:', bookName);
 			return { text: '', error: 'Invalid book name' };
 		}
+
+		/** @type {Record<string, string>} provider text per verse, for text provenance */
+		const rawByVerse = {};
+		for (const v of data) rawByVerse[verseKey(bookAbbr, v.chapter, v.verse)] = v.text;
 
 		// Format JSON verses to match the current display format
 		// Each verse object has: { bookname, chapter, verse, text }
@@ -441,7 +464,7 @@ async function fetchNETPassage(reference) {
 			})
 			.join(' ');
 
-		return { text: formattedText.trim() };
+		return { text: formattedText.trim(), rawByVerse, textSource: textSourceFor('net', NET_SOURCE) };
 	} catch (error) {
 		console.error('Error fetching NET passage:', error);
 		return { text: '', error: error.message };
@@ -453,7 +476,7 @@ async function fetchNETPassage(reference) {
  *
  * @param {Object} range - Passage-shaped object: { testament, bookId, bookName, fromChapter, fromVerse, toChapter, toVerse }
  * @param {string} translation - Translation ID (e.g., 'esv', 'net')
- * @returns {Promise<{text: string, error?: string}>}
+ * @returns {Promise<{text: string, error?: string, rawByVerse?: Record<string, string>, textSource?: string}>}
  */
 async function fetchRange(range, translation) {
 	const reference = buildPassageReference(range);
@@ -496,7 +519,7 @@ async function fetchRange(range, translation) {
  *
  * @param {Object} passage - Passage object from database
  * @param {string} translation - Translation ID (e.g., 'esv', 'net')
- * @returns {Promise<{reference: string, text: string, error?: string}>}
+ * @returns {Promise<{reference: string, text: string, error?: string, rawByVerse?: Record<string, string>, textSource?: string}>}
  */
 export async function fetchPassageText(passage, translation) {
 	// The reference always describes the WHOLE passage, whatever the chunking, so
@@ -531,6 +554,10 @@ export async function fetchPassageText(passage, translation) {
 
 	/** @type {string[]} */
 	const parts = [];
+	/** @type {Record<string, string>} */
+	const rawByVerse = {};
+	/** @type {string|undefined} */
+	let textSource;
 
 	for (const chunk of chunks) {
 		// splitRangeIntoPassages speaks `book`; the fetchers and the DB row speak
@@ -561,12 +588,14 @@ export async function fetchPassageText(passage, translation) {
 		}
 
 		parts.push(result.text);
+		Object.assign(rawByVerse, result.rawByVerse);
+		textSource ??= result.textSource;
 	}
 
 	// Join with a space: each part is a run of complete `<span class="verse">`
 	// elements, so a separator keeps the boundary consistent with how verses are
 	// joined inside a single response.
-	return { reference, text: parts.join(' ') };
+	return { reference, text: parts.join(' '), rawByVerse, textSource };
 }
 
 

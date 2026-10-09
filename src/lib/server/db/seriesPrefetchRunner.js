@@ -25,9 +25,10 @@
 
 import { db } from './index.js';
 import { passage } from './schema.js';
-import { eq, inArray, isNull, and } from 'drizzle-orm';
+import { inArray, isNull, and } from 'drizzle-orm';
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 import { enforceCacheLimit } from './cacheEvictionRunner.js';
+import { cacheFetchedPassage } from './textProvenanceDb.js';
 
 /**
  * Fetch and cache the text of a prefetch target.
@@ -59,11 +60,7 @@ export async function warmAdjacentPart(target, translation, userId) {
 				// Guarded on `isNull` again: a concurrent write between the read above and this update
 				// would otherwise be overwritten by our now-stale fetch. The condition makes the write a
 				// no-op in that race rather than a clobber.
-				await db
-					.update(passage)
-					.set({ cachedText: result.text, textCachedAt: new Date() })
-					.where(and(eq(passage.id, passageRow.id), isNull(passage.cachedText)));
-				warmed += 1;
+				if (await cacheFetchedPassage(passageRow, result, { onlyIfUncached: true })) warmed += 1;
 			}
 		});
 

@@ -15,6 +15,7 @@ import { planSeriesParts } from '$lib/utils/seriesPlanning.js';
 
 import { fetchPassagesTextWithCache } from '$lib/server/bibleApi.js';
 import { enforceCacheLimit } from '$lib/server/db/cacheEvictionRunner.js';
+import { cacheFetchedPassage } from '$lib/server/db/textProvenanceDb.js';
 
 /**
  * @typedef {Object} PassageData
@@ -385,10 +386,7 @@ export const actions = {
 			try {
 				await fetchPassagesTextWithCache(passageValues, translation.toString(), {
 					onFetched: async (passageRow, result) => {
-						await db
-							.update(passage)
-							.set({ cachedText: result.text, textCachedAt: new Date() })
-							.where(eq(passage.id, passageRow.id));
+						await cacheFetchedPassage(passageRow, result);
 						cacheFilled = true;
 					}
 				});

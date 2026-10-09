@@ -8,13 +8,19 @@
  * ⚠️ Re-processed text can shift position-derived word ids in changed verses, so markup stored
  * against those ids (passage_column / section / segment) may land on a neighbouring word.
  *
+ * Selects passages whose cached text was NOT produced by the current text rules
+ * (`passage.text_rules_version` ≠ TEXT_RULES_VERSION, including NULL = cached before provenance
+ * existed). Re-fetching records provenance and fingerprints for them (migration 0056). Passages
+ * already current are left alone. Provenance columns are never cleared here.
+ *
  * Usage:
- *   node scripts/clear-passage-text-cache.js                 # dry run: NET + ESV Psalms
+ *   node scripts/clear-passage-text-cache.js                 # dry run
  *   node scripts/clear-passage-text-cache.js --apply
  *   DOTENV_CONFIG_PATH=.env.production node scripts/clear-passage-text-cache.js --apply
  */
 import postgres from 'postgres';
 import dotenv from 'dotenv';
+import { TEXT_RULES_VERSION } from '../src/lib/utils/scriptureText.js';
 
 dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || '.env', quiet: true });
 
@@ -26,17 +32,19 @@ async function main() {
 	const sql = postgres(process.env.DATABASE_URL);
 
 	try {
-		// Affected by the 2026-10-09 text fixes: every NET passage (poetry line tags, paragraphs,
-		// acrostic headings) and ESV Psalms (titles, Psalm 119 stanza names).
+		// Anything not produced by the current rules. (The 2026-10-09 text fixes predate versioning,
+		// so every passage cached before then has a NULL version and is selected.)
 		const rows = await sql`
 			SELECT p.id, s.title, s.translation, p.book_name, p.from_chapter, p.from_verse,
 			       p.to_chapter, p.to_verse
 			FROM passage p JOIN study s ON s.id = p.study_id
 			WHERE p.cached_text IS NOT NULL
-			  AND (s.translation = 'net' OR (s.translation = 'esv' AND p.book_name ILIKE 'psalm%'))
+			  AND p.text_rules_version IS DISTINCT FROM ${TEXT_RULES_VERSION}
 			ORDER BY s.title`;
 
-		console.log(`${apply ? 'Clearing' : '[dry run] Would clear'} ${rows.length} cached passage(s) on ${host}:`);
+		console.log(
+			`${apply ? 'Clearing' : '[dry run] Would clear'} ${rows.length} cached passage(s) on ${host}:`
+		);
 		for (const r of rows) {
 			console.log(
 				`  - ${r.title} — ${r.book_name} ${r.from_chapter}:${r.from_verse}-${r.to_chapter}:${r.to_verse} [${r.translation.toUpperCase()}]`

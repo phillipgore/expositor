@@ -6,6 +6,8 @@
 		"language": "en",
 		"publisher": "Crossway",
 		"yearPublished": 2001,
+		"textEdition": "2025",
+		"textEditionNote": "Edition the API serves, recorded on each passage as provenance (passage.textSource). Checked 2026-10-09: Genesis 3:16 returns 'for your husband, and he shall rule', which is the 2025 text edition (announced Feb 2025: 68 words in 42 verses) and rules out the 2016 text ('contrary to ... but'). That verse reverted to the 2001 wording, so on its own it does not distinguish 2025 from 2001. Crossway changes the served text without an API version change: update this when an edition is announced. Per-verse fingerprints detect a change regardless.",
 		"api": {
 			"baseUrl": null,
 			"baseUrlEnvVar": "ESV_API_BASE_URL",
@@ -139,6 +141,8 @@
 		"language": "en",
 		"publisher": "Biblical Studies Press",
 		"yearPublished": 1996,
+		"textEdition": "2019",
+		"textEditionNote": "Edition the API serves, recorded on each passage as provenance (passage.textSource). From the required copyright line (©1996, 2019). labs.bible.org does not report an edition; per-verse fingerprints detect a change regardless.",
 		"api": {
 			"baseUrl": null,
 			"baseUrlEnvVar": "NET_API_BASE_URL",

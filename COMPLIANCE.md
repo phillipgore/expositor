@@ -1130,3 +1130,27 @@ It clones rather than duplicating the legal text so the two copies cannot drift.
    claim in it turns out to be wrong, correct it _in place with the correction visible_
    rather than silently. §0, §1.5, §3 and §5 are all more useful for showing their own
    errors than they would be if the errors had simply been deleted.
+
+## 7. Text provenance: what is stored beyond the cache (added 2026-10-09)
+
+Migration 0056 stores data so that a user's structure can be re-anchored if our text processing
+changes or a translation is revised (`src/lib/utils/textProvenance.js`). None of it is cleared by
+cache eviction, by design: it describes the text the user's word ids were built on.
+
+| Stored                                                                                        | Is it Scripture text?                                                                      | Volume                                           |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `passage.text_source`, `text_rules_version`, `text_fetched_at`                                | No (labels)                                                                                | 3 values per passage                             |
+| `passage.verse_fingerprints`                                                                  | **No.** Truncated SHA-256 hashes plus a word count; the text cannot be recovered from them | One entry per verse                              |
+| `passage.text_drift`                                                                          | No (the same hashes)                                                                       | Only verses that changed                         |
+| `anchor_context` on column / section / segment; `passage.from_word_anchor` / `to_word_anchor` | **Yes, a few words.** The word at each start point and up to 2 on each side                | At most 5 words per start point the user created |
+
+**Position.** Hashes are not text and do not count toward the 500-verse / half-book storage cap.
+Anchor context is a small amount of text: at most 5 words per user-created start point, kept
+only for that function. It is not a copy of a passage, cannot be assembled into one in practice
+(fragments sit only at the user's own boundaries), and is never displayed or exported. Our
+reading is that it does not amount to "locally storing" verses in the clause's sense. Revisit
+this if a user can create start points densely enough for the fragments to cover a verse
+wholesale, or if Crossway's terms say anything more specific.
+
+⚠️ Do not extend this to storing full old verse text for comparison without revisiting §5 item 1:
+that _would_ count toward the cap.

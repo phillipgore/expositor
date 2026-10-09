@@ -21,6 +21,7 @@ import { warmAdjacentPart } from '$lib/server/db/seriesPrefetchRunner.js';
 import { enforceCacheLimit } from '$lib/server/db/cacheEvictionRunner.js';
 import { resolveStructureOwners } from '$lib/server/db/structureOwners.js';
 import { clipPassageHtml } from '$lib/utils/passageText.js';
+import { cacheFetchedPassage, recordAnchorContexts } from '$lib/server/db/textProvenanceDb.js';
 
 
 
@@ -336,10 +337,8 @@ export async function load({ params, request, depends, url }) {
 			const endText = perfTimer(`  └ passage text fetch`);
 			let cacheFilled = false;
 			const onFetched = async (/** @type {any} */ passageRow, /** @type {any} */ result) => {
-				await db
-					.update(passage)
-					.set({ cachedText: result.text, textCachedAt: new Date() })
-					.where(eq(passage.id, passageRow.id));
+				// Text and its provenance are written together (textProvenanceDb.js).
+				await cacheFetchedPassage(passageRow, result);
 				cacheFilled = true;
 			};
 			// One fetch per translation (a series normally shares one, so usually one call).
@@ -507,6 +506,21 @@ export async function load({ params, request, depends, url }) {
 				};
 			});
 			endStructure();
+
+			// Record the words around each start point that lacks them (text provenance), using the
+			// UNCLIPPED text already in hand. Not awaited: it never changes what this page shows, and
+			// rows already recorded are skipped, so steady-state loads write nothing.
+			void (async () => {
+				for (let i = 0; i < contentPassages.length; i++) {
+					const p = contentPassages[i];
+					const html = passagesWithText[i]?.text;
+					if (!p || !html || passagesWithText[i]?.error) continue;
+					const columns = columnsByPassage.get(p.id) ?? [];
+					const sections = columns.flatMap((c) => c.sections);
+					const segments = sections.flatMap((s) => s.segments);
+					await recordAnchorContexts(p, html, { columns, sections, segments });
+				}
+			})();
 
 
 			// Query segment connections.
