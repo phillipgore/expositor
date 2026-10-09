@@ -4362,9 +4362,9 @@
 	.doc-selector {
 		box-sizing: border-box;
 		position: absolute;
-		left: -2.9rem;
-		width: 2rem;
-		height: 2rem;
+		left: -2.7rem;
+		width: 1.8rem;
+		height: 1.8rem;
 		padding: 0.3rem;
 		border: 0.1rem solid var(--gray-400);
 		background-color: transparent;
@@ -4395,7 +4395,7 @@
 	.doc-selector-column {
 		border-radius: 0.4rem;
 		top: 50%;
-		transform: translateY(-50%);
+		transform: translateY(calc(-50% + 0.2rem));
 	}
 
 

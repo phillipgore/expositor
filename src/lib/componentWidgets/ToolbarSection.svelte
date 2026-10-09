@@ -63,7 +63,7 @@
 		content: " ";
 		width: 2.8rem;
 		position: absolute;
-		left: -2.9rem;
+		left: -2.7rem;
 		top: 0;
 		overflow: hidden;
 		gap: 0.3rem;
@@ -74,8 +74,8 @@
 	   --section-dark CSS variable cascaded from the parent .section element. */
 	.section-radio {
 		box-sizing: border-box;
-		width: 2.0rem;
-		height: 2.0rem;
+		width: 1.8rem;
+		height: 1.8rem;
 		padding: 0.3rem;
 		border-radius: 50%;
 		border: 0.1rem solid var(--section-dark);

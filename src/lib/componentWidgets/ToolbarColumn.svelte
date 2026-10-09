@@ -83,8 +83,8 @@
 		content: " ";
 		width: 2.8rem;
 		position: absolute;
-		left: -2.7rem;
-		top: -2.5rem;
+		left: -2.5rem;
+		top: -2.3rem;
 		overflow: hidden;
 		gap: 0.3rem;
 		z-index: 11;
@@ -94,8 +94,8 @@
 	   section's color name and passed in via the --control-color variable. */
 	.column-checkbox {
 		box-sizing: border-box;
-		width: 2.0rem;
-		height: 2.0rem;
+		width: 1.8rem;
+		height: 1.8rem;
 		padding: 0.3rem;
 		border-radius: 0.4rem;
 		border: 0.1rem solid var(--control-color);
