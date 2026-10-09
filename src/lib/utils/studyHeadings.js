@@ -61,24 +61,54 @@ export function segmentHeadingFlags(headings, segmentId) {
 }
 
 /**
- * Split the selected headings into those that can be converted to `targetType` and those
- * that must be skipped because their segment already holds a heading at that level (a
- * segment may hold only one heading per level).
+ * Plan a one-step level shift of the selected headings (Markup menu → Promote / Demote
+ * Heading). 'up' promotes toward Heading One (three→two, two→one); 'down' demotes toward
+ * Heading Three (one→two, two→three).
+ *
+ * A heading is NOT movable when it is already at the end of the range in that direction
+ * (those are simply ignored), or when its segment already holds a heading at the target
+ * level (those are reported as `skipped`). A segment may hold only one heading per level, so
+ * within a segment the headings nearest the target end move first and free up their level
+ * for the next one — e.g. a segment with Two and Three, both selected, promotes to One and
+ * Two. Each planned move is therefore safe to apply in the returned order.
  * @param {StudyHeading[]} headings - Every heading in the study
  * @param {string[]} selectedIds
- * @param {HeadingType} targetType
- * @returns {{ convertible: StudyHeading[], skipped: StudyHeading[] }}
+ * @param {'up'|'down'} direction
+ * @returns {{ movable: { heading: StudyHeading, targetType: HeadingType }[], skipped: StudyHeading[] }}
  */
-export function planHeadingConversion(headings, selectedIds, targetType) {
-	const selected = new Set(selectedIds);
-	const convertible = [];
+export function planHeadingShift(headings, selectedIds, direction) {
+	const selected = new Set(selectedIds ?? []);
+	const step = direction === 'up' ? -1 : 1;
+	/** @type {{ heading: StudyHeading, targetType: HeadingType }[]} */
+	const movable = [];
+	/** @type {StudyHeading[]} */
 	const skipped = [];
-	for (const h of headings) {
-		if (!selected.has(h.id) || h.type === targetType) continue;
-		const conflict = headings.some(
-			(other) => other.segmentId === h.segmentId && other.type === targetType
-		);
-		(conflict ? skipped : convertible).push(h);
+
+	/** @type {Map<string, StudyHeading[]>} */
+	const bySegment = new Map();
+	for (const h of headings ?? []) {
+		if (!bySegment.has(h.segmentId)) bySegment.set(h.segmentId, []);
+		bySegment.get(h.segmentId)?.push(h);
 	}
-	return { convertible, skipped };
+
+	for (const segmentHeadings of bySegment.values()) {
+		// Levels currently occupied in this segment, updated as planned moves apply.
+		const occupied = new Set(segmentHeadings.map((h) => h.type));
+		// Process those nearest the target end first so they vacate levels for the rest.
+		const ordered = segmentHeadings
+			.filter((h) => selected.has(h.id))
+			.sort((a, b) => (HEADING_TYPES.indexOf(a.type) - HEADING_TYPES.indexOf(b.type)) * -step);
+		for (const h of ordered) {
+			const targetType = HEADING_TYPES[HEADING_TYPES.indexOf(h.type) + step];
+			if (!targetType) continue; // already at the top/bottom level
+			if (occupied.has(targetType)) {
+				skipped.push(h);
+				continue;
+			}
+			occupied.delete(h.type);
+			occupied.add(targetType);
+			movable.push({ heading: h, targetType });
+		}
+	}
+	return { movable, skipped };
 }

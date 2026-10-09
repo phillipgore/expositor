@@ -1783,9 +1783,8 @@ export function setActiveHeading(hasHeading, headingId = null, options = {}) {
 		activeHeadingId: hasHeading ? headingId : null,
 		activeHeadingIds: hasHeading && headingId ? [headingId] : [],
 		activeHeadingsType: hasHeading ? (options.headingType ?? null) : null,
-		// Level of the selected heading and which levels its segment already holds —
-		// drives the Markup menu's Convert to Heading One/Two/Three items (a heading
-		// can't be converted into a level the segment already has).
+		// Level of the selected heading and which levels its segment already holds (a
+		// segment may hold only one heading per level).
 		activeHeadingType: hasHeading ? (options.headingType ?? null) : null,
 		activeHeadingSegmentHasOne: hasHeading ? !!options.hasHeadingOne : false,
 		activeHeadingSegmentHasTwo: hasHeading ? !!options.hasHeadingTwo : false,
