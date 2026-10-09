@@ -424,6 +424,15 @@ export const passageSegment = pgTable('passage_segment', {
 	 * grow. NULL = not linked (default).
 	 */
 	heightGroupId: text('height_group_id'),
+	/**
+	 * How far (in CSS px) the segment is pulled to the RIGHT within its column, in the
+	 * Analyze view only. NULL/0 = flush with the column. The segment keeps its width;
+	 * its section and column widen to contain it. The client caps the RENDERED value so
+	 * the segment's left edge stays at least SEGMENT_POSITION_GAP (36px) left of the
+	 * right edge of the segment above it — the stored value is never rewritten by that
+	 * cap, so resetting the segment above lets this one re-expand.
+	 */
+	leftOffset: integer('left_offset'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

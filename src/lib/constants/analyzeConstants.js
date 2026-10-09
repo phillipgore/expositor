@@ -86,6 +86,13 @@ export const DATA_ATTRIBUTES = {
 };
 
 /**
+ * Segment position (Analyze view): a segment pulled to the right must keep its left
+ * edge at least this many CSS px to the LEFT of the right edge of the segment above
+ * it (in reading order within its column).
+ */
+export const SEGMENT_POSITION_GAP = 36;
+
+/**
  * CSS class names
  */
 export const CSS_CLASSES = {

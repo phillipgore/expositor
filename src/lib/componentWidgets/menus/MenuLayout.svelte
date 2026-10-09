@@ -14,6 +14,7 @@
 	 * - Column Width    — Set Column Width / Reset Column Width
 	 * - Section Spacing — Set Section Spacing / Reset Section Spacing
 	 * - Segment Height  — Set Segment Height / Reset Segment Height
+	 * - Segment Position — Set Segment Position / Reset Segment Position (pull right)
 	 * - Segment Height  — Link / Unlink (resize linked segments together)
 	 *
 	 * Usage:
@@ -158,6 +159,34 @@
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
 
+	/>
+
+	<DividerHorizontal />
+
+	<!-- Segment position: pull the selected segments to the right within their column
+	     (capped 36px short of the right edge of the segment above). -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="set-segment-position"
+		label="Set Segment Position…"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('set-segment-position'));
+		}}
+		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="reset-segment-position"
+		label="Reset Segment Position"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('reset-segment-position'));
+		}}
+		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<DividerHorizontal />

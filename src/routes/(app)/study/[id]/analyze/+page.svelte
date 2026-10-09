@@ -16,6 +16,7 @@
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import ResizeTooltip from '$lib/componentElements/ResizeTooltip.svelte';
 	import SetSegmentHeightModal from '$lib/componentWidgets/modals/SetSegmentHeightModal.svelte';
+	import SetSegmentPositionModal from '$lib/componentWidgets/modals/SetSegmentPositionModal.svelte';
 	import SetSectionSpacingModal from '$lib/componentWidgets/modals/SetSectionSpacingModal.svelte';
 	import SetColumnSpacingModal from '$lib/componentWidgets/modals/SetColumnSpacingModal.svelte';
 	import SetColumnWidthModal from '$lib/componentWidgets/modals/SetColumnWidthModal.svelte';
@@ -31,7 +32,9 @@
 	import { getInsertionWordId, initialCaretPosition } from '$lib/utils/caretPosition.js';
 	import { useSectionReposition } from '$lib/composables/useSectionReposition.svelte.js';
 	import { useColumnReposition } from '$lib/composables/useColumnReposition.svelte.js';
-	import { useColumnResize, BASE_WIDTH_WIDE } from '$lib/composables/useColumnResize.svelte.js';
+	import { useColumnResize, BASE_WIDTH, BASE_WIDTH_WIDE } from '$lib/composables/useColumnResize.svelte.js';
+	import { useSegmentReposition } from '$lib/composables/useSegmentReposition.svelte.js';
+	import { SEGMENT_POSITION_GAP } from '$lib/constants/analyzeConstants.js';
 
 
 
@@ -325,6 +328,154 @@
 
 	// Attach window mousemove/mouseup listeners only while a width drag is active.
 	$effect(() => columnResize.setupResizeListeners());
+
+	// ─── Segment position (pull a segment right within its column) ──────────────
+	// Analyze-only. A segment keeps its width and slides right by its `leftOffset`; its
+	// section and column widen by the column's largest offset (its "extent") so they
+	// contain it. The RENDERED offset is capped so the segment's left edge stays at least
+	// SEGMENT_POSITION_GAP (36px) left of the right edge of the segment above it (in
+	// reading order through the column's sections). The column's very first segment has
+	// nothing above it, so it can't move. The cap is applied at render time only — the
+	// stored value is untouched, so resetting the segment above lets this one re-expand.
+
+	// Horizontal padding inside a .column (0.2rem each side) — a segment's width is the
+	// column's width minus this.
+	const COLUMN_INNER_PADDING = 4;
+
+	/**
+	 * Resolve the width (CSS px) a column renders at BEFORE any segment extent is added,
+	 * mirroring the template: live drag width, else the persisted width (lifted to the
+	 * wide base in Wide View), else the CSS default.
+	 * @param {{ id: string, width?: number|null }} column
+	 * @returns {number}
+	 */
+	function resolveColumnBaseWidth(column) {
+		const wide = $toolbarState.wideLayout;
+		const live = columnResize.getLiveWidth(column.id);
+		if (columnResize.activeColumnId === column.id && live != null) return live;
+		const resolved = live ?? column.width ?? null;
+		if (resolved == null) return wide ? BASE_WIDTH_WIDE : BASE_WIDTH;
+		return wide ? Math.max(resolved, BASE_WIDTH_WIDE) : resolved;
+	}
+
+	/**
+	 * Compute the rendered offset and allowed maximum for every segment in a column,
+	 * plus the column's extent (largest rendered offset). Offsets are ignored (all 0) in
+	 * Overview / Compare / Focus modes, matching segment heights.
+	 * @param {any} column - A structure column ({ id, width, sections: [{ segments }] })
+	 * @returns {{ offsets: Record<string, number>, max: Record<string, number>, extent: number }}
+	 */
+	function getSegmentPositionLayout(column) {
+		/** @type {Record<string, number>} */
+		const offsets = {};
+		/** @type {Record<string, number>} */
+		const max = {};
+		let extent = 0;
+		const disabled = $toolbarState.overviewMode || isHideMode;
+		const segmentWidth = resolveColumnBaseWidth(column) - COLUMN_INNER_PADDING;
+
+		/** @type {number|null} */
+		let prevOffset = null;
+		for (const section of column.sections ?? []) {
+			for (const segment of section.segments ?? []) {
+				const limit = prevOffset == null
+					? 0
+					: Math.max(0, prevOffset + segmentWidth - SEGMENT_POSITION_GAP);
+				const wanted = segmentReposition.getLiveOffset(segment.id) ?? segment.leftOffset ?? 0;
+				const offset = disabled ? 0 : Math.min(Math.max(0, wanted), limit);
+				offsets[segment.id] = offset;
+				max[segment.id] = limit;
+				if (offset > extent) extent = offset;
+				prevOffset = offset;
+			}
+		}
+		return { offsets, max, extent };
+	}
+
+	/**
+	 * Find the structure column containing a segment.
+	 * @param {string} segmentId
+	 * @returns {any|null}
+	 */
+	function findColumnForSegment(segmentId) {
+		for (const passageText of data.passagesWithText ?? []) {
+			for (const column of passageText?.structure?.columns ?? []) {
+				for (const section of column.sections ?? []) {
+					if (section.segments?.some((s) => s.id === segmentId)) return column;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Rendered offset and allowed maximum for one segment (0/0 if not found).
+	 * @param {string} segmentId
+	 * @returns {{ offset: number, max: number }}
+	 */
+	function getSegmentPosition(segmentId) {
+		const column = findColumnForSegment(segmentId);
+		if (!column) return { offset: 0, max: 0 };
+		const layout = getSegmentPositionLayout(column);
+		return { offset: layout.offsets[segmentId] ?? 0, max: layout.max[segmentId] ?? 0 };
+	}
+
+	const segmentReposition = useSegmentReposition({
+		getScale: () => currentScale,
+		getOffset: (id) => getSegmentPosition(id).offset,
+		getMaxOffset: (id) => getSegmentPosition(id).max,
+		onPersist: () => invalidate('app:studies')
+	});
+
+	// Attach window mousemove/mouseup listeners only while a position drag is active.
+	$effect(() => segmentReposition.setupRepositionListeners());
+
+	// ─── Set-segment-position modal (Layout → Set Segment Position…) ───────────
+	let setPositionModalOpen = $state(false);
+	let setPositionSegmentIds = $state(/** @type {string[]} */ ([]));
+	let setPositionCurrent = $state(0);
+	let setPositionMax = $state(0);
+
+	/**
+	 * Measure the selected segments and open the Set Segment Position modal.
+	 * - current = the first selected segment's rendered offset → default value
+	 * - max     = the smallest limit among the selection      → ceiling
+	 */
+	function openSetPositionModal() {
+		const ids = activeSegments.map((s) => s.segmentId);
+		if (ids.length === 0) return;
+
+		let ceiling = Infinity;
+		for (const id of ids) {
+			const { max } = getSegmentPosition(id);
+			if (max < ceiling) ceiling = max;
+		}
+
+		setPositionSegmentIds = ids;
+		setPositionCurrent = Math.round(getSegmentPosition(ids[0]).offset);
+		setPositionMax = Number.isFinite(ceiling) ? Math.floor(ceiling) : 0;
+		setPositionModalOpen = true;
+	}
+
+	/**
+	 * Persist one offset across the selected segments, then refresh data.
+	 * @param {number} offset
+	 */
+	async function applySetPosition(offset) {
+		const ids = setPositionSegmentIds;
+		setPositionModalOpen = false;
+		if (ids.length === 0) return;
+		await segmentReposition.setPosition(ids, offset);
+	}
+
+	/**
+	 * Return the selected segments flush with their column.
+	 */
+	async function resetSegmentPosition() {
+		const ids = activeSegments.map((s) => s.segmentId);
+		if (ids.length === 0) return;
+		await segmentReposition.resetPosition(ids);
+	}
 
 
 	// ─── Set-height modal (bulk uniform height for selected segments) ──────────
@@ -2503,6 +2654,9 @@
 		const handleRestoreSegmentHeightEvent = () => restoreSegmentHeight();
 		const handleLinkSegmentHeightEvent = () => linkSegmentHeight();
 		const handleUnlinkSegmentHeightEvent = () => unlinkSegmentHeight();
+		// Segment position (Layout menu): open the modal / reset the selection.
+		const handleSetSegmentPositionEvent = () => openSetPositionModal();
+		const handleResetSegmentPositionEvent = () => resetSegmentPosition();
 
 		// Reset a section's vertical reposition offset back to the default spacing.
 		const handleResetSectionPositionEvent = (event) => {
@@ -2553,6 +2707,8 @@
 		window.addEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
 		window.addEventListener('link-segment-height', handleLinkSegmentHeightEvent);
 		window.addEventListener('unlink-segment-height', handleUnlinkSegmentHeightEvent);
+		window.addEventListener('set-segment-position', handleSetSegmentPositionEvent);
+		window.addEventListener('reset-segment-position', handleResetSegmentPositionEvent);
 		window.addEventListener('reset-section-position', handleResetSectionPositionEvent);
 
 		window.addEventListener('set-section-spacing', handleSetSectionSpacingEvent);
@@ -2612,6 +2768,8 @@
 			window.removeEventListener('restore-segment-height', handleRestoreSegmentHeightEvent);
 			window.removeEventListener('link-segment-height', handleLinkSegmentHeightEvent);
 			window.removeEventListener('unlink-segment-height', handleUnlinkSegmentHeightEvent);
+			window.removeEventListener('set-segment-position', handleSetSegmentPositionEvent);
+			window.removeEventListener('reset-segment-position', handleResetSegmentPositionEvent);
 			window.removeEventListener('reset-section-position', handleResetSectionPositionEvent);
 			window.removeEventListener('set-section-spacing', handleSetSectionSpacingEvent);
 			window.removeEventListener('reset-section-spacing', handleResetSectionSpacingEvent);
@@ -4966,8 +5124,15 @@
 													: (columnResolvedWidth == null
 														? null
 														: ($toolbarState.wideLayout ? Math.max(columnResolvedWidth, BASE_WIDTH_WIDE) : columnResolvedWidth))}
+												<!-- Segment positions: segments pulled right keep their width, so the column
+												     (and, by stretching, its sections) widens by the largest rendered offset.
+												     With no offsets the column renders exactly as before. -->
+												{@const segmentPositions = getSegmentPositionLayout(column)}
+												{@const segmentExtent = segmentPositions.extent}
+												{@const columnBaseWidth = resolveColumnBaseWidth(column)}
 												<div
 													class="column"
+													data-segment-extent={segmentExtent > 0 ? Math.round(segmentExtent) : null}
 													class:not-first-column={columnIndex > 0}
 													class:cross-passage-column={passageIndex > 0 && columnIndex === 0}
 													class:is-repositioning={columnReposition.activeColumnId === column.id}
@@ -4977,7 +5142,7 @@
 													class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}
 													style:--column-offset="{columnOffset}px"
 													style:--first-section-offset="{firstSectionOffset}px"
-													style:width={columnWidth != null ? `${columnWidth}px` : null}
+													style:width={segmentExtent > 0 ? `${columnBaseWidth + segmentExtent}px` : (columnWidth != null ? `${columnWidth}px` : null)}
 												>
 
 													{#if column.sections && column.sections.length > 0}
@@ -5051,6 +5216,11 @@
 																			linkHovered={segmentResize.isGroupHovered(segment.heightGroupId ?? null)}
 																			onHandleEnter={segmentResize.handleHandleEnter}
 																			onHandleLeave={segmentResize.handleHandleLeave}
+																			leftOffset={segmentPositions.offsets[segment.id] ?? 0}
+																			positionWidth={segmentExtent > 0 ? columnBaseWidth - COLUMN_INNER_PADDING : null}
+																			canReposition={!$toolbarState.overviewMode && !isHideMode && (segmentPositions.max[segment.id] ?? 0) > 0}
+																			isRepositioning={segmentReposition.activeSegmentId === segment.id}
+																			onRepositionStart={segmentReposition.handleRepositionStart}
 																		/>
 
 																	{/each}
@@ -5276,6 +5446,16 @@
 	<!-- Live spacing tooltip following a column reposition drag. Reuses the same
 	     ResizeTooltip component; here `height` is the total horizontal gap (px) to the
 	     LEFT of the dragged column. -->
+	<!-- Live position tooltip following a segment position drag; `height` is the
+	     segment's offset (px) from the column's left edge. -->
+	{#if segmentReposition.dragTooltip.visible}
+		<ResizeTooltip
+			x={segmentReposition.dragTooltip.x}
+			y={segmentReposition.dragTooltip.y}
+			height={segmentReposition.dragTooltip.height}
+		/>
+	{/if}
+
 	{#if columnReposition.dragTooltip.visible}
 		<ResizeTooltip
 			x={columnReposition.dragTooltip.x}
@@ -5321,6 +5501,17 @@
 		minHeight={setHeightMin}
 		onApply={applySetHeight}
 		onClose={() => (setHeightModalOpen = false)}
+	/>
+
+	<!-- "Set Segment Position" modal (Layout → Set Segment Position…). Pulls the selected
+	     segments right, capped 36px short of the right edge of the segment above. -->
+	<SetSegmentPositionModal
+		isOpen={setPositionModalOpen}
+		segmentCount={setPositionSegmentIds.length}
+		currentOffset={setPositionCurrent}
+		maxOffset={setPositionMax}
+		onApply={applySetPosition}
+		onClose={() => (setPositionModalOpen = false)}
 	/>
 
 	<!-- Bulk "Set Section Spacing" modal (Structure → Set Section Spacing). Applies a

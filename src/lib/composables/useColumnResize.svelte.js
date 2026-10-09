@@ -48,6 +48,18 @@ export const BASE_WIDTH_WIDE = 498;
 export const SNAP_FACTORS = [1.25, 1.5, 1.75, 2, 3, 4];
 
 
+/**
+ * Extra width (CSS px) a column carries to contain segments pulled to the right (see
+ * useSegmentReposition). The page exposes it as `data-segment-extent`; width measurements
+ * subtract it so Column Width always refers to the column's own (segment) width.
+ * @param {HTMLElement} columnEl
+ * @returns {number}
+ */
+function getSegmentExtent(columnEl) {
+	const value = Number(columnEl.dataset.segmentExtent);
+	return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 278, snapThreshold = 8 }) {
 
 
@@ -73,6 +85,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 	let startX = 0; // pointer X at mousedown (viewport px)
 	let draggedLeftX = 0; // dragged column's left edge (viewport px) — fixed during its own resize
 	let tooltipY = 0; // fixed viewport Y for the tooltip during the drag
+	let startExtent = 0; // segment extent (CSS px) the column carries beyond its own width
 	let renderedStartWidth = 0; // dragged column's rendered width at start (viewport px)
 	let startCssWidth = 0; // dragged column's layout width at start (CSS px, zoom-independent)
 	let dragScale = 1; // painted zoom scale captured at drag start
@@ -102,9 +115,11 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		startX = event.clientX;
 
 		const rect = columnEl.getBoundingClientRect();
+		const extent = getSegmentExtent(columnEl);
+		startExtent = extent;
 		draggedLeftX = rect.left;
 		renderedStartWidth = rect.width;
-		startCssWidth = columnEl.offsetWidth;
+		startCssWidth = columnEl.offsetWidth - extent;
 
 		// Anchor the tooltip vertically at the TOP of the resize indicator bar so it clears
 		// the handle the same way the segment tooltip clears its indicator. The handle is
@@ -126,7 +141,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 			x: draggedLeftX + renderedStartWidth,
 			y: tooltipY,
 			// offsetWidth is layout (CSS) px — unaffected by the zoom transform.
-			height: Math.round(columnEl.offsetWidth),
+			height: Math.round(startCssWidth),
 			label: null
 		};
 
@@ -183,7 +198,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		// Update the live-width tooltip to follow the dragged right edge.
 		dragTooltip = {
 			visible: true,
-			x: draggedLeftX + newWidth * scale,
+			x: draggedLeftX + (newWidth + startExtent) * scale,
 			y: tooltipY,
 			height: Math.round(newWidth),
 			label
@@ -191,7 +206,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 
 		// Position / toggle the vertical guide line at the snapped right edge.
 		if (snappedMultiple !== null) {
-			const snappedX = draggedLeftX + newWidth * scale;
+			const snappedX = draggedLeftX + (newWidth + startExtent) * scale;
 			const container = getContainer();
 			if (container) {
 				const cr = container.getBoundingClientRect();
@@ -282,7 +297,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		);
 		if (!columnEl) return 0;
 		// Layout width (CSS px) — independent of zoom and any in-flight zoom transition.
-		return columnEl.offsetWidth;
+		return columnEl.offsetWidth - getSegmentExtent(columnEl);
 	}
 
 	/**

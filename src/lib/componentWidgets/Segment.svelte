@@ -51,7 +51,17 @@
 		/** Called on pointer enter of the resize handle: (segmentId) => void */
 		onHandleEnter = null,
 		/** Called on pointer leave of the resize handle: () => void */
-		onHandleLeave = null
+		onHandleLeave = null,
+		/** How far (CSS px) the segment is pulled right within its column (Analyze only). 0 = flush. */
+		leftOffset = 0,
+		/** Fixed width (CSS px) to hold while the column is widened for pulled-right segments; null = fill the column. */
+		positionWidth = null,
+		/** Whether the segment can be pulled right (shows the left-edge drag handle). */
+		canReposition = false,
+		/** Whether this segment's position is currently being dragged. */
+		isRepositioning = false,
+		/** Called on mousedown on the position handle: (event, segmentId) => void */
+		onRepositionStart = null
 	} = $props();
 
 	/** Whether this segment is linked to others (has a height group). */
@@ -207,9 +217,12 @@
      class:is-last-in-section={isLastInSection}
      class:compare-hidden={isCompareHidden}
      class:is-resizing={isResizing}
+     class:is-repositioning={isRepositioning}
      class:show-layout-controls={resizeEnabled && $toolbarState.layoutControlsVisible}
      class:link-hovered={resizeEnabled && linkHovered}
      style:min-height={height != null ? `${height}px` : null}
+     style:margin-left={leftOffset > 0 ? `${leftOffset}px` : null}
+     style:width={positionWidth != null ? `${positionWidth}px` : null}
      data-segment-id="{segmentId}"
      data-height-group-id={heightGroupId || null}>
 
@@ -324,6 +337,21 @@
 			<span class="resize-indicator"></span>
 		</div>
 
+	{/if}
+
+	<!-- Position handle: a narrow strip over the LEFT border. Hovering shows the
+	     ew-resize cursor and a centered vertical indicator; mousedown begins a drag
+	     that pulls the segment right (capped 36px short of the segment above's right edge). -->
+	{#if resizeEnabled && canReposition}
+		<div
+			class="position-handle"
+			role="separator"
+			aria-label="Move segment right"
+			aria-orientation="vertical"
+			onmousedown={(e) => onRepositionStart?.(e, segmentId)}
+		>
+			<span class="position-indicator"></span>
+		</div>
 	{/if}
 </div>
 
@@ -478,6 +506,41 @@
 		opacity: 1;
 	}
 
+
+	/* ============================================================ */
+	/* Position Handle (left border — pull the segment right) */
+	/* ============================================================ */
+
+	/* Narrow hit-zone straddling the LEFT border. Mirrors .resize-handle on the other
+	   axis: only ~8px wide so word selection is unaffected. */
+	.position-handle {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: -0.4rem;
+		width: 0.8rem;
+		z-index: 15;
+		cursor: ew-resize;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		opacity: 0;
+		transition: opacity 0.12s ease-out;
+	}
+
+	.position-handle:hover,
+	.segment.is-repositioning .position-handle,
+	.segment.show-layout-controls .position-handle {
+		opacity: 1;
+	}
+
+	.position-indicator {
+		width: 0.5rem;
+		height: 2.4rem;
+		border-radius: 0.3rem;
+		background-color: var(--section-light);
+		border: 0.1rem solid var(--section-darker);
+	}
 
 	/* Centered indicator: a short horizontal bar centered on the border. Uses the
 	   section's light color for its fill with a darker 1px section-colored border to
