@@ -9,6 +9,7 @@ import {
 	getRetrievalPolicy,
 	splitRangeIntoPassages
 } from '$lib/utils/translationLimits.js';
+import { cleanNETVerseText, isNETParagraphStart, placeESVPsalmHeadings } from '$lib/utils/scriptureText.js';
 
 
 /**
@@ -347,6 +348,9 @@ async function fetchESVPassage(reference, passage) {
 			return { text: '', error: 'Invalid book name' };
 		}
 
+		// Psalm titles -> start of verse 1; Psalm 119 stanza names removed.
+		text = placeESVPsalmHeadings(text, passage.bookName);
+
 		// Normalize ESV formatting to match NET format
 		text = normalizeESVFormatting(text, passage, bookAbbr);
 
@@ -401,17 +405,23 @@ async function fetchNETPassage(reference) {
 		// Each verse object has: { bookname, chapter, verse, text }
 		// With formatting=para, paragraph-opening verses have text starting with <p> or <P>.
 		const formattedText = data
-			.map((verse) => {
+			.map((verse, index) => {
 				// Format chapter and verse with zero-padding
 				const chapterPadded = verse.chapter.toString().padStart(3, '0');
 				const versePadded = verse.verse.toString().padStart(3, '0');
 				const verseId = `${bookAbbr}-${chapterPadded}-${versePadded}`;
 
-				// Detect paragraph start: verse text begins with a <p> tag (any variant: <p>, <p class="...">, etc.)
-				const isParagraphStart = /^<p[\s>]/i.test(verse.text.trim());
+				// Detect paragraph start. A leading <p class="poetry"> is a poetic LINE, not a
+				// paragraph, so it only counts where poetry begins. See isNETParagraphStart.
+				const isParagraphStart = isNETParagraphStart(
+					verse.text,
+					index > 0 ? data[index - 1].text : null,
+					verse.verse
+				);
 
-				// Strip all HTML tags (bold, paragraph, etc.) from verse text
-				const cleanText = verse.text.replace(/<[^>]+>/g, '').trim();
+				// Strip HTML. Line/paragraph tags become spaces (poetry lines often abut
+				// with no whitespace); acrostic headings are dropped. See scriptureText.js.
+				const cleanText = cleanNETVerseText(verse.text);
 
 				// Inject paragraph marker if this verse opens a new paragraph
 				const paragraphMarker = isParagraphStart
