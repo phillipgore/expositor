@@ -44,6 +44,21 @@
 		const result = await signIn(email, password);
 		
 		if (result.success) {
+			// The admin lands directly in the Back Office. The check is server-side
+			// so the admin email never has to live in client code.
+			try {
+				const landingRes = await fetch('/api/user/landing');
+				if (landingRes.ok) {
+					const landing = await landingRes.json();
+					if (landing.isAdmin) {
+						goto('/back-office');
+						return;
+					}
+				}
+			} catch (e) {
+				console.error('Failed to determine landing page on login:', e);
+			}
+
 			// Force the dashboard landing layout: Finder open, Commentary closed.
 			// Persist to the DB so the layout's server load doesn't restore the
 			// user's previous panel state and override the dashboard defaults.

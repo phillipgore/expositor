@@ -6,11 +6,11 @@
 	 * 
 	 * ## Features
 	 * - Dark blue themed toolbar (distinct from the app's dark toolbar)
-	 * - Grouped page switcher (Settings / Users) on the left
+	 * - Grouped page switcher (Users / Settings) on the left
 	 * - Account dropdown menu (user info, Application link, Sign Out)
 	 * 
 	 * ## Layout Structure
-	 * - Settings/Users grouped buttons (left, lighter blue)
+	 * - Users/Settings grouped buttons (left, lighter blue)
 	 * - Flexible spacer
 	 * - Account menu button (right, lighter blue)
 	 * 
@@ -32,13 +32,13 @@
 
 	/** Back Office pages available from the toolbar switcher */
 	const pageButtons = [
-		{ id: 'settings', iconId: 'gear', label: 'Settings' },
-		{ id: 'users', iconId: 'account', label: 'Users' }
+		{ id: 'users', iconId: 'account', label: 'Users' },
+		{ id: 'settings', iconId: 'gear', label: 'Settings' }
 	];
 
-	/** Active switcher button derived from the current route (Settings is the default page) */
+	/** Active switcher button derived from the current route (Users is the default page) */
 	let activePageButton = $derived(
-		$page.url.pathname.includes('/back-office/users') ? 'users' : 'settings'
+		$page.url.pathname.includes('/back-office/settings') ? 'settings' : 'users'
 	);
 
 	/**
