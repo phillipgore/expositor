@@ -117,6 +117,7 @@
 	   ============================================ */
 	.select-container {
 		position: relative;
+		isolation: isolate;
 		display: inline-block;
 		border-radius: 0.3rem;
 		margin: 0rem 0rem -0.1rem;
@@ -168,7 +169,9 @@
 		top: 50%;
 		right: 0.4rem;
 		transform: translateY(-50%);
-		z-index: 100;
+		/* Only needs to sit above the sibling <select>; the container's
+		   `isolation: isolate` keeps this from competing with overlays. */
+		z-index: 1;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
