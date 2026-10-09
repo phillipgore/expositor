@@ -142,9 +142,6 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Users — Back Office — Expositor App</title>
-</svelte:head>
 
 <Heading heading="h1">Users</Heading>
 

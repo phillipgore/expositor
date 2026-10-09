@@ -84,9 +84,6 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Settings — Back Office — Expositor App</title>
-</svelte:head>
 
 <Heading heading="h1">Settings</Heading>
 

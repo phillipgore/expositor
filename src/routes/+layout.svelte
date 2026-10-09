@@ -1,6 +1,8 @@
 <script>
 	import '$lib/stylesheets/styles.css';
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { getPageTitle } from '$lib/utils/pageTitle.js';
 	import { initializeAuth, isLoading } from '$lib/stores/auth.js';
 	import ViewportWarning from '$lib/componentWidgets/ViewportWarning.svelte';
 	import Tooltip from '$lib/componentElements/Tooltip.svelte';
@@ -15,7 +17,7 @@
 </script>
 
 <svelte:head>
-	<title>Expositor App</title>
+	<title>{getPageTitle($page.route.id, $page.data?.pageTitle)}</title>
 </svelte:head>
 
 <ViewportWarning />
