@@ -284,12 +284,20 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 
 	/**
 	 * Finish a resize drag: persist the new height(s) and refresh data.
+	 * @param {MouseEvent} [event] - The mouseup event (used to re-check hover state)
 	 */
-	async function handleResizeEnd() {
+	async function handleResizeEnd(event) {
 		if (!activeSegmentId) return;
 
 		const groupIds = [...activeGroupIds];
 		const finalHeight = liveHeights[activeSegmentId];
+
+		// Mouse-leave is ignored mid-drag (see handleHandleLeave), so the pointer has
+		// usually left the handle by now without the hover state being cleared — which
+		// left every linked member's handle revealed (`link-hovered`) after the drag.
+		// Clear it, unless the pointer is still over a resize handle of the same group
+		// (then keep the reveal, as if it had just been hovered).
+		const stillHoveredId = event ? getHoveredHandleSegmentId(event.clientX, event.clientY) : null;
 
 		// Reset interaction state immediately.
 		activeSegmentId = null;
@@ -299,6 +307,12 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		dragTooltips = [];
 		document.body.style.cursor = '';
 		document.body.style.userSelect = '';
+		if (stillHoveredId) {
+			handleHandleEnter(stillHoveredId);
+		} else {
+			hoveredGroupId = null;
+			hoverTooltips = [];
+		}
 
 		if (finalHeight == null) return;
 
@@ -378,6 +392,19 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 			tips.push({ segmentId: id, x: r.left + r.width / 2, y: r.bottom, label: 'Linked' });
 		});
 		hoverTooltips = tips;
+	}
+
+	/**
+	 * The segment whose resize handle is under the given viewport point, or null.
+	 * @param {number} x
+	 * @param {number} y
+	 * @returns {string|null}
+	 */
+	function getHoveredHandleSegmentId(x, y) {
+		const el = document.elementFromPoint(x, y);
+		const handle = el?.closest('.resize-handle');
+		if (!handle) return null;
+		return handle.closest('[data-segment-id]')?.getAttribute('data-segment-id') ?? null;
 	}
 
 	/**
