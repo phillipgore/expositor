@@ -16,7 +16,7 @@ import glossary from './glossary.json';
  * Badge supports: gray | red | orange | yellow | green | aqua | blue | purple | pink
  * (yellow/gray intentionally avoided for contrast/neutral reasons).
  *
- * Colors may repeat ACROSS domains (exegesis vs. homiletics) because the badge
+ * Colors may repeat ACROSS domains (exegesis vs. homiletics vs. theology) because the badge
  * shape (pill vs. rounded rectangle) and the domain filter already distinguish
  * the two domains visually.
  * @type {Record<string, string>}
@@ -35,20 +35,33 @@ export const CATEGORY_COLORS = {
 	explanation: 'red',
 	illustration: 'orange',
 	application: 'green',
-	'delivery-communication': 'purple'
+	'delivery-communication': 'purple',
+	// Theology domain — 10 categories but only 7 usable colors, so some repeat.
+	// Ordered (as in glossary.json) so no two adjacent categories share a color.
+	'theological-method': 'blue',
+	bibliology: 'purple',
+	'theology-proper': 'red',
+	'anthropology-hamartiology': 'orange',
+	christology: 'green',
+	pneumatology: 'aqua',
+	soteriology: 'pink',
+	ecclesiology: 'blue',
+	eschatology: 'purple',
+	'covenant-dispensation': 'red'
 };
 
 const DEFAULT_COLOR = 'gray';
 
 /**
- * The two top-level glossary domains and their human-readable labels. The
+ * The top-level glossary domains and their human-readable labels. The
  * domain controls the badge SHAPE and drives the domain filter/tabs in the
  * picker and the glossary page.
  * @type {{ id: string, label: string }[]}
  */
 export const DOMAINS = [
 	{ id: 'exegesis', label: 'Exegesis & Literary' },
-	{ id: 'homiletics', label: 'Preaching & Teaching' }
+	{ id: 'homiletics', label: 'Preaching & Teaching' },
+	{ id: 'theology', label: 'Theology' }
 ];
 
 const DEFAULT_DOMAIN = 'exegesis';
@@ -147,7 +160,7 @@ function usesPluralNotes(term) {
  * @property {string} category - Human-readable category title
  * @property {string} categoryId - Category `_id`
  * @property {string} color - Badge color for this category
- * @property {string} domain - Domain id ("exegesis" | "homiletics")
+ * @property {string} domain - Domain id ("exegesis" | "homiletics" | "theology")
  * @property {'pill'|'rounded'} shape - Badge shape, derived from the domain
  * @property {boolean} enabled - Whether the term is active (shown in the app)
  */

@@ -286,7 +286,10 @@
 	}
 
 	.picker-domain-tab {
-		flex: 1;
+		/* Size by label so the short "Theology" tab cedes room to the longer
+		   labels; three equal-width tabs would wrap "Preaching & Teaching". */
+		flex: 1 1 auto;
+		white-space: nowrap;
 		padding: 0.5rem 0.8rem;
 		border: 0.1rem solid var(--gray-700);
 		border-radius: 0.4rem;

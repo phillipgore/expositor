@@ -65,38 +65,45 @@
 
 	// Bound to the page root so we can find the scrollable ancestor on tab switch.
 	let pageEl = $state(null);
+
+	// Measured height of the sticky header, so the category nav sticks just
+	// below it regardless of font size or the toolbar wrapping on narrow widths.
+	let stickyHeight = $state(0);
 </script>
 
-<div class="glossary-page" bind:this={pageEl}>
-	<header class="glossary-header">
-		<h1 class="glossary-title">Glossary</h1>
-	</header>
+<div class="glossary-page" bind:this={pageEl} style:--sticky-height="{stickyHeight}px">
+	<!-- Title, domain tabs, and search stick together as one header so jumping
+	     to a category never scrolls any of them out of view. Its measured height
+	     feeds --sticky-height, which offsets the sticky category nav below it. -->
+	<div class="glossary-sticky" bind:clientHeight={stickyHeight}>
+		<header class="glossary-header">
+			<h1 class="glossary-title">Glossary</h1>
+		</header>
 
-	<!-- Domain tabs + search stick together so jumping to a category never
-	     scrolls the domain switcher out of view. -->
-	<div class="glossary-sticky">
-		<div class="glossary-domains" role="tablist" aria-label="Glossary domain">
-			{#each DOMAINS as domain (domain.id)}
-				<button
-					type="button"
-					role="tab"
-					aria-selected={activeDomain === domain.id}
-					class="glossary-domain-tab"
-					class:active={activeDomain === domain.id}
-					onclick={() => selectDomain(domain.id)}
-				>
-					{domain.label}
-				</button>
-			{/each}
-		</div>
+		<div class="glossary-toolbar">
+			<div class="glossary-domains" role="tablist" aria-label="Glossary domain">
+				{#each DOMAINS as domain (domain.id)}
+					<button
+						type="button"
+						role="tab"
+						aria-selected={activeDomain === domain.id}
+						class="glossary-domain-tab"
+						class:active={activeDomain === domain.id}
+						onclick={() => selectDomain(domain.id)}
+					>
+						{domain.label}
+					</button>
+				{/each}
+			</div>
 
-		<div class="glossary-search">
-			<input
-				type="search"
-				bind:value={query}
-				placeholder="Search"
-				aria-label="Search glossary terms"
-			/>
+			<div class="glossary-search">
+				<input
+					type="search"
+					bind:value={query}
+					placeholder="Search"
+					aria-label="Search glossary terms"
+				/>
+			</div>
 		</div>
 	</div>
 
@@ -177,7 +184,7 @@
 	   HEADER + SEARCH
 	   ============================================ */
 	.glossary-header {
-		margin-bottom: 2.4rem;
+		margin-bottom: 1.2rem;
 	}
 
 	.glossary-title {
@@ -187,20 +194,27 @@
 		color: var(--black);
 	}
 
-	/* The domain tabs + search bar stick to the top together as one unit, so
-	   jumping to a category never scrolls the domain switcher out of view. */
+	/* The title, domain tabs, and search bar stick to the top together as one
+	   unit, so none of them scroll out of view. */
 	.glossary-sticky {
 		position: sticky;
 		top: 0;
 		z-index: 10;
-		padding-top: 0.4rem;
+		padding: 1.2rem 0;
 		background-color: var(--white);
+	}
+
+	/* Tabs on the left, search filling the remaining width, on one row. */
+	.glossary-toolbar {
+		display: flex;
+		align-items: center;
+		gap: 1.6rem;
 	}
 
 	.glossary-domains {
 		display: flex;
+		flex-shrink: 0;
 		gap: 0.8rem;
-		margin-bottom: 0.4rem;
 	}
 
 	.glossary-domain-tab {
@@ -234,8 +248,8 @@
 	}
 
 	.glossary-search {
-		padding: 1.2rem 0;
-		background-color: var(--white);
+		flex: 1;
+		min-width: 0;
 	}
 
 	.glossary-search input {
@@ -276,8 +290,9 @@
 
 	.glossary-nav {
 		position: sticky;
-		/* Clear the sticky header (domain tabs ~3.4rem + search 6rem ≈ 9.4rem). */
-		top: 10rem;
+		/* Sit just below the sticky header (title + tabs/search), using its
+		   measured height plus a small gap. */
+		top: calc(var(--sticky-height, 12rem) + 1rem);
 	}
 
 	.glossary-nav ul {
@@ -333,8 +348,9 @@
 
 	.glossary-section {
 		/* Offset the scroll target so a jumped-to section lands BELOW the sticky
-		   header (domain tabs + search) instead of underneath it. */
-		scroll-margin-top: 10rem;
+		   header (title + domain tabs + search) instead of underneath it, using
+		   the header's measured height plus a small gap. */
+		scroll-margin-top: calc(var(--sticky-height, 12rem) + 1rem);
 	}
 
 	.section-title {
@@ -440,6 +456,13 @@
 		}
 		.glossary-nav {
 			display: none;
+		}
+		/* Not enough width for tabs + search on one row: stack the search below. */
+		.glossary-toolbar {
+			flex-wrap: wrap;
+		}
+		.glossary-search {
+			flex-basis: 100%;
 		}
 	}
 </style>

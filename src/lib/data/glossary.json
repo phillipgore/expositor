@@ -772,5 +772,866 @@
         "definition": "The logical, rational content of the argument — the quality of the reasoning and evidence. One of Aristotle's three modes of persuasion. In preaching, logos corresponds to the careful exegetical and theological substance of the message."
       }
     ]
+  },
+  {
+    "_id": "theological-method",
+    "domain": "theology",
+    "title": "Theological Method",
+    "terms": [
+      {
+        "_id": "tm-natural-theology",
+        "term": "Natural Theology",
+        "definition": "Knowledge of God's existence and attributes attainable through reason and observation of creation, apart from special revelation. Includes cosmological, teleological, and moral arguments for God's existence."
+      },
+      {
+        "_id": "tm-systematic-theology",
+        "term": "Systematic Theology",
+        "definition": "The discipline of gathering and organizing the teachings of Scripture topically — on God, humanity, sin, salvation, the church, and last things — into a coherent, comprehensive, and internally consistent whole."
+      },
+      {
+        "_id": "tm-biblical-theology",
+        "term": "Biblical Theology",
+        "definition": "The discipline that traces the progressive unfolding of God's redemptive plan through the canonical storyline, attending to the historical development of revelation across the Testaments and the literary context of each book."
+      },
+      {
+        "_id": "tm-historical-theology",
+        "term": "Historical Theology",
+        "definition": "The study of how the church has interpreted and formulated Christian doctrine across history — councils, creeds, controversies, and theologians — providing context for current theological discussions."
+      },
+      {
+        "_id": "tm-apologetics",
+        "term": "Apologetics",
+        "definition": "The discipline of defending and commending the Christian faith — answering objections, providing evidence, and demonstrating the reasonableness and truth of Christian truth claims (1 Peter 3:15)."
+      },
+      {
+        "_id": "tm-presuppositionalism",
+        "term": "Presuppositionalism",
+        "definition": "The apologetic method associated with Cornelius Van Til arguing that every system of thought rests on unproven foundational commitments and that Christian theology provides the only coherent foundation for knowledge, logic, and ethics."
+      },
+      {
+        "_id": "tm-classical-apologetics",
+        "term": "Classical Apologetics",
+        "definition": "The apologetic method that moves in two stages: first establishing theism through natural theology (cosmological, teleological, moral arguments), then establishing Christianity specifically on that theistic foundation."
+      },
+      {
+        "_id": "tm-locus",
+        "term": "Locus (pl. Loci)",
+        "definition": "A doctrinal topic or 'place' in systematic theology — the traditional term for chapters or major divisions in a systematic theology (e.g., the locus on God, on sin, on salvation)."
+      },
+      {
+        "_id": "tm-prolegomena",
+        "term": "Prolegomena",
+        "definition": "The introductory matters addressed at the beginning of a systematic theology — the nature and task of theology, the sources and norms of authority, and the role of reason and revelation."
+      },
+      {
+        "_id": "tm-orthodoxy",
+        "term": "Orthodoxy",
+        "definition": "Right belief — conformity to the established doctrinal teaching of the historic Christian faith, as measured by Scripture and the ecumenical creeds. Contrasted with heterodoxy and heresy."
+      },
+      {
+        "_id": "tm-heterodoxy",
+        "term": "Heterodoxy",
+        "definition": "Teaching that departs from orthodox doctrine but remains within a broad Christian framework. Less severe than heresy; heterodox positions may still affirm the core of the faith while erring on secondary matters."
+      },
+      {
+        "_id": "tm-heresy",
+        "term": "Heresy",
+        "definition": "A serious doctrinal error that strikes at the essential content of the Christian faith — the Trinity, the person of Christ, the nature of salvation. Heresy places one outside the bounds of Christian orthodoxy."
+      },
+      {
+        "_id": "tm-antinomianism",
+        "term": "Antinomianism",
+        "definition": "The error that Christians are under no obligation to observe the moral law, since they are saved by grace alone. Addressed directly by Paul in Romans 6:1–2 and throughout the NT ethical sections."
+      },
+      {
+        "_id": "tm-legalism",
+        "term": "Legalism",
+        "definition": "The error of treating law-keeping as the basis of acceptance before God, or of adding man-made regulations to Scripture as binding conditions of righteousness. Opposed in Galatians and Colossians."
+      },
+      {
+        "_id": "tm-ecumenical-councils",
+        "term": "Ecumenical Councils",
+        "definition": "Authoritative gatherings of church representatives that formulated binding doctrinal definitions — Nicaea (325), Constantinople (381), Ephesus (431), and Chalcedon (451) being the four most widely recognized."
+      },
+      {
+        "_id": "tm-creeds-confessions",
+        "term": "Creeds and Confessions",
+        "definition": "Formal summaries of Christian doctrine. Creeds (Apostles', Nicene, Athanasian) are broadly ecumenical; confessions (Westminster, Heidelberg, Belgic, London Baptist) belong to particular Reformed or Baptist traditions."
+      },
+      {
+        "_id": "tm-via-negativa",
+        "term": "Via Negativa (Apophatic Theology)",
+        "definition": "The approach to speaking about God by what he is not — denying creaturely limitations of God as a way of preserving his transcendence and incomprehensibility. Contrasted with cataphatic (positive) theology."
+      }
+    ]
+  },
+  {
+    "_id": "bibliology",
+    "domain": "theology",
+    "title": "Bibliology",
+    "terms": [
+      {
+        "_id": "bl-revelation",
+        "term": "Revelation",
+        "definition": "God's act of making himself and his will known. Divided into general revelation (through creation and conscience) and special revelation (through Scripture and Christ)."
+      },
+      {
+        "_id": "bl-general-revelation",
+        "term": "General Revelation",
+        "definition": "God's self-disclosure through creation, conscience, and history, available to all people at all times. Sufficient to leave humanity without excuse before God but not sufficient for saving knowledge of Christ."
+      },
+      {
+        "_id": "bl-special-revelation",
+        "term": "Special Revelation",
+        "definition": "God's direct disclosure of himself and his redemptive purposes, given to particular people at particular times, culminating in the written Scripture and the incarnate Christ."
+      },
+      {
+        "_id": "bl-inspiration",
+        "term": "Inspiration",
+        "definition": "The supernatural work of the Holy Spirit by which God so moved the human authors of Scripture that what they wrote was the Word of God — without overriding their personalities, vocabularies, or historical contexts."
+      },
+      {
+        "_id": "bl-verbal-plenary-inspiration",
+        "term": "Verbal Plenary Inspiration",
+        "definition": "The doctrine that inspiration extends to the very words (verbal) of Scripture in all its parts (plenary), not merely to concepts or ideas. Every word of the original text is God-breathed."
+      },
+      {
+        "_id": "bl-concursive-operation",
+        "term": "Concursive Operation",
+        "definition": "The way God's sovereign action and human authorship work together fully and simultaneously in inspiration — the words are genuinely the human author's and at the same time genuinely God's Word."
+      },
+      {
+        "_id": "bl-inerrancy",
+        "term": "Inerrancy",
+        "definition": "The property of Scripture by which it, in its original manuscripts, makes no errors in anything it affirms — whether in matters of theology, history, or the physical world. Distinguished from infallibility by its positive scope."
+      },
+      {
+        "_id": "bl-infallibility",
+        "term": "Infallibility",
+        "definition": "The property of Scripture by which it unfailingly accomplishes its purpose and does not mislead in matters of faith and practice. Sometimes used synonymously with inerrancy; in other usage, a narrower claim limited to salvific matters."
+      },
+      {
+        "_id": "bl-autographa",
+        "term": "Autographa",
+        "definition": "The original manuscripts of Scripture as produced by the biblical authors. Inerrancy applies strictly to the autographa, not to any translation, copy, or manuscript tradition."
+      },
+      {
+        "_id": "bl-canonicity",
+        "term": "Canonicity",
+        "definition": "The property by which a book is recognized as belonging to the authoritative collection of Scripture. The canon refers to the closed list of books acknowledged as inspired and binding."
+      },
+      {
+        "_id": "bl-apocrypha",
+        "term": "Apocrypha",
+        "definition": "Books included in the Septuagint and the Roman Catholic canon but not in the Hebrew Bible or Protestant Old Testament. The authority of the Apocrypha has been disputed since the early church."
+      },
+      {
+        "_id": "bl-perspicuity",
+        "term": "Perspicuity (Clarity of Scripture)",
+        "definition": "The doctrine that Scripture is sufficiently clear in its central teachings that ordinary believers, using ordinary means of study, can understand what is necessary for salvation and godly living — without requiring an authoritative magisterium."
+      },
+      {
+        "_id": "bl-sufficiency",
+        "term": "Sufficiency of Scripture",
+        "definition": "The doctrine that Scripture contains all that is necessary for salvation, faith, and practice. Nothing essential has been omitted, and no extrabiblical source carries binding authority alongside Scripture."
+      },
+      {
+        "_id": "bl-accommodation",
+        "term": "Accommodation",
+        "definition": "The principle that God condescends to communicate in ways suited to human understanding and finite capacity. Associated with Calvin, accommodation explains how infinite truth is expressed in finite, culturally embedded human language without error."
+      },
+      {
+        "_id": "bl-sensus-plenior",
+        "term": "Sensus Plenior",
+        "definition": "Latin for 'the fuller sense.' The idea that the divine author intended a deeper or fuller meaning in a text than the human author was fully aware of — often applied to OT passages fulfilled in the NT.",
+        "example": "Isaiah 7:14 in its original context and its fulfillment in Matthew 1:23."
+      },
+      {
+        "_id": "bl-authorial-intent",
+        "term": "Authorial Intent",
+        "definition": "The meaning the human author intended to communicate in writing. In evangelical hermeneutics, authorial intent is the locus of a text's meaning and the primary goal of exegesis."
+      }
+    ]
+  },
+  {
+    "_id": "theology-proper",
+    "domain": "theology",
+    "title": "Theology Proper",
+    "terms": [
+      {
+        "_id": "tp-aseity",
+        "term": "Aseity",
+        "definition": "God's self-existence and self-sufficiency — he exists from himself and depends on nothing outside himself for his being. God is the uncaused cause, the only being who exists necessarily."
+      },
+      {
+        "_id": "tp-immutability",
+        "term": "Immutability",
+        "definition": "God's unchangeableness in his being, perfections, purposes, and promises. Distinct from God acting within time and responding within history; immutability concerns his nature, not his activity."
+      },
+      {
+        "_id": "tp-impassibility",
+        "term": "Impassibility",
+        "definition": "The classical doctrine that God does not undergo involuntary emotional changes or suffer as creatures do. Closely related to immutability and widely debated in modern theology, particularly in relation to the suffering of Christ."
+      },
+      {
+        "_id": "tp-omnipotence",
+        "term": "Omnipotence",
+        "definition": "God's unlimited power to do all that is consistent with his nature and will. Omnipotence does not entail the ability to do what is logically self-contradictory or contrary to his character."
+      },
+      {
+        "_id": "tp-omniscience",
+        "term": "Omniscience",
+        "definition": "God's complete and perfect knowledge of all things — past, present, future, and possible — including the free acts of creatures. God's knowledge is immediate, exhaustive, and not derived from observation."
+      },
+      {
+        "_id": "tp-omnipresence",
+        "term": "Omnipresence",
+        "definition": "God's simultaneous presence everywhere in his fullness. Distinct from pantheism; God is present to all creation without being identical with it or contained by it."
+      },
+      {
+        "_id": "tp-omnibenevolence",
+        "term": "Omnibenevolence",
+        "definition": "God's perfect and infinite goodness and love as a defining attribute of his nature, such that everything God does flows from and is consistent with his essential goodness."
+      },
+      {
+        "_id": "tp-divine-simplicity",
+        "term": "Simplicity (Divine Simplicity)",
+        "definition": "The classical doctrine that God is not composed of parts — his attributes are not additions to his being but are identical with his essence. God does not have love; God is love."
+      },
+      {
+        "_id": "tp-eternality",
+        "term": "Eternality",
+        "definition": "God's relationship to time — either timelessness (existing outside time altogether) or everlastingness (existing through all time without beginning or end). Both views are defended in evangelical theology."
+      },
+      {
+        "_id": "tp-transcendence",
+        "term": "Transcendence",
+        "definition": "God's existence above, beyond, and independent of creation. He is qualitatively other than and not contained by the universe — the Creator distinct from his creation."
+      },
+      {
+        "_id": "tp-immanence",
+        "term": "Immanence",
+        "definition": "God's active presence within and engagement with creation. Held in tension with transcendence; the biblical God is both infinitely above creation and intimately present within it."
+      },
+      {
+        "_id": "tp-incomprehensibility",
+        "term": "Incomprehensibility",
+        "definition": "God's nature exceeds full human comprehension. We can know him truly and genuinely through revelation, but we cannot know him exhaustively. Finite minds cannot contain the infinite God."
+      },
+      {
+        "_id": "tp-communicable-attributes",
+        "term": "Communicable Attributes",
+        "definition": "Divine attributes that God shares in analogous (not identical) form with human beings made in his image — love, wisdom, holiness, justice, knowledge. Creatures possess these attributes derivatively and finitely."
+      },
+      {
+        "_id": "tp-incommunicable-attributes",
+        "term": "Incommunicable Attributes",
+        "definition": "Divine attributes that belong to God alone and are not shared with creatures — aseity, omniscience, omnipotence, omnipresence, eternality, and simplicity."
+      },
+      {
+        "_id": "tp-monotheism",
+        "term": "Monotheism",
+        "definition": "The belief that there is one and only one God. The foundational commitment of biblical religion over against polytheism (many gods), henotheism (one god among many), and pantheism (all is God)."
+      },
+      {
+        "_id": "tp-economic-trinity",
+        "term": "Economic Trinity",
+        "definition": "The Trinity as revealed in the history of redemption — the Father sending the Son, the Son accomplishing redemption, the Spirit applying salvation. The 'economy' refers to God's ordered activity in the world."
+      },
+      {
+        "_id": "tp-immanent-trinity",
+        "term": "Immanent Trinity (Ontological Trinity)",
+        "definition": "The Trinity as God is in himself, apart from the work of creation and redemption. The eternal relations among the persons prior to and independent of creation."
+      },
+      {
+        "_id": "tp-eternal-generation",
+        "term": "Eternal Generation",
+        "definition": "The eternal, non-temporal relation by which the Son is begotten of the Father — not a beginning in time but a defining characteristic of his person within the immanent Trinity."
+      },
+      {
+        "_id": "tp-eternal-procession",
+        "term": "Eternal Procession",
+        "definition": "The eternal relation by which the Spirit proceeds from the Father (and, in Western theology, from the Son — filioque). Defines the Spirit's personal distinction within the Godhead."
+      },
+      {
+        "_id": "tp-perichoresis",
+        "term": "Perichoresis (Circumincession)",
+        "definition": "The mutual indwelling of the three persons of the Trinity in one another. Affirms the unity of God without collapsing the real distinctions among Father, Son, and Spirit."
+      },
+      {
+        "_id": "tp-filioque",
+        "term": "Filioque",
+        "definition": "Latin for 'and from the Son.' The Western church's addition to the Nicene Creed affirming that the Spirit proceeds from both Father and Son — a major point of division between Western Christianity and Eastern Orthodoxy."
+      }
+    ]
+  },
+  {
+    "_id": "anthropology-hamartiology",
+    "domain": "theology",
+    "title": "Anthropology & Hamartiology",
+    "terms": [
+      {
+        "_id": "ah-imago-dei",
+        "term": "Imago Dei",
+        "definition": "The image of God in which humanity was created (Genesis 1:26–27). Theological debate centers on what constitutes the image — rationality, morality, relationality, representative dominion, or a combination of these."
+      },
+      {
+        "_id": "ah-original-sin",
+        "term": "Original Sin",
+        "definition": "The state of sinfulness and guilt inherited by all of Adam's natural descendants as a result of Adam's first transgression. Includes both original guilt (liability to punishment) and original corruption (inherited sinful nature)."
+      },
+      {
+        "_id": "ah-total-depravity",
+        "term": "Total Depravity",
+        "definition": "The doctrine that sin has affected every aspect of human nature — intellect, will, emotions, and body. Not that every person is as sinful as possible, but that no part of humanity is unaffected by the fall."
+      },
+      {
+        "_id": "ah-federal-headship",
+        "term": "Federal Headship",
+        "definition": "The doctrine that Adam acted as the legal representative or covenant head of all humanity, so that his sin is justly reckoned to all his descendants. Contrasted with natural headship."
+      },
+      {
+        "_id": "ah-natural-headship",
+        "term": "Natural Headship (Seminal Headship)",
+        "definition": "The view that humanity sinned in Adam because all people were physically present in him as their common ancestor, making the imputation of Adam's sin a matter of shared identity rather than representation."
+      },
+      {
+        "_id": "ah-imputation",
+        "term": "Imputation",
+        "definition": "The reckoning or crediting of sin or righteousness to another's account. Adam's sin is imputed to humanity; humanity's sin is imputed to Christ; Christ's righteousness is imputed to the believer."
+      },
+      {
+        "_id": "ah-concupiscence",
+        "term": "Concupiscence",
+        "definition": "Disordered desire or inordinate inclination toward sin — the remaining bent toward sin in fallen human nature. Used in Catholic theology particularly for the tendency toward sin that persists even after baptism."
+      },
+      {
+        "_id": "ah-trichotomy",
+        "term": "Trichotomy",
+        "definition": "The view that human beings consist of three distinct parts: body, soul, and spirit — the spirit being a higher faculty specifically relating the person to God."
+      },
+      {
+        "_id": "ah-dichotomy",
+        "term": "Dichotomy",
+        "definition": "The view that human beings consist of two parts — body and soul/spirit — the spirit and soul referring to the same immaterial aspect of personhood rather than distinct substances."
+      },
+      {
+        "_id": "ah-traducianism",
+        "term": "Traducianism",
+        "definition": "The view that the soul is transmitted from parents to children along with the body, explaining the inheritance of original sin as a natural transmission rather than a divine creative act."
+      },
+      {
+        "_id": "ah-creationism-soul",
+        "term": "Creationism (Soul Origin)",
+        "definition": "The view that God creates each individual soul directly at conception or birth. The dominant position in Reformed theology, though it creates some tension with explaining how original sin is transmitted."
+      },
+      {
+        "_id": "ah-moral-inability",
+        "term": "Moral Inability",
+        "definition": "The condition of fallen humanity in which the will is genuinely free but completely bound in its orientation — inclined only toward evil and unable to choose God savingly without the transformation of divine grace."
+      }
+    ]
+  },
+  {
+    "_id": "christology",
+    "domain": "theology",
+    "title": "Christology",
+    "terms": [
+      {
+        "_id": "ch-christology",
+        "term": "Christology",
+        "definition": "The branch of systematic theology concerning the person and work of Jesus Christ — who he is (his divine and human natures) and what he has accomplished (his atoning and mediatorial work)."
+      },
+      {
+        "_id": "ch-hypostatic-union",
+        "term": "Hypostatic Union",
+        "definition": "The doctrine that in the one person of Jesus Christ two complete natures — divine and human — are united without confusion, change, division, or separation. Defined at the Council of Chalcedon (451)."
+      },
+      {
+        "_id": "ch-communicatio-idiomatum",
+        "term": "Communicatio Idiomatum",
+        "definition": "The communication of attributes — the properties of each of Christ's two natures being truly predicated of his one person. Because of the hypostatic union, both 'the Son of God died' and 'the Son of Man is omniscient' are valid affirmations."
+      },
+      {
+        "_id": "ch-kenosis",
+        "term": "Kenosis",
+        "definition": "From Philippians 2:7 — Christ 'emptied himself' in the incarnation. Kenotic theories debate what Christ relinquished or veiled; classical theology holds he set aside the independent exercise of certain attributes while retaining them essentially."
+      },
+      {
+        "_id": "ch-incarnation",
+        "term": "Incarnation",
+        "definition": "The eternal Son of God taking on full and complete human nature — becoming truly and permanently human while remaining truly and fully divine. The Word became flesh (John 1:14)."
+      },
+      {
+        "_id": "ch-virgin-birth",
+        "term": "Virgin Birth (Virgin Conception)",
+        "definition": "The miraculous conception of Jesus in the womb of the virgin Mary by the Holy Spirit, without a human father. Fulfills Isaiah 7:14 and is essential to the sinlessness and unique identity of Christ."
+      },
+      {
+        "_id": "ch-impeccability",
+        "term": "Sinlessness (Impeccability)",
+        "definition": "Christ's freedom from sin — in act (he never sinned) and in nature (he had no sinful inclination). Whether Christ was peccable (able to sin but did not) or impeccable (unable to sin) is debated."
+      },
+      {
+        "_id": "ch-active-obedience",
+        "term": "Active Obedience",
+        "definition": "Christ's perfect fulfillment of the law's positive demands throughout his entire earthly life, credited to the believer as the positive righteousness required for justification before God."
+      },
+      {
+        "_id": "ch-passive-obedience",
+        "term": "Passive Obedience",
+        "definition": "Christ's willing submission to the penalty of the law — his suffering and death — satisfying divine justice on behalf of sinners. Active and passive obedience together constitute his complete atoning work."
+      },
+      {
+        "_id": "ch-munus-triplex",
+        "term": "Prophet, Priest, and King (Munus Triplex)",
+        "definition": "The threefold office of Christ: as Prophet he reveals God and his will; as Priest he atones for sin and intercedes; as King he rules and protects his people. A framework developed by Calvin and standard in Reformed theology."
+      },
+      {
+        "_id": "ch-intercession",
+        "term": "Intercession",
+        "definition": "Christ's ongoing work as the risen and ascended High Priest, pleading his completed sacrifice before the Father on behalf of his people — a present and unceasing ministry (Hebrews 7:25; Romans 8:34)."
+      }
+    ]
+  },
+  {
+    "_id": "pneumatology",
+    "domain": "theology",
+    "title": "Pneumatology",
+    "terms": [
+      {
+        "_id": "pn-pneumatology",
+        "term": "Pneumatology",
+        "definition": "The branch of systematic theology concerning the person and work of the Holy Spirit — his deity, his distinct personhood within the Trinity, and his saving and sanctifying ministry."
+      },
+      {
+        "_id": "pn-baptism-of-spirit",
+        "term": "Baptism of the Spirit",
+        "definition": "The Spirit's work of uniting the believer to Christ and to the body of Christ at conversion (1 Corinthians 12:13). In Pentecostal and charismatic theology, a distinct post-conversion empowering experience accompanied by speaking in tongues."
+      },
+      {
+        "_id": "pn-filling-of-spirit",
+        "term": "Filling of the Spirit",
+        "definition": "The Spirit's ongoing work of empowering and directing the believer for service and godliness (Ephesians 5:18). Distinct from the Spirit's permanent indwelling; the filling may vary in intensity and is a repeated experience."
+      },
+      {
+        "_id": "pn-fruit-of-spirit",
+        "term": "Fruit of the Spirit",
+        "definition": "The character qualities produced in the believer by the Spirit's sanctifying work (Galatians 5:22–23): love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, and self-control."
+      },
+      {
+        "_id": "pn-charismata",
+        "term": "Gifts of the Spirit (Charismata)",
+        "definition": "Supernatural capacities given by the Spirit to believers for the building up of the body of Christ. Whether miraculous gifts continue today is the central debate between cessationism and continuationism."
+      },
+      {
+        "_id": "pn-illumination",
+        "term": "Illumination",
+        "definition": "The Spirit's work of opening the minds and hearts of believers to understand and receive the truths of Scripture. Distinct from inspiration, which produced Scripture; illumination enables its comprehension and application."
+      },
+      {
+        "_id": "pn-conviction",
+        "term": "Conviction",
+        "definition": "The Spirit's work of bringing a person to a genuine sense of sin, righteousness, and judgment — the necessary preparation for repentance and saving faith (John 16:8–11)."
+      },
+      {
+        "_id": "pn-sealing",
+        "term": "Sealing",
+        "definition": "The Spirit's work of marking believers as God's possession and guaranteeing their eschatological inheritance. The Spirit himself is the seal and the down payment (Ephesians 1:13–14; 4:30)."
+      }
+    ]
+  },
+  {
+    "_id": "soteriology",
+    "domain": "theology",
+    "title": "Soteriology",
+    "terms": [
+      {
+        "_id": "so-ordo-salutis",
+        "term": "Ordo Salutis",
+        "definition": "Latin for 'order of salvation.' The logical (and for some, temporal) sequence of the Spirit's saving work in the individual — typically including effectual calling, regeneration, faith, repentance, justification, adoption, sanctification, and glorification."
+      },
+      {
+        "_id": "so-effectual-calling",
+        "term": "Effectual Calling",
+        "definition": "God's internal, Spirit-empowered summons that infallibly brings the elect to faith. Distinguished from the general or external call of the gospel which goes to all who hear the message."
+      },
+      {
+        "_id": "so-regeneration",
+        "term": "Regeneration",
+        "definition": "The new birth — the Spirit's sovereign work of giving spiritual life to the spiritually dead. In Reformed theology, regeneration logically precedes and enables saving faith rather than following it."
+      },
+      {
+        "_id": "so-conversion",
+        "term": "Conversion",
+        "definition": "The human side of coming to salvation, comprising repentance (turning from sin) and faith (turning to Christ). Conversion is the conscious response enabled by the prior work of regeneration."
+      },
+      {
+        "_id": "so-justification",
+        "term": "Justification",
+        "definition": "God's forensic declaration that a sinner is righteous — not by infusing righteousness but by imputing Christ's righteousness and forgiving sin on the basis of Christ's atoning work received through faith alone."
+      },
+      {
+        "_id": "so-sanctification",
+        "term": "Sanctification",
+        "definition": "The ongoing work of the Holy Spirit transforming the believer progressively in holiness of life. Distinct from justification, which is positional and complete; sanctification is experiential and progressive."
+      },
+      {
+        "_id": "so-definitive-sanctification",
+        "term": "Definitive Sanctification",
+        "definition": "The once-for-all aspect of sanctification by which the believer is set apart from the dominion of sin at the moment of conversion. The basis from which progressive sanctification proceeds."
+      },
+      {
+        "_id": "so-glorification",
+        "term": "Glorification",
+        "definition": "The final stage of salvation in which the believer's body is resurrected and the entire person is fully conformed to the image of Christ. The completion of the ordo salutis at the return of Christ."
+      },
+      {
+        "_id": "so-adoption",
+        "term": "Adoption",
+        "definition": "The act by which God, in justification, receives believers as his children and heirs, conferring upon them the rights and standing of sons in his household (Romans 8:14–17; Galatians 4:4–7)."
+      },
+      {
+        "_id": "so-perseverance",
+        "term": "Perseverance of the Saints",
+        "definition": "The doctrine that those who are truly regenerate will persist in faith to the end and not finally fall away — grounded in God's electing purpose and preserving grace, not the believer's own strength or willpower."
+      },
+      {
+        "_id": "so-assurance",
+        "term": "Assurance",
+        "definition": "The believer's confidence that he or she is genuinely saved and will persevere to glory. Debated whether assurance is of the essence of saving faith itself or is a distinct blessing that may be more or less fully possessed."
+      },
+      {
+        "_id": "so-repentance",
+        "term": "Repentance",
+        "definition": "A genuine turning from sin — involving intellectual acknowledgment of sin, emotional grief over it, and volitional turning away from it toward God. Repentance and faith are inseparable components of conversion."
+      },
+      {
+        "_id": "so-propitiation",
+        "term": "Propitiation",
+        "definition": "The satisfaction of God's wrath against sin through Christ's atoning sacrifice, turning away divine judgment. Focuses on the Godward direction of the atonement. Distinguished from expiation, which focuses on sin itself."
+      },
+      {
+        "_id": "so-expiation",
+        "term": "Expiation",
+        "definition": "The removal or covering of sin's guilt and defilement by Christ's sacrifice. Focuses on sin rather than on God's wrath. Distinguished from propitiation, which concerns the turning away of divine displeasure."
+      },
+      {
+        "_id": "so-redemption",
+        "term": "Redemption",
+        "definition": "The purchase or liberation of sinners from bondage to sin, Satan, and death by Christ's payment of the ransom price — his own life given as a substitutionary sacrifice."
+      },
+      {
+        "_id": "so-reconciliation",
+        "term": "Reconciliation",
+        "definition": "The restoration of the broken relationship between God and humanity through Christ's atoning work, removing the enmity created by sin and establishing peace between the Creator and the creature."
+      },
+      {
+        "_id": "so-substitutionary-atonement",
+        "term": "Substitutionary Atonement",
+        "definition": "The doctrine that Christ died in the place of sinners, bearing the penalty they deserved. The broader category under which penal substitution falls, encompassing any view in which Christ acts as a substitute."
+      },
+      {
+        "_id": "so-penal-substitution",
+        "term": "Penal Substitution",
+        "definition": "The specific atonement theory holding that Christ bore the legal penalty due to sinners — satisfying divine justice — as their substitute. The central atonement model in Reformed and much evangelical theology."
+      },
+      {
+        "_id": "so-moral-influence",
+        "term": "Moral Influence Theory",
+        "definition": "The atonement view associated with Abelard holding that Christ's death primarily serves as a demonstration of God's love intended to move sinners to repentance, without satisfying divine justice or substituting for sinners."
+      },
+      {
+        "_id": "so-governmental-theory",
+        "term": "Governmental Theory",
+        "definition": "The atonement view holding that Christ's death was not a payment of the exact penalty owed but a public demonstration of God's moral governance, allowing God to forgive on relaxed terms without strict satisfaction."
+      },
+      {
+        "_id": "so-christus-victor",
+        "term": "Christus Victor",
+        "definition": "The atonement motif associated with Gustaf Aulén emphasizing Christ's death and resurrection as a cosmic victory over sin, death, and the devil, liberating captive humanity from their power."
+      },
+      {
+        "_id": "so-limited-atonement",
+        "term": "Limited Atonement (Definite Atonement, Particular Redemption)",
+        "definition": "The Calvinist doctrine that Christ's atoning work was designed to secure the salvation of the elect specifically — infinite in worth and sufficient for all, but particular in design and intent."
+      },
+      {
+        "_id": "so-unlimited-atonement",
+        "term": "Unlimited Atonement (Universal Atonement)",
+        "definition": "The view that Christ's atoning work was intended for all humanity without exception, though its saving benefit is received only by those who believe. The position of Arminian and many four-point Calvinist traditions."
+      },
+      {
+        "_id": "so-prevenient-grace",
+        "term": "Prevenient Grace",
+        "definition": "In Arminian theology, the grace God extends to all people prior to and enabling their free response to the gospel — removing the effects of total depravity sufficiently to allow genuine, uncoerced choice."
+      },
+      {
+        "_id": "so-irresistible-grace",
+        "term": "Irresistible Grace (Effectual Grace)",
+        "definition": "The Calvinist doctrine that God's saving grace, when applied to the elect, infallibly accomplishes its purpose — not by overriding the will but by transforming it so that the sinner willingly and gladly comes to Christ."
+      },
+      {
+        "_id": "so-monergism",
+        "term": "Monergism",
+        "definition": "The view that regeneration and salvation are the work of God alone — the sinner contributes nothing to the initiation of salvation. The Calvinist and Lutheran position with respect to regeneration."
+      },
+      {
+        "_id": "so-synergism",
+        "term": "Synergism",
+        "definition": "The view that salvation involves genuine cooperation between divine grace and human free will — God and the sinner work together. The Arminian and Roman Catholic position."
+      },
+      {
+        "_id": "so-common-grace",
+        "term": "Common Grace",
+        "definition": "God's non-saving grace extended to all people — restraining sin, enabling civic virtue and cultural achievement, and sustaining creation. Distinct from the special or saving grace given to the elect."
+      }
+    ]
+  },
+  {
+    "_id": "ecclesiology",
+    "domain": "theology",
+    "title": "Ecclesiology",
+    "terms": [
+      {
+        "_id": "ec-ecclesiology",
+        "term": "Ecclesiology",
+        "definition": "The branch of systematic theology concerning the nature, marks, mission, and government of the church."
+      },
+      {
+        "_id": "ec-invisible-church",
+        "term": "Invisible Church",
+        "definition": "The church as God knows it — all the truly regenerate across all times, places, and denominations. Known only to God; not identifiable by human observation."
+      },
+      {
+        "_id": "ec-visible-church",
+        "term": "Visible Church",
+        "definition": "The church as it appears in the world — the gathered community of those professing faith and their children, including both the regenerate and the unregenerate. The proper sphere of church discipline."
+      },
+      {
+        "_id": "ec-marks-of-church",
+        "term": "Marks of the Church",
+        "definition": "The identifying characteristics of a true church. In Reformation theology: the pure preaching of the Word and the right administration of the sacraments. Some traditions add church discipline as a third mark."
+      },
+      {
+        "_id": "ec-polity",
+        "term": "Polity",
+        "definition": "The form of church government. The three main forms are episcopal (governed by bishops), presbyterian (governed by elders), and congregational (governed by the congregation as a whole)."
+      },
+      {
+        "_id": "ec-sacrament",
+        "term": "Sacrament",
+        "definition": "In Catholic and some Protestant traditions, an outward sign instituted by Christ that confers grace to participants. Protestants generally limit sacraments to baptism and the Lord's Supper; many prefer the term 'ordinance.'"
+      },
+      {
+        "_id": "ec-ordinance",
+        "term": "Ordinance",
+        "definition": "The term preferred in Baptist and many evangelical traditions for baptism and the Lord's Supper — emphasizing that they are acts ordained by Christ to be observed, not means that automatically confer grace."
+      },
+      {
+        "_id": "ec-paedobaptism",
+        "term": "Paedobaptism (Infant Baptism)",
+        "definition": "The practice of baptizing infants, grounded in covenant theology's identification of baptism as the NT counterpart to circumcision, applied to children of believers as members of the covenant community."
+      },
+      {
+        "_id": "ec-credobaptism",
+        "term": "Credobaptism (Believer's Baptism)",
+        "definition": "The practice of baptizing only those who make a credible profession of faith, held by Baptist, Anabaptist, and many evangelical traditions. Baptism follows regeneration and publicly signifies it."
+      },
+      {
+        "_id": "ec-lords-supper",
+        "term": "Lord's Supper (Eucharist, Communion)",
+        "definition": "The meal of bread and cup instituted by Christ at the Last Supper and observed by the church in his memory. Theological debates center on the nature of Christ's presence in or with the elements."
+      },
+      {
+        "_id": "ec-transubstantiation",
+        "term": "Transubstantiation",
+        "definition": "The Roman Catholic doctrine that at consecration the substance of the bread and wine is transformed into the actual body and blood of Christ, though the accidents (outward appearance) remain."
+      },
+      {
+        "_id": "ec-real-presence",
+        "term": "Real Presence",
+        "definition": "The broad term for views holding that Christ is truly and bodily present in the Lord's Supper — used by Lutherans and some Anglicans. Contrasted with memorialism's purely symbolic view."
+      },
+      {
+        "_id": "ec-spiritual-presence",
+        "term": "Spiritual Presence (Reformed View)",
+        "definition": "Calvin's mediating position that Christ's body is in heaven but the Holy Spirit makes the risen Christ truly (though spiritually) present to the faith of the communicant, so that the Supper is a genuine means of grace."
+      },
+      {
+        "_id": "ec-memorialism",
+        "term": "Memorialism (Zwinglian View)",
+        "definition": "The view that the Lord's Supper is a memorial of Christ's death and a symbol of his body and blood — Christ is present spiritually by faith but not bodily in or with the elements."
+      },
+      {
+        "_id": "ec-church-discipline",
+        "term": "Church Discipline",
+        "definition": "The process by which the church addresses sin among its members — from private correction to public excommunication — aimed at the restoration of the sinner and the purity of the community."
+      },
+      {
+        "_id": "ec-elder",
+        "term": "Elder (Presbyter)",
+        "definition": "An ordained leader of a local church responsible for teaching, governance, and pastoral care. Some traditions distinguish teaching elders (pastors) from ruling elders who govern but do not preach."
+      },
+      {
+        "_id": "ec-deacon",
+        "term": "Deacon",
+        "definition": "A church officer responsible for mercy ministry and practical service, distinct from the elder's governing and teaching role. Rooted in Acts 6 and the qualifications of 1 Timothy 3:8–13."
+      },
+      {
+        "_id": "ec-cessationism",
+        "term": "Cessationism",
+        "definition": "The view that the miraculous sign gifts — including tongues, prophecy, and healing — ceased with the close of the apostolic age and the completion of the NT canon, having served their purpose of authenticating the apostles."
+      },
+      {
+        "_id": "ec-continuationism",
+        "term": "Continuationism",
+        "definition": "The view that all spiritual gifts, including miraculous ones such as tongues and prophecy, continue to operate in the church today and were not limited to the apostolic era."
+      }
+    ]
+  },
+  {
+    "_id": "eschatology",
+    "domain": "theology",
+    "title": "Eschatology",
+    "terms": [
+      {
+        "_id": "es-eschatology",
+        "term": "Eschatology",
+        "definition": "The branch of systematic theology concerned with last things — death, the intermediate state, resurrection, final judgment, and the consummation of God's kingdom."
+      },
+      {
+        "_id": "es-already-not-yet",
+        "term": "Already / Not Yet",
+        "definition": "The tension in NT eschatology between the kingdom of God inaugurated in Christ's first coming (already) and its full consummation awaiting his return (not yet). The framework for understanding the overlap of the ages."
+      },
+      {
+        "_id": "es-inaugurated-eschatology",
+        "term": "Inaugurated Eschatology",
+        "definition": "The view that the last days have genuinely begun with Christ's first coming — the kingdom is truly present but awaiting final consummation. Associated with Geerhardus Vos and further developed by Oscar Cullmann."
+      },
+      {
+        "_id": "es-realized-eschatology",
+        "term": "Realized Eschatology",
+        "definition": "The view associated with C.H. Dodd that the kingdom of God has been fully realized in Christ's ministry, with little or no future dimension remaining. Contrasted with inaugurated eschatology."
+      },
+      {
+        "_id": "es-parousia",
+        "term": "Parousia",
+        "definition": "Greek for 'presence' or 'arrival.' The NT term for Christ's second coming in glory to judge the living and the dead and to consummate his kingdom."
+      },
+      {
+        "_id": "es-millennium",
+        "term": "Millennium",
+        "definition": "The thousand-year reign of Christ referenced in Revelation 20:1–6. Interpreted differently by amillennialists, premillennialists, and postmillennialists, generating one of the major eschatological debates in evangelical theology."
+      },
+      {
+        "_id": "es-amillennialism",
+        "term": "Amillennialism",
+        "definition": "The view that the millennium is not a future literal thousand-year earthly reign but describes the present church age between Christ's first and second comings, during which Christ reigns at the right hand of the Father."
+      },
+      {
+        "_id": "es-premillennialism",
+        "term": "Premillennialism",
+        "definition": "The view that Christ will return before the millennium and reign on earth for a literal thousand years. Divided into historic premillennialism (without the dispensational framework) and dispensational premillennialism."
+      },
+      {
+        "_id": "es-dispensational-premillennialism",
+        "term": "Dispensational Premillennialism",
+        "definition": "The form of premillennialism that includes a pre-tribulation rapture, a literal seven-year tribulation, a restored national Israel, and a sharp distinction between God's program for Israel and for the church."
+      },
+      {
+        "_id": "es-historic-premillennialism",
+        "term": "Historic Premillennialism",
+        "definition": "The form of premillennialism that expects Christ's return after a period of tribulation, without the dispensational distinction between Israel and the church or a separate rapture event."
+      },
+      {
+        "_id": "es-postmillennialism",
+        "term": "Postmillennialism",
+        "definition": "The view that the gospel will progressively transform the world, resulting in a golden age of Christian civilization (the millennium), after which Christ will return. The millennium precedes the second coming."
+      },
+      {
+        "_id": "es-rapture",
+        "term": "Rapture",
+        "definition": "In dispensational theology, the catching up of living and deceased believers to meet Christ in the air, distinct from and preceding the second coming. Derived from 1 Thessalonians 4:17. Debated as pre-, mid-, or post-tribulational."
+      },
+      {
+        "_id": "es-intermediate-state",
+        "term": "Intermediate State",
+        "definition": "The condition of the soul between physical death and the final resurrection. Evangelical theology generally holds to conscious existence — the believer in the presence of Christ, the unbeliever under judgment."
+      },
+      {
+        "_id": "es-soul-sleep",
+        "term": "Soul Sleep",
+        "definition": "The view that the dead are unconscious between physical death and the final resurrection. Rejected by most evangelical traditions on the basis of passages such as Philippians 1:23 and 2 Corinthians 5:8."
+      },
+      {
+        "_id": "es-general-judgment",
+        "term": "General Judgment (Last Judgment)",
+        "definition": "The final reckoning at which all people stand before God to receive the verdict on their lives — the righteous to eternal life, the unrighteous to eternal punishment (Matthew 25:31–46; Revelation 20:11–15)."
+      },
+      {
+        "_id": "es-eternal-conscious-punishment",
+        "term": "Eternal Conscious Punishment (Hell)",
+        "definition": "The traditional evangelical doctrine that the unrighteous suffer consciously and without end in separation from God, receiving the just penalty of their sin against an infinitely holy God."
+      },
+      {
+        "_id": "es-annihilationism",
+        "term": "Annihilationism (Conditional Immortality)",
+        "definition": "The view that the unrighteous are ultimately destroyed rather than suffering eternally — they cease to exist after final judgment. Held by some evangelical scholars as a biblical alternative to eternal conscious punishment."
+      },
+      {
+        "_id": "es-new-creation",
+        "term": "New Creation",
+        "definition": "The eschatological renewal of all things — the restoration and transformation of the present creation into the new heavens and new earth, the eternal dwelling place of God with his redeemed people (Revelation 21–22)."
+      }
+    ]
+  },
+  {
+    "_id": "covenant-dispensation",
+    "domain": "theology",
+    "title": "Covenant Theology & Dispensationalism",
+    "terms": [
+      {
+        "_id": "cd-covenant-theology",
+        "term": "Covenant Theology",
+        "definition": "A system of biblical interpretation organized around the covenants of works and grace (and sometimes redemption), tracing one unified redemptive plan across both Testaments with continuity between Israel and the church."
+      },
+      {
+        "_id": "cd-covenant-of-works",
+        "term": "Covenant of Works",
+        "definition": "In Reformed covenant theology, the pre-fall arrangement between God and Adam in which eternal life was offered on the condition of perfect and personal obedience. Adam's failure necessitated the covenant of grace."
+      },
+      {
+        "_id": "cd-covenant-of-grace",
+        "term": "Covenant of Grace",
+        "definition": "In Reformed covenant theology, God's one redemptive covenant running from the fall to the consummation, administered through successive epochs (Abrahamic, Mosaic, Davidic, New Covenant), all pointing to and fulfilled in Christ."
+      },
+      {
+        "_id": "cd-covenant-of-redemption",
+        "term": "Covenant of Redemption (Pactum Salutis)",
+        "definition": "The eternal intra-Trinitarian covenant in which the Father elects a people, the Son agrees to redeem them through incarnation and atonement, and the Spirit agrees to apply salvation. The eternal basis for the covenant of grace."
+      },
+      {
+        "_id": "cd-dispensationalism",
+        "term": "Dispensationalism",
+        "definition": "A system of biblical interpretation dividing redemptive history into distinct ages (dispensations) under different divine arrangements. Emphasizes a sharp distinction between Israel and the church and a future for national Israel."
+      },
+      {
+        "_id": "cd-progressive-dispensationalism",
+        "term": "Progressive Dispensationalism",
+        "definition": "A mediating form of dispensationalism that sees more continuity between the Testaments and holds that Christ's present reign at the right hand of the Father partially inaugurates the Davidic kingdom already."
+      },
+      {
+        "_id": "cd-new-covenant-theology",
+        "term": "New Covenant Theology",
+        "definition": "A mediating position between covenant theology and dispensationalism, rejecting the covenant of works and the Mosaic covenant as binding on NT believers, while maintaining the unity of God's redemptive purpose across the Testaments."
+      },
+      {
+        "_id": "cd-typological-fulfillment",
+        "term": "Typological Fulfillment",
+        "definition": "The way in which OT persons, institutions, and events prefigure and find their full and intended realization in Christ and the new covenant realities he introduces. Distinct from mere prediction-fulfillment."
+      }
+    ]
   }
 ]
