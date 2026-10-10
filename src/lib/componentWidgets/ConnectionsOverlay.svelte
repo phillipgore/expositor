@@ -769,6 +769,57 @@
 		return colRect;
 	}
 
+	/**
+	 * Narrow a column/section edge to the SEGMENT that actually sits on it.
+	 *
+	 * Segments can be pulled right (passage_segment.left_offset), which widens the
+	 * column / section box past the segment at its top or bottom. Sliding a point
+	 * along the full box edge could then leave it hanging over empty space. So the
+	 * horizontal span is clamped to the bordering segment:
+	 *   column top     → first visible segment of the first visible section
+	 *   section top    → the section's first visible segment
+	 *   section bottom → the section's last visible segment
+	 * The edge's vertical position (rect.top / rect.bottom) is kept unchanged.
+	 * Segments and side edges pass through untouched; falls back to `rect` when no
+	 * visible segment is found.
+	 * @param {Element} el — the column or section element
+	 * @param {ConnType} type
+	 * @param {AnchorEdge} edge
+	 * @param {DOMRect} rect — the rect already used for this end
+	 * @returns {DOMRect}
+	 */
+	function edgeSegmentRect(el, type, edge, rect) {
+		if (type === 'segment' || (edge !== 'top' && edge !== 'bottom')) return rect;
+		/** @param {Element} container */
+		const visibleSegments = (container) =>
+			[...container.querySelectorAll('[data-segment-id]')].filter((s) => {
+				const r = s.getBoundingClientRect();
+				return r.width > 0 && r.height > 0;
+			});
+		let segs = [];
+		if (type === 'column') {
+			for (const sec of el.querySelectorAll('.section[data-section-id]')) {
+				if (sec.classList.contains('compare-hidden')) continue;
+				segs = visibleSegments(sec);
+				if (segs.length) break;
+			}
+		} else {
+			segs = visibleSegments(el);
+		}
+		if (!segs.length) return rect;
+		const seg = edge === 'bottom' ? segs[segs.length - 1] : segs[0];
+		const s = seg.getBoundingClientRect();
+		const left = Math.max(rect.left, s.left);
+		const right = Math.min(rect.right, s.right);
+		if (right <= left) return rect;
+		return /** @type {DOMRect} */ ({
+			left, right, width: right - left,
+			top: rect.top, bottom: rect.bottom, height: rect.height,
+			x: left, y: rect.top,
+			toJSON() { return this; }
+		});
+	}
+
 
 	/**
 	 * Distribute a set of anchor points along a one-dimensional edge span so that:
@@ -2103,7 +2154,7 @@
 					const gk = `${elId}|${edge}`;
 					if (!groups.has(gk)) groups.set(gk, []);
 					groups.get(gk)?.push({
-						key: `${connection.id}|${presentEnd}`, edge, rect,
+						key: `${connection.id}|${presentEnd}`, edge, rect: edgeSegmentRect(el, type, edge, rect),
 						// Aim at a far point toward the other part (off-page left or right),
 						// so the point slides along its edge toward that part and fans out
 						// with the other points exactly like a normal line's end does.
@@ -2173,8 +2224,11 @@
 
 			if (!groups.has(fromGroupKey)) groups.set(fromGroupKey, []);
 			if (!groups.has(toGroupKey))   groups.set(toGroupKey, []);
-			groups.get(fromGroupKey)?.push({ key: `${connection.id}|from`, edge: fromEdge, rect: fromRect, otherCX: toCX,   otherCY: toCY,   placedPos: fromPlaced?.pos ?? null });
-			groups.get(toGroupKey)?.push(  { key: `${connection.id}|to`,   edge: toEdge,   rect: toRect,   otherCX: fromCX, otherCY: fromCY, placedPos: toPlaced?.pos ?? null });
+			// Points slide only along the part of the edge a segment covers (see edgeSegmentRect).
+			const fromEdgeRect = edgeSegmentRect(fromEl, fromType, fromEdge, fromRect);
+			const toEdgeRect   = edgeSegmentRect(toEl,   toType,   toEdge,   toRect);
+			groups.get(fromGroupKey)?.push({ key: `${connection.id}|from`, edge: fromEdge, rect: fromEdgeRect, otherCX: toCX,   otherCY: toCY,   placedPos: fromPlaced?.pos ?? null });
+			groups.get(toGroupKey)?.push(  { key: `${connection.id}|to`,   edge: toEdge,   rect: toEdgeRect,   otherCX: fromCX, otherCY: fromCY, placedPos: toPlaced?.pos ?? null });
 
 			// Line color (live menu override wins over the stored value):
 			//   gray  → default CSS gray (no inline color)
@@ -3023,14 +3077,16 @@
 		const sides = [];
 
 		/**
-		 * @param {string} id @param {ConnType} type @param {DOMRect} rect
+		 * @param {string} id @param {ConnType} type @param {DOMRect} rect @param {Element} el
 		 */
-		const addSides = (id, type, rect) => {
-			const L = (rect.left - svgRect.left) / scale;
-			const R = (rect.right - svgRect.left) / scale;
+		const addSides = (id, type, rect, el) => {
 			const T = (rect.top - svgRect.top) / scale;
 			const B = (rect.bottom - svgRect.top) / scale;
 			for (const edge of ALLOWED_ANCHOR_EDGES[type]) {
+				// Top/bottom edges span only the bordering segment (see edgeSegmentRect).
+				const er = edgeSegmentRect(el, type, edge, rect);
+				const L = (er.left - svgRect.left) / scale;
+				const R = (er.right - svgRect.left) / scale;
 				if (edge === 'top')    sides.push({ elementId: id, type, edge, x1: L, y1: T, x2: R, y2: T });
 				if (edge === 'bottom') sides.push({ elementId: id, type, edge, x1: L, y1: B, x2: R, y2: B });
 				if (edge === 'left')   sides.push({ elementId: id, type, edge, x1: L, y1: T, x2: L, y2: B });
@@ -3045,7 +3101,7 @@
 			// Column top = the first visible section's top (see columnAnchorRect).
 			const rect = columnAnchorRect(el);
 			if (rect.width === 0) return;
-			addSides(id, 'column', rect);
+			addSides(id, 'column', rect, el);
 		});
 
 		document.querySelectorAll('.section[data-section-id]').forEach(el => {
@@ -3054,7 +3110,7 @@
 			if (hasConnectionBetween(fixedType, fixedElementId, 'section', id, connectionId)) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			addSides(id, 'section', rect);
+			addSides(id, 'section', rect, el);
 		});
 
 		document.querySelectorAll('[data-segment-id]').forEach(el => {
@@ -3063,7 +3119,7 @@
 			if (hasConnectionBetween(fixedType, fixedElementId, 'segment', id, connectionId)) return;
 			const rect = el.getBoundingClientRect();
 			if (rect.width === 0) return;
-			addSides(id, 'segment', rect);
+			addSides(id, 'segment', rect, el);
 		});
 
 		return sides;
