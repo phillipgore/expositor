@@ -1287,7 +1287,7 @@
 				title="Zoom Out"
 				aria-label="Zoom Out"
 			>
-				<Icon iconId="minus-circle" />
+				<Icon iconId="zoom-out" />
 			</button>
 			<span class="zoom-level">{commentaryZoom}%</span>
 			<button
@@ -1299,7 +1299,7 @@
 				title="Zoom In"
 				aria-label="Zoom In"
 			>
-				<Icon iconId="plus-circle" />
+				<Icon iconId="zoom-in" />
 			</button>
 		</div>
 	</div>

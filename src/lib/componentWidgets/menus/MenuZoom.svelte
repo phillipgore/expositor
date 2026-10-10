@@ -88,6 +88,7 @@
 	<IconButton
 		classes="menu-light full-width justify-content-left"
 		label="Zoom In"
+		iconId="zoom-in"
 		role="menuitem"
 		handleClick={() => stepTo(nextUp)}
 		isDisabled={nextUp === undefined}
@@ -95,6 +96,7 @@
 	<IconButton
 		classes="menu-light full-width justify-content-left"
 		label="Zoom Out"
+		iconId="zoom-out"
 		role="menuitem"
 		handleClick={() => stepTo(nextDown)}
 		isDisabled={nextDown === undefined}
