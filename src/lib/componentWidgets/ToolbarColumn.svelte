@@ -83,7 +83,9 @@
 		content: " ";
 		width: 2.8rem;
 		position: absolute;
-		left: -2.5rem;
+		/* Shifted right with the section circles (which align with the segments' left
+		   edge), keeping the same checkbox-to-circle gap. */
+		left: -2.1rem;
 		top: -2.3rem;
 		overflow: hidden;
 		gap: 0.3rem;

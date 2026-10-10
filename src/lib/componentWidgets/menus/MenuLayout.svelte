@@ -13,9 +13,8 @@
 	 * - Column Spacing  — Set Column Spacing / Reset Column Spacing
 	 * - Column Width    — Set Column Width / Reset Column Width
 	 * - Section Spacing — Set Section Spacing / Reset Section Spacing
-	 * - Segment Height  — Set Segment Height / Reset Segment Height
+	 * - Segment Height  — Set / Reset Segment Height, Link / Unlink (resize linked segments together)
 	 * - Segment Position — Set Segment Position / Reset Segment Position (pull right)
-	 * - Segment Height  — Link / Unlink (resize linked segments together)
 	 *
 	 * Usage:
 	 * ```
@@ -161,6 +160,33 @@
 
 	/>
 
+	<!-- Link / Unlink segment heights: linked segments are kept at the height of the
+	     tallest member and resize together. Link needs 2+ selected segments that aren't
+	     already all in one group; Unlink needs the selection to include a linked segment. -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="segment-height-link"
+		label="Link Segment Height"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('link-segment-height'));
+		}}
+		isDisabled={!$toolbarState.canLinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="segment-height-unlink"
+		label="Unlink Segment Height"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('unlink-segment-height'));
+		}}
+		isDisabled={!$toolbarState.canUnlinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
 	<DividerHorizontal />
 
 	<!-- Segment position: pull the selected segments to the right within their column
@@ -187,34 +213,5 @@
 			window.dispatchEvent(new CustomEvent('reset-segment-position'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
-	/>
-
-	<DividerHorizontal />
-
-	<!-- Link / Unlink segment heights: linked segments are kept at the height of the
-	     tallest member and resize together. Link needs 2+ selected segments that aren't
-	     already all in one group; Unlink needs the selection to include a linked segment. -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="segment-height-link"
-		label="Link Segment Height"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('link-segment-height'));
-		}}
-		isDisabled={!$toolbarState.canLinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="segment-height-unlink"
-		label="Unlink Segment Height"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('unlink-segment-height'));
-		}}
-		isDisabled={!$toolbarState.canUnlinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 </Menu>

@@ -61,13 +61,24 @@
 		flex-direction: column;
 		align-items: flex-start;
 		content: " ";
-		width: 2.8rem;
+		/* Only as wide as the circle, so it doesn't block the Section Spacing grab
+		   strip beside it. */
+		width: fit-content;
 		position: absolute;
-		left: -2.7rem;
-		top: 0;
+		/* In the gap ABOVE the section, on the same row as the column checkbox and just
+		   to its right (checkbox at left -2.1rem, 1.8rem wide). Same spot for every
+		   section, since sections always have a top gap. Keeps the section's left
+		   border free for the segment and column drag handles. The section sits inside
+		   the column's 0.2rem padding, so top is 0.2rem higher than the checkbox's
+		   -2.3rem to land on the same row. */
+		/* Left edge lines up with the left edge of unmoved segments. */
+		left: 0;
+		top: -2.5rem;
 		overflow: hidden;
 		gap: 0.3rem;
-		z-index: 11;
+		/* Above the Section Spacing grab strip (z-index 16), which runs across the
+		   section's top edge and overlaps the circle's bottom few px. */
+		z-index: 17;
 	}
 
 	/* Circular radio-style control. Inherits the section's color via the

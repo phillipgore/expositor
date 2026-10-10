@@ -54,6 +54,9 @@
 		onHandleLeave = null,
 		/** How far (CSS px) the segment is pulled right within its column (Analyze only). 0 = flush. */
 		leftOffset = 0,
+		/** This segment's offset minus the offset of the segment above it in the same section
+		 *  (0 = aligned, or first in section). Drives the partial top border below. */
+		topShift = 0,
 		/** Fixed width (CSS px) to hold while the column is widened for pulled-right segments; null = fill the column. */
 		positionWidth = null,
 		/** Whether the segment can be pulled right (shows the left-edge drag handle). */
@@ -222,6 +225,7 @@
      class:link-hovered={resizeEnabled && linkHovered}
      style:min-height={height != null ? `${height}px` : null}
      style:margin-left={leftOffset > 0 ? `${leftOffset}px` : null}
+     data-left-offset={leftOffset > 0 ? Math.round(leftOffset) : null}
      style:width={positionWidth != null ? `${positionWidth}px` : null}
      data-segment-id="{segmentId}"
      data-height-group-id={heightGroupId || null}>
@@ -339,9 +343,25 @@
 
 	{/if}
 
-	<!-- Position handle: a narrow strip over the LEFT border. Hovering shows the
-	     ew-resize cursor and a centered vertical indicator; mousedown begins a drag
-	     that pulls the segment right (capped 36px short of the segment above's right edge). -->
+	<!-- Partial top border for a repositioned segment. Segments have no top border of
+	     their own: the segment above's bottom border doubles as the divider. When this
+	     segment is shifted relative to the one above, part of its top edge is no longer
+	     under that border — the overhang on the right (shifted right) or on the left
+	     (shifted left). Draw a 1px line over exactly that overhang, overlapping the row
+	     the above segment's border sits on, so the divider looks continuous. -->
+	<!-- Skipped when a Heading One is shown: it draws its own full border, top included. -->
+	{#if topShift !== 0 && !((heading1 && effectiveHeadingsVisible) || headingOneInputMode)}
+		<span
+			class="top-overhang"
+			class:right={topShift > 0}
+			style:width="calc({Math.abs(topShift)}px + 0.1rem)"
+			aria-hidden="true"
+		></span>
+	{/if}
+
+	<!-- Position handle: a three-dot grab handle centered on the LEFT border, matching
+	     the Column / Section reposition handles. Mousedown begins a drag that pulls the
+	     segment right (capped 36px short of the segment above's right edge). -->
 	{#if resizeEnabled && canReposition}
 		<div
 			class="position-handle"
@@ -350,7 +370,11 @@
 			aria-orientation="vertical"
 			onmousedown={(e) => onRepositionStart?.(e, segmentId)}
 		>
-			<span class="position-indicator"></span>
+			<span class="position-indicator">
+				<span class="position-dot"></span>
+				<span class="position-dot"></span>
+				<span class="position-dot"></span>
+			</span>
 		</div>
 	{/if}
 </div>
@@ -511,21 +535,44 @@
 	/* Position Handle (left border — pull the segment right) */
 	/* ============================================================ */
 
-	/* Narrow hit-zone straddling the LEFT border. Mirrors .resize-handle on the other
-	   axis: only ~8px wide so word selection is unaffected. */
+	/* Partial top border over the part of a shifted segment's top edge that the segment
+	   above's bottom border doesn't cover. Sits one border-width above the segment
+	   (top: -0.1rem) — the same row as that bottom border — and extends one extra
+	   border-width to meet the above segment's side border at the corner. */
+	.top-overhang {
+		position: absolute;
+		top: -0.1rem;
+		left: 0;
+		height: 0.1rem;
+		background-color: var(--section-dark);
+		z-index: 11;
+		pointer-events: none;
+	}
+
+	.top-overhang.right {
+		left: auto;
+		right: 0;
+	}
+
+	/* A small grab target on the segment's LEFT border, 3.6rem from the top (matching
+	   the column handles) so it stays reachable on very long segments; on segments too
+	   short for that it centers instead (min() picks the higher position, so the switch
+	   is seamless). Mirrors the Column reposition handle (vertical three-dot indicator,
+	   grab cursor, hidden until hovered or Layout Controls is on) but uses the
+	   segment's own colors like the Section reposition handle. */
 	.position-handle {
 		position: absolute;
-		top: 0;
-		bottom: 0;
-		left: -0.4rem;
-		width: 0.8rem;
-		z-index: 15;
-		cursor: ew-resize;
+		top: min(3.6rem, calc(50% - 1rem));
+		left: -1.2rem;
+		width: 1.4rem;
+		height: 2.0rem;
+		z-index: 16;
+		cursor: grab;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		opacity: 0;
-		transition: opacity 0.12s ease-out;
+		transition: opacity 80ms ease-in-out;
 	}
 
 	.position-handle:hover,
@@ -534,10 +581,24 @@
 		opacity: 1;
 	}
 
+	.segment.is-repositioning .position-handle {
+		cursor: grabbing;
+	}
+
+	/* Exactly three dots in a VERTICAL column, centered over the left border. */
 	.position-indicator {
-		width: 0.5rem;
-		height: 2.4rem;
-		border-radius: 0.3rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.3rem;
+	}
+
+	/* Each dot uses the segment's light color with a darker 1px border. */
+	.position-dot {
+		width: 0.6rem;
+		height: 0.6rem;
+		border-radius: 50%;
 		background-color: var(--section-light);
 		border: 0.1rem solid var(--section-darker);
 	}

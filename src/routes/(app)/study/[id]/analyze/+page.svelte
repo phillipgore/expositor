@@ -363,11 +363,17 @@
 	 * plus the column's extent (largest rendered offset). Offsets are ignored (all 0) in
 	 * Overview / Compare / Focus modes, matching segment heights.
 	 * @param {any} column - A structure column ({ id, width, sections: [{ segments }] })
-	 * @returns {{ offsets: Record<string, number>, max: Record<string, number>, extent: number }}
+	 * `shift` is each segment's offset minus the offset of the segment directly above it
+	 * in the SAME section (0 for a section's first segment). Segments draw no top border
+	 * of their own — the segment above's bottom border doubles as the divider — so a
+	 * shifted segment uses this to draw the part of its top edge that border doesn't cover.
+	 * @returns {{ offsets: Record<string, number>, max: Record<string, number>, shift: Record<string, number>, extent: number }}
 	 */
 	function getSegmentPositionLayout(column) {
 		/** @type {Record<string, number>} */
 		const offsets = {};
+		/** @type {Record<string, number>} */
+		const shift = {};
 		/** @type {Record<string, number>} */
 		const max = {};
 		let extent = 0;
@@ -377,19 +383,23 @@
 		/** @type {number|null} */
 		let prevOffset = null;
 		for (const section of column.sections ?? []) {
+			let isFirstInSection = true;
 			for (const segment of section.segments ?? []) {
-				const limit = prevOffset == null
-					? 0
-					: Math.max(0, prevOffset + segmentWidth - SEGMENT_POSITION_GAP);
+				// The first segment in a column behaves as if an UNMOVED segment (offset 0)
+				// sat above it, so it can be pulled right too.
+				const above = prevOffset ?? 0;
+				const limit = Math.max(0, above + segmentWidth - SEGMENT_POSITION_GAP);
 				const wanted = segmentReposition.getLiveOffset(segment.id) ?? segment.leftOffset ?? 0;
 				const offset = disabled ? 0 : Math.min(Math.max(0, wanted), limit);
 				offsets[segment.id] = offset;
 				max[segment.id] = limit;
+				shift[segment.id] = isFirstInSection || prevOffset == null ? 0 : offset - prevOffset;
 				if (offset > extent) extent = offset;
 				prevOffset = offset;
+				isFirstInSection = false;
 			}
 		}
-		return { offsets, max, extent };
+		return { offsets, max, shift, extent };
 	}
 
 	/**
@@ -424,6 +434,7 @@
 		getScale: () => currentScale,
 		getOffset: (id) => getSegmentPosition(id).offset,
 		getMaxOffset: (id) => getSegmentPosition(id).max,
+		getContainer: () => analyzeContentRef,
 		onPersist: () => invalidate('app:studies')
 	});
 
@@ -5142,6 +5153,7 @@
 													class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}
 													style:--column-offset="{columnOffset}px"
 													style:--first-section-offset="{firstSectionOffset}px"
+													style:--resize-handle-shift="{activeColumns.includes(column.id) ? 0 : (segmentPositions.offsets[column.sections?.[0]?.segments?.[0]?.id] ?? 0) - segmentExtent}px"
 													style:width={segmentExtent > 0 ? `${columnBaseWidth + segmentExtent}px` : (columnWidth != null ? `${columnWidth}px` : null)}
 												>
 
@@ -5156,6 +5168,7 @@
 																class:compare-hidden={isHideMode && !visibleSectionIds.has(section.id)}
 																class:is-repositioning={sectionReposition.activeSectionId === section.id}
 																style:--reposition-offset="{sectionOffset}px"
+																style:--handle-shift="{activeSections.includes(section.id) ? 0 : (segmentPositions.offsets[section.segments?.[0]?.id] ?? 0) - segmentExtent / 2}px"
 															>
 																{#if section.segments && section.segments.length > 0}
 
@@ -5217,6 +5230,7 @@
 																			onHandleEnter={segmentResize.handleHandleEnter}
 																			onHandleLeave={segmentResize.handleHandleLeave}
 																			leftOffset={segmentPositions.offsets[segment.id] ?? 0}
+																			topShift={segmentPositions.shift[segment.id] ?? 0}
 																			positionWidth={segmentExtent > 0 ? columnBaseWidth - COLUMN_INNER_PADDING : null}
 																			canReposition={!$toolbarState.overviewMode && !isHideMode && (segmentPositions.max[segment.id] ?? 0) > 0}
 																			isRepositioning={segmentReposition.activeSegmentId === segment.id}
@@ -5462,6 +5476,18 @@
 			y={columnReposition.dragTooltip.y}
 			height={columnReposition.dragTooltip.height}
 		/>
+	{/if}
+
+	<!-- Segment position snap guide: a yellow VERTICAL line spanning the content height,
+	     shown while a segment position drag snaps to another repositioned segment's left
+	     edge or to the 18px grid. Reuses the vertical .resize-snap-guide variant. -->
+	{#if segmentReposition.guideLine.visible}
+		<div
+			class="resize-snap-guide resize-snap-guide-vertical"
+			style:top="{segmentReposition.guideLine.top}px"
+			style:left="{segmentReposition.guideLine.left}px"
+			style:height="{segmentReposition.guideLine.height}px"
+		></div>
 	{/if}
 
 	<!-- Column width resize snap guide: a yellow VERTICAL line spanning the content
@@ -5735,9 +5761,10 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2.6rem;
-		/* Top matches the side padding so the gap below AnalyzeStudyToolbar equals
-		   the left gap. Bottom keeps its original 2.6rem. */
-		padding: 4.4rem 4.4rem 2.6rem;
+		/* Top is the side padding (4.4rem) plus 2.7rem, giving the out-of-flow passage
+		   reference and selector row more room above the first segment. Bottom keeps
+		   its original 2.6rem. */
+		padding: 7.1rem 4.4rem 2.6rem;
 		width: fit-content;
 	}
 
@@ -5774,6 +5801,8 @@
 		display: flex;
 		flex-direction: column;
 		flex-shrink: 0;
+		/* Positioning context for the out-of-flow passage reference. */
+		position: relative;
 	}
 
 	.passage-divider {
@@ -5814,7 +5843,16 @@
 		font-weight: 700;
 		margin-left: calc(0.2rem + var(--reference-offset, 0px));
 		margin-top: 0.0rem;
-		margin-bottom: 1.1rem;
+		/* Out of flow: the reference lives in the top padding gap, above the selector
+		   row (checkbox + section circle, which sit 0.5–2.3rem above the column), so
+		   the gap from the title bar to the first segment equals the left gap from
+		   the Finder. Its bottom sits 2.9rem above the column's top. */
+		position: absolute;
+		left: 0;
+		bottom: 100%;
+		margin-bottom: 2.9rem;
+		line-height: 1.2;
+		white-space: nowrap;
 		/* Vertical companion to --reference-offset: when the first column's top segment
 		   is pushed down, the whole first column slides down by --reference-top-offset
 		   (see .column margin-top), so translate the reference down by the same amount to
@@ -5822,6 +5860,7 @@
 		   passage-container/columns down a second time. Defaults to 0. */
 		transform: translateY(var(--reference-top-offset, 0px));
 	}
+
 
 
 
@@ -5885,17 +5924,21 @@
 	/* A narrow strip overlapping the LEFT border of each non-first column — the same
 	   side as the gap it adjusts. Invisible until hovered, at which point it shows a
 	   grab cursor and a vertical three-dot indicator so the user knows the column can be
-	   dragged horizontally. Anchored near the top of the column (but pushed down below
-	   the first section's selection radio — which sits at top: 0, ~2.0rem tall — so the
-	   two controls don't overlap on the column's left side) while staying easy to find
+	   dragged horizontally. Placed just ABOVE the column's top-left corner so it never
+	   collides with the first segment's position handle, and stays easy to find
 	   without scrolling through long columns. */
 	.column-reposition-handle {
 		position: absolute;
 		/* The whole column box already slides down by the first-section offset (see the
 		   .column margin-top rule), and this handle is absolutely positioned WITHIN the
-		   column, so it moves down with it automatically — no extra offset needed here. */
-		top: 2.3rem;
-		left: -1.2rem;
+		   column, so it moves down with it automatically — no extra offset needed here.
+		   Sits just OUTSIDE the column's left border, level with the first segment's
+		   position handle (same top rule), so the grey column dots and the coloured
+		   segment dots stand side by side without overlapping. Same 2.0rem height as
+		   the segment handle, plus 0.2rem for the column's padding (segments sit inside
+		   it), so the two dot stacks line up exactly. */
+		top: calc(0.2rem + min(3.6rem, calc(50% - 1.2rem)));
+		left: -2.4rem;
 
 		width: 1.4rem;
 		height: 2.0rem;
@@ -5957,7 +6000,7 @@
 		/* The whole column box already slides down by the first-section offset (see the
 		   .column margin-top rule), and this handle is absolutely positioned WITHIN the
 		   column, so it moves down with it automatically — no extra offset needed here. */
-		top: 2.3rem;
+		top: min(3.6rem, calc(50% - 1rem));
 		right: -1.2rem;
 
 		width: 1.4rem;
@@ -5970,6 +6013,15 @@
 		cursor: ew-resize;
 		z-index: 16;
 		opacity: 0;
+		/* Sit beside the FIRST segment's right edge (the one level with the bar). The
+		   column widens to fit right-shifted segments, so shift = first offset − extent
+		   pulls the bar back; a selected column gets 0 and the bar slides out to the
+		   column's real right edge. */
+		transform: translateX(var(--resize-handle-shift, 0px));
+		transition: opacity 80ms ease-in-out, transform 200ms ease-in-out;
+	}
+
+	.column.is-resizing .column-resize-handle {
 		transition: opacity 80ms ease-in-out;
 	}
 
@@ -6063,8 +6115,11 @@
 	.reposition-handle {
 		position: absolute;
 		top: -1.2rem;
-		left: 0;
-		right: 0;
+		/* Starts just right of the section circle (1.8rem wide, at the section's left
+		   edge, in the gap above) so the strip never covers it. The right side is
+		   inset equally so the centred dots stay centred over the section. */
+		left: 2.2rem;
+		right: 2.2rem;
 		height: 1.4rem;
 		display: flex;
 		align-items: center;
@@ -6097,6 +6152,16 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.3rem;
+		/* Centre the dots over the section's FIRST segment (the one directly below).
+		   The section widens to fit right-shifted segments, so its centre drifts; the
+		   shift (first segment offset − extent / 2) pulls the dots back. When the section
+		   is selected the shift is 0 and the dots slide to the section's centre. */
+		transform: translateX(var(--handle-shift, 0px));
+		transition: transform 200ms ease-in-out;
+	}
+
+	.section.is-repositioning .reposition-indicator {
+		transition: none;
 	}
 
 	/* Each dot uses the section's light color with a darker 1px border. */
@@ -6188,6 +6253,12 @@
 
 	.section:global(.active)::after {
 		opacity: 1;
+	}
+
+	/* Selected section fill: a light tint of the same color as its selection glow
+	   (--section-dark). Applied to the section itself only; segments stay white. */
+	.section:global(.active) {
+		background-color: var(--section-lighter);
 	}
 
 	.heading-one {
