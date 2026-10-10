@@ -1,4 +1,5 @@
 import { getRenderedScale } from '$lib/utils/zoomScale.js';
+import { LINK_KINDS, getGroupMemberIds } from '$lib/utils/linkGroups.js';
 /**
  * Section Reposition Composable
  *
@@ -22,6 +23,10 @@ import { getRenderedScale } from '$lib/utils/zoomScale.js';
  *    at the snap position. Dragging past the threshold releases the snap.
  *  - On release, the new offset is persisted to the DB via PATCH /api/passages/sections/[id]
  *    and the page data is invalidated so it survives reload.
+ *
+ * LINKED spacing: sections sharing a `data-spacing-group-id` keep the same TOTAL gap
+ * above them. Dragging one applies that total to every member (each converted to its
+ * own stored offset) and persists the group via /api/passages/sections/batch-spacing.
  *
  * The composable is intended to live at the Analyze page level (it needs to see all
  * `.section`/`.segment` elements and the zoom scale). Individual section elements call
@@ -56,7 +61,8 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 	// center and current top edge of the dragged section; gap is the CSS-px total spacing
 	// above the section (and ultimately what determines the saved offset). Mirrors the
 	// segment-resize tooltip via the shared ResizeTooltip component.
-	let dragTooltip = $state({ visible: false, x: 0, y: 0, height: 0 });
+	/** @type {{ visible: boolean, x: number, y: number, height: number, label?: string|null }} */
+	let dragTooltip = $state({ visible: false, x: 0, y: 0, height: 0, label: null });
 
 	// Internal (non-reactive) drag bookkeeping.
 	let startY = 0; // pointer Y at mousedown (viewport px)
@@ -66,6 +72,8 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 	let draggedCenterX = 0; // dragged section's horizontal center (viewport px) — fixed during drag
 	let snapCandidates = []; // array of viewport Y values (other columns' section/segment edges)
 	let dragScale = 1; // painted zoom scale captured at drag start
+	/** @type {{ id: string, defaultGap: number }[]} */
+	let linkedMembers = []; // OTHER members of the dragged section's spacing group
 
 
 	/**
@@ -130,6 +138,11 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		// Layout value from getComputedStyle is already pre-zoom CSS px — do NOT ÷ scale.
 		defaultMargin = measuredDefault;
 
+		// Linked members follow the dragged section's TOTAL gap; capture their defaults now.
+		linkedMembers = getGroupMemberIds(LINK_KINDS.sectionSpacing, sectionId)
+			.slice(1)
+			.map((id) => ({ id, defaultGap: measureDefaultGap(id) }));
+
 
 		// Collect snap candidates: top & bottom edges (viewport Y) of every section and
 		// segment NOT in the same column as the dragged section. Same-column elements
@@ -154,7 +167,8 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 			// Lift the anchor above the three-dot grab handle (which sits ~12px above the
 			// section's top edge) so the tooltip doesn't overlap it.
 			y: startTopY - TOOLTIP_ANCHOR_LIFT,
-			height: Math.round(startMargin)
+			height: Math.round(startMargin),
+			label: linkedMembers.length > 0 ? 'Linked' : null
 		};
 
 
@@ -202,7 +216,10 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		}
 
 		const offset = newMargin - defaultMargin;
-		liveOffsets = { ...liveOffsets, [activeSectionId]: offset };
+		// Apply the same TOTAL gap to every linked member (offset = max(0, total − default)).
+		const nextOffsets = { ...liveOffsets, [activeSectionId]: offset };
+		for (const m of linkedMembers) nextOffsets[m.id] = Math.max(0, newMargin - m.defaultGap);
+		liveOffsets = nextOffsets;
 
 		// Update the live-gap tooltip to follow the dragged top edge and report the new
 		// total spacing above the section (CSS px).
@@ -211,7 +228,8 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 			x: draggedCenterX,
 			// Keep the same lift as on drag start so the label stays clear of the grab handle.
 			y: startTopY + (newMargin - startMargin) * scale - TOOLTIP_ANCHOR_LIFT,
-			height: Math.round(newMargin)
+			height: Math.round(newMargin),
+			label: linkedMembers.length > 0 ? 'Linked' : null
 		};
 
 
@@ -244,11 +262,13 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 
 		const sectionId = activeSectionId;
 		const finalOffset = liveOffsets[sectionId];
+		const ids = [sectionId, ...linkedMembers.map((m) => m.id)];
+		linkedMembers = [];
 
 		// Reset interaction state immediately.
 		activeSectionId = null;
 		guideLine = { visible: false, top: 0, left: 0, width: 0 };
-		dragTooltip = { visible: false, x: 0, y: 0, height: 0 };
+		dragTooltip = { visible: false, x: 0, y: 0, height: 0, label: null };
 		document.body.style.cursor = '';
 		document.body.style.userSelect = '';
 
@@ -260,18 +280,34 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		const toPersist = rounded <= 0 ? null : rounded;
 
 		try {
-			await fetch(`/api/passages/sections/${sectionId}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ topOffset: toPersist })
-			});
+			if (ids.length > 1) {
+				// Persist every linked member's offset in one request.
+				/** @type {Record<string, number|null>} */
+				const offsets = {};
+				for (const id of ids) {
+					const r = Math.round(liveOffsets[id] ?? 0);
+					offsets[id] = r <= 0 ? null : r;
+				}
+				await fetch('/api/passages/sections/batch-spacing', {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ offsets })
+				});
+			} else {
+				await fetch(`/api/passages/sections/${sectionId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ topOffset: toPersist })
+				});
+			}
 			// Refresh loaded data so the persisted value is the source of truth.
 			if (onPersist) await onPersist();
 		} catch (error) {
 			console.error('Failed to save section position:', error);
 		} finally {
-			// Clear the live override now that the persisted value matches.
-			const { [sectionId]: _drop, ...rest } = liveOffsets;
+			// Clear the live overrides now that the persisted value matches.
+			const rest = { ...liveOffsets };
+			for (const id of ids) delete rest[id];
 			liveOffsets = rest;
 		}
 	}

@@ -131,6 +131,13 @@ async function persistPreference(updates) {
  * @property {number} activeSegmentCount - Number of segments currently selected
  * @property {boolean} canLinkSegmentHeight - Whether the "Link Segment Height" action is available (2+ segments selected that aren't already all in one group)
  * @property {boolean} canUnlinkSegmentHeight - Whether the "Unlink Segment Height" action is available (selection includes a linked segment)
+ * @property {boolean} canLinkColumnSpacing - Whether "Link Column Spacing" is available (2+ adjustable columns not already all in one spacing group)
+ * @property {boolean} canUnlinkColumnSpacing - Whether "Unlink Column Spacing" is available (selection includes a spacing-linked column)
+ * @property {boolean} canLinkColumnWidth - Whether "Link Column Width" is available (2+ columns not already all in one width group)
+ * @property {boolean} canUnlinkColumnWidth - Whether "Unlink Column Width" is available (selection includes a width-linked column)
+ * @property {boolean} canLinkSectionSpacing - Whether "Link Section Spacing" is available (2+ sections not already all in one spacing group)
+ * @property {boolean} canUnlinkSectionSpacing - Whether "Unlink Section Spacing" is available (selection includes a spacing-linked section)
+ * @property {boolean} canSetSegmentPosition - Whether "Set Segment Position…" is available (a selected segment shares its column with at least one other segment)
  * @property {boolean} activeSegmentHasHeadingOne - Whether active segment has a heading one
  * @property {boolean} activeSegmentHasHeadingTwo - Whether active segment has a heading two
  * @property {boolean} activeSegmentHasHeadingThree - Whether active segment has a heading three
@@ -284,6 +291,13 @@ const defaultState = {
 	activeSegmentCount: 0,
 	canLinkSegmentHeight: false,
 	canUnlinkSegmentHeight: false,
+	canLinkColumnSpacing: false,
+	canUnlinkColumnSpacing: false,
+	canLinkColumnWidth: false,
+	canUnlinkColumnWidth: false,
+	canLinkSectionSpacing: false,
+	canUnlinkSectionSpacing: false,
+	canSetSegmentPosition: false,
 	activeSegmentHasHeadingOne: false,
 	activeSegmentHasHeadingTwo: false,
 	activeSegmentHasHeadingThree: false,
@@ -1637,6 +1651,36 @@ export function setSegmentHeightLinkState(count, canLink, canUnlink) {
 		activeSegmentCount: count,
 		canLinkSegmentHeight: canLink,
 		canUnlinkSegmentHeight: canUnlink
+	}));
+}
+
+/**
+ * Set Link / Unlink availability for column spacing, column width and section spacing.
+ * Driven by the analyze page's selection effect (mirrors setSegmentHeightLinkState).
+ * @param {{ canLinkColumnSpacing: boolean, canUnlinkColumnSpacing: boolean, canLinkColumnWidth: boolean, canUnlinkColumnWidth: boolean, canLinkSectionSpacing: boolean, canUnlinkSectionSpacing: boolean }} flags
+ */
+export function setLayoutLinkState(flags) {
+	toolbarStateStore.update(state => ({
+		...state,
+		canLinkColumnSpacing: flags.canLinkColumnSpacing,
+		canUnlinkColumnSpacing: flags.canUnlinkColumnSpacing,
+		canLinkColumnWidth: flags.canLinkColumnWidth,
+		canUnlinkColumnWidth: flags.canUnlinkColumnWidth,
+		canLinkSectionSpacing: flags.canLinkSectionSpacing,
+		canUnlinkSectionSpacing: flags.canUnlinkSectionSpacing
+	}));
+}
+
+/**
+ * Set "Set Segment Position…" availability. A segment that is the ONLY segment in its
+ * column can't be positioned, so the item is disabled unless at least one selected
+ * segment shares its column with another segment. Driven by the analyze page.
+ * @param {boolean} canSet
+ */
+export function setCanSetSegmentPosition(canSet) {
+	toolbarStateStore.update(state => ({
+		...state,
+		canSetSegmentPosition: canSet
 	}));
 }
 

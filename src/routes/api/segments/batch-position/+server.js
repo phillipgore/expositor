@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db/index.js';
-import { passageSegment, study } from '$lib/server/db/schema';
+import { passageSegment, passageSection, study } from '$lib/server/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { auth } from '$lib/server/auth';
 import { json } from '@sveltejs/kit';
@@ -23,6 +23,10 @@ const MAX_OFFSET = 10000;
  *
  * The upper limit (36px short of the right edge of the segment above) depends on the
  * rendered layout, so it is enforced by the client when rendering.
+ *
+ * A segment that is the ONLY segment in its column (counted across all of the column's
+ * sections) can't be positioned: a non-zero offset for one is rejected with 400.
+ * Clearing (null / 0) is always allowed, so Reset still works on any stored value.
  *
  * @type {import('./$types').RequestHandler}
  */
@@ -70,6 +74,17 @@ export async function PATCH({ request }) {
 			return json({ error: 'Segment not found or not authorized' }, { status: 403 });
 		}
 
+		// Reject positioning a segment that is alone in its column.
+		if (rounded !== null && rounded !== 0) {
+			const lone = await findLoneSegmentIds(ids);
+			if (lone.length > 0) {
+				return json(
+					{ error: 'Segment is the only one in its column and cannot be positioned', ids: lone },
+					{ status: 400 }
+				);
+			}
+		}
+
 		await db
 			.update(passageSegment)
 			.set({ leftOffset: rounded === 0 ? null : rounded, updatedAt: new Date() })
@@ -80,4 +95,31 @@ export async function PATCH({ request }) {
 		console.error('Error batch-updating segment positions:', error);
 		return json({ error: 'Failed to update segment positions' }, { status: 500 });
 	}
+}
+
+/**
+ * Of the given segment ids, return those that are the only segment in their column.
+ * Two queries: the segments' columns, then every segment in those columns.
+ * @param {string[]} ids
+ * @returns {Promise<string[]>}
+ */
+async function findLoneSegmentIds(ids) {
+	const targets = await db
+		.select({ id: passageSegment.id, columnId: passageSection.passageColumnId })
+		.from(passageSegment)
+		.innerJoin(passageSection, eq(passageSegment.passageSectionId, passageSection.id))
+		.where(inArray(passageSegment.id, ids));
+	const columnIds = [...new Set(targets.map((t) => t.columnId))];
+	if (columnIds.length === 0) return [];
+
+	const members = await db
+		.select({ columnId: passageSection.passageColumnId })
+		.from(passageSegment)
+		.innerJoin(passageSection, eq(passageSegment.passageSectionId, passageSection.id))
+		.where(inArray(passageSection.passageColumnId, columnIds));
+	/** @type {Map<string, number>} */
+	const counts = new Map();
+	for (const m of members) counts.set(m.columnId, (counts.get(m.columnId) ?? 0) + 1);
+
+	return targets.filter((t) => (counts.get(t.columnId) ?? 0) < 2).map((t) => t.id);
 }

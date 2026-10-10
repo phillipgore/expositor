@@ -337,6 +337,8 @@ export async function transferItem(dbInstance, userId, passageId, itemId, granul
 					// See the module header: an offset tuned to align against a column the section has
 					// just left is aligning against nothing.
 					topOffset: null,
+					// Its spacing link was tuned against the same old neighbours — drop it too.
+					spacingGroupId: null,
 					updatedAt: now
 				})
 				.where(eq(passageSection.id, itemId));

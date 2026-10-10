@@ -1,4 +1,5 @@
 import { getRenderedScale } from '$lib/utils/zoomScale.js';
+import { LINK_KINDS, getGroupMemberIds } from '$lib/utils/linkGroups.js';
 
 /**
  * Column Resize Composable
@@ -19,6 +20,8 @@ import { getRenderedScale } from '$lib/utils/zoomScale.js';
 
  *  - On release, the new width is persisted to the DB via PATCH
  *    /api/passages/columns/[id] and the page data is invalidated so it survives reload.
+ *  - LINKED widths: columns sharing a `data-width-group-id` resize together — the
+ *    live width is applied to every member and persisted once via batch-width.
  *
  * The composable is intended to live at the Analyze page level (it needs to see all
  * `.column` elements and the zoom scale). Individual column elements call
@@ -91,6 +94,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 	let dragScale = 1; // painted zoom scale captured at drag start
 	let baseWidth = BASE_WIDTH; // base (1×) column width in CSS px for the active layout
 	let snapWidths = []; // array of { width, multiple } snap targets (CSS px)
+	let groupIds = []; // the dragged column's width link group (just [id] when unlinked)
 
 
 	/**
@@ -113,6 +117,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		dragScale = scale;
 
 		startX = event.clientX;
+		groupIds = getGroupMemberIds(LINK_KINDS.columnWidth, columnId);
 
 		const rect = columnEl.getBoundingClientRect();
 		const extent = getSegmentExtent(columnEl);
@@ -189,10 +194,15 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 			if (!snappedMultiple || snappedMultiple.width > minWidth) snappedMultiple = null;
 		}
 
-		liveWidths = { ...liveWidths, [activeColumnId]: newWidth };
+		// Apply the same live width to every member of the link group.
+		const nextWidths = { ...liveWidths };
+		for (const id of groupIds) nextWidths[id] = newWidth;
+		liveWidths = nextWidths;
 
-		// The snapped factor label (e.g. "1.5×", "2×"); null when not snapped.
-		const label = snappedMultiple ? snappedMultiple.label : null;
+		// The snapped factor label (e.g. "1.5×", "2×"); null when not snapped. Linked
+		// groups are flagged so the viewer knows the other members follow.
+		const snapLabel = snappedMultiple ? snappedMultiple.label : null;
+		const label = groupIds.length > 1 ? (snapLabel ? `Linked ${snapLabel}` : 'Linked') : snapLabel;
 
 
 		// Update the live-width tooltip to follow the dragged right edge.
@@ -234,6 +244,8 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 
 		const columnId = activeColumnId;
 		const finalWidth = liveWidths[columnId];
+		const ids = groupIds.length > 0 ? [...groupIds] : [columnId];
+		groupIds = [];
 
 		// Reset interaction state immediately.
 		activeColumnId = null;
@@ -248,18 +260,28 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		const rounded = Math.round(finalWidth);
 
 		try {
-			await fetch(`/api/passages/columns/${columnId}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ width: rounded })
-			});
+			if (ids.length > 1) {
+				// Persist a uniform width across the whole link group.
+				await fetch('/api/passages/columns/batch-width', {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ ids, width: rounded })
+				});
+			} else {
+				await fetch(`/api/passages/columns/${columnId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ width: rounded })
+				});
+			}
 			// Refresh loaded data so the persisted width is the source of truth.
 			if (onPersist) await onPersist();
 		} catch (error) {
 			console.error('Failed to save column width:', error);
 		} finally {
-			// Clear the live override now that the persisted value matches.
-			const { [columnId]: _drop, ...rest } = liveWidths;
+			// Clear the live overrides now that the persisted value matches.
+			const rest = { ...liveWidths };
+			for (const id of ids) delete rest[id];
 			liveWidths = rest;
 		}
 	}

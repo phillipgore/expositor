@@ -348,6 +348,17 @@ export const passageColumn = pgTable('passage_column', {
 	 * than the application-enforced minimum readable width.
 	 */
 	width: integer('width'),
+	/**
+	 * Shared identifier for LINKED column spacing. Columns sharing the same
+	 * spacingGroupId keep the same total left gap and change together (drag or
+	 * Set/Reset). NULL = not linked (default).
+	 */
+	spacingGroupId: text('spacing_group_id'),
+	/**
+	 * Shared identifier for LINKED column widths. Columns sharing the same
+	 * widthGroupId keep the same width and resize together. NULL = not linked.
+	 */
+	widthGroupId: text('width_group_id'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
@@ -382,6 +393,12 @@ export const passageSection = pgTable('passage_section', {
 	 * default — the value is an additive offset on top of the CSS default margin-top.
 	 */
 	topOffset: integer('top_offset'),
+	/**
+	 * Shared identifier for LINKED section spacing. Sections sharing the same
+	 * spacingGroupId keep the same total gap above them and change together.
+	 * NULL = not linked (default).
+	 */
+	spacingGroupId: text('spacing_group_id'),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),

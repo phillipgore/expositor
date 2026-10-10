@@ -1,4 +1,5 @@
 import { getRenderedScale } from '$lib/utils/zoomScale.js';
+import { LINK_KINDS, getGroupMemberIds } from '$lib/utils/linkGroups.js';
 
 /**
  * Column Reposition Composable
@@ -31,6 +32,11 @@ import { getRenderedScale } from '$lib/utils/zoomScale.js';
  *  - On release, the new offset is persisted to the DB via PATCH
  *    /api/passages/columns/[id] and the page data is invalidated so it survives reload.
  *
+ * LINKED spacing: columns sharing a `data-spacing-group-id` keep the same TOTAL left
+ * gap. Dragging one applies that total to every member (converted to each member's own
+ * stored offset, since within- and cross-passage columns have different defaults) and
+ * persists the group in one request via /api/passages/columns/batch-spacing.
+ *
  * The composable is intended to live at the Analyze page level (it needs to see all
  * `.column` elements and the zoom scale). Individual column elements call
  * `handleRepositionStart` from their left-border drag handle (the handle sits on the
@@ -54,7 +60,8 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 	// Live gap tooltip that follows the drag (viewport-fixed). x tracks the dragged
 	// column's LEFT edge (where the handle sits); y stays at the handle's viewport-centered Y.
 	// `height` is the CSS-px TOTAL spacing to the column's left (default + offset).
-	let dragTooltip = $state({ visible: false, x: 0, y: 0, height: 0 });
+	/** @type {{ visible: boolean, x: number, y: number, height: number, label?: string|null }} */
+	let dragTooltip = $state({ visible: false, x: 0, y: 0, height: 0, label: null });
 
 	// Internal (non-reactive) drag bookkeeping.
 	let startX = 0; // pointer X at mousedown (viewport px)
@@ -66,6 +73,8 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 	let tooltipY = 0; // fixed viewport Y for the tooltip during the drag
 	let activeIsCross = false; // whether the active drag spans a passage divider
 	let dragScale = 1; // painted zoom scale captured at drag start
+	/** @type {{ id: string, defaultGap: number, sides: number }[]} */
+	let linkedMembers = []; // OTHER members of the dragged column's spacing group
 
 	/**
 	 * Classify a column for spacing purposes and locate the element whose RIGHT edge
@@ -227,6 +236,19 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		// offset. For cross columns the per-side ceiling is half the remaining range
 		// because BOTH sides grow by the same amount (total = default + 2X).
 		defaultGap = measureDefaultGap(columnId);
+
+		// Linked members follow the dragged column's TOTAL gap. Capture each member's
+		// own default gap and side count now (skipping the study's first column).
+		linkedMembers = getGroupMemberIds(LINK_KINDS.columnSpacing, columnId)
+			.slice(1)
+			.map((id) => {
+				const el = /** @type {HTMLElement|null} */ (document.querySelector(`[data-column-id="${id}"]`));
+				const memberInfo = el ? classifyColumn(el) : null;
+				if (!memberInfo) return null;
+				return { id, defaultGap: measureDefaultGap(id), sides: memberInfo.isCross ? 2 : 1 };
+			})
+			.filter((m) => m !== null);
+
 		maxMargin = activeIsCross
 			? Math.max(0, (maxGap - defaultGap) / 2)
 			: Math.max(0, maxGap - defaultGap);
@@ -247,7 +269,8 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 			visible: true,
 			x: startEdgeX,
 			y: tooltipY,
-			height: Math.round(defaultGap + (activeIsCross ? 2 * startMargin : startMargin))
+			height: Math.round(defaultGap + (activeIsCross ? 2 * startMargin : startMargin)),
+			label: linkedMembers.length > 0 ? 'Linked' : null
 		};
 
 		activeColumnId = columnId;
@@ -280,7 +303,13 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		if (newMargin < 0) newMargin = 0;
 		if (newMargin > maxMargin) newMargin = maxMargin;
 
-		liveOffsets = { ...liveOffsets, [activeColumnId]: newMargin };
+		// Apply the same TOTAL gap to every linked member (offset = (total − default) / sides).
+		const totalGap = defaultGap + sides * newMargin;
+		const nextOffsets = { ...liveOffsets, [activeColumnId]: newMargin };
+		for (const m of linkedMembers) {
+			nextOffsets[m.id] = Math.max(0, (totalGap - m.defaultGap) / m.sides);
+		}
+		liveOffsets = nextOffsets;
 
 		// Update the live-gap tooltip to follow the dragged LEFT edge (where the handle
 		// sits) and report the new TOTAL spacing to the column's left (default + sides·
@@ -290,7 +319,8 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 			visible: true,
 			x: startEdgeX + (newMargin - startMargin) * scale * sides,
 			y: tooltipY,
-			height: Math.round(defaultGap + sides * newMargin)
+			height: Math.round(defaultGap + sides * newMargin),
+			label: linkedMembers.length > 0 ? 'Linked' : null
 		};
 
 		// Signal the connection overlay to re-flow Quick Notes live as the column
@@ -308,10 +338,12 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 
 		const columnId = activeColumnId;
 		const finalOffset = liveOffsets[columnId];
+		const ids = [columnId, ...linkedMembers.map((m) => m.id)];
+		linkedMembers = [];
 
 		// Reset interaction state immediately.
 		activeColumnId = null;
-		dragTooltip = { visible: false, x: 0, y: 0, height: 0 };
+		dragTooltip = { visible: false, x: 0, y: 0, height: 0, label: null };
 		document.body.style.cursor = '';
 		document.body.style.userSelect = '';
 
@@ -322,18 +354,34 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		const toPersist = rounded <= 0 ? null : rounded;
 
 		try {
-			await fetch(`/api/passages/columns/${columnId}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ leftOffset: toPersist })
-			});
+			if (ids.length > 1) {
+				// Persist every linked member's offset in one request.
+				/** @type {Record<string, number|null>} */
+				const offsets = {};
+				for (const id of ids) {
+					const r = Math.round(liveOffsets[id] ?? 0);
+					offsets[id] = r <= 0 ? null : r;
+				}
+				await fetch('/api/passages/columns/batch-spacing', {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ offsets })
+				});
+			} else {
+				await fetch(`/api/passages/columns/${columnId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ leftOffset: toPersist })
+				});
+			}
 			// Refresh loaded data so the persisted value is the source of truth.
 			if (onPersist) await onPersist();
 		} catch (error) {
 			console.error('Failed to save column spacing:', error);
 		} finally {
-			// Clear the live override now that the persisted value matches.
-			const { [columnId]: _drop, ...rest } = liveOffsets;
+			// Clear the live overrides now that the persisted value matches.
+			const rest = { ...liveOffsets };
+			for (const id of ids) delete rest[id];
 			liveOffsets = rest;
 		}
 	}

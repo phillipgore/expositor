@@ -50,10 +50,16 @@ The position IDs are spelled `positon` (not `position`) in `icons.json`. Use tha
 |---|---|---|
 | Column Spacing | Set Column Spacing… | `column-spacing` |
 | Column Spacing | Reset Column Spacing | `column-spacing-reset` |
+| Column Spacing | Link Column Spacing | _(none yet — new item)_ |
+| Column Spacing | Unlink Column Spacing | _(none yet — new item)_ |
 | Column Width | Set Column Width… | `column-width` |
 | Column Width | Reset Column Width | `column-width-reset` |
+| Column Width | Link Column Width | _(none yet — new item)_ |
+| Column Width | Unlink Column Width | _(none yet — new item)_ |
 | Section Spacing | Set Section Spacing… | `section-spacing` |
 | Section Spacing | Reset Section Spacing | `section-spacing-reset` |
+| Section Spacing | Link Section Spacing | _(none yet — new item)_ |
+| Section Spacing | Unlink Section Spacing | _(none yet — new item)_ |
 | Segment Height | Set Segment Height… | `segment-height` |
 | Segment Height | Reset Segment Height | `segment-height-reset` |
 | Segment Height | Link Segment Height | `segment-height-link` |

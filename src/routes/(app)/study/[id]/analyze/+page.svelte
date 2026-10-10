@@ -15,6 +15,8 @@
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import ResizeTooltip from '$lib/componentElements/ResizeTooltip.svelte';
+	import { LINK_KINDS, expandToGroups, getLinkAvailability } from '$lib/utils/linkGroups.js';
+	import { useLinkGroupHover } from '$lib/composables/useLinkGroupHover.svelte.js';
 	import SetSegmentHeightModal from '$lib/componentWidgets/modals/SetSegmentHeightModal.svelte';
 	import SetSegmentPositionModal from '$lib/componentWidgets/modals/SetSegmentPositionModal.svelte';
 	import SetSectionSpacingModal from '$lib/componentWidgets/modals/SetSectionSpacingModal.svelte';
@@ -53,7 +55,7 @@
 	} from '$lib/utils/passageText.js';
 	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
 	import { rangeEndWordId } from '$lib/utils/wordIds.js';
-	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability, setSelectorsPeek } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setLayoutLinkState, setCanSetSegmentPosition, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability, setSelectorsPeek } from '$lib/stores/toolbar.js';
 	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
 	import { collectStudyHeadings } from '$lib/utils/studyHeadings.js';
 	import { resolveTransferNeighbours } from '$lib/utils/transferNeighbours.js';
@@ -243,6 +245,28 @@
 		setSegmentHeightLinkState(count, canLink, canUnlink);
 	});
 
+	// Gate Layout → Link / Unlink Column Spacing, Column Width and Section Spacing with
+	// the same rule as segment heights (Link: 2+ items not already all in one group;
+	// Unlink: the selection includes a linked item). Reading the loaded data makes this
+	// re-run after a link/unlink refresh, when the data-*-group-id attributes change.
+	$effect(() => {
+		const _data = data.passagesWithText;
+		const spacingColumns = getAdjustableColumnIds();
+		const widthColumns = [...activeColumns];
+		const sectionIds = activeColumns.length > 0 ? [] : [...activeSections];
+		const colSpacing = getLinkAvailability(LINK_KINDS.columnSpacing, spacingColumns);
+		const colWidth = getLinkAvailability(LINK_KINDS.columnWidth, widthColumns);
+		const secSpacing = getLinkAvailability(LINK_KINDS.sectionSpacing, sectionIds);
+		setLayoutLinkState({
+			canLinkColumnSpacing: colSpacing.canLink,
+			canUnlinkColumnSpacing: colSpacing.canUnlink,
+			canLinkColumnWidth: colWidth.canLink,
+			canUnlinkColumnWidth: colWidth.canUnlink,
+			canLinkSectionSpacing: secSpacing.canLink,
+			canUnlinkSectionSpacing: secSpacing.canUnlink
+		});
+	});
+
 	// Map each height-link group id → the tallest remembered floor (persisted `height`)
 	// across its members. Linked members must render at a SINGLE uniform floor, but the
 	// `link-height` endpoint preserves each member's own (possibly divergent or NULL)
@@ -329,13 +353,40 @@
 	// Attach window mousemove/mouseup listeners only while a width drag is active.
 	$effect(() => columnResize.setupResizeListeners());
 
+	// ─── Linked-handle hover (column spacing / column width / section spacing) ──
+	// Same feedback as linked segment heights: hovering one linked item's handle reveals
+	// every member's handle (`link-hovered`) and shows a "Linked" tooltip on each.
+	const columnSpacingHover = useLinkGroupHover({
+		kind: LINK_KINDS.columnSpacing,
+		handleSelector: ':scope > .column-reposition-handle',
+		getActiveId: () => columnReposition.activeColumnId,
+		getDragValue: () => columnReposition.dragTooltip.height
+	});
+	const columnWidthHover = useLinkGroupHover({
+		kind: LINK_KINDS.columnWidth,
+		handleSelector: ':scope > .column-resize-handle',
+		getActiveId: () => columnResize.activeColumnId,
+		getDragValue: () => columnResize.dragTooltip.height,
+		// Keeps the snap factor (e.g. "Linked 1.5×") on the linked badges.
+		getDragLabel: () => columnResize.dragTooltip.label
+	});
+	const sectionSpacingHover = useLinkGroupHover({
+		kind: LINK_KINDS.sectionSpacing,
+		handleSelector: ':scope > .reposition-handle',
+		getActiveId: () => sectionReposition.activeSectionId,
+		getDragValue: () => sectionReposition.dragTooltip.height
+	});
+
 	// ─── Segment position (pull a segment right within its column) ──────────────
 	// Analyze-only. A segment keeps its width and slides right by its `leftOffset`; its
 	// section and column widen by the column's largest offset (its "extent") so they
 	// contain it. The RENDERED offset is capped so the segment's left edge stays at least
 	// SEGMENT_POSITION_GAP (36px) left of the right edge of the segment above it (in
 	// reading order through the column's sections). The column's very first segment is
-	// measured against an imaginary flush (offset 0) segment above it. Offsets are
+	// measured against an imaginary flush (offset 0) segment above it — unless it is the
+	// column's ONLY segment (counted across all its sections): a lone segment can't be
+	// positioned at all (it would only slide the whole column right, which is Column
+	// Spacing's job), so it gets no handle and renders flush. Offsets are
 	// ignored in Overview / Compare / Focus modes. The cap is applied at render time only — the
 	// stored value is untouched, so resetting the segment above lets this one re-expand.
 
@@ -384,7 +435,10 @@
 		/** @type {Record<string, number>} */
 		const max = {};
 		let extent = 0;
-		const disabled = isSegmentPositionDisabled();
+		// A column with only one segment can't position it: max 0 (no handle) and offset 0
+		// (flush, no extent). Like the 36px cap this is render-time only — any stored value
+		// is kept, so it returns if the column gains another segment.
+		const disabled = isSegmentPositionDisabled() || countSegmentsInColumn(column) < 2;
 		const segmentWidth = resolveColumnBaseWidth(column) - COLUMN_INNER_PADDING;
 
 		/** @type {number|null} */
@@ -399,7 +453,7 @@
 				const wanted = segmentReposition.getLiveOffset(segment.id) ?? segment.leftOffset ?? 0;
 				const offset = disabled ? 0 : Math.min(Math.max(0, wanted), limit);
 				offsets[segment.id] = offset;
-				max[segment.id] = limit;
+				max[segment.id] = disabled ? 0 : limit;
 				shift[segment.id] = isFirstInSection || prevOffset == null ? 0 : offset - prevOffset;
 				if (offset > extent) extent = offset;
 				prevOffset = offset;
@@ -407,6 +461,26 @@
 			}
 		}
 		return { offsets, max, shift, extent };
+	}
+
+	/**
+	 * Number of segments in a column, across ALL of its sections.
+	 * @param {any} column
+	 * @returns {number}
+	 */
+	function countSegmentsInColumn(column) {
+		let count = 0;
+		for (const section of column?.sections ?? []) count += section.segments?.length ?? 0;
+		return count;
+	}
+
+	/**
+	 * Whether a segment can be positioned: it must share its column with another segment.
+	 * @param {string} segmentId
+	 * @returns {boolean}
+	 */
+	function canPositionSegment(segmentId) {
+		return countSegmentsInColumn(findColumnForSegment(segmentId)) >= 2;
 	}
 
 	/**
@@ -448,6 +522,13 @@
 	// Attach window mousemove/mouseup listeners only while a position drag is active.
 	$effect(() => segmentReposition.setupRepositionListeners());
 
+	// Gate Layout → Set Segment Position…: enabled only when at least one selected segment
+	// shares its column with another segment (re-runs when the selection or data changes).
+	$effect(() => {
+		const _data = data.passagesWithText;
+		setCanSetSegmentPosition(activeSegments.some((s) => canPositionSegment(s.segmentId)));
+	});
+
 	// ─── Set-segment-position modal (Layout → Set Segment Position…) ───────────
 	let setPositionModalOpen = $state(false);
 	let setPositionSegmentIds = $state(/** @type {string[]} */ ([]));
@@ -460,7 +541,9 @@
 	 * - max     = the smallest limit among the selection      → ceiling
 	 */
 	function openSetPositionModal() {
-		const ids = activeSegments.map((s) => s.segmentId);
+		// Segments alone in their column can't be positioned, so leave them out (the
+		// server would reject them, and they'd force the shared maximum to 0).
+		const ids = activeSegments.map((s) => s.segmentId).filter(canPositionSegment);
 		if (ids.length === 0) return;
 
 		let ceiling = Infinity;
@@ -675,7 +758,8 @@
 	 * - min     = the largest default gap among the selection    → floor
 	 */
 	function openSetSpacingModal() {
-		const ids = getSelectedSectionIds();
+		// Linked sections change together, so include every member of a touched group.
+		const ids = expandToGroups(LINK_KINDS.sectionSpacing, getSelectedSectionIds());
 		if (ids.length === 0) return;
 
 		let minFloor = 0;
@@ -706,7 +790,7 @@
 	 * Reset the spacing of all currently selected sections back to their defaults.
 	 */
 	async function resetSectionSpacing() {
-		const ids = getSelectedSectionIds();
+		const ids = expandToGroups(LINK_KINDS.sectionSpacing, getSelectedSectionIds());
 		if (ids.length === 0) return;
 		await sectionReposition.resetSpacing(ids);
 	}
@@ -751,7 +835,8 @@
 	 * Measure the selected columns and open the Set Column Spacing modal.
 	 */
 	function openSetColumnSpacingModal() {
-		const ids = getAdjustableColumnIds();
+		// Linked columns change together, so include every member of a touched group.
+		const ids = expandToGroups(LINK_KINDS.columnSpacing, getAdjustableColumnIds());
 		if (ids.length === 0) return;
 
 		let minFloor = 0;
@@ -781,7 +866,7 @@
 	 * Reset the horizontal spacing of all currently selected columns back to defaults.
 	 */
 	async function resetColumnSpacing() {
-		const ids = getAdjustableColumnIds();
+		const ids = expandToGroups(LINK_KINDS.columnSpacing, getAdjustableColumnIds());
 		if (ids.length === 0) return;
 		await columnReposition.resetSpacing(ids);
 	}
@@ -801,7 +886,8 @@
 	 * Every selected column is adjustable (unlike spacing, width has no first-column rule).
 	 */
 	function openSetColumnWidthModal() {
-		const ids = [...activeColumns];
+		// Linked columns resize together, so include every member of a touched group.
+		const ids = expandToGroups(LINK_KINDS.columnWidth, [...activeColumns]);
 		if (ids.length === 0) return;
 
 		setColumnWidthIds = ids;
@@ -825,9 +911,113 @@
 	 * Reset the width of all currently selected columns back to the default.
 	 */
 	async function resetColumnWidth() {
-		const ids = [...activeColumns];
+		const ids = expandToGroups(LINK_KINDS.columnWidth, [...activeColumns]);
 		if (ids.length === 0) return;
 		await columnResize.resetWidth(ids);
+	}
+
+	// ─── Link / Unlink column spacing, column width, section spacing ───────────
+	// Counterparts of Link / Unlink Segment Height. Linking assigns a shared group id
+	// and then immediately equalizes the group to the FIRST selected item's current
+	// value (unlike segment heights, these values don't depend on content toggles, so
+	// matching right away is safe). Unlinking clears the group on every member of the
+	// touched groups; each item keeps its current value.
+
+	/**
+	 * PATCH a link/unlink endpoint. Returns true on success.
+	 * @param {string} url
+	 * @param {string[]} ids
+	 * @returns {Promise<boolean>}
+	 */
+	async function patchLinkGroup(url, ids) {
+		const response = await fetch(url, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ ids })
+		});
+		if (!response.ok) {
+			const body = await response.json().catch(() => ({}));
+			throw new Error(body?.error || `Request failed (${response.status})`);
+		}
+		return true;
+	}
+
+	async function linkColumnSpacing() {
+		const ids = getAdjustableColumnIds();
+		if (ids.length < 2) return;
+		try {
+			const gap = columnReposition.measureCurrentGap(ids[0]);
+			await patchLinkGroup('/api/passages/columns/link-spacing', ids);
+			// setSpacing persists the matched gap and refreshes data.
+			await columnReposition.setSpacing(ids, gap);
+		} catch (error) {
+			console.error('Failed to link column spacing:', error);
+			showPopoverError('Could not link column spacing.');
+		}
+	}
+
+	async function unlinkColumnSpacing() {
+		const ids = getAdjustableColumnIds();
+		if (ids.length === 0) return;
+		try {
+			await patchLinkGroup('/api/passages/columns/unlink-spacing', ids);
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Failed to unlink column spacing:', error);
+			showPopoverError('Could not unlink column spacing.');
+		}
+	}
+
+	async function linkColumnWidth() {
+		const ids = [...activeColumns];
+		if (ids.length < 2) return;
+		try {
+			const width = columnResize.measureCurrentWidth(ids[0]);
+			await patchLinkGroup('/api/passages/columns/link-width', ids);
+			// setWidth persists the matched width and refreshes data.
+			await columnResize.setWidth(ids, width);
+		} catch (error) {
+			console.error('Failed to link column width:', error);
+			showPopoverError('Could not link column width.');
+		}
+	}
+
+	async function unlinkColumnWidth() {
+		const ids = [...activeColumns];
+		if (ids.length === 0) return;
+		try {
+			await patchLinkGroup('/api/passages/columns/unlink-width', ids);
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Failed to unlink column width:', error);
+			showPopoverError('Could not unlink column width.');
+		}
+	}
+
+	async function linkSectionSpacing() {
+		const ids = [...activeSections];
+		if (ids.length < 2) return;
+		try {
+			const gap = sectionReposition.measureCurrentGap(ids[0]);
+			await patchLinkGroup('/api/passages/sections/link-spacing', ids);
+			// setSpacing persists the matched gap and refreshes data.
+			await sectionReposition.setSpacing(ids, gap);
+		} catch (error) {
+			console.error('Failed to link section spacing:', error);
+			showPopoverError('Could not link section spacing.');
+		}
+	}
+
+	async function unlinkSectionSpacing() {
+		const ids = [...activeSections];
+		if (ids.length === 0) return;
+		try {
+			await patchLinkGroup('/api/passages/sections/unlink-spacing', ids);
+			await invalidate('app:studies');
+		} catch (error) {
+			console.error('Failed to unlink section spacing:', error);
+			showPopoverError('Could not unlink section spacing.');
+		}
 	}
 
 	// ─── Connection quick-note Slide / Position / Offset modals ───────────────
@@ -2690,6 +2880,13 @@
 		// Column width (Layout menu): open the modal / reset the selection.
 		const handleSetColumnWidthEvent = () => openSetColumnWidthModal();
 		const handleResetColumnWidthEvent = () => resetColumnWidth();
+		// Link / Unlink (Layout menu) for column spacing, column width, section spacing.
+		const handleLinkColumnSpacingEvent = () => linkColumnSpacing();
+		const handleUnlinkColumnSpacingEvent = () => unlinkColumnSpacing();
+		const handleLinkColumnWidthEvent = () => linkColumnWidth();
+		const handleUnlinkColumnWidthEvent = () => unlinkColumnWidth();
+		const handleLinkSectionSpacingEvent = () => linkSectionSpacing();
+		const handleUnlinkSectionSpacingEvent = () => unlinkSectionSpacing();
 		// Connection quick-note position/offset (Layout menu): open modal / reset.
 		const handleSetQuickNotePositionEvent = () => openSetQuickNotePositionModal();
 		const handleResetQuickNotePositionEvent = () => resetQuickNotePosition();
@@ -2735,6 +2932,12 @@
 		window.addEventListener('reset-column-spacing', handleResetColumnSpacingEvent);
 		window.addEventListener('set-column-width', handleSetColumnWidthEvent);
 		window.addEventListener('reset-column-width', handleResetColumnWidthEvent);
+		window.addEventListener('link-column-spacing', handleLinkColumnSpacingEvent);
+		window.addEventListener('unlink-column-spacing', handleUnlinkColumnSpacingEvent);
+		window.addEventListener('link-column-width', handleLinkColumnWidthEvent);
+		window.addEventListener('unlink-column-width', handleUnlinkColumnWidthEvent);
+		window.addEventListener('link-section-spacing', handleLinkSectionSpacingEvent);
+		window.addEventListener('unlink-section-spacing', handleUnlinkSectionSpacingEvent);
 		window.addEventListener('set-connection-note-position', handleSetQuickNotePositionEvent);
 		window.addEventListener('reset-connection-note-position', handleResetQuickNotePositionEvent);
 		window.addEventListener('set-connection-note-offset', handleSetQuickNoteOffsetEvent);
@@ -2795,6 +2998,12 @@
 			window.removeEventListener('reset-column-spacing', handleResetColumnSpacingEvent);
 			window.removeEventListener('set-column-width', handleSetColumnWidthEvent);
 			window.removeEventListener('reset-column-width', handleResetColumnWidthEvent);
+			window.removeEventListener('link-column-spacing', handleLinkColumnSpacingEvent);
+			window.removeEventListener('unlink-column-spacing', handleUnlinkColumnSpacingEvent);
+			window.removeEventListener('link-column-width', handleLinkColumnWidthEvent);
+			window.removeEventListener('unlink-column-width', handleUnlinkColumnWidthEvent);
+			window.removeEventListener('link-section-spacing', handleLinkSectionSpacingEvent);
+			window.removeEventListener('unlink-section-spacing', handleUnlinkSectionSpacingEvent);
 			window.removeEventListener('set-connection-note-position', handleSetQuickNotePositionEvent);
 			window.removeEventListener('reset-connection-note-position', handleResetQuickNotePositionEvent);
 			window.removeEventListener('set-connection-note-offset', handleSetQuickNoteOffsetEvent);
@@ -5155,7 +5364,11 @@
 													class:cross-passage-column={passageIndex > 0 && columnIndex === 0}
 													class:is-repositioning={columnReposition.activeColumnId === column.id}
 													class:is-resizing={columnResize.activeColumnId === column.id}
+													class:spacing-link-hovered={columnSpacingHover.isGroupHovered(column.spacingGroupId)}
+													class:width-link-hovered={columnWidthHover.isGroupHovered(column.widthGroupId)}
 													data-column-id="{column.id}"
+													data-spacing-group-id={column.spacingGroupId || null}
+													data-width-group-id={column.widthGroupId || null}
 
 													class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}
 													style:--column-offset="{columnOffset}px"
@@ -5172,8 +5385,10 @@
 															<div
 																class="section {section.segments?.[0]?.color ?? 'blue'}"
 																data-section-id="{section.id}"
+																data-spacing-group-id={section.spacingGroupId || null}
 																class:compare-hidden={isHideMode && !visibleSectionIds.has(section.id)}
 																class:is-repositioning={sectionReposition.activeSectionId === section.id}
+																class:spacing-link-hovered={sectionSpacingHover.isGroupHovered(section.spacingGroupId)}
 																style:--reposition-offset="{sectionOffset}px"
 																style:--handle-shift="{activeSections.includes(section.id) ? 0 : (segmentPositions.offsets[section.segments?.[0]?.id] ?? 0) - segmentExtent / 2}px"
 															>
@@ -5240,6 +5455,8 @@
 																			topShift={segmentPositions.shift[segment.id] ?? 0}
 																			positionWidth={segmentExtent > 0 ? columnBaseWidth - COLUMN_INNER_PADDING : null}
 																			canReposition={!isSegmentPositionDisabled() && (segmentPositions.max[segment.id] ?? 0) > 0}
+																			repositionDisabled={!isSegmentPositionDisabled() && countSegmentsInColumn(column) < 2}
+																			repositionDisabledReason="Only segment in this column — use Column Spacing instead"
 																			isRepositioning={segmentReposition.activeSegmentId === segment.id}
 																			onRepositionStart={segmentReposition.handleRepositionStart}
 																		/>
@@ -5275,6 +5492,8 @@
 																	aria-label="Reposition section"
 																	aria-orientation="horizontal"
 																	onmousedown={(e) => sectionReposition.handleRepositionStart(e, section.id)}
+																	onmouseenter={() => sectionSpacingHover.handleEnter(section.id)}
+																	onmouseleave={sectionSpacingHover.handleLeave}
 																>
 																	<span class="reposition-indicator">
 																		<span class="reposition-dot"></span>
@@ -5322,6 +5541,8 @@
 															aria-label="Adjust column spacing"
 															aria-orientation="vertical"
 															onmousedown={(e) => columnReposition.handleRepositionStart(e, column.id)}
+															onmouseenter={() => columnSpacingHover.handleEnter(column.id)}
+															onmouseleave={columnSpacingHover.handleLeave}
 														>
 
 
@@ -5346,6 +5567,8 @@
 															aria-label="Resize column width"
 															aria-orientation="vertical"
 															onmousedown={(e) => columnResize.handleResizeStart(e, column.id)}
+															onmouseenter={() => columnWidthHover.handleEnter(column.id)}
+															onmouseleave={columnWidthHover.handleLeave}
 														>
 															<span class="column-resize-indicator"></span>
 														</div>
@@ -5452,15 +5675,30 @@
 		<ResizeTooltip x={tip.x} y={tip.y} label={tip.label} />
 	{/each}
 
+	<!-- Same "Linked" labels for linked column spacing / column width / section spacing,
+	     anchored above each member's drag handle. Shown on hover, and during a linked drag
+	     on EVERY member (with the live value) — the drag tooltips below are hidden then so
+	     the dragged member's badge stays on its handle like the others. -->
+	{#each columnSpacingHover.hoverTooltips as tip (tip.id)}
+		<ResizeTooltip x={tip.x} y={tip.y} height={tip.height} label={tip.label} />
+	{/each}
+	{#each columnWidthHover.hoverTooltips as tip (tip.id)}
+		<ResizeTooltip x={tip.x} y={tip.y} height={tip.height} label={tip.label} />
+	{/each}
+	{#each sectionSpacingHover.hoverTooltips as tip (tip.id)}
+		<ResizeTooltip x={tip.x} y={tip.y} height={tip.height} label={tip.label} />
+	{/each}
+
 
 	<!-- Live spacing tooltip following a section reposition drag. Reuses the same
 	     ResizeTooltip component as segment resize; here `height` is the total vertical
 	     gap (px) above the section. -->
-	{#if sectionReposition.dragTooltip.visible}
+	{#if sectionReposition.dragTooltip.visible && !sectionSpacingHover.isGroupDragging()}
 		<ResizeTooltip
 			x={sectionReposition.dragTooltip.x}
 			y={sectionReposition.dragTooltip.y}
 			height={sectionReposition.dragTooltip.height}
+			label={sectionReposition.dragTooltip.label ?? null}
 		/>
 	{/if}
 
@@ -5477,11 +5715,12 @@
 		/>
 	{/if}
 
-	{#if columnReposition.dragTooltip.visible}
+	{#if columnReposition.dragTooltip.visible && !columnSpacingHover.isGroupDragging()}
 		<ResizeTooltip
 			x={columnReposition.dragTooltip.x}
 			y={columnReposition.dragTooltip.y}
 			height={columnReposition.dragTooltip.height}
+			label={columnReposition.dragTooltip.label ?? null}
 		/>
 	{/if}
 
@@ -5512,7 +5751,7 @@
 
 	<!-- Live width tooltip following a column width drag. Reuses the ResizeTooltip
 	     component; here `height` carries the CSS-px WIDTH being applied. -->
-	{#if columnResize.dragTooltip.visible}
+	{#if columnResize.dragTooltip.visible && !columnWidthHover.isGroupDragging()}
 		<ResizeTooltip
 			x={columnResize.dragTooltip.x}
 			y={columnResize.dragTooltip.y}
@@ -5963,7 +6202,9 @@
 
 
 	.column-reposition-handle:hover,
-	.column.is-repositioning .column-reposition-handle {
+	.column.is-repositioning .column-reposition-handle,
+	/* Reveal every linked member's handle while any one of them is hovered. */
+	.column.spacing-link-hovered > .column-reposition-handle {
 		opacity: 1;
 	}
 
@@ -6038,7 +6279,9 @@
 	}
 
 	.column-resize-handle:hover,
-	.column.is-resizing .column-resize-handle {
+	.column.is-resizing .column-resize-handle,
+	/* Reveal every linked member's handle while any one of them is hovered. */
+	.column.width-link-hovered > .column-resize-handle {
 		opacity: 1;
 	}
 
@@ -6143,7 +6386,9 @@
 	}
 
 	.reposition-handle:hover,
-	.section.is-repositioning .reposition-handle {
+	.section.is-repositioning .reposition-handle,
+	/* Reveal every linked member's handle while any one of them is hovered. */
+	.section.spacing-link-hovered > .reposition-handle {
 		opacity: 1;
 	}
 

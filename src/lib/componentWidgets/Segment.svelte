@@ -61,6 +61,11 @@
 		positionWidth = null,
 		/** Whether the segment can be pulled right (shows the left-edge drag handle). */
 		canReposition = false,
+		/** Show the position handle in a DISABLED state (e.g. the only segment in its column):
+		 *  visible like a normal handle, but faded, not-allowed cursor, and it never starts a drag. */
+		repositionDisabled = false,
+		/** Tooltip explaining why the disabled position handle can't be used. */
+		repositionDisabledReason = '',
 		/** Whether this segment's position is currently being dragged. */
 		isRepositioning = false,
 		/** Called on mousedown on the position handle: (event, segmentId) => void */
@@ -362,13 +367,26 @@
 	<!-- Position handle: a three-dot grab handle centered on the LEFT border, matching
 	     the Column / Section reposition handles. Mousedown begins a drag that pulls the
 	     segment right (capped 36px short of the segment above's right edge). -->
-	{#if resizeEnabled && canReposition}
+	{#if resizeEnabled && (canReposition || repositionDisabled)}
+		{@const handleDisabled = !canReposition}
 		<div
 			class="position-handle"
+			class:disabled={handleDisabled}
 			role="separator"
 			aria-label="Move segment right"
 			aria-orientation="vertical"
-			onmousedown={(e) => onRepositionStart?.(e, segmentId)}
+			aria-disabled={handleDisabled}
+			title={handleDisabled ? repositionDisabledReason || null : null}
+			onmousedown={(e) => {
+				if (handleDisabled) {
+					// Swallow the press so it doesn't start a word selection or select the
+					// segment, but never begin a position drag.
+					e.preventDefault();
+					e.stopPropagation();
+					return;
+				}
+				onRepositionStart?.(e, segmentId);
+			}}
 		>
 			<span class="position-indicator">
 				<span class="position-dot"></span>
@@ -583,6 +601,16 @@
 
 	.segment.is-repositioning .position-handle {
 		cursor: grabbing;
+	}
+
+	/* Disabled handle (e.g. the column's only segment): appears on hover / Layout Controls
+	   exactly like an enabled one, but the dots are faded and the cursor says no. */
+	.position-handle.disabled {
+		cursor: not-allowed;
+	}
+
+	.position-handle.disabled .position-indicator {
+		opacity: 0.35;
 	}
 
 	/* Exactly three dots in a VERTICAL column, centered over the left border. */

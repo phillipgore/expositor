@@ -10,9 +10,9 @@
 	 *
 	 * Items are ordered largest container first (Column ⊃ Section ⊃ Segment) to
 	 * match the app's nesting hierarchy and the Structure/View menus' ordering:
-	 * - Column Spacing  — Set Column Spacing / Reset Column Spacing
-	 * - Column Width    — Set Column Width / Reset Column Width
-	 * - Section Spacing — Set Section Spacing / Reset Section Spacing
+	 * - Column Spacing  — Set / Reset Column Spacing, Link / Unlink (change linked columns together)
+	 * - Column Width    — Set / Reset Column Width, Link / Unlink (resize linked columns together)
+	 * - Section Spacing — Set / Reset Section Spacing, Link / Unlink (change linked sections together)
 	 * - Segment Height  — Set / Reset Segment Height, Link / Unlink (resize linked segments together)
 	 * - Segment Position — Set Segment Position / Reset Segment Position (pull right)
 	 *
@@ -74,6 +74,30 @@
 
 	/>
 
+	<!-- Link / Unlink column spacing: linked columns keep the same left gap and change
+	     together (drag or Set/Reset). -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		label="Link Column Spacing"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('link-column-spacing'));
+		}}
+		isDisabled={isDocument || !$toolbarState.canLinkColumnSpacing || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		label="Unlink Column Spacing"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('unlink-column-spacing'));
+		}}
+		isDisabled={isDocument || !$toolbarState.canUnlinkColumnSpacing || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
 	<DividerHorizontal />
 
 	<IconButton
@@ -100,6 +124,29 @@
 
 	/>
 
+	<!-- Link / Unlink column width: linked columns keep the same width and resize together. -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		label="Link Column Width"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('link-column-width'));
+		}}
+		isDisabled={isDocument || !$toolbarState.canLinkColumnWidth || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		label="Unlink Column Width"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('unlink-column-width'));
+		}}
+		isDisabled={isDocument || !$toolbarState.canUnlinkColumnWidth || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
 	<DividerHorizontal />
 
 	<IconButton
@@ -124,6 +171,30 @@
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
 
+	/>
+
+	<!-- Link / Unlink section spacing: linked sections keep the same gap above them and
+	     change together. -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		label="Link Section Spacing"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('link-section-spacing'));
+		}}
+		isDisabled={isDocument || !$toolbarState.canLinkSectionSpacing || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
+	<IconButton
+		classes="menu-light justify-content-left"
+		label="Unlink Section Spacing"
+		role="menuitem"
+		handleClick={() => {
+			closeMenu();
+			window.dispatchEvent(new CustomEvent('unlink-section-spacing'));
+		}}
+		isDisabled={isDocument || !$toolbarState.canUnlinkSectionSpacing || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<DividerHorizontal />
@@ -180,7 +251,8 @@
 	<DividerHorizontal />
 
 	<!-- Segment position: pull the selected segments to the right within their column
-	     (capped 36px short of the right edge of the segment above). -->
+	     (capped 36px short of the right edge of the segment above). Set is disabled when
+	     every selected segment is the only segment in its column; Reset stays available. -->
 	<IconButton
 		classes="menu-light justify-content-left"
 		label="Set Segment Position…"
@@ -189,7 +261,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('set-segment-position'));
 		}}
-		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveSegment || !$toolbarState.canSetSegmentPosition || $toolbarState.overviewMode || $toolbarState.focusMode}
 	/>
 
 	<IconButton
