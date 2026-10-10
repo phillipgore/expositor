@@ -750,7 +750,7 @@
 		const colRect = columnEl.getBoundingClientRect();
 		const sections = columnEl.querySelectorAll('.section[data-section-id]');
 		for (const sec of sections) {
-			if (sec.classList.contains('compare-hidden')) continue;
+			if (sec.classList.contains('focus-hidden')) continue;
 			const r = sec.getBoundingClientRect();
 			if (r.width === 0 || r.height === 0) continue; // skip hidden sections
 			// Synthesize: column's horizontal bounds + first visible section's top.
@@ -799,7 +799,7 @@
 		let segs = [];
 		if (type === 'column') {
 			for (const sec of el.querySelectorAll('.section[data-section-id]')) {
-				if (sec.classList.contains('compare-hidden')) continue;
+				if (sec.classList.contains('focus-hidden')) continue;
 				segs = visibleSegments(sec);
 				if (segs.length) break;
 			}
@@ -1170,7 +1170,7 @@
 		/** @type {Array<{ x: number, y: number, w: number, h: number }>} */
 		const out = [];
 		document.querySelectorAll('.section[data-section-id]').forEach(el => {
-			if (el.classList.contains('compare-hidden')) return;
+			if (el.classList.contains('focus-hidden')) return;
 			const r = el.getBoundingClientRect();
 			if (r.width === 0 || r.height === 0) return;
 			out.push({ x: (r.left - svgRect.left) / scl, y: (r.top - svgRect.top) / scl, w: r.width / scl, h: r.height / scl });
@@ -1723,7 +1723,7 @@
 			segmentEl = el.closest('.segment[data-segment-id]') ?? (el.matches('.segment') ? el : null);
 		} else {
 			for (const seg of el.querySelectorAll('.segment[data-segment-id]')) {
-				if (seg.classList.contains('compare-hidden') || seg.closest('.compare-hidden')) continue;
+				if (seg.classList.contains('focus-hidden') || seg.closest('.focus-hidden')) continue;
 				const r = seg.getBoundingClientRect();
 				if (r.width === 0 || r.height === 0) continue;
 				segmentEl = seg;
@@ -1904,7 +1904,7 @@
 	 * gutters, inter-section spacing, margins) are the "white space" the notes
 	 * prefer to sit over.
 	 *
-	 * Hidden segments (zero-width, or compare/hide-mode hidden) are skipped.
+	 * Hidden segments (zero-width, or Focus-hidden) are skipped.
 	 * Each box is tagged with its segment id plus the ids of its nearest ancestor
 	 * section and column, so the section edge resolver can exclude the text that
 	 * belongs to a connection's OWN endpoint elements (a line aimed at a section's
@@ -1918,7 +1918,7 @@
 		const boxes = [];
 		document.querySelectorAll('.segment[data-segment-id]').forEach(el => {
 			const seg = /** @type {HTMLElement} */ (el);
-			if (seg.classList.contains('compare-hidden')) return;
+			if (seg.classList.contains('focus-hidden')) return;
 			const rect = seg.getBoundingClientRect();
 			if (rect.width === 0 || rect.height === 0) return;
 			const sectionEl = /** @type {HTMLElement|null} */ (seg.closest('[data-section-id]'));
@@ -5150,7 +5150,7 @@
 		word-break: break-word;
 		/* Size to content up to the cap. Without an intrinsic width, an
 		   absolutely-positioned box near the right edge of the connections
-		   layer (as happens in Compare/Focus mode) collapses to the few px
+		   layer (as happens in Focus mode) collapses to the few px
 		   of available space and the text wraps into a 1-char-wide strip. */
 		width: max-content;
 		max-width: 27.4rem;

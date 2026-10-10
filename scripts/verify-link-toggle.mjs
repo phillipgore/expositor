@@ -79,7 +79,7 @@ assert('Link Segment Height is disabled on the Document view', menu.includes('is
 
 console.log('\n── selected item shows its link group ──');
 assert('group index is built from loaded data', page.includes('let linkGroupIndex = $derived.by('));
-assert('off in Outline View / Focus / Compare', /selectedLinkGroups = \$derived\.by\(\(\) => \{\s*const off = \$toolbarState\.overviewMode \|\| \$toolbarState\.focusMode \|\| isHideMode/.test(page));
+assert('off in Outline View / Focus', /selectedLinkGroups = \$derived\(\s*\$toolbarState\.overviewMode \|\| \$toolbarState\.focusMode \? EMPTY_LINK_GROUPS : activeLinkGroups/.test(page));
 for (const cls of ['spacing-link-selected', 'width-link-selected']) {
 	assert(`columns get ${cls}`, page.includes(`class:${cls}={!!column.`));
 }
@@ -93,7 +93,10 @@ assert('menu item dispatches select-linked-items', selMenu.includes("selectAllSt
 assert('menu item gated on canSelectLinkedItems', selMenu.includes('!$toolbarState.canSelectLinkedItems'));
 assert('page handles the event', page.includes("window.addEventListener('select-linked-items', handleSelectLinkedItemsEvent)"));
 assert('it ADDS to the selection (keeps what was selected)', page.includes('const columnIds = [...new Set([...activeColumns, ...linked.columns])];') && page.includes('activeSegments = [...activeSegments, ...addedSegments];'));
-assert('uses the same groups as the dashed outlines', /function getLinkedMemberIds\(\) \{\s*const groups = selectedLinkGroups;/.test(page));
+// Same groups the dashed outlines are built from (activeLinkGroups) — but NOT suppressed in
+// Focus, where the outlines are hidden yet Select Linked Items still works on visible members.
+assert('uses the same groups as the dashed outlines', /function getLinkedMemberIds\(\) \{\s*const groups = \$toolbarState\.overviewMode \? EMPTY_LINK_GROUPS : activeLinkGroups;/.test(page));
+assert('in Focus, only visible linked members are offered', /if \(isFocusMode\) \{\s*return \{\s*columns: columnIds\.filter\(\(id\) => visibleColumnIds\.has\(id\)\)/.test(page));
 assert('flag is cleared when leaving the page', page.includes("setToolbarState('canSelectLinkedItems', false)"));
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

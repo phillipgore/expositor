@@ -6,7 +6,7 @@
 	 * changes the document's structure via split/join/move) and MenuConnect (which
 	 * creates connections and places their quick notes), these items only adjust
 	 * spacing and sizing and are gated behind view modes — they are disabled in
-	 * Overview, Compare, and Focus modes.
+	 * Overview and Focus modes.
 	 *
 	 * Items are ordered largest container first (Column ⊃ Section ⊃ Segment) to
 	 * match the app's nesting hierarchy and the Structure/View menus' ordering:

@@ -153,8 +153,8 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		document.querySelectorAll('.section, .segment').forEach((el) => {
 			if (el === sectionEl) return;
 			if (ownColumn && ownColumn.contains(el)) return;
-			// Skip hidden elements (compare/focus mode).
-			if (el.classList.contains('compare-hidden')) return;
+			// Skip hidden elements (Focus mode).
+			if (el.classList.contains('focus-hidden')) return;
 			const r = el.getBoundingClientRect();
 			snapCandidates.push(r.top, r.bottom);
 		});

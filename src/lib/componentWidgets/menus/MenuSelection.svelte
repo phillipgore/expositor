@@ -124,14 +124,15 @@
 	<DividerHorizontal />
 
 	<!-- Adds every member of the selected items' link groups (width, spacing, height) —
-	     the items shown with dashed outlines. Enabled only when that adds something. -->
+	     the items shown with dashed outlines. Enabled only when that adds something.
+	     In Focus mode it only adds members that are visible in the Focus. -->
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="linked-select-all"
 		label="Select Linked Items"
 		role="menuitem"
 		handleClick={() => selectAllStructure('select-linked-items')}
-		isDisabled={structureSelectDisabled || !$toolbarState.canSelectLinkedItems || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={structureSelectDisabled || !$toolbarState.canSelectLinkedItems || $toolbarState.overviewMode}
 	/>
 
 	<DividerHorizontal />

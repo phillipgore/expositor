@@ -52,59 +52,19 @@
 
 	let isDocument = $derived(view === 'document');
 
-	// ── Why the join/move commands are dead at a part boundary (SERIES_PLAN §11 option 1) ──
+	// ── Part boundaries in a series ──
 	//
-	// These five commands were already inert at a part's edges, because the join target lives in
-	// the neighbouring part and the `…FirstInPassage` flags stop them. §11 forbids leaving it at
-	// that: "do not ship it silently." So the menu explains which edge is blocking and whether
-	// phase 2 will fix it, using the reasons the server resolved from the run predicate.
-	//
-	// The note is rendered as visible text rather than a `title` tooltip on purpose: the buttons
-	// use the NATIVE `disabled` attribute, and browsers suppress hover events on disabled
-	// controls, so a tooltip there would be a reason nobody could ever read.
+	// At a part's edge the join/move target lives in the neighbouring part. Whether that seam can be
+	// crossed is decided by `crossPartCommands.js`; when it can't, the command is simply disabled —
+	// the menu shows no explanatory notes (a disabled item is enough).
 	let seriesContext = $derived($page.data?.seriesContext ?? null);
-
-	// IMPORTANT — the store's flags are "first/last in PASSAGE", and a part may hold several
-	// passages (the part-per-passage strategy, §5). In a multi-passage part the second passage's
-	// first segment is an *internal* seam, not a part boundary, and claiming "not available across
-	// parts yet" there would be a plain lie.
-	//
-	// A part's own leading/trailing edge is the FIRST passage's start and the LAST passage's end.
 
 	// The `…FirstInPassage` / `isWordIn…Segment` flags are per-passage, so on their own they also
 	// fire at every internal passage seam in a multi-passage part; `activePassageIndex` (published
-	// by the analyze page) is what separates the two. A part is only at its leading edge when the
-	// selection is in passage 0, and at its trailing edge when it is in the last passage — for a
-	// single-passage part both collapse to the one passage, which is why that case needed no index.
+	// by the analyze page) lets the seam predicates tell an internal seam from the part's own edge.
 	let passageCount = $derived($page.data?.passages?.length ?? 0);
 	let activePassageIndex = $derived($toolbarState.activePassageIndex);
 
-	// Guard on a RESOLVED index: null means the analyze page could not place the selection (no
-	// selection, or content still streaming), and a note that guessed in that state could easily
-	// blame a part edge at an internal seam. Silence is correct until we actually know.
-	let atPartStart = $derived(
-		Boolean(seriesContext) && passageCount > 0 && activePassageIndex === 0
-	);
-	let atPartEnd = $derived(
-		Boolean(seriesContext) && passageCount > 0 && activePassageIndex === passageCount - 1
-	);
-
-
-	// Whether a boundary note may be shown at all, per edge. The Document view is read-only, so
-	// its items are disabled for a reason that has nothing to do with series.
-	let canExplainStart = $derived(atPartStart && !isDocument);
-	let canExplainEnd = $derived(atPartEnd && !isDocument);
-
-
-	// Resolved PER COMMAND, not per edge. A blanket "leading edge" note would appear under Join
-	// Segment while a *column* is selected — where the command is disabled because there is no
-	// active segment, nothing to do with a part boundary. Each note therefore requires its own
-	// command to be the one actually blocked by the edge.
-	//
-	// The four leading-edge commands pair `canExplainStart` with `boundaryBefore` (the join target
-	// sits in the PREVIOUS part); Move Text Down pairs `canExplainEnd` with `boundaryAfter`. Both
-	// halves of each pair must agree about which edge is meant — mixing them (say, an end-edge
-	// guard with a `boundaryBefore` string) would put the wrong neighbour in the sentence.
 	/**
 	 * Everything the seam predicates need, in one object.
 	 *
@@ -179,18 +139,6 @@
 		!joinGranularity || isDocument || (!hasPredecessor && !canJoinUpAcross)
 	);
 
-	// The reason is shown only when the command is genuinely dead: an ineligible seam. Previously it
-	// also appeared over a contiguous seam, where it read "not available across parts yet" — now false,
-	// and §11 is explicit that a promise of a later fix must not outlive the fix.
-	//
-	// `!hasPredecessor` guards it too: with a predecessor inside this study the command works, and a
-	// boundary note beside a working button would explain a problem the user does not have.
-	let joinUpReason = $derived(
-		canExplainStart && !hasPredecessor && joinUpCrossesBoundary && !canJoinUpAcross
-			? seriesContext.boundaryBefore
-			: null
-	);
-
 	// ── Join Down: the END edge, and therefore a DIFFERENT seam ──
 	//
 	// ⚠️ Join Down must never reuse the Join Up predicate. `canJoinUpAcross()` is start-edge only (it
@@ -217,22 +165,9 @@
 		!joinGranularity || isDocument || (!hasSuccessor && !canJoinDownAcross)
 	);
 
-	// Explain the trailing edge only when it is the boundary that is actually in the way: the user is
-	// at the end of this part, nothing follows inside it, and the seam beyond is ineligible. Without
-	// the `!hasSuccessor` term this note would appear while a perfectly good successor sat below.
-	let joinDownReason = $derived(
-		canExplainEnd && joinGranularity && !hasSuccessor && seriesContext?.boundaryAfter
-			? seriesContext.boundaryAfter
-			: null
-	);
-
 	// ── Move Text Up / Down across a boundary (§8, commands 4 and 5) ──
 	//
-	// The move commands are gated on a word selection, and `isCaretAtSegmentStart/End` disables them for
-	// an unrelated in-segment reason — excluded so a note only claims the boundary when the boundary is
-	// genuinely what is in the way.
-	//
-	// ⚠️ Move Down uses the END edge, so it pairs `atPartEnd` with `boundaryAfter`. The Join Up
+	// ⚠️ Move Down uses the END edge (`boundaryAfter`). The Join Up
 	// predicate is start-edge only and must NOT be reused here: doing so would enable Move Down whenever
 	// the part's *leading* seam happened to be contiguous, which is a different seam entirely.
 	let moveIsWordScoped = $derived(
@@ -248,14 +183,6 @@
 	// edge is eligible only when a neighbouring part EXISTS and its own seam is contiguous.
 	let canMoveUpAcross = $derived(moveUpCrossesBoundary && canMoveTextUpAcross(edgeContext));
 	let canMoveDownAcross = $derived(moveDownCrossesBoundary && canMoveTextDownAcross(edgeContext));
-
-	let moveUpReason = $derived(
-		canExplainStart && moveUpCrossesBoundary && !canMoveUpAcross ? seriesContext.boundaryBefore : null
-	);
-
-	let moveDownReason = $derived(
-		canExplainEnd && moveDownCrossesBoundary && !canMoveDownAcross ? seriesContext.boundaryAfter : null
-	);
 
 	// ── Move Selected Up / Down (§8) ──
 	//
@@ -287,6 +214,13 @@
 	// Move Selected states its verdict through the disabled state alone — no explanatory note. The
 	// rule ("be at the edge of your container") is short enough to be learned from the greyed item.
 
+	// ── Focus mode guards ──
+	//
+	// In Focus, a command whose target (the neighbour a join folds into, the container a move lands
+	// in, the segment Move Text pushes words into) is HIDDEN would change something the user cannot
+	// see, so it is simply disabled. The analyze page resolves these against its visible sets
+	// (`focusStructureBlocks`); every flag is false outside Focus.
+	let focusBlocks = $derived($toolbarState.focusStructureBlocks);
 
 
 
@@ -366,12 +300,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('join-up'));
 		}}
-		isDisabled={joinUpDisabled}
-		ariaLabel={joinUpReason ? `Join Selected Up — ${joinUpReason}` : undefined}
+		isDisabled={joinUpDisabled || focusBlocks.joinUp}
 	/>
-	{#if joinUpReason}
-		<p class="boundary-reason" role="none">{joinUpReason}</p>
-	{/if}
 
 	<IconButton
 		classes="menu-light justify-content-left"
@@ -382,12 +312,8 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('join-down'));
 		}}
-		isDisabled={joinDownDisabled}
-		ariaLabel={joinDownReason ? `Join Selected Down — ${joinDownReason}` : undefined}
+		isDisabled={joinDownDisabled || focusBlocks.joinDown}
 	/>
-	{#if joinDownReason}
-		<p class="boundary-reason" role="none">{joinDownReason}</p>
-	{/if}
 
 	<DividerHorizontal />
 
@@ -413,7 +339,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('move-selected-up'));
 		}}
-		isDisabled={moveSelectedUpDisabled}
+		isDisabled={moveSelectedUpDisabled || focusBlocks.moveUp}
 	/>
 
 	<IconButton
@@ -425,7 +351,7 @@
 			closeMenu();
 			window.dispatchEvent(new CustomEvent('move-selected-down'));
 		}}
-		isDisabled={moveSelectedDownDisabled}
+		isDisabled={moveSelectedDownDisabled || focusBlocks.moveDown}
 	/>
 
 	<DividerHorizontal />
@@ -443,12 +369,9 @@
 			$toolbarState.hasActiveColumn ||
 			$toolbarState.hasActiveSection ||
 			($toolbarState.isWordInFirstSegment && !canMoveUpAcross) ||
-			$toolbarState.isCaretAtSegmentStart}
-		ariaLabel={moveUpReason ? `Move Text Up — ${moveUpReason}` : undefined}
+			$toolbarState.isCaretAtSegmentStart ||
+			focusBlocks.moveTextUp}
 	/>
-	{#if moveUpReason}
-		<p class="boundary-reason" role="none">{moveUpReason}</p>
-	{/if}
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="text-down"
@@ -462,37 +385,9 @@
 			$toolbarState.hasActiveColumn ||
 			$toolbarState.hasActiveSection ||
 			($toolbarState.isWordInLastSegment && !canMoveDownAcross) ||
-			$toolbarState.isCaretAtSegmentEnd}
-		ariaLabel={moveDownReason ? `Move Text Down — ${moveDownReason}` : undefined}
+			$toolbarState.isCaretAtSegmentEnd ||
+			focusBlocks.moveTextDown}
 	/>
-	{#if moveDownReason}
-		<p class="boundary-reason" role="none">{moveDownReason}</p>
-	{/if}
 </Menu>
 
-<style>
-	/*
-	 * The boundary explanation sits under the command it explains, indented to the icon's text
-	 * column so it reads as a note about that item rather than a menu entry of its own.
-	 *
-	 * It carries `role="none"` because a `role="menu"` container may only own menuitems, and a
-	 * stray paragraph in that tree confuses menu navigation. That hides it from screen readers,
-	 * so the same reason is ALSO folded into the disabled item's `aria-label` — otherwise the
-	 * explanation would be sighted-only, which is the same silent failure §11 objects to, just
-	 * for a different audience.
-	 *
-	 * `aria-live` is deliberately absent: the note appears as a consequence of selecting text,
-	 * and announcing it on every selection change would talk over the user.
-	 */
-
-	.boundary-reason {
-		margin: 0;
-		padding: 0.2rem 0.9rem 0.4rem 2.55rem;
-		max-width: 15rem;
-		font-size: 0.75rem;
-		line-height: 1.3;
-		color: var(--gray-600, #6d6d6d);
-		text-wrap: pretty;
-	}
-</style>
 

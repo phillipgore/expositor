@@ -159,7 +159,7 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 	/**
 	 * Resolve the link-group members for a segment from the DOM. Returns the segment's
 	 * own id alone when it isn't linked, or all VISIBLE members sharing its
-	 * `data-height-group-id`. Compare/focus-hidden members are excluded.
+	 * `data-height-group-id`. Focus-hidden members are excluded.
 	 * @param {HTMLElement} segmentEl
 	 * @returns {string[]}
 	 */
@@ -173,7 +173,7 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		document
 			.querySelectorAll(`[data-height-group-id="${groupId}"]`)
 			.forEach((el) => {
-				if (el.classList.contains('compare-hidden')) return;
+				if (el.classList.contains('focus-hidden')) return;
 				const id = el.getAttribute('data-segment-id');
 				if (id) ids.push(id);
 			});
@@ -242,7 +242,7 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 			if (ownColumn && ownColumn.contains(el)) return;
 			const id = el.getAttribute('data-segment-id');
 			if (id && groupSet.has(id)) return;
-			if (el.classList.contains('compare-hidden')) return;
+			if (el.classList.contains('focus-hidden')) return;
 			const r = el.getBoundingClientRect();
 			snapCandidates.push(r.top, r.bottom);
 		});
@@ -445,7 +445,7 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		hoveredGroupId = groupId;
 		const tips = [];
 		document.querySelectorAll(`[data-height-group-id="${groupId}"]`).forEach((el) => {
-			if (el.classList.contains('compare-hidden')) return;
+			if (el.classList.contains('focus-hidden')) return;
 			const id = el.getAttribute('data-segment-id');
 			if (!id) return;
 			const r = el.getBoundingClientRect();
@@ -502,7 +502,7 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		document.querySelectorAll('[data-height-group-id]').forEach((el) => {
 			const groupId = el.getAttribute('data-height-group-id');
 			if (!groupId) return;
-			if (el.classList.contains('compare-hidden')) return;
+			if (el.classList.contains('focus-hidden')) return;
 			if (!groups.has(groupId)) groups.set(groupId, []);
 			groups.get(groupId)?.push(/** @type {HTMLElement} */ (el));
 		});

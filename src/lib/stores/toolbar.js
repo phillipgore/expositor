@@ -46,6 +46,18 @@ async function persistPreference(updates) {
  */
 
 /**
+ * Structure commands Focus mode blocks because they would act on, or create, items
+ * hidden by Focus. Every flag is false outside Focus.
+ * @typedef {Object} FocusStructureBlocks
+ * @property {boolean} joinUp - The item Join Up would fold into is hidden
+ * @property {boolean} joinDown - The item Join Down would fold into is hidden
+ * @property {boolean} moveUp - The container Move Item Up would land in is hidden
+ * @property {boolean} moveDown - The container Move Item Down would land in is hidden
+ * @property {boolean} moveTextUp - The segment Move Text Up would push words into is hidden
+ * @property {boolean} moveTextDown - The segment Move Text Down would push words into is hidden
+ */
+
+/**
  * @typedef {Object} ToolbarState
  * @property {boolean} canDelete - Whether Delete button should be enabled (has document open)
  * @property {boolean} canEdit - Whether Edit button should be enabled (has selected item)
@@ -163,6 +175,7 @@ async function persistPreference(updates) {
  * @property {boolean} activeConnectionHasPlacedPoints - Whether any selected connection has a user-placed connection point (enables "Reset Connection Points")
  * @property {'curved'|'straight'|'cornered'|null} activeConnectionRoute - Line shape shared by every selected connection, or null when none/mixed (drives the Connect menu's shape checkmark)
  * @property {boolean} canSelectLinkedItems - Whether Selection → Select Linked Items would add anything (the selection has linked members not yet selected)
+ * @property {FocusStructureBlocks} focusStructureBlocks - Structure commands blocked in Focus mode because they would touch hidden items
  * @property {'top'|'right'|'bottom'|'left'|null} activeConnectionNoteSide - Quick-note anchor side shared by every selected connection that has a note, or null when none/mixed (drives the Connect menu's side checkmark)
  * @property {boolean} hasActiveHeading - Whether a heading (passage_heading row) is currently selected for commentary
  * @property {string|null} activeHeadingId - The ID of the currently selected heading row
@@ -326,6 +339,8 @@ const defaultState = {
 	activeConnectionRoute: null,
 	activeConnectionNoteSide: null,
 	canSelectLinkedItems: false,
+	// Structure edits Focus mode blocks for the current selection (see setFocusStructureBlocks).
+	focusStructureBlocks: { joinUp: false, joinDown: false, moveUp: false, moveDown: false, moveTextUp: false, moveTextDown: false },
 	// A heading (passage_heading row) selected via its hover select button, for
 	// attaching commentary. Independent of the heading EDITOR (edit-the-text) state.
 	hasActiveHeading: false,
@@ -831,10 +846,30 @@ export async function toggleStudiesPanel() {
  * every segment in the study ("All of them").
  */
 export function toggleFocus() {
-	toolbarStateStore.update(state => ({
-		...state,
-		focusMode: !state.focusMode
+	const state = get(toolbarStateStore);
+	const newFocusMode = !state.focusMode;
+	// Focus and Overview are mutually exclusive: their layout rules (hidden items vs.
+	// collapsed overview) were never designed to stack. Entering Focus leaves Overview.
+	const leaveOverview = newFocusMode && state.overviewMode;
+	toolbarStateStore.update(s => ({
+		...s,
+		focusMode: newFocusMode,
+		overviewMode: leaveOverview ? false : s.overviewMode
 	}));
+	if (leaveOverview) persistPreference({ overviewMode: false });
+}
+
+/**
+ * Publish which structure edits Focus mode blocks for the current selection, because
+ * they would act on (or create) items the user cannot see. The analyze page resolves
+ * these against the visible sets; MenuStructure reads them. All false outside Focus.
+ * @param {FocusStructureBlocks} blocks
+ */
+export function setFocusStructureBlocks(blocks) {
+	const prev = get(toolbarStateStore).focusStructureBlocks;
+	const keys = /** @type {(keyof FocusStructureBlocks)[]} */ (Object.keys(blocks));
+	if (keys.every((k) => prev[k] === blocks[k])) return;
+	toolbarStateStore.update(s => ({ ...s, focusStructureBlocks: { ...blocks } }));
 }
 
 /**
@@ -1180,6 +1215,8 @@ export function toggleOverview() {
 	toolbarStateStore.update(s => ({
 		...s,
 		overviewMode: newOverviewMode,
+		// Overview and Focus are mutually exclusive (see toggleFocus): entering Overview exits Focus.
+		focusMode: newOverviewMode ? false : s.focusMode,
 		commentaryPanelOpen: shouldCloseCommentary ? false : s.commentaryPanelOpen,
 		headingsVisible: newHeadingsVisible
 	}));

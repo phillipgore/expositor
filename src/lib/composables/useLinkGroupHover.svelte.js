@@ -44,7 +44,7 @@ export function useLinkGroupHover({ kind, handleSelector, getActiveId, getDragVa
 		/** @type {{ id: string, x: number, y: number, label: string, height: number|null }[]} */
 		const tips = [];
 		document.querySelectorAll(`[${kind.groupAttr}="${CSS.escape(groupId)}"][${kind.idAttr}]`).forEach((el) => {
-			if (el.classList.contains('compare-hidden')) return;
+			if (el.classList.contains('focus-hidden')) return;
 			const memberId = el.getAttribute(kind.idAttr);
 			if (!memberId) return;
 			const handle = el.querySelector(handleSelector);

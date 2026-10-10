@@ -171,6 +171,8 @@ export function getAppToolbarConfig() {
 					underLabel: 'Layout',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
+					// Off in Focus: spacing/size/position are measured against neighbours that
+					// Focus hides, so edits would be wrong and land invisibly in the full view.
 					disabledCheck: (state) => !state.canStructure || state.overviewMode || state.focusMode
 				},
 				{
@@ -180,7 +182,10 @@ export function getAppToolbarConfig() {
 					underLabel: 'Connect',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
-					disabledCheck: (state) => !state.canStructure || state.overviewMode || state.focusMode
+					// Available in Focus: a selection there can only hold visible items, so a new
+					// connection always joins two things on screen. Shapes and note placement are
+					// stored relative to the line's ends, so they survive leaving Focus.
+					disabledCheck: (state) => !state.canStructure || state.overviewMode
 				},
 				{
 					type: 'menu',

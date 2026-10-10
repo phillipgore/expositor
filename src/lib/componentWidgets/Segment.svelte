@@ -25,7 +25,7 @@
 		isActive = false,
 		segmentId = '',
 		generation = 0,
-		isCompareHidden = false,
+		isFocusHidden = false,
 		prevSegmentHasHeading = false,
 		nextSegmentHasHeading = false,
 		prevVisibleSegmentHasBorderBottom = false,
@@ -43,7 +43,7 @@
 		/** Persisted text-height floor (own height, or the link group's shared floor).
 		 *  Exposed as data-height-floor so linked groups can equalize outer boxes. */
 		heightFloor = null,
-		/** Whether the segment is resizable (disabled in overview/compare/focus modes). */
+		/** Whether the segment is resizable (disabled in overview/focus modes). */
 		resizeEnabled = false,
 		/** Whether this segment is currently being resized (drives active handle styling). */
 		isResizing = false,
@@ -230,7 +230,7 @@
      class:has-note={(note || noteInputMode) && $toolbarState.passageNotesVisible}
      class:has-no-headings-indicator={$toolbarState.overviewMode && !hasAnyHeadings && !((note || noteInputMode) && $toolbarState.passageNotesVisible)}
      class:is-last-in-section={isLastInSection}
-     class:compare-hidden={isCompareHidden}
+     class:focus-hidden={isFocusHidden}
      class:is-resizing={isResizing}
      class:is-repositioning={isRepositioning}
      class:show-layout-controls={resizeEnabled && $toolbarState.layoutControlsVisible}

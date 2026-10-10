@@ -55,8 +55,9 @@
 	} from '$lib/utils/passageText.js';
 	import { formatPassageReference as sharedFormatPassageReference } from '$lib/utils/passageFormatting.js';
 	import { rangeEndWordId } from '$lib/utils/wordIds.js';
-	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setLayoutLinkState, setCanSetSegmentPosition, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability, setSelectorsPeek } from '$lib/stores/toolbar.js';
+	import { toolbarState, setWordSelection, setCaretPosition, setActiveSegment, setActiveSegmentIds, setActiveSection, setCanInsertColumn, setActiveColumn, setActiveHeading, setStudyHeadings, setFocusEnabled, setToolbarState, setConnectionButtonStates, setActiveConnection, setWordSegmentPosition, setCaretSegmentBoundary, setHeadingOrNoteEditorActive, showConnectionsForTypes, showHeadings, setSegmentHeightLinkState, setLayoutLinkState, setCanSetSegmentPosition, setActivePassageIndex, setJoinNeighbours, setMoveSelectedAvailability, setSelectorsPeek, setFocusStructureBlocks } from '$lib/stores/toolbar.js';
 	import { resolveJoinNeighbours, passageIdOfItem } from '$lib/utils/joinNeighbours.js';
+	import { syncFocusVisibility, resolveFocusBlocks, noFocusBlocks, collectStructureIds } from '$lib/utils/focusVisibility.js';
 	import { collectStudyHeadings } from '$lib/utils/studyHeadings.js';
 	import { resolveTransferNeighbours } from '$lib/utils/transferNeighbours.js';
 
@@ -263,7 +264,7 @@
 	// group is marked so the user can see what will change with it: the member's
 	// handle for that kind of link is revealed (as on hover) and it gets a dashed
 	// outline. Built from the loaded data (not the DOM) so it updates as soon as the
-	// selection or a link changes. Off in Outline View / Focus / Compare, where the
+	// selection or a link changes. Off in Outline View / Focus, where the
 	// layout handles are hidden.
 	let linkGroupIndex = $derived.by(() => {
 		/** @type {Map<string, { spacing: string|null, width: string|null }>} */
@@ -289,16 +290,24 @@
 	/** @param {(string|null|undefined)[]} ids */
 	const toGroupSet = (ids) => new Set(/** @type {string[]} */ (ids.filter((g) => !!g)));
 
-	let selectedLinkGroups = $derived.by(() => {
-		const off = $toolbarState.overviewMode || $toolbarState.focusMode || isHideMode;
+	/** The link groups the current selection belongs to, by kind (ignores view modes). */
+	let activeLinkGroups = $derived.by(() => {
 		const { columns, sections, segments } = linkGroupIndex;
 		return {
-			columnWidth: toGroupSet(off ? [] : activeColumns.map((id) => columns.get(id)?.width)),
-			columnSpacing: toGroupSet(off ? [] : activeColumns.map((id) => columns.get(id)?.spacing)),
-			sectionSpacing: toGroupSet(off ? [] : activeSections.map((id) => sections.get(id))),
-			segmentHeight: toGroupSet(off ? [] : activeSegments.map((s) => segments.get(s.segmentId)))
+			columnWidth: toGroupSet(activeColumns.map((id) => columns.get(id)?.width)),
+			columnSpacing: toGroupSet(activeColumns.map((id) => columns.get(id)?.spacing)),
+			sectionSpacing: toGroupSet(activeSections.map((id) => sections.get(id))),
+			segmentHeight: toGroupSet(activeSegments.map((s) => segments.get(s.segmentId)))
 		};
 	});
+
+	// What the dashed link OUTLINES show. Link outlines are layout feedback, and layout is
+	// off in Overview and Focus, so they are suppressed there. (Select Linked Items reads
+	// activeLinkGroups instead, so it still works in Focus — limited to visible members.)
+	const EMPTY_LINK_GROUPS = { columnWidth: new Set(), columnSpacing: new Set(), sectionSpacing: new Set(), segmentHeight: new Set() };
+	let selectedLinkGroups = $derived(
+		$toolbarState.overviewMode || $toolbarState.focusMode ? EMPTY_LINK_GROUPS : activeLinkGroups
+	);
 
 	// Map each height-link group id → the tallest remembered floor (persisted `height`)
 	// across its members. Linked members must render at a SINGLE uniform floor, but the
@@ -420,7 +429,7 @@
 	// column's ONLY segment (counted across all its sections): a lone segment can't be
 	// positioned at all (it would only slide the whole column right, which is Column
 	// Spacing's job), so it gets no handle and renders flush. Offsets are
-	// ignored in Overview / Compare / Focus modes. The cap is applied at render time only — the
+	// ignored in Overview / Focus modes. The cap is applied at render time only — the
 	// stored value is untouched, so resetting the segment above lets this one re-expand.
 
 	// Horizontal padding inside a .column (0.2rem each side) — a segment's width is the
@@ -428,7 +437,7 @@
 	// ⚠️ Keep in sync with `.column { padding: 0.2rem }` below (1rem = 10px).
 	const COLUMN_INNER_PADDING = 4;
 
-	/** Segment offsets are ignored (and not editable) in Overview / Compare / Focus modes. */
+	/** Segment offsets are ignored (and not editable) in Overview / Focus modes. */
 	function isSegmentPositionDisabled() {
 		return $toolbarState.overviewMode || $toolbarState.focusMode || isHideMode;
 	}
@@ -452,7 +461,7 @@
 	/**
 	 * Compute the rendered offset and allowed maximum for every segment in a column,
 	 * plus the column's extent (largest rendered offset). Offsets are ignored (all 0) in
-	 * Overview / Compare / Focus modes, matching segment heights.
+	 * Overview / Focus modes, matching segment heights.
 	 * @param {any} column - A structure column ({ id, width, sections: [{ segments }] })
 	 * `shift` is each segment's offset minus the offset of the segment directly above it
 	 * in the SAME section (0 for a section's first segment). Segments draw no top border
@@ -647,7 +656,7 @@
 			const groupId = el.getAttribute('data-height-group-id');
 			if (!groupId) continue;
 			document.querySelectorAll(`[data-height-group-id="${groupId}"]`).forEach((m) => {
-				if (m.classList.contains('compare-hidden')) return;
+				if (m.classList.contains('focus-hidden')) return;
 				const mid = m.getAttribute('data-segment-id');
 				if (mid) els.set(mid, /** @type {HTMLElement} */ (m));
 			});
@@ -1390,13 +1399,7 @@
 	let activeSections = $state([]); // Array of sectionId strings
 	let segmentClickGeneration = $state(0); // Increments on every segment click to force toolbar remount
 
-	// Compare mode state
-	let isCompareMode = $state(false);
-	let compareModeEnteredViaConnections = $state(false); // true when compare mode was entered by selecting a connection line
-	let originalComparisonSelection = $state({ columns: [], sections: [], segments: [] });
-	let compareActiveColumns = $state([]);
-	let compareActiveSections = $state([]);
-	let compareActiveSegments = $state([]);
+	// Focus visibility sets: the columns/sections/segments left visible while Focus is on.
 	let visibleColumnIds = $state(new Set());
 	let visibleSectionIds = $state(new Set());
 	let visibleSegmentIds = $state(new Set());
@@ -1410,18 +1413,15 @@
 	let focusEnteredViaConnections = $state(false);
 	let originalFocusSelection = $state({ columns: [], sections: [], segments: [] });
 
-	// True whenever items should be hidden based on the visible Sets — i.e. in either
-	// compare mode or focus mode (both reuse the same visibility filtering mechanism).
-	let isHideMode = $derived(isCompareMode || isFocusMode);
+	// True whenever items should be hidden based on the visible Sets (Focus mode).
+	// Kept as a separate name so render-time call sites read as "hiding is active".
+	let isHideMode = $derived(isFocusMode);
 
 
 
 	// Derived state: Check if we're in multi-select mode (more than 1 item selected)
 	let isInMultiSelectMode = $derived.by(() => {
-		// Use compare-mode selections if in compare mode, otherwise use normal selections
-		const selections = isCompareMode
-			? { columns: compareActiveColumns, sections: compareActiveSections, segments: compareActiveSegments }
-			: { columns: activeColumns, sections: activeSections, segments: activeSegments };
+		const selections = { columns: activeColumns, sections: activeSections, segments: activeSegments };
 		
 		const totalSelected = selections.columns.length + selections.sections.length + selections.segments.length;
 		return totalSelected > 1;
@@ -1431,9 +1431,7 @@
 	// When true, we keep ALL column/section selection controls visible (even without the
 	// Command/Ctrl key) so the user can easily add to or remove from the multi-selection.
 	let hasMultipleStructuralSelections = $derived.by(() => {
-		const selections = isCompareMode
-			? { columns: compareActiveColumns, sections: compareActiveSections }
-			: { columns: activeColumns, sections: activeSections };
+		const selections = { columns: activeColumns, sections: activeSections };
 
 		return (selections.columns.length + selections.sections.length) > 1;
 	});
@@ -1860,12 +1858,12 @@
 		});
 	});
 
-	// Mirror the page's selection into the store (not while Focus/compare
+	// Mirror the page's selection into the store (not while Focus
 	// temporarily clears it, and not before this part's items are restored).
 	$effect(() => {
 		activeColumns; activeSections; activeSegments;
 		const partId = data.study?.id;
-		if (!partId || selectionRestoredFor !== partId || isFocusMode || isCompareMode || crossPartFocusPending || crossPartFocusActive) return;
+		if (!partId || selectionRestoredFor !== partId || isFocusMode || crossPartFocusPending || crossPartFocusActive) return;
 		const next = currentPartSelectionItems();
 		// Store read untracked: this effect follows the PAGE selection only, so a
 		// removal made in the header list isn't immediately written back.
@@ -1887,7 +1885,7 @@
 		const state = $seriesSelection;
 		const partId = data.study?.id;
 		untrack(() => {
-			if (!partId || selectionRestoredFor !== partId || isFocusMode || isCompareMode || crossPartFocusPending || crossPartFocusActive) return;
+			if (!partId || selectionRestoredFor !== partId || isFocusMode || crossPartFocusPending || crossPartFocusActive) return;
 			const keys = new Set(itemsForPart(state, partId).map((i) => `${i.type}:${i.id}`));
 			const cols = activeColumns.filter((id) => keys.has(`column:${id}`));
 			const secs = activeSections.filter((id) => keys.has(`section:${id}`));
@@ -1952,7 +1950,7 @@
 
 	/**
 	 * Scroll the scroll container so the given structural selection is centered as much
-	 * as possible. Used when exiting Focus/Compare mode to bring the restored selection
+	 * as possible. Used when exiting Focus mode to bring the restored selection
 	 * back into view. Falls back to scrolling to the top-left when nothing is found.
 	 * @param {{ columns: string[], sections: string[], segments: Array<{segmentId: string}> }} selection
 	 */
@@ -2018,7 +2016,7 @@
 	// Focus mode toggle logic. Focus hides everything except the selected item(s) and
 	// their containers/children. It supports ANY number of selected items (or a selected
 	// connection), and reuses the visibleColumnIds/SectionIds/SegmentIds Sets and the
-	// `compare-hidden` CSS mechanism to perform the hiding. (This absorbed the former
+	// `focus-hidden` CSS mechanism to perform the hiding. (This absorbed the former
 	// "Compare" feature — the two were merged into a single Focus control.)
 	$effect(() => {
 		if ($toolbarState.focusMode && !isFocusMode) {
@@ -2074,7 +2072,9 @@
 			activeSections = [];
 			activeSegments = [];
 
-			// 4. Mark we're in focus mode
+			// 4. Mark we're in focus mode (snapshot ids first so the structure sync can
+			//    tell items created by later edits apart from items that already existed)
+			snapshotFocusKnown();
 			isFocusMode = true;
 
 			// 5. Reset scroll to the top-left corner
@@ -2193,6 +2193,7 @@
 			crossPartFocusPending = false;
 			crossPartFocusActive = true;
 			focusStudyId = data.study.id;
+			snapshotFocusKnown();
 			isFocusMode = true;
 			if (!$toolbarState.focusMode) setToolbarState('focusMode', true);
 			tick().then(() => analyzeContentRef?.scrollTo(0, 0));
@@ -2200,7 +2201,103 @@
 	});
 
 
-	// Apply dynamic classes for first/last visible elements in compare/focus mode
+	// ── Keep Focus visibility in sync with structure edits ──
+	//
+	// The visible sets are computed once on entering Focus, but structure edits made IN Focus
+	// (split segment/section/column, join, move item) create or re-parent items. A brand-new id
+	// is not in the sets and would vanish the moment it was created. So whenever the structure
+	// reloads while Focus is on, the sets are rebuilt bottom-up:
+	//
+	//   - an existing segment stays visible if it was;
+	//   - a BRAND-NEW segment (the tail of a split) is visible when its nearest PRE-EXISTING
+	//     container is visible: its section, or — when Split Section/Column also created that
+	//     section/column — the column, or the new column's predecessor in reading order;
+	//   - a section / column is visible when it now contains a visible segment.
+	//
+	// Split Section / Split Column move EXISTING segments (same ids) into a new container, so the
+	// new container becomes visible through its contents. Ids absorbed by a join drop out.
+	$effect(() => {
+		const passages = data.passagesWithText;
+		if (!isFocusMode || !passages) return;
+		untrack(() => {
+			const result = syncFocusVisibility(
+				passages,
+				{ columns: visibleColumnIds, sections: visibleSectionIds, segments: visibleSegmentIds },
+				focusKnown
+			);
+			focusKnown = result.known;
+			const { columns: nextColumns, sections: nextSections, segments: nextSegments } = result.visible;
+			// An edit should never empty the Focus (the guards below prevent it); if it somehow
+			// does, leave Focus rather than show a blank page.
+			if (nextSegments.size === 0 && result.known.segments.size > 0) {
+				setToolbarState('focusMode', false);
+				return;
+			}
+			if (!setsEqual(nextColumns, visibleColumnIds)) visibleColumnIds = nextColumns;
+			if (!setsEqual(nextSections, visibleSectionIds)) visibleSectionIds = nextSections;
+			if (!setsEqual(nextSegments, visibleSegmentIds)) visibleSegmentIds = nextSegments;
+		});
+	});
+
+	/**
+	 * Every structural id present when Focus last synced — lets the sync spot brand-new (split) items.
+	 * Plain (non-reactive) on purpose: it is bookkeeping, read inside untrack.
+	 * @type {{ columns: Set<string>, sections: Set<string>, segments: Set<string> }}
+	 */
+	let focusKnown = { columns: new Set(), sections: new Set(), segments: new Set() };
+
+	/** Snapshot the current structure ids (call on entering Focus). */
+	function snapshotFocusKnown() {
+		focusKnown = collectStructureIds(data.passagesWithText);
+	}
+
+	/**
+	 * @param {Set<string>} a
+	 * @param {Set<string>} b
+	 */
+	function setsEqual(a, b) {
+		if (a.size !== b.size) return false;
+		for (const v of a) if (!b.has(v)) return false;
+		return true;
+	}
+
+	// ── Focus guards for structure commands ──
+	//
+	// In Focus, a command whose TARGET is hidden would change something the user can't see:
+	// Join folds the selection into its same-tier neighbour, Move Item drops it into the adjacent
+	// container, Move Text pushes words into the adjacent segment. Each target is resolved the
+	// way the command resolves it (reading order across the study) and the command is blocked
+	// when that target is hidden. MenuStructure reads the flags and explains the block.
+	$effect(() => {
+		const passages = data.passagesWithText;
+		if (!isFocusMode || !passages) {
+			setFocusStructureBlocks(noFocusBlocks());
+			return;
+		}
+
+		// Move Text acts on the caret's segment; read it from the DOM like the caret effects do.
+		let caretSegmentId = null;
+		if (selectedWord) {
+			const wordEl = document.querySelector(
+				`.selectable-word[data-passage-index="${selectedWord.passageIndex}"][data-word-id="${selectedWord.wordId}"]`
+			);
+			caretSegmentId = /** @type {HTMLElement|null} */ (wordEl?.closest('[data-segment-id]') ?? null)?.dataset.segmentId ?? null;
+		}
+
+		const blocks = resolveFocusBlocks(
+			passages,
+			{ columns: visibleColumnIds, sections: visibleSectionIds, segments: visibleSegmentIds },
+			{
+				columnId: activeColumns[0] ?? null,
+				sectionId: activeSections[0] ?? null,
+				segmentId: activeSegments[0]?.segmentId ?? null
+			},
+			caretSegmentId
+		);
+		setFocusStructureBlocks(blocks);
+	});
+
+	// Apply dynamic classes for first/last visible elements in Focus mode
 	$effect(() => {
 		// Force reactivity by reading from the Sets
 		const _cols = Array.from(visibleColumnIds);
@@ -2210,39 +2307,39 @@
 		// Wait for DOM to update before applying classes
 		tick().then(() => {
 			// Clear all compare position classes first
-			document.querySelectorAll('.compare-first-segment, .compare-last-segment, .compare-first-section').forEach(el => {
-				el.classList.remove('compare-first-segment', 'compare-last-segment', 'compare-first-section');
+			document.querySelectorAll('.focus-first-segment, .focus-last-segment, .focus-first-section').forEach(el => {
+				el.classList.remove('focus-first-segment', 'focus-last-segment', 'focus-first-section');
 			});
 			
-			// Only apply classes when in compare or focus mode
+			// Only apply classes in Focus mode
 			if (!isHideMode) return;
 			
 			// Process each column
 			document.querySelectorAll('.column').forEach(column => {
 				// Skip hidden columns
-				if (column.classList.contains('compare-hidden')) return;
+				if (column.classList.contains('focus-hidden')) return;
 				
 				// Get all visible sections in this column
 				const visibleSections = Array.from(column.querySelectorAll('.section')).filter(
-					section => !section.classList.contains('compare-hidden')
+					section => !section.classList.contains('focus-hidden')
 				);
 				
 				// Mark first visible section
 				if (visibleSections.length > 0) {
-					visibleSections[0].classList.add('compare-first-section');
+					visibleSections[0].classList.add('focus-first-section');
 				}
 				
 				// Process each visible section
 				visibleSections.forEach(section => {
 					// Get all visible segments in this section
 					const visibleSegments = Array.from(section.querySelectorAll('.segment')).filter(
-						segment => !segment.classList.contains('compare-hidden')
+						segment => !segment.classList.contains('focus-hidden')
 					);
 					
 					// Mark first and last visible segments
 					if (visibleSegments.length > 0) {
-						visibleSegments[0].classList.add('compare-first-segment');
-						visibleSegments[visibleSegments.length - 1].classList.add('compare-last-segment');
+						visibleSegments[0].classList.add('focus-first-segment');
+						visibleSegments[visibleSegments.length - 1].classList.add('focus-last-segment');
 					}
 				});
 			});
@@ -2412,7 +2509,7 @@
 
 	/**
 	 * Build a { columns, sections, segments } selection from the endpoints of all
-	 * currently-selected connection lines.  This is used when entering compare mode
+	 * currently-selected connection lines.  This is used when entering Focus mode
 	 * via a connection selection rather than a structural selection.
 	 * @returns {{ columns: string[], sections: string[], segments: Array }}
 	 */
@@ -2812,30 +2909,17 @@
 			
 			if (!isCommandKeyHeld && !hasMultipleStructuralSelections) {
 				// Normal click with no existing multi-selection: replace selection with just this column
-				if (isCompareMode) {
-					compareActiveColumns = [columnId];
-					compareActiveSections = [];
-					compareActiveSegments = [];
-				} else {
-					activeColumns = [columnId];
-					activeSections = [];
-					activeSegments = [];
-				}
+				activeColumns = [columnId];
+				activeSections = [];
+				activeSegments = [];
 			} else {
 				// Cmd/Ctrl held, or a multi-selection already exists: use hierarchical
 				// selection handler (additive/toggle) so the click adds to the selection.
 				const newState = handleSelection('column', columnId);
 				
-				// Update the appropriate state based on compare mode
-				if (isCompareMode) {
-					compareActiveColumns = newState.columns;
-					compareActiveSections = newState.sections;
-					compareActiveSegments = newState.segments;
-				} else {
-					activeColumns = newState.columns;
-					activeSections = newState.sections;
-					activeSegments = newState.segments;
-				}
+				activeColumns = newState.columns;
+				activeSections = newState.sections;
+				activeSegments = newState.segments;
 			}
 		};
 		
@@ -2846,16 +2930,9 @@
 			// Use hierarchical selection handler (same as select - it toggles)
 			const newState = handleSelection('column', columnId);
 			
-			// Update the appropriate state based on compare mode
-			if (isCompareMode) {
-				compareActiveColumns = newState.columns;
-				compareActiveSections = newState.sections;
-				compareActiveSegments = newState.segments;
-			} else {
-				activeColumns = newState.columns;
-				activeSections = newState.sections;
-				activeSegments = newState.segments;
-			}
+			activeColumns = newState.columns;
+			activeSections = newState.sections;
+			activeSegments = newState.segments;
 		};
 		
 		// Listen for select-section event from ToolbarStructure
@@ -2869,30 +2946,17 @@
 			
 			if (!isCommandKeyHeld && !hasMultipleStructuralSelections) {
 				// Normal click with no existing multi-selection: replace selection with just this section
-				if (isCompareMode) {
-					compareActiveColumns = [];
-					compareActiveSections = [sectionId];
-					compareActiveSegments = [];
-				} else {
-					activeColumns = [];
-					activeSections = [sectionId];
-					activeSegments = [];
-				}
+				activeColumns = [];
+				activeSections = [sectionId];
+				activeSegments = [];
 			} else {
 				// Cmd/Ctrl held, or a multi-selection already exists: use hierarchical
 				// selection handler (additive/toggle) so the click adds to the selection.
 				const newState = handleSelection('section', sectionId);
 				
-				// Update the appropriate state based on compare mode
-				if (isCompareMode) {
-					compareActiveColumns = newState.columns;
-					compareActiveSections = newState.sections;
-					compareActiveSegments = newState.segments;
-				} else {
-					activeColumns = newState.columns;
-					activeSections = newState.sections;
-					activeSegments = newState.segments;
-				}
+				activeColumns = newState.columns;
+				activeSections = newState.sections;
+				activeSegments = newState.segments;
 			}
 		};
 		
@@ -2903,16 +2967,9 @@
 			// Use hierarchical selection handler (same as select - it toggles)
 			const newState = handleSelection('section', sectionId);
 			
-			// Update the appropriate state based on compare mode
-			if (isCompareMode) {
-				compareActiveColumns = newState.columns;
-				compareActiveSections = newState.sections;
-				compareActiveSegments = newState.segments;
-			} else {
-				activeColumns = newState.columns;
-				activeSections = newState.sections;
-				activeSegments = newState.segments;
-			}
+			activeColumns = newState.columns;
+			activeSections = newState.sections;
+			activeSegments = newState.segments;
 		};
 		
 		// Listen for select-all-columns / select-all-sections events from MenuStructure.
@@ -3859,11 +3916,11 @@
 	}
 
 	// ============================================================
-	// COMPARE MODE HELPER FUNCTIONS
+	// FOCUS MODE HELPER FUNCTIONS
 	// ============================================================
 
 	/**
-	 * Calculate which columns, sections, and segments should be visible in compare mode
+	 * Calculate which columns, sections, and segments should be visible in Focus mode
 	 * based on the original selection. Respects hierarchical containment rules.
 	 * 
 	 * Key behavior:
@@ -4018,7 +4075,7 @@
 	}
 
 	/**
-	 * Check if a passage has any visible items in compare mode.
+	 * Check if a passage has any visible items in Focus mode.
 	 * Returns true if any column, section, or segment in the passage is in the visible sets.
 	 * @param {Object} passageText - Passage data object with structure
 	 * @returns {boolean} True if the passage has at least one visible item
@@ -4148,86 +4205,77 @@
 	/**
 	 * Select every column in the study at once. Clears any section/segment selection
 	 * (columns sit at the top of the hierarchy) plus connection and word selections.
-	 * Respects compare mode by writing to the compare-mode selection arrays instead.
 	 */
 	function handleSelectAllColumns() {
 		// Clear connections / open editors when a structural selection is made.
 		setActiveConnection(false, []);
 		setHeadingOrNoteEditorActive(false, null);
 
-		const ids = getAllColumnIdsInStudy();
-		if (isCompareMode) {
-			compareActiveColumns = ids;
-			compareActiveSections = [];
-			compareActiveSegments = [];
-		} else {
-			activeColumns = ids;
-			activeSections = [];
-			activeSegments = [];
-		}
+		// In Focus, "all" means all VISIBLE — never select items the user can't see.
+		const ids = getAllColumnIdsInStudy().filter((id) => !isFocusMode || visibleColumnIds.has(id));
+		activeColumns = ids;
+		activeSections = [];
+		activeSegments = [];
 		selectedWord = null;
 		suppressHoverCaret = null;
 	}
 
 	/**
 	 * Select every section in the study at once. Clears any column/segment selection
-	 * plus connection and word selections. Respects compare mode.
+	 * plus connection and word selections.
 	 */
 	function handleSelectAllSections() {
 		setActiveConnection(false, []);
 		setHeadingOrNoteEditorActive(false, null);
 
-		const ids = getAllSectionIdsInStudy();
-		if (isCompareMode) {
-			compareActiveColumns = [];
-			compareActiveSections = ids;
-			compareActiveSegments = [];
-		} else {
-			activeColumns = [];
-			activeSections = ids;
-			activeSegments = [];
-		}
+		const ids = getAllSectionIdsInStudy().filter((id) => !isFocusMode || visibleSectionIds.has(id));
+		activeColumns = [];
+		activeSections = ids;
+		activeSegments = [];
 		selectedWord = null;
 		suppressHoverCaret = null;
 	}
 
 	/**
 	 * Select every segment in the study at once. Clears any column/section selection
-	 * plus connection and word selections. Respects compare mode.
+	 * plus connection and word selections.
 	 */
 	function handleSelectAllSegments() {
 		setActiveConnection(false, []);
 		setHeadingOrNoteEditorActive(false, null);
 
-		const segments = getAllSegmentsInStudy();
-		if (isCompareMode) {
-			compareActiveColumns = [];
-			compareActiveSections = [];
-			compareActiveSegments = segments;
-		} else {
-			activeColumns = [];
-			activeSections = [];
-			activeSegments = segments;
-		}
+		const segments = getAllSegmentsInStudy().filter((s) => !isFocusMode || visibleSegmentIds.has(s.segmentId));
+		activeColumns = [];
+		activeSections = [];
+		activeSegments = segments;
 		selectedWord = null;
 		suppressHoverCaret = null;
 	}
 
 	/**
 	 * Every member of the link groups the current selection belongs to, by kind — the
-	 * same groups the dashed outlines show (selectedLinkGroups). Columns gather both
+	 * same groups the dashed outlines show (activeLinkGroups). Columns gather both
 	 * their width and spacing groups. Members not already selected are the ones that
 	 * "Select Linked Items" would add.
 	 * @returns {{ columns: string[], sections: string[], segments: string[] }}
 	 */
 	function getLinkedMemberIds() {
-		const groups = selectedLinkGroups;
+		const groups = $toolbarState.overviewMode ? EMPTY_LINK_GROUPS : activeLinkGroups;
 		const { columns, sections, segments } = linkGroupIndex;
 		const columnIds = [...columns]
 			.filter(([, g]) => (g.width && groups.columnWidth.has(g.width)) || (g.spacing && groups.columnSpacing.has(g.spacing)))
 			.map(([id]) => id);
 		const sectionIds = [...sections].filter(([, g]) => g && groups.sectionSpacing.has(g)).map(([id]) => id);
 		const segmentIds = [...segments].filter(([, g]) => g && groups.segmentHeight.has(g)).map(([id]) => id);
+		// In Focus, only members the user can see are offered — selecting hidden items would
+		// leave a selection that acts on things off-screen.
+		if (isFocusMode) {
+			return {
+				columns: columnIds.filter((id) => visibleColumnIds.has(id)),
+				sections: sectionIds.filter((id) => visibleSectionIds.has(id)),
+				segments: segmentIds.filter((id) => visibleSegmentIds.has(id))
+			};
+		}
 		return { columns: columnIds, sections: sectionIds, segments: segmentIds };
 	}
 
@@ -4273,19 +4321,17 @@
 	/**
 	 * Handle hierarchical selection logic for columns, sections, and segments
 	 * Implements all 7 scenarios from the Multi-Select Scenarios document
-	 * Works with both normal and compare mode selections
 	 * @param {string} type - Type of item: 'column', 'section', or 'segment'
 	 * @param {string} id - ID of the item being selected
 	 * @param {Object} segmentData - Additional data for segment selection (passageIndex, segmentIndex, generation)
 	 * @returns {Object} New state: { columns: [], sections: [], segments: [] }
 	 */
 	function handleSelection(type, id, segmentData = null) {
-		console.log(`[SELECTION] Handling ${type} selection:`, id, 'Compare mode:', isCompareMode);
+		console.log(`[SELECTION] Handling ${type} selection:`, id);
 		
-		// Use compare-mode selections if in compare mode
-		const currentColumns = isCompareMode ? compareActiveColumns : activeColumns;
-		const currentSections = isCompareMode ? compareActiveSections : activeSections;
-		const currentSegments = isCompareMode ? compareActiveSegments : activeSegments;
+		const currentColumns = activeColumns;
+		const currentSections = activeSections;
+		const currentSegments = activeSegments;
 		
 		console.log('[SELECTION] Current state - Columns:', currentColumns, 'Sections:', currentSections, 'Segments:', currentSegments.map(s => s.segmentId));
 		
@@ -4822,13 +4868,6 @@
 		// especially in Safari). A following double/triple-click still clears it via the
 		// `event.detail >= 2` branch above, like Document view already does.
 		(() => {
-			// Block word selection in compare mode
-			if (isCompareMode) {
-				console.log('[CLICK] Word selection blocked in compare mode');
-				clickTimeout = null;
-				return;
-			}
-			
 			// Handle word selection
 			if (target.classList.contains('selectable-word')) {
 				const passageIndex = parseInt(target.dataset.passageIndex);
@@ -4875,6 +4914,9 @@
 	 * - ESC: Clear word selections and browser text selections
 	 * - Command/Ctrl: Enable multi-select mode
 	 */
+	// Escape deliberately does NOT exit Focus: browsers reserve Escape for leaving full screen
+	// and a page cannot intercept that, so it would also throw the user out of full screen.
+	// Focus is exited with its toolbar toggle.
 	function handleKeyDown(event) {
 		if (event.key === 'Escape') {
 			selectedWord = null;
@@ -5464,7 +5506,7 @@
 							     column. Uses the live drag value so it tracks 1:1 during a drag. -->
 							{@const firstSectionId = firstColumn?.sections?.[0]?.id}
 							{@const referenceTopOffset = firstSectionId ? (sectionReposition.getLiveOffset(firstSectionId) ?? firstColumn.sections[0].topOffset ?? 0) : 0}
-							<div class="passage" style:--reference-offset="{referenceOffset}px" style:--reference-top-offset="{referenceTopOffset}px" class:compare-hidden={isHideMode && !passageHasVisibleItems(passageText)}>
+							<div class="passage" style:--reference-offset="{referenceOffset}px" style:--reference-top-offset="{referenceTopOffset}px" class:focus-hidden={isHideMode && !passageHasVisibleItems(passageText)}>
 
 
 								{#if passageText.error}
@@ -5531,7 +5573,7 @@
 													data-spacing-group-id={column.spacingGroupId || null}
 													data-width-group-id={column.widthGroupId || null}
 
-													class:compare-hidden={isHideMode && !visibleColumnIds.has(column.id)}
+													class:focus-hidden={isHideMode && !visibleColumnIds.has(column.id)}
 													style:--column-offset="{columnOffset}px"
 													style:--first-section-offset="{firstSectionOffset}px"
 													style:--resize-handle-shift="{activeColumns.includes(column.id) ? 0 : (segmentPositions.offsets[column.sections?.[0]?.segments?.[0]?.id] ?? 0) - segmentExtent}px"
@@ -5547,7 +5589,7 @@
 																class="section {section.segments?.[0]?.color ?? 'blue'}"
 																data-section-id="{section.id}"
 																data-spacing-group-id={section.spacingGroupId || null}
-																class:compare-hidden={isHideMode && !visibleSectionIds.has(section.id)}
+																class:focus-hidden={isHideMode && !visibleSectionIds.has(section.id)}
 																class:is-repositioning={sectionReposition.activeSectionId === section.id}
 																class:spacing-link-hovered={sectionSpacingHover.isGroupHovered(section.spacingGroupId)}
 														class:spacing-link-selected={!!section.spacingGroupId && selectedLinkGroups.sectionSpacing.has(section.spacingGroupId)}
@@ -5596,7 +5638,7 @@
 																			isActive={activeSegments.some(s => s.segmentId === segment.id)}
 																			segmentId={segment.id}
 																			generation={activeSegments.find(s => s.segmentId === segment.id)?.generation || 0}
-																			isCompareHidden={isHideMode && !visibleSegmentIds.has(segment.id)}
+																			isFocusHidden={isHideMode && !visibleSegmentIds.has(segment.id)}
 																			{isVerseSubdivided}
 																			prevSegmentHasHeading={!!(section.segments[segmentIndex - 1]?.headingOne || section.segments[segmentIndex - 1]?.headingTwo || section.segments[segmentIndex - 1]?.headingThree)}
 																			nextSegmentHasHeading={!!(section.segments[segmentIndex + 1]?.headingOne || section.segments[segmentIndex + 1]?.headingTwo || section.segments[segmentIndex + 1]?.headingThree)}
@@ -5648,7 +5690,7 @@
 															     vertical reposition drag. Rendered LAST (it is position:absolute,
 															     so DOM order is irrelevant visually) to avoid becoming the
 															     section's :first-child, which would break the first segment's
-															     top-border CSS selectors. Disabled in overview/compare/focus modes. -->
+															     top-border CSS selectors. Disabled in overview/focus modes. -->
 															{#if !$toolbarState.overviewMode && !isHideMode}
 																<div
 																	class="reposition-handle"
@@ -5697,7 +5739,7 @@
 													     Rendered LAST (it is position:absolute, so DOM order is irrelevant
 													     visually) so it never becomes the column's first child and disturb the
 													     first section's :first-of-type margin. Disabled in
-													     overview/compare/focus modes. -->
+													     overview/focus modes. -->
 													{#if !(passageIndex === 0 && columnIndex === 0) && !$toolbarState.overviewMode && !isHideMode}
 														<div
 															class="column-reposition-handle"
@@ -5722,7 +5764,7 @@
 													     every column. Hovering shows an ew-resize cursor and a vertical bar;
 													     mousedown begins a horizontal resize drag that widens or narrows this
 													     column (down to a readable minimum width). Horizontal counterpart to
-													     the segment height resize handle. Disabled in overview/compare/focus
+													     the segment height resize handle. Disabled in overview/focus
 													     modes (same gating as the reposition handle). -->
 													{#if !$toolbarState.overviewMode && !isHideMode}
 														<div
@@ -5750,7 +5792,7 @@
 							{@const nextFirstColumn = (nextPassage && 'structure' in nextPassage) ? nextPassage.structure?.columns?.[0] : null}
 							{@const dividerOffset = nextFirstColumn ? (columnReposition.getLiveOffset(nextFirstColumn.id) ?? nextFirstColumn.leftOffset ?? 0) : 0}
 
-							<div class="passage-divider" style:--divider-offset="{dividerOffset}px" class:compare-hidden={isHideMode && (!passageHasVisibleItems(passageText) || data.passagesWithText.slice(passageIndex + 1).every(p => !passageHasVisibleItems(p)))}></div>
+							<div class="passage-divider" style:--divider-offset="{dividerOffset}px" class:focus-hidden={isHideMode && (!passageHasVisibleItems(passageText) || data.passagesWithText.slice(passageIndex + 1).every(p => !passageHasVisibleItems(p)))}></div>
 
 						{/each}
 					{:else if !streamedContent}
@@ -6894,55 +6936,55 @@
 	}
 
 	/* ============================================================ */
-	/* Compare Mode - Hide unselected items */
+	/* Focus Mode - Hide unselected items */
 	/* ============================================================ */
 	
-	:global(.compare-hidden) {
+	:global(.focus-hidden) {
 		display: none !important;
 	}
 
 
 	/* ============================================================ */
-	/* Compare Mode - Dynamic positioning classes */
+	/* Focus Mode - Dynamic positioning classes */
 	/* ============================================================ */
 	
-	/* First visible segment in compare mode */
-	:global(.compare-first-segment .text.no-headings) {
+	/* First visible segment in Focus mode */
+	:global(.focus-first-segment .text.no-headings) {
 		border-top: 0.1rem solid;
 		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
-	/* Last visible segment in compare mode */
-	:global(.compare-last-segment),
-	:global(.compare-last-segment .text) {
+	/* Last visible segment in Focus mode */
+	:global(.focus-last-segment),
+	:global(.focus-last-segment .text) {
 		border-bottom-right-radius: 0.3rem;
 		border-bottom-left-radius: 0.3rem;
 	}
 
-	/* First visible section in compare mode - remove top margin */
-	:global(.compare-first-section) {
+	/* First visible section in Focus mode - remove top margin */
+	:global(.focus-first-section) {
 		margin-top: 0 !important;
 	}
 
-	/* First segment with Heading One at top in compare mode */
-	:global(.compare-first-segment .heading-one) {
+	/* First segment with Heading One at top in Focus mode */
+	:global(.focus-first-segment .heading-one) {
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
-	/* First segment with Heading Two at top in compare mode */
+	/* First segment with Heading Two at top in Focus mode */
 	/* Only when there's no Heading One above it within the same segment */
-	:global(.compare-first-segment:not(.has-heading-one) .heading-two) {
+	:global(.focus-first-segment:not(.has-heading-one) .heading-two) {
 		border-top: 0.1rem solid;
 		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;
 		border-top-left-radius: 0.3rem;
 	}
 
-	/* First segment with Heading Three at top in compare mode */
-	:global(.compare-first-segment:not(.has-heading-one):not(.has-heading-two).has-heading-three .heading-three) {
+	/* First segment with Heading Three at top in Focus mode */
+	:global(.focus-first-segment:not(.has-heading-one):not(.has-heading-two).has-heading-three .heading-three) {
 		border-top: 0.1rem solid;
 		border-color: var(--section-dark);
 		border-top-right-radius: 0.3rem;

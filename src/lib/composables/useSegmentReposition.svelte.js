@@ -91,7 +91,7 @@ export function useSegmentReposition({ getScale, getOffset, getMaxOffset, getCon
 		// repositioned (the page marks them with data-left-offset).
 		alignCandidates = [];
 		document.querySelectorAll('.segment[data-left-offset]').forEach((el) => {
-			if (el === segEl || el.classList.contains('compare-hidden')) return;
+			if (el === segEl || el.classList.contains('focus-hidden')) return;
 			alignCandidates.push(el.getBoundingClientRect().left);
 		});
 
