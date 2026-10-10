@@ -28,7 +28,7 @@
 	import MenuButton from '$lib/componentElements/buttons/MenuButton.svelte';
 	import SpacerFlex from '$lib/componentElements/SpacerFlex.svelte';
 	import Toolbar from '$lib/componentElements/Toolbar.svelte';
-	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
+	import MenuAccount from '$lib/componentWidgets/menus/MenuAccount.svelte';
 
 	/** Back Office pages available from the toolbar switcher */
 	const pageButtons = [
@@ -61,11 +61,11 @@
 	<SpacerFlex />
 	<MenuButton
 		iconId="account"
-		menuId="MenuSettingsBackOffice"
+		menuId="MenuAccountBackOffice"
 		underLabel="Account"
 		underLabelClasses="light"
 		classes="toolbar-blue"
 	/>
 </Toolbar>
 
-<MenuSettings menuId="MenuSettingsBackOffice" alignment="end" inBackOffice={true} />
+<MenuAccount menuId="MenuAccountBackOffice" alignment="end" inBackOffice={true} />

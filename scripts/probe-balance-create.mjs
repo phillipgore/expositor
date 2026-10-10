@@ -255,7 +255,7 @@ try {
 	const modalSrc =
 		read('../src/lib/componentWidgets/SeriesPartingControls.svelte') +
 		read('../src/lib/componentWidgets/modals/SplitIntoSeriesModal.svelte');
-	const menuSrc = read('../src/lib/componentWidgets/menus/MenuActions.svelte');
+	const menuSrc = read('../src/lib/componentWidgets/menus/MenuStudies.svelte');
 	const endpointSrc = read('../src/routes/api/series/+server.js');
 
 	assert(

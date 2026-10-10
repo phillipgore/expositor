@@ -2435,7 +2435,8 @@
 		// the dot direction) so it can dodge text without moving the dot.
 		//
 		// When a connection has never been placed (null fields) we fall back to a
-		// sensible default: dot at the midpoint, card 'above' it — or to the right
+		// sensible default: dot at the midpoint, card anchored to the dot's top edge so it
+		// hangs BELOW it — or on the right edge (card to the left)
 		// for the same-column segment loop, whose arc bulges rightward.
 		//
 		// A live drag (notePlacementOverrides) supersedes the persisted values so
@@ -4258,6 +4259,15 @@
 			return !!c && (c.fromAnchorEdge != null || c.toAnchorEdge != null);
 		});
 		if ($toolbarState.activeConnectionHasPlacedPoints !== placed) setToolbarState('activeConnectionHasPlacedPoints', placed);
+		// …and the line shape / quick-note side the selection shares, so the Connect
+		// menu can check the current choice. null when nothing is selected or mixed.
+		const selectedPaths = paths.filter(p => selectedPathIds.has(p.id));
+		const routes = new Set(selectedPaths.map(p => p.route));
+		const route = routes.size === 1 ? [...routes][0] : null;
+		if ($toolbarState.activeConnectionRoute !== route) setToolbarState('activeConnectionRoute', route);
+		const sides = new Set(selectedPaths.filter(p => p.note != null).map(p => p.noteAnchorSide));
+		const side = sides.size === 1 ? [...sides][0] : null;
+		if ($toolbarState.activeConnectionNoteSide !== side) setToolbarState('activeConnectionNoteSide', side);
 	});
 
 	// ─── Reactivity ──────────────────────────────────────────────────────────

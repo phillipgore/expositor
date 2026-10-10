@@ -116,7 +116,7 @@
 	onCancel={handleClose}
 	onClose={handleClose}
 >
-	<!-- Mounted only while open: this modal lives in MenuActions for the whole time a study is
+	<!-- Mounted only while open: this modal lives in MenuStudies for the whole time a study is
 	     viewed, and a mounted planner re-plans on every edit to that study. -->
 	{#if isOpen}
 	<SeriesPartingControls

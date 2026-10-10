@@ -1,6 +1,6 @@
 <script>
 	/**
-	 * MenuOutline Component
+	 * MenuHeadings Component
 	 * 
 	 * Outline menu for adding heading and note annotations to the active segment.
 	 * Items add a new element to the current selection; removal is handled elsewhere
@@ -19,12 +19,12 @@
 	 * 
 	 * Usage:
 	 * ```
-	 * <MenuButton menuId="MenuOutline" iconId="outline" underLabel="Markup" />
-	 * <MenuOutline menuId="MenuOutline" />
+	 * <MenuButton menuId="MenuHeadings" iconId="outline" underLabel="Headings" />
+	 * <MenuHeadings menuId="MenuHeadings" />
 	 * ```
 	 * 
 	 * Props:
-	 * - menuId (string, default: 'MenuOutline') - Unique identifier for the menu
+	 * - menuId (string, default: 'MenuHeadings') - Unique identifier for the menu
 	 */
 
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
@@ -43,7 +43,7 @@
 	// visibility flag (passageNotesVisible vs documentPassageNotesVisible), so the
 	// auto-reveal below must target the active view's helper: showPassageNotes for
 	// Analyze, showDocumentPassageNotes for Document.
-	let { menuId = 'MenuOutline', view = 'analyze' } = $props();
+	let { menuId = 'MenuHeadings', view = 'analyze' } = $props();
 
 	// Reveal the active view's passage (text) quick notes so a freshly-inserted note
 	// is immediately visible even if that view's notes were toggled off.
@@ -129,7 +129,7 @@
 	}
 </script>
 
-<Menu {menuId} ariaLabel="Outline menu">
+<Menu {menuId} ariaLabel="Headings menu">
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one"
@@ -202,7 +202,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note"
-		label="Text Quick Note"
+		label="Add Quick Note"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();

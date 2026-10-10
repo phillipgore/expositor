@@ -568,8 +568,8 @@
 			}
 
 			// Preserve selection when interacting with Actions menu
-			const clickedOnActionsButton = event.target.closest('[popovertarget="MenuActions"]');
-			const clickedInActionsMenu = event.target.closest('#MenuActions');
+			const clickedOnActionsButton = event.target.closest('[popovertarget="MenuStudies"]');
+			const clickedInActionsMenu = event.target.closest('#MenuStudies');
 			// `dialog` as well as `[role="dialog"]`: Modal.svelte renders a native <dialog> with no
 			// explicit role attribute, which the attribute selector alone never matched.
 			const clickedInModal = event.target.closest('dialog, [role="dialog"]');

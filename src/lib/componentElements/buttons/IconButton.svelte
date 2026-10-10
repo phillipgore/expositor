@@ -91,6 +91,7 @@
 	 * @property {string} [popovertarget] - ID of the popover element to control (CSS Popover API)
 	 * @property {string} [popovertargetaction] - Popover action: 'toggle' | 'show' | 'hide'
 	 * @property {string} [role] - ARIA role attribute (e.g., 'menuitem' for menu items)
+	 * @property {'true' | 'false' | 'mixed'} [ariaChecked] - ARIA checked state, for role="menuitemcheckbox" items
 	 * @property {string} [ariaLabel] - Accessible label for screen readers. Auto-derived from label or underLabel if not provided
 	 * @property {string} [title] - Tooltip text displayed on hover
 	 */
@@ -122,6 +123,7 @@
 		popovertarget,
 		popovertargetaction,
 		role,
+		ariaChecked,
 		ariaLabel,
 		title
 	} = $props();
@@ -191,6 +193,7 @@
 			{isActive}
 			{type}
 			{role}
+			{ariaChecked}
 			{popovertarget}
 			ariaLabel={derivedAriaLabel}
 			{title}
@@ -233,6 +236,7 @@
 		{isActive}
 		{type}
 		{role}
+		{ariaChecked}
 		{popovertarget}
 		ariaLabel={derivedAriaLabel}
 		{title}

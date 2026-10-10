@@ -69,7 +69,7 @@ These icons' files are in `public/previously_used/`, named `{iconId}.svg`. IDs f
 
 Link/Unlink Segment Height are easy to draw, so their icons work well on their own. They were removed only because they share a section with Set/Reset Segment Height. To get them back without the others, move them into their own section with a `<DividerHorizontal />`.
 
-### `src/lib/componentWidgets/menus/MenuActions.svelte` (Study menu)
+### `src/lib/componentWidgets/menus/MenuStudies.svelte` (Study menu)
 
 | Section | Label | `iconId` to restore |
 |---|---|---|
@@ -88,8 +88,22 @@ the series page. Files are in `public/previously_used/`.
 
 These menus and sections still have their icons:
 
-- **MenuActions (Study):** New Study / New Study in Selected, New Study Group / … in Selected, Move to… / Remove from Group.
+- **MenuStudies (Study):** New Study / New Study in Selected Group, New Study Group / New Subgroup in Selected Group, Move to… / Remove from Group.
 
-- **MenuStructure:** Split Column/Section/Segment, Join Selected Up/Down, Move Selected Up/Down, Move Text Up/Down.
-- **MenuConnect:** Connect, Connection Quick Note, Curved/Straight/Cornered Connection, Reset Connection Shape/Points, Quick Note Above/Below/Right/Left.
-- **MenuView and MenuText:** checkbox-style items that never had icons.
+- **MenuStructure:** Split Column/Section/Segment, Join Selected Up/Down, Move Item Up/Down, Move Text Up/Down.
+- **MenuConnect:** Connect, Add Quick Note.
+- **MenuView:** checkbox-style items that never had icons. (MenuText was deleted — it was unused and duplicated MenuView.)
+
+## Replaced by checkmarks (menu reorganisation)
+
+These single-choice and reset items now show a check (or blank) in the icon slot instead of an icon, so the current choice is visible. To go back, restore the `iconId` and drop the `{#each}` loop in `MenuConnect.svelte`.
+
+| Section | Old label | New label | `iconId` to restore |
+|---|---|---|---|
+| Shape | Curved Connection | Curved | `connect-curved` |
+| Shape | Straight Connection | Straight | `connect-straight` |
+| Shape | Cornered Connection | Cornered | `connect-cornered` |
+| Shape | Reset Connection Shape + Reset Connection Points | Reset Connection | `connect-reset-shape` / `connect-reset-points` |
+| Quick Note Side | Quick Note Above / Below / Right / Left | Above / Below / Right / Left | `note-above` / `note-below` / `note-right` / `note-left` |
+
+The three Slide / Position / Offset sections were merged into one **Quick Note Placement** section: Slide Along Line…, Position Along Edge…, Offset from Line…, and one Reset Placement (fires `reset-connection-note-placement`). The individual `reset-connection-note-*` events still exist.

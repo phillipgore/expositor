@@ -16,7 +16,7 @@ Instead of implementing cut/copy/paste operations, we implemented a simpler and 
 - Reloads data after successful move
 - Clears selection after move
 
-### 2. MenuActions.svelte (NEW)
+### 2. MenuStudies.svelte (NEW)
 **Created new menu component with:**
 - **Main menu items:**
   - "Move to..." - Opens hierarchical submenu
@@ -40,7 +40,7 @@ Instead of implementing cut/copy/paste operations, we implemented a simpler and 
 - Changed trashcan IconButton to ellipsis MenuButton
 - Updated under-label from "Delete" to "Actions"
 - Added `handleMoveToGroup()` function
-- Integrated MenuActions component
+- Integrated MenuStudies component
 - Passed groups data as prop
 - Maintained all existing delete modal functionality
 
@@ -103,7 +103,7 @@ Instead of implementing cut/copy/paste operations, we implemented a simpler and 
 
 ### State Management
 - Selection state maintained in useMultiSelect composable
-- Menu state managed locally in MenuActions component
+- Menu state managed locally in MenuStudies component
 - Data reload via SvelteKit's `invalidate('app:studies')`
 
 ### CSS Depth Classes
@@ -153,7 +153,7 @@ Instead of implementing cut/copy/paste operations, we implemented a simpler and 
 
 ## Files Modified
 1. `src/lib/composables/useMultiSelect.svelte.js` - Added moveSelectionToGroup function
-2. `src/lib/componentWidgets/menus/MenuActions.svelte` - New component
+2. `src/lib/componentWidgets/menus/MenuStudies.svelte` - New component
 3. `src/lib/componentWidgets/ToolbarApp.svelte` - Replaced delete button with Actions menu
 4. `src/routes/(app)/+layout.svelte` - Pass groups data to toolbar
 

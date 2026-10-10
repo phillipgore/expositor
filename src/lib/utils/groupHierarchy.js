@@ -2,7 +2,7 @@
  * Group Hierarchy Utilities
  * 
  * Provides reusable functions for working with hierarchical group structures.
- * Used by MenuActions, MoveToGroupModal, and other components that need to
+ * Used by MenuStudies, MoveToGroupModal, and other components that need to
  * navigate and validate group hierarchies.
  */
 

@@ -41,7 +41,7 @@ The dropdown menu system has been successfully modernized using **CSS Popover AP
 - ✅ Top-layer rendering (no z-index issues)
 
 #### 3. **Menu Implementations**
-Individual menu components (MenuSettings, MenuZoom, MenuColor, etc.)
+Individual menu components (MenuAccount, MenuZoom, MenuColor, etc.)
 
 **Pattern:**
 ```svelte
@@ -432,7 +432,7 @@ export interface MenuButtonProps {
 ### ✅ Completed Components
 - Menu.svelte (core component)
 - MenuButton.svelte (trigger component)
-- MenuSettings.svelte
+- MenuAccount.svelte
 - MenuStructure.svelte
 - MenuZoom.svelte (with callback pattern)
 - MenuColor.svelte

@@ -5,9 +5,10 @@
 	 * Everything that operates on a connection lives here:
 	 * - Connect — create a connection between two selected structural elements
 	 *   (moved out of MenuStructure so that menu stays focused on split/join/move).
-	 * - Connection Quick Note — add a note to the selected connection (auto-reveals
-	 *   connection notes if hidden). Text/segment notes live in the Markup menu.
-	 * - Line route — Curved / Straight / Cornered for every selected connection.
+	 * - Add Quick Note — add a note to the selected connection (auto-reveals
+	 *   connection notes if hidden). Text/segment notes live in the Headings menu.
+	 * - Shape — Curved / Straight / Cornered (checked = current) for every selected
+ *   connection, plus Reset Connection (clears manual bend and placed end points).
 	 * - Quick-note placement — once a connection has a quick note, fine-tune where
 	 *   that note card sits relative to its anchor dot. These items only apply to a
 	 *   single selected connection that actually has a note (see noteSideDisabled).
@@ -31,6 +32,7 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
+	import MenuSectionLabel from '$lib/componentElements/MenuSectionLabel.svelte';
 	import { toolbarState, showConnectionNotes, showDocumentConnectionNotes } from '$lib/stores/toolbar.js';
 	import { showPopover } from '$lib/stores/popover.js';
 	import messages from '$lib/data/messages.json';
@@ -42,6 +44,31 @@
 	// and its own "insert" listener, so the auto-reveal + hidden-note detection below
 	// must target the active view's flag/helper.
 	let { menuId = 'MenuConnect', view = 'analyze' } = $props();
+
+	/** Shape section: one checkable item per line route. */
+	const routeOptions = /** @type {const} */ ([
+		{ route: 'curved', label: 'Curved' },
+		{ route: 'straight', label: 'Straight' },
+		{ route: 'cornered', label: 'Cornered' }
+	]);
+
+	/**
+	 * Quick Note Side section. `side` is the anchor edge sent to setNoteSide; the card
+	 * extends AWAY from it, so the label names where the card ends up.
+	 */
+	const sideOptions = /** @type {const} */ ([
+		{ side: 'bottom', label: 'Above' },
+		{ side: 'top', label: 'Below' },
+		{ side: 'left', label: 'Right' },
+		{ side: 'right', label: 'Left' }
+	]);
+
+	/** Quick Note Placement section: each opens its numeric modal. */
+	const placementOptions = [
+		{ event: 'set-connection-note-slide', label: 'Slide Along Line…' },
+		{ event: 'set-connection-note-position', label: 'Position Along Edge…' },
+		{ event: 'set-connection-note-offset', label: 'Offset from Line…' }
+	];
 
 	// The active view's connection-notes visibility flag. Reads the document* copy on
 	// the Document view so auto-reveal / hidden-note logic tracks the right toggle.
@@ -109,6 +136,30 @@
 
 	// Enabled when a single connection is selected AND either it has no note yet (normal
 	// add) OR it has a note that is currently hidden by the toggle (click → popover).
+	// Hover reasons shown on disabled items (undefined when enabled → no tooltip).
+	let connectionReason = $derived(
+		$toolbarState.hasActiveConnection ? undefined : 'Select a connection first'
+	);
+	let noteReason = $derived(
+		noteSideDisabled ? 'Select a connection that has a quick note' : undefined
+	);
+
+	// Defaults every connection starts with (must match ConnectionsOverlay):
+	// unset lineRoute draws curved; unset noteAnchorSide anchors to the dot's TOP
+	// edge, so the card hangs BELOW it. (Same-column loops default to the right edge
+	// instead, but with nothing selected the general default is what to show.)
+	const DEFAULT_ROUTE = 'curved';
+	const DEFAULT_NOTE_SIDE = 'top';
+
+	// Checked value: the default while the items are disabled (nothing applicable
+	// selected), otherwise what the selection shares — null (no check) when mixed.
+	let shownRoute = $derived(
+		$toolbarState.hasActiveConnection ? $toolbarState.activeConnectionRoute : DEFAULT_ROUTE
+	);
+	let shownNoteSide = $derived(
+		noteSideDisabled ? DEFAULT_NOTE_SIDE : $toolbarState.activeConnectionNoteSide
+	);
+
 	let quickNoteDisabled = $derived(
 		!(
 			singleConnectionSelected &&
@@ -123,7 +174,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="connect"
-		label="Connect"
+		label="Add Connection"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -134,11 +185,11 @@
 
 	<!-- Connection Quick Note: add a note to the selected connection. Auto-shows
 	     connection notes if hidden, so the new note is visible. Text/segment notes
-	     are added from the Markup menu's "Text Quick Note" item. -->
+	     are added from the Headings menu "Add Quick Note" item. -->
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="note"
-		label="Connection Quick Note"
+		label="Add Quick Note"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -165,184 +216,97 @@
 
 	<DividerHorizontal />
 
-	<!-- Connection line route: how the selected line(s) are drawn between their
-	     anchors. Applies to every selected connection. Anchors are chosen the same
-	     way for all three; only the drawing between them changes. -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="connect-curved"
-		label="Curved Connection"
-		role="menuitem"
-		handleClick={() => setRoute('curved')}
-		isDisabled={!$toolbarState.hasActiveConnection}
-	/>
+	<!-- Shape: how the selected line(s) are drawn between their anchors. Applies to
+	     every selected connection; the check marks the shape they all share (none
+	     when the selection is mixed). -->
+	<MenuSectionLabel label="Connection Shape" />
+	{#each routeOptions as option (option.route)}
+		{@const isCurrent = shownRoute === option.route}
+		<IconButton
+			classes="menu-light justify-content-left"
+			iconId={isCurrent ? 'check' : 'blank'}
+			label={option.label}
+			role="menuitem"
+			isActive={isCurrent}
+			handleClick={() => setRoute(option.route)}
+			isDisabled={!$toolbarState.hasActiveConnection}
+			title={connectionReason}
+		/>
+	{/each}
 
+	<!-- Reset Connection: undo BOTH a manual bend (the hollow shaping ring) and any
+	     user-placed end points, returning the line to fully automatic layout. Enabled
+	     when either kind of customisation exists on the selection. -->
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="connect-straight"
-		label="Straight Connection"
-		role="menuitem"
-		handleClick={() => setRoute('straight')}
-		isDisabled={!$toolbarState.hasActiveConnection}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="connect-cornered"
-		label="Cornered Connection"
-		role="menuitem"
-		handleClick={() => setRoute('cornered')}
-		isDisabled={!$toolbarState.hasActiveConnection}
-	/>
-
-	<!-- Undo a manual bend made with the line's shaping handle (the hollow ring
-	     on a selected connection), returning it to its automatic shape. -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="connect-reset-shape"
-		label="Reset Connection Shape"
+		label="Reset Connection"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			window.dispatchEvent(new CustomEvent('connection-reset-shape'));
+			if ($toolbarState.activeConnectionHasBend) {
+				window.dispatchEvent(new CustomEvent('connection-reset-shape'));
+			}
+			if ($toolbarState.activeConnectionHasPlacedPoints) {
+				window.dispatchEvent(new CustomEvent('connection-reset-points'));
+			}
 		}}
-		isDisabled={!($toolbarState.hasActiveConnection && $toolbarState.activeConnectionHasBend)}
-	/>
-
-	<!-- Send ends the user dragged to a chosen spot back to automatic placement
-	     (closest spot on the nearest allowed side). -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="connect-reset-points"
-		label="Reset Connection Points"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('connection-reset-points'));
-		}}
-		isDisabled={!($toolbarState.hasActiveConnection && $toolbarState.activeConnectionHasPlacedPoints)}
-	/>
-
-
-	<DividerHorizontal />
-
-	<!-- Connection quick-note placement: pick which side of the anchor dot the
-	     note card attaches to. The card extends away from the chosen edge, so the
-	     label describes where the card lands relative to the dot. -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-above"
-		label="Quick Note Above"
-		role="menuitem"
-		handleClick={() => setNoteSide('bottom')}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-below"
-		label="Quick Note Below"
-		role="menuitem"
-		handleClick={() => setNoteSide('top')}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-right"
-		label="Quick Note Right"
-		role="menuitem"
-		handleClick={() => setNoteSide('left')}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		iconId="note-left"
-		label="Quick Note Left"
-		role="menuitem"
-		handleClick={() => setNoteSide('right')}
-		isDisabled={noteSideDisabled}
+		isDisabled={!(
+			$toolbarState.hasActiveConnection &&
+			($toolbarState.activeConnectionHasBend || $toolbarState.activeConnectionHasPlacedPoints)
+		)}
 	/>
 
 	<DividerHorizontal />
 
-	<!-- Quick note SLIDE: how far the anchor dot rides ALONG the connection line
-	     (noteAnchorT, surfaced as 0–100%). Set opens a numeric modal; Reset reverts
-	     to the default (centred on the line). -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Set Quick Note Slide…"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-connection-note-slide'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Reset Quick Note Slide"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('reset-connection-note-slide'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
+	<!-- Quick Note Side: which side of the anchor dot the note card attaches to. The
+	     card extends away from the chosen edge, so each label names where the card
+	     lands relative to the dot (Above → anchored on the dot's bottom edge, etc.). -->
+	<MenuSectionLabel label="Quick Note Side" />
+	{#each sideOptions as option (option.side)}
+		{@const isCurrent = shownNoteSide === option.side}
+		<IconButton
+			classes="menu-light justify-content-left"
+			iconId={isCurrent ? 'check' : 'blank'}
+			label={option.label}
+			role="menuitem"
+			isActive={isCurrent}
+			handleClick={() => setNoteSide(option.side)}
+			isDisabled={noteSideDisabled}
+			title={noteReason}
+		/>
+	{/each}
 
 	<DividerHorizontal />
 
-	<!-- Quick note POSITION: how far the card slides ALONG its anchored edge,
-	     relative to the anchor dot (noteOffset). Set opens a numeric modal; Reset
-	     reverts to the default (centred on the dot). -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Set Quick Note Position…"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-connection-note-position'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
+	<!-- Quick Note Placement: fine-tuning values, each opening a numeric modal.
+	     - Slide    — how far the dot rides ALONG the connection line (noteAnchorT)
+	     - Position — how far the card slides ALONG its anchored edge (noteOffset)
+	     - Offset   — the gap the card floats OFF the line (noteLead)
+	     One Reset clears all three (the side above is kept). -->
+	<MenuSectionLabel label="Quick Note Placement" />
+	{#each placementOptions as option (option.event)}
+		<IconButton
+			classes="menu-light justify-content-left"
+			label={option.label}
+			role="menuitem"
+			handleClick={() => {
+				closeMenu();
+				window.dispatchEvent(new CustomEvent(option.event));
+			}}
+			isDisabled={noteSideDisabled}
+			title={noteReason}
+		/>
+	{/each}
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		label="Reset Quick Note Position"
+		label="Reset Placement"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			window.dispatchEvent(new CustomEvent('reset-connection-note-position'));
+			window.dispatchEvent(new CustomEvent('reset-connection-note-placement'));
 		}}
 		isDisabled={noteSideDisabled}
-	/>
-
-	<DividerHorizontal />
-
-	<!-- Quick note OFFSET: the gap the card floats OFF the connection line,
-	     perpendicular to it (noteLead). Set opens a numeric modal; Reset reverts
-	     to the default (flush against the line). -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Set Quick Note Offset…"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-connection-note-offset'));
-		}}
-		isDisabled={noteSideDisabled}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Reset Quick Note Offset"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('reset-connection-note-offset'));
-		}}
-		isDisabled={noteSideDisabled}
+		title={noteReason}
 	/>
 </Menu>

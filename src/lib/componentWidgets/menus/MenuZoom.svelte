@@ -22,7 +22,8 @@
 	 *   its own click state.
 	 *
 	 * Features:
-	 * - 8 predefined zoom levels (25% - 200%)
+	 * - Zoom In / Zoom Out step to the next preset level
+	 * - 7 predefined zoom levels (25% - 200%)
 	 * - Fit Width option — scales content to fill the viewport width
 	 * - Fit Study option — scales content to be fully visible in the viewport
 	 * - Visual checkmark indicator for active zoom level
@@ -35,12 +36,27 @@
 
 	let { menuId = 'MenuZoom', onselect = undefined, currentLabel = '100%' } = $props();
 
+	/** Preset percentages, ascending. Zoom In / Out step through these. */
+	const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 200];
+
+	/** Current percentage parsed from the label; fit modes step from 100%. */
+	let currentPercent = $derived(
+		currentLabel.endsWith('%') ? parseInt(currentLabel, 10) || 100 : 100
+	);
+	let nextUp = $derived(ZOOM_STEPS.find((step) => step > currentPercent));
+	let nextDown = $derived([...ZOOM_STEPS].reverse().find((step) => step < currentPercent));
+
+	/** @param {number | undefined} percent */
+	function stepTo(percent) {
+		if (percent === undefined) return;
+		handleSelect({ label: `${percent}%` });
+	}
+
 	const menuItems = [
 		{ id: '25', type: 'button', label: '25%' },
 		{ id: '50', type: 'button', label: '50%' },
 		{ id: '75', type: 'button', label: '75%' },
 		{ id: '100', type: 'button', label: '100%' },
-		{ id: '110', type: 'button', label: '110%' },
 		{ id: '125', type: 'button', label: '125%' },
 		{ id: '150', type: 'button', label: '150%' },
 		{ id: '200', type: 'button', label: '200%' },
@@ -69,7 +85,22 @@
 </script>
 
 <Menu {menuId} ariaLabel="Zoom level menu">
-	{#each menuItems as item}
+	<IconButton
+		classes="menu-light full-width justify-content-left"
+		label="Zoom In"
+		role="menuitem"
+		handleClick={() => stepTo(nextUp)}
+		isDisabled={nextUp === undefined}
+	/>
+	<IconButton
+		classes="menu-light full-width justify-content-left"
+		label="Zoom Out"
+		role="menuitem"
+		handleClick={() => stepTo(nextDown)}
+		isDisabled={nextDown === undefined}
+	/>
+	<DividerHorizontal />
+	{#each menuItems as item (item.id)}
 		{#if item.type === 'button'}
 			{@const isActive = item.label === currentLabel}
 			<IconButton

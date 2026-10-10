@@ -40,6 +40,7 @@
 
 	import Menu from '$lib/componentElements/Menu.svelte';
 	import MenuToggleItem from '$lib/componentElements/buttons/MenuToggleItem.svelte';
+	import MenuSectionLabel from '$lib/componentElements/MenuSectionLabel.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import {
 		toolbarState,
@@ -145,6 +146,17 @@
 	// is a different control entirely.
 	let commentaryDisabled = $derived(!isDocument);
 
+	// Master toggles show a dash (mixed) when only SOME of their sub-toggles are on.
+	let connectionsMixed = $derived(
+		!cfg.allConnections.active &&
+			[cfg.columnConnections, cfg.sectionConnections, cfg.segmentConnections, cfg.crossItemConnections].some(
+				(item) => item.active
+			)
+	);
+	let notesMixed = $derived(
+		!cfg.allNotes.active && (cfg.passageNotes.active || cfg.connectionNotes.active)
+	);
+
 	let wideDisabled = $derived(isDocument || !$toolbarState.canToggleWide);
 	let overviewDisabled = $derived(isDocument || !$toolbarState.canToggleOverview);
 	let selectorsDisabled = $derived(
@@ -157,6 +169,7 @@
 
 
 <Menu {menuId} ariaLabel="View options">
+	<MenuSectionLabel label="Annotations" />
 	<MenuToggleItem
 		label="Headings"
 		isActive={cfg.headings.active}
@@ -172,6 +185,7 @@
 
 	<DividerHorizontal />
 
+	<MenuSectionLabel label="Scripture" />
 	<MenuToggleItem
 		label="References"
 		isActive={$toolbarState.referencesVisible}
@@ -200,9 +214,11 @@
 
 	<DividerHorizontal />
 
+	<MenuSectionLabel label="Connections" />
 	<MenuToggleItem
 		label="All Connections"
 		isActive={cfg.allConnections.active}
+		isMixed={connectionsMixed}
 		onToggle={cfg.allConnections.toggle}
 		isDisabled={connectionsDisabled}
 	/>
@@ -233,9 +249,11 @@
 
 	<DividerHorizontal />
 
+	<MenuSectionLabel label="Quick Notes" />
 	<MenuToggleItem
 		label="All Quick Notes"
 		isActive={cfg.allNotes.active}
+		isMixed={notesMixed}
 		onToggle={cfg.allNotes.toggle}
 		isDisabled={notesDisabled}
 	/>
@@ -258,7 +276,7 @@
 	     document. Disabled in the Analyze view, where the separate commentary editor
 	     slide-out (not this prose toggle) governs commentary. -->
 	<MenuToggleItem
-		label="Commentary"
+		label="Commentary Text"
 		isActive={cfg.commentaries.active}
 		onToggle={cfg.commentaries.toggle}
 		isDisabled={commentaryDisabled}
@@ -269,6 +287,7 @@
 
 	<!-- Layout/canvas items (Analyze-only) — disabled in the Document view, whose
 	     paginated read-only layout has no wide/outline/selection/layout affordances. -->
+	<MenuSectionLabel label="Display" />
 	<MenuToggleItem
 		label="Wide View"
 		isActive={$toolbarState.wideLayout}
@@ -284,6 +303,7 @@
 
 	<DividerHorizontal />
 
+	<MenuSectionLabel label="Editing Aids" />
 	<MenuToggleItem
 		label="Selection Controls"
 		isActive={$toolbarState.selectorsVisible}

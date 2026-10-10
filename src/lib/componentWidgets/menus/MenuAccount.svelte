@@ -1,6 +1,6 @@
 <script>
 	/**
-	 * # MenuSettings Component
+	 * # MenuAccount Component
 	 * 
 	 * Settings menu that displays current user information and provides sign out functionality.
 	 * 
@@ -18,7 +18,7 @@
 	 * 
 	 * ## Usage
 	 * ```svelte
-	 * <MenuSettings menuId="MenuSettings" />
+	 * <MenuAccount menuId="MenuAccount" />
 	 * ```
 	 * 
 	 * @component

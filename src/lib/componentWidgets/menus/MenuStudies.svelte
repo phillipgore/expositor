@@ -1,6 +1,6 @@
 <script>
 	/**
-	 * # MenuActions Component
+	 * # MenuStudies Component
 	 * 
 	 * Menu for performing actions on selected items in the Studies Panel.
 	 * Provides keyboard-accessible alternatives to drag-and-drop operations.
@@ -20,8 +20,8 @@
 	 * 
 	 * ## Usage
 	 * ```svelte
-	 * <MenuActions 
-	 *   menuId="MenuActions" 
+	 * <MenuStudies 
+	 *   menuId="MenuStudies" 
 	 *   groups={allGroups}
 	 *   onMoveToGroup={handleMove}
 	 *   onDelete={handleDelete}
@@ -290,7 +290,7 @@
 
 	// ── Add a standalone study to a series (Q17, phase 3) ─────────────────────
 	//
-	// The inverse of "Split into a Series…": that makes a series FROM a study, this puts a study INTO
+	// The inverse of "Split into Series…": that makes a series FROM a study, this puts a study INTO
 	// one. Offered for a standalone study only — a study already in a series would have to answer what
 	// happens to the series it leaves (§4: down to one part, that series dissolves), which the endpoint
 	// refuses rather than performs silently.
@@ -492,7 +492,7 @@
 
 	<IconButton
 		iconId="book-in"
-		label="New Study in Selected"
+		label="New Study in Selected Group"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewStudy(selectedGroup.id)}
@@ -511,7 +511,7 @@
 
 	<IconButton
 		iconId="folders"
-		label="New Study Group in Selected"
+		label="New Subgroup in Selected Group"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={() => handleNewGroup(selectedGroup.id)}
@@ -541,10 +541,23 @@
 
 	<DividerHorizontal />
 
+	<!-- Series commands. Whole-study → series first (Add to / Split into), then the
+	     commands that act on parts of an existing series. -->
+	<!-- The inverse of "Split into Series…": that makes a series FROM a study, this puts a study
+	     INTO one (Q17). -->
+	<IconButton
+		label="Add to Series…"
+		classes="menu-light justify-content-left"
+		role="menuitem"
+		handleClick={handleAddToSeriesClick}
+		isDisabled={!canAddToSeries}
+		title={addToSeriesDisabledReason}
+	/>
+
 	<!-- §3: the verb is always qualified by its object at study level — never a bare "Split",
 	     which belongs to columns (column-split.svg). -->
 	<IconButton
-		label="Split into a Series…"
+		label="Split into Series…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleSplitIntoSeriesClick}
@@ -552,8 +565,10 @@
 		title={splitDisabledReason}
 	/>
 
+	<DividerHorizontal />
+
 	<!-- Split Part / Join Parts act on a part of an existing series (§8). Separate items from
-	     "Split into a Series…" because they are different operations on different objects — §3's
+	     "Split into Series…" because they are different operations on different objects — §3's
 	     rule that the verb is always qualified by its object.
 
 	     This section is text-only (MENU_ICON_REMOVALS.md): the series verb icons failed the 16px /
@@ -579,23 +594,12 @@
 	<!-- §4: reordering permutes RUNS, not parts. Disabled with a reason for a contiguous series, which
 	     has exactly one run and nothing to rearrange (§11). -->
 	<IconButton
-		label="Reorder Series…"
+		label="Reorder Parts…"
 		classes="menu-light justify-content-left"
 		role="menuitem"
 		handleClick={handleReorderClick}
 		isDisabled={!canReorderRuns}
 		title={reorderDisabledReason}
-	/>
-
-	<!-- The inverse of "Split into a Series…": that makes a series FROM a study, this puts a study
-	     INTO one (Q17). -->
-	<IconButton
-		label="Add to Series…"
-		classes="menu-light justify-content-left"
-		role="menuitem"
-		handleClick={handleAddToSeriesClick}
-		isDisabled={!canAddToSeries}
-		title={addToSeriesDisabledReason}
 	/>
 
 </Menu>

@@ -1,6 +1,6 @@
 <script>
 	/**
-	 * # MenuExport Component ("Output" menu)
+	 * # MenuExport Component ("Export" menu)
 	 *
 	 * Dropdown menu for producing output from a study: printing the Document view
 	 * and exporting the visual Analyze content (everything inside `.analyze-content`)
@@ -74,7 +74,7 @@
 
 	 * ## Usage
 	 * ```svelte
-	 * <MenuButton menuId="MenuExport" iconId="export" underLabel="Output" classes="toolbar-dark" />
+	 * <MenuButton menuId="MenuExport" iconId="export" underLabel="Export" classes="toolbar-dark" />
 	 * <MenuExport menuId="MenuExport" view={activeModeButton} />
 	 * ```
 	 *
@@ -262,7 +262,7 @@
 	}
 </script>
 
-<Menu {menuId} classes="dark" ariaLabel="Output options">
+<Menu {menuId} classes="dark" ariaLabel="Export options">
 	<!-- PNG / PDF: Analyze-only raster captures, so they're DISABLED on Document
 	     (whose true PDF path is Print → "Save as PDF"). -->
 	<IconButton

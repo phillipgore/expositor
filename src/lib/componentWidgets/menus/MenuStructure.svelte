@@ -33,6 +33,7 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
+	import MenuSectionLabel from '$lib/componentElements/MenuSectionLabel.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import {
 		canJoinUpAcross as resolveJoinUpAcross,
@@ -294,6 +295,7 @@
 
 
 <Menu {menuId} ariaLabel="Document structure menu">
+	<MenuSectionLabel label="Split" />
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="column-split"
@@ -335,6 +337,7 @@
 	/>
 	<DividerHorizontal />
 
+	<MenuSectionLabel label="Join" />
 	<!--
 		Join Selected Up / Down replace Join Column, Join Section and Join Segment.
 
@@ -385,6 +388,7 @@
 
 	<DividerHorizontal />
 
+	<MenuSectionLabel label="Reorder" />
 	<!--
 		Move Selected Up / Down — the NON-destructive pair.
 
@@ -401,7 +405,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="move-up"
-		label="Move Selected Up"
+		label="Move Item Up"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -413,7 +417,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="move-down"
-		label="Move Selected Down"
+		label="Move Item Down"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
@@ -424,6 +428,7 @@
 
 	<DividerHorizontal />
 
+	<MenuSectionLabel label="Text" />
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="text-up"

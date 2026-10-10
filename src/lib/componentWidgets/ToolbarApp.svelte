@@ -30,7 +30,7 @@
 	 * - MenuHeadings: Heading insertion options
 	 * - MenuLiterary: Literary device highlighting
 	 * - MenuColor: Color scheme selection
-	 * - MenuActions: Study/group creation and management
+	 * - MenuStudies: Study/group creation and management
 	 * 
 	 * ## Layout Structure
 	 * Left section: Studies toggle
@@ -66,12 +66,12 @@
 	import MenuStructure from '$lib/componentWidgets/menus/MenuStructure.svelte';
 	import MenuLayout from '$lib/componentWidgets/menus/MenuLayout.svelte';
 	import MenuConnect from '$lib/componentWidgets/menus/MenuConnect.svelte';
-	import MenuOutline from '$lib/componentWidgets/menus/MenuOutline.svelte';
+	import MenuHeadings from '$lib/componentWidgets/menus/MenuHeadings.svelte';
 	import MenuColor from '$lib/componentWidgets/menus/MenuColor.svelte';
-	import MenuSettings from '$lib/componentWidgets/menus/MenuSettings.svelte';
+	import MenuAccount from '$lib/componentWidgets/menus/MenuAccount.svelte';
 	import MenuView from '$lib/componentWidgets/menus/MenuView.svelte';
 	import MenuExport from '$lib/componentWidgets/menus/MenuExport.svelte';
-	import MenuActions from '$lib/componentWidgets/menus/MenuActions.svelte';
+	import MenuStudies from '$lib/componentWidgets/menus/MenuStudies.svelte';
 
 	import DeleteConfirmationModal from '$lib/componentWidgets/modals/DeleteConfirmationModal.svelte';
 	import DeleteHeadingsConfirmationModal from '$lib/componentWidgets/modals/DeleteHeadingsConfirmationModal.svelte';
@@ -439,7 +439,7 @@
 	}
 
 	/**
-	 * Handle delete button click from MenuActions (legacy, kept for menu compatibility)
+	 * Handle delete button click from MenuStudies (legacy, kept for menu compatibility)
 	 */
 	function handleDeleteClick(viaKeyboard) {
 		if (!$toolbarState.canDelete || !$toolbarState.selectedItem) return;
@@ -741,19 +741,19 @@
 <MenuLayout menuId="MenuLayout" view={activeModeButton} />
 
 <MenuConnect menuId="MenuConnect" view={activeModeButton} />
-<MenuOutline menuId="MenuOutline" view={activeModeButton} />
+<MenuHeadings menuId="MenuHeadings" view={activeModeButton} />
 
 <MenuColor menuId="MenuColor" onselect={handleColorChange} />
 <MenuView menuId="MenuView" view={activeModeButton} />
 
 <MenuExport menuId="MenuExport" view={activeModeButton} />
-<MenuSettings menuId="MenuSettings" alignment="end" {isAdmin} />
+<MenuAccount menuId="MenuAccount" alignment="end" {isAdmin} />
 
 <!-- `series` is passed so Split Part / Join Parts can find the series a selected part belongs to.
      A part is selected as a `study`, and `study.seriesId` names the series but carries none of its
      siblings, which both commands need. -->
-<MenuActions 
-	menuId="MenuActions" 
+<MenuStudies 
+	menuId="MenuStudies" 
 	{groups}
 	{series}
 	onMoveToGroup={handleMoveToGroup}

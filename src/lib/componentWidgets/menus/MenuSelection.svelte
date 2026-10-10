@@ -4,7 +4,7 @@
 	 *
 	 * Gathers every "Select All" command in one menu. Selecting comes before acting, so this
 	 * menu sits first in the toolbar's editing cluster, just before Structure. The commands
-	 * that act on these selections live elsewhere (Structure, Markup, Delete, ...).
+	 * that act on these selections live elsewhere (Structure, Headings, Delete, ...).
 	 *
 	 * Items:
 	 * - Select All Columns / Sections / Segments / Connections — put the Analyze canvas into
@@ -14,7 +14,7 @@
 	 * - Select All Headings / Heading One / Two / Three — select every saved heading in the
 	 *   study (or every heading of one level), lighting each heading's round select button.
 	 *   The toolbar's Delete then removes them all (after confirmation), and a one-level
-	 *   selection can be converted to another level from the Markup menu.
+	 *   selection can be converted to another level from the Headings menu.
 	 *
 	 * Usage:
 	 * ```
@@ -135,7 +135,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-one-select-all"
-		label="Select All Heading One"
+		label="Select All Heading Ones"
 		role="menuitem"
 		handleClick={() => selectAllHeadings('one')}
 		isDisabled={headingSelectDisabled || countHeadings('one') === 0}
@@ -144,7 +144,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-two-select-all"
-		label="Select All Heading Two"
+		label="Select All Heading Twos"
 		role="menuitem"
 		handleClick={() => selectAllHeadings('two')}
 		isDisabled={headingSelectDisabled || countHeadings('two') === 0}
@@ -153,7 +153,7 @@
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-three-select-all"
-		label="Select All Heading Three"
+		label="Select All Heading Threes"
 		role="menuitem"
 		handleClick={() => selectAllHeadings('three')}
 		isDisabled={headingSelectDisabled || countHeadings('three') === 0}

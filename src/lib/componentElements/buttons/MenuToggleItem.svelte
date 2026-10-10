@@ -34,6 +34,10 @@
 	 * @property {boolean} [isActive=false] - Whether the toggle is currently on
 	 * @property {() => void} [onToggle] - Callback fired when the item is clicked
 	 * @property {boolean} [isDisabled=false] - Whether the item is disabled
+	 * @property {boolean} [isMixed=false] - Master toggles only: some (not all) of the
+	 *   items it controls are on. Shows a dash box and aria-checked="mixed"; takes
+	 *   precedence over isActive for display.
+	 * @property {string} [title] - Hover text (e.g. why the item is disabled)
 	 */
 
 	/** @type {MenuToggleItemProps} */
@@ -41,8 +45,15 @@
 		label,
 		isActive = false,
 		onToggle,
-		isDisabled = false
+		isDisabled = false,
+		isMixed = false,
+		title = undefined
 	} = $props();
+
+	let showMixed = $derived(isMixed && !isActive);
+	let iconId = $derived(
+		showMixed ? 'checkbox-mixed' : isActive ? 'checkbox-checked' : 'checkbox-unchecked'
+	);
 
 	const handleClick = () => {
 		if (onToggle) {
@@ -54,11 +65,12 @@
 <Button
 	classes="menu-light justify-content-left"
 	role="menuitemcheckbox"
-	ariaChecked={isActive ? 'true' : 'false'}
+	ariaChecked={showMixed ? 'mixed' : isActive ? 'true' : 'false'}
 	isActive={isActive}
 	isDisabled={isDisabled}
+	{title}
 	handleClick={handleClick}
 >
-	<Icon iconId={isActive ? 'checkbox-checked' : 'checkbox-unchecked'} isActive={false} classes="icon-space" />
+	<Icon {iconId} isActive={false} classes="icon-space" />
 	{label}
 </Button>

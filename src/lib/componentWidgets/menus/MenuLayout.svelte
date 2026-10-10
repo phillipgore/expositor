@@ -10,10 +10,10 @@
 	 *
 	 * Items are ordered largest container first (Column ⊃ Section ⊃ Segment) to
 	 * match the app's nesting hierarchy and the Structure/View menus' ordering:
-	 * - Column Spacing  — Set / Reset Column Spacing, Link / Unlink (change linked columns together)
-	 * - Column Width    — Set / Reset Column Width, Link / Unlink (resize linked columns together)
-	 * - Section Spacing — Set / Reset Section Spacing, Link / Unlink (change linked sections together)
-	 * - Segment Height  — Set / Reset Segment Height, Link / Unlink (resize linked segments together)
+	 * - Column Width    — Set / Reset Column Width, Link toggle (resize linked columns together)
+	 * - Column Spacing  — Set / Reset Column Spacing, Link toggle (change linked columns together)
+	 * - Section Spacing — Set / Reset Section Spacing, Link toggle (change linked sections together)
+	 * - Segment Height  — Set / Reset Segment Height, Link toggle (resize linked segments together)
 	 * - Segment Position — Set Segment Position / Reset Segment Position (pull right)
 	 *
 	 * Usage:
@@ -34,11 +34,51 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
+	import MenuToggleItem from '$lib/componentElements/buttons/MenuToggleItem.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 
 	let { menuId = 'MenuLayout', view = 'analyze' } = $props();
 
 	let isDocument = $derived(view === 'document');
+
+	// Hover reason for disabled items when a view mode (not the selection) is the cause.
+	let modeReason = $derived(
+		$toolbarState.overviewMode
+			? 'Not available in Outline View'
+			: $toolbarState.focusMode
+				? 'Not available in Focus mode'
+				: undefined
+	);
+
+	/**
+	 * Link items are checkboxes (MenuToggleItem, as in the View menu) replacing separate
+	 * Link / Unlink items. Like View's toggles they keep the menu open on click.
+	 * Each state is derived from the store's canLink* / canUnlink* flags:
+	 * - 'off'   — 2+ selected, none linked              → empty box,  click links them
+	 * - 'on'    — every selected item is linked         → ticked box, click unlinks the
+	 *             SELECTED items only (the rest of each group stays linked)
+	 * - 'mixed' — some selected items linked, some not   → dash box,   click JOINS the
+	 *             unlinked ones into the existing group(s)
+	 * - null    — nothing to do (none / one unlinked)    → disabled
+	 * The flags come from linkStateFromGroups() in $lib/utils/linkGroups.js.
+	 * @param {boolean} canLink
+	 * @param {boolean} canUnlink
+	 * @returns {'off'|'on'|'mixed'|null}
+	 */
+	function toLinkState(canLink, canUnlink) {
+		if (canLink && canUnlink) return 'mixed';
+		if (canLink) return 'off';
+		if (canUnlink) return 'on';
+		return null;
+	}
+
+	let linkState = $derived({
+		columnSpacing: toLinkState($toolbarState.canLinkColumnSpacing, $toolbarState.canUnlinkColumnSpacing),
+		columnWidth: toLinkState($toolbarState.canLinkColumnWidth, $toolbarState.canUnlinkColumnWidth),
+		sectionSpacing: toLinkState($toolbarState.canLinkSectionSpacing, $toolbarState.canUnlinkSectionSpacing),
+		segmentHeight: toLinkState($toolbarState.canLinkSegmentHeight, $toolbarState.canUnlinkSegmentHeight)
+	});
+
 
 
 	function closeMenu() {
@@ -52,56 +92,6 @@
 <Menu {menuId} ariaLabel="Layout menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		label="Set Column Spacing…"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('set-column-spacing'));
-		}}
-		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
-
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Reset Column Spacing"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('reset-column-spacing'));
-		}}
-		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
-
-	/>
-
-	<!-- Link / Unlink column spacing: linked columns keep the same left gap and change
-	     together (drag or Set/Reset). -->
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Link Column Spacing"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('link-column-spacing'));
-		}}
-		isDisabled={isDocument || !$toolbarState.canLinkColumnSpacing || $toolbarState.overviewMode || $toolbarState.focusMode}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Unlink Column Spacing"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('unlink-column-spacing'));
-		}}
-		isDisabled={isDocument || !$toolbarState.canUnlinkColumnSpacing || $toolbarState.overviewMode || $toolbarState.focusMode}
-	/>
-
-	<DividerHorizontal />
-
-	<IconButton
-		classes="menu-light justify-content-left"
 		label="Set Column Width…"
 		role="menuitem"
 		handleClick={() => {
@@ -109,6 +99,7 @@
 			window.dispatchEvent(new CustomEvent('set-column-width'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 
 	/>
 
@@ -121,30 +112,57 @@
 			window.dispatchEvent(new CustomEvent('reset-column-width'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 
 	/>
 
 	<!-- Link / Unlink column width: linked columns keep the same width and resize together. -->
+	<MenuToggleItem
+		label="Link Column Width"
+		isActive={linkState.columnWidth === 'on'}
+		isMixed={linkState.columnWidth === 'mixed'}
+		onToggle={() => window.dispatchEvent(new CustomEvent(($toolbarState.canLinkColumnWidth ? 'link-' : 'unlink-') + 'column-width'))}
+		isDisabled={isDocument || linkState.columnWidth === null || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
+	/>
+
+	<DividerHorizontal />
+
 	<IconButton
 		classes="menu-light justify-content-left"
-		label="Link Column Width"
+		label="Set Column Spacing…"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			window.dispatchEvent(new CustomEvent('link-column-width'));
+			window.dispatchEvent(new CustomEvent('set-column-spacing'));
 		}}
-		isDisabled={isDocument || !$toolbarState.canLinkColumnWidth || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
+
 	/>
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		label="Unlink Column Width"
+		label="Reset Column Spacing"
 		role="menuitem"
 		handleClick={() => {
 			closeMenu();
-			window.dispatchEvent(new CustomEvent('unlink-column-width'));
+			window.dispatchEvent(new CustomEvent('reset-column-spacing'));
 		}}
-		isDisabled={isDocument || !$toolbarState.canUnlinkColumnWidth || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isDisabled={isDocument || !$toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
+
+	/>
+
+	<!-- Link / Unlink column spacing: linked columns keep the same left gap and change
+	     together (drag or Set/Reset). -->
+	<MenuToggleItem
+		label="Link Column Spacing"
+		isActive={linkState.columnSpacing === 'on'}
+		isMixed={linkState.columnSpacing === 'mixed'}
+		onToggle={() => window.dispatchEvent(new CustomEvent(($toolbarState.canLinkColumnSpacing ? 'link-' : 'unlink-') + 'column-spacing'))}
+		isDisabled={isDocument || linkState.columnSpacing === null || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 	/>
 
 	<DividerHorizontal />
@@ -158,6 +176,7 @@
 			window.dispatchEvent(new CustomEvent('set-section-spacing'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 
 	/>
 
@@ -170,31 +189,19 @@
 			window.dispatchEvent(new CustomEvent('reset-section-spacing'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSection || $toolbarState.hasActiveColumn || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 
 	/>
 
 	<!-- Link / Unlink section spacing: linked sections keep the same gap above them and
 	     change together. -->
-	<IconButton
-		classes="menu-light justify-content-left"
+	<MenuToggleItem
 		label="Link Section Spacing"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('link-section-spacing'));
-		}}
-		isDisabled={isDocument || !$toolbarState.canLinkSectionSpacing || $toolbarState.overviewMode || $toolbarState.focusMode}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Unlink Section Spacing"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('unlink-section-spacing'));
-		}}
-		isDisabled={isDocument || !$toolbarState.canUnlinkSectionSpacing || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isActive={linkState.sectionSpacing === 'on'}
+		isMixed={linkState.sectionSpacing === 'mixed'}
+		onToggle={() => window.dispatchEvent(new CustomEvent(($toolbarState.canLinkSectionSpacing ? 'link-' : 'unlink-') + 'section-spacing'))}
+		isDisabled={isDocument || linkState.sectionSpacing === null || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 	/>
 
 	<DividerHorizontal />
@@ -208,6 +215,7 @@
 			window.dispatchEvent(new CustomEvent('set-segment-height'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 
 	/>
 
@@ -220,32 +228,20 @@
 			window.dispatchEvent(new CustomEvent('restore-segment-height'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 
 	/>
 
 	<!-- Link / Unlink segment heights: linked segments are kept at the height of the
 	     tallest member and resize together. Link needs 2+ selected segments that aren't
 	     already all in one group; Unlink needs the selection to include a linked segment. -->
-	<IconButton
-		classes="menu-light justify-content-left"
+	<MenuToggleItem
 		label="Link Segment Height"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('link-segment-height'));
-		}}
-		isDisabled={!$toolbarState.canLinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
-	/>
-
-	<IconButton
-		classes="menu-light justify-content-left"
-		label="Unlink Segment Height"
-		role="menuitem"
-		handleClick={() => {
-			closeMenu();
-			window.dispatchEvent(new CustomEvent('unlink-segment-height'));
-		}}
-		isDisabled={!$toolbarState.canUnlinkSegmentHeight || $toolbarState.overviewMode || $toolbarState.focusMode}
+		isActive={linkState.segmentHeight === 'on'}
+		isMixed={linkState.segmentHeight === 'mixed'}
+		onToggle={() => window.dispatchEvent(new CustomEvent(($toolbarState.canLinkSegmentHeight ? 'link-' : 'unlink-') + 'segment-height'))}
+		isDisabled={isDocument || linkState.segmentHeight === null || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 	/>
 
 	<DividerHorizontal />
@@ -262,6 +258,7 @@
 			window.dispatchEvent(new CustomEvent('set-segment-position'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSegment || !$toolbarState.canSetSegmentPosition || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 	/>
 
 	<IconButton
@@ -273,5 +270,6 @@
 			window.dispatchEvent(new CustomEvent('reset-segment-position'));
 		}}
 		isDisabled={isDocument || !$toolbarState.hasActiveSegment || $toolbarState.overviewMode || $toolbarState.focusMode}
+		title={modeReason}
 	/>
 </Menu>

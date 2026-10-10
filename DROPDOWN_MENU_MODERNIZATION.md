@@ -45,7 +45,7 @@ The polyfill (@oddbird/css-anchor-positioning) is automatically loaded and provi
 <MenuButton 
   iconId="gear" 
   label="Settings"
-  menuId="MenuSettings"
+  menuId="MenuAccount"
 />
 <!-- MenuRegistration handled menu routing -->
 ```
@@ -55,9 +55,9 @@ The polyfill (@oddbird/css-anchor-positioning) is automatically loaded and provi
 <MenuButton 
   iconId="gear" 
   label="Settings"
-  menuId="MenuSettings"
+  menuId="MenuAccount"
 />
-<MenuSettings menuId="MenuSettings" />
+<MenuAccount menuId="MenuAccount" />
 ```
 
 ### Menu Implementation
@@ -76,7 +76,7 @@ The polyfill (@oddbird/css-anchor-positioning) is automatically loaded and provi
 **After:**
 ```svelte
 <script>
-  let { menuId = 'MenuSettings' } = $props();
+  let { menuId = 'MenuAccount' } = $props();
 </script>
 
 <Menu {menuId}>
@@ -118,7 +118,7 @@ The polyfill (@oddbird/css-anchor-positioning) is automatically loaded and provi
 - ✅ IconButton.svelte - Added `popovertarget` support
 
 ### Menu Implementations
-- ✅ MenuSettings.svelte - Updated
+- ✅ MenuAccount.svelte - Updated
 - ✅ MenuStructure.svelte - Updated  
 - ✅ MenuZoom.svelte - Updated with callback pattern
 - ✅ MenuColor.svelte - Updated

@@ -57,7 +57,7 @@ export function getAppToolbarConfig() {
 				{
 					type: 'menu',
 					iconId: 'book',
-					menuId: 'MenuActions',
+					menuId: 'MenuStudies',
 					underLabel: 'Studies',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'
@@ -158,8 +158,8 @@ export function getAppToolbarConfig() {
 				{
 					type: 'menu',
 					iconId: 'headings',
-					menuId: 'MenuOutline',
-					underLabel: 'Markup',
+					menuId: 'MenuHeadings',
+					underLabel: 'Headings',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledCheck: (state) => !state.canStructure || state.overviewMode
@@ -222,7 +222,7 @@ export function getAppToolbarConfig() {
 				{
 					type: 'toggle',
 					iconId: 'commentary',
-					underLabel: 'Comment',
+					underLabel: 'Commentary',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					activeStateProp: 'commentaryPanelOpen',
@@ -288,7 +288,7 @@ export function getAppToolbarConfig() {
 					type: 'menu',
 					iconId: 'export',
 					menuId: 'MenuExport',
-					underLabel: 'Output',
+					underLabel: 'Export',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light',
 					disabledCheck: (state) =>
@@ -331,7 +331,7 @@ export function getAppToolbarConfig() {
 				{
 					type: 'menu',
 					iconId: 'account',
-					menuId: 'MenuSettings',
+					menuId: 'MenuAccount',
 					underLabel: 'Account',
 					classes: 'toolbar-dark',
 					underLabelClasses: 'light'

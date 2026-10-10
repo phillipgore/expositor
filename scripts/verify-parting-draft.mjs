@@ -177,7 +177,7 @@ console.log('\n── both dialogs render the one shared component ──');
 		'Split sends the per-passage arrays to onCreate',
 		/onCreate\?\.\([\s\S]{0,300}chaptersPerPassage[\s\S]{0,120}balancePerPassage/.test(split)
 	);
-	const menu = read('src/lib/componentWidgets/menus/MenuActions.svelte');
+	const menu = read('src/lib/componentWidgets/menus/MenuStudies.svelte');
 	assert(
 		'the menu forwards them in the POST body',
 		/chaptersPerPassage:\s*options\.chaptersPerPassage/.test(menu) &&

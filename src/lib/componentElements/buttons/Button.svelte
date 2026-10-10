@@ -537,8 +537,12 @@
 		fill: var(--gray-200);
 	}
 
-	button.menu-light:enabled :global(.icon.blank path) {
-		fill: transparent;
+	/* The `blank` icon is a filled square used only as a spacer to keep labels
+	   aligned. It must be invisible in EVERY state (including disabled), so this
+	   rule is not scoped to :enabled. */
+	button.menu-light :global(.icon.blank path),
+	button.menu-light:disabled :global(.icon.blank path) {
+		fill: transparent !important;
 	}
 
 	/* Menu Icon Fill Colors - Enabled */

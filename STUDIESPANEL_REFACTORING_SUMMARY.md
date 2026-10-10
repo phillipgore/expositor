@@ -1,7 +1,7 @@
 # StudiesPanel Refactoring Summary
 
 ## Overview
-This document summarizes the architectural improvements made to the StudiesPanel, MenuActions, MoveToGroupModal, and related components.
+This document summarizes the architectural improvements made to the StudiesPanel, MenuStudies, MoveToGroupModal, and related components.
 
 ## Goals Achieved
 1. ✅ Eliminated code duplication across components
@@ -23,7 +23,7 @@ This document summarizes the architectural improvements made to the StudiesPanel
 - `getDescendantGroupIds(groupId, allGroups)` - Get all descendants
 
 **Benefits:**
-- Eliminates duplication between MenuActions and MoveToGroupModal
+- Eliminates duplication between MenuStudies and MoveToGroupModal
 - Makes circular nesting logic testable in isolation
 - Single source of truth for hierarchy navigation
 
@@ -110,7 +110,7 @@ This document summarizes the architectural improvements made to the StudiesPanel
 - Cleaner initialization of composables
 - Better separation of concerns
 
-### MenuActions.svelte
+### MenuStudies.svelte
 **Before:** 200+ lines with duplicated hierarchy logic
 **After:** ~150 lines using shared utilities
 
@@ -156,7 +156,7 @@ StudiesPanel (700 lines)
 ├── Format functions (50 lines)
 └── Orchestration (200 lines)
 
-MenuActions (200 lines)
+MenuStudies (200 lines)
 ├── Hierarchy checks (80 lines)
 ├── Flattening (40 lines)
 └── UI (80 lines)
@@ -181,7 +181,7 @@ Composables (Shared)
 
 Components (Simplified)
 ├── StudiesPanel (300 lines) - Orchestration only
-├── MenuActions (150 lines) - Uses shared utils
+├── MenuStudies (150 lines) - Uses shared utils
 ├── MoveToGroupModal (150 lines) - Uses shared utils
 └── StudyGroup (100 lines) - Simplified clicks
 ```
@@ -201,7 +201,7 @@ Components (Simplified)
 | File | Before | After | Reduction |
 |------|--------|-------|-----------|
 | StudiesPanel.svelte | ~700 | ~300 | 57% |
-| MenuActions.svelte | ~200 | ~150 | 25% |
+| MenuStudies.svelte | ~200 | ~150 | 25% |
 | MoveToGroupModal.svelte | ~200 | ~150 | 25% |
 | StudyGroup.svelte | ~150 | ~100 | 33% |
 | **Total Component Lines** | **~1250** | **~700** | **44%** |
