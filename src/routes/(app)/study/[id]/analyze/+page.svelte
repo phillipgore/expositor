@@ -6007,8 +6007,10 @@
 		position: absolute;
 		/* The whole column box already slides down by the first-section offset (see the
 		   .column margin-top rule), and this handle is absolutely positioned WITHIN the
-		   column, so it moves down with it automatically — no extra offset needed here. */
-		top: min(3.6rem, calc(50% - 1rem));
+		   column, so it moves down with it automatically — no extra offset needed here.
+		   Same top rule as .column-reposition-handle (0.2rem column padding + the segment
+		   position handle's offset) so the width bar lines up with the drag-handle dots. */
+		top: calc(0.2rem + min(3.6rem, calc(50% - 1.2rem)));
 		right: -1.2rem;
 
 		width: 1.4rem;
