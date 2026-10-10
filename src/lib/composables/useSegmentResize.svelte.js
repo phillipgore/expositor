@@ -83,7 +83,11 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 	let startY = 0; // pointer Y at mousedown (viewport px)
 	let dragScale = 1; // painted zoom scale captured at drag start (viewport px per CSS px)
 	let renderedStartHeight = 0; // dragged segment's rendered height at start (viewport px)
-	let naturalContentHeight = 0; // minimum allowed height (CSS px) = tallest natural text height across the group
+	let naturalContentHeight = 0; // minimum allowed OUTER height (CSS px) = tallest natural outer height across the group
+	/** Per-member chrome (CSS px) captured at drag start: segmentId -> px. */
+	/** @type {Record<string, number>} */
+	let memberChrome = {};
+	let maxChrome = 0; // largest chrome in the dragged group (CSS px)
 	let snapCandidates = []; // array of viewport Y values (other columns' segment edges)
 	// Per-member geometry captured at drag start (so each tooltip/guide tracks its own edge).
 	/** @type {Array<{ id: string, topY: number, centerX: number }>} */
@@ -106,10 +110,49 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 	 * @returns {number}
 	 */
 	function measureNaturalHeight(el) {
-		const prevMinHeight = el.style.minHeight;
-		el.style.minHeight = '0px';
+		const text = getTextEl(el);
+		if (!text) return el.offsetHeight;
+		const prevMinHeight = text.style.minHeight;
+		text.style.minHeight = '0px';
 		const natural = el.offsetHeight;
-		el.style.minHeight = prevMinHeight;
+		text.style.minHeight = prevMinHeight;
+		return natural;
+	}
+
+	/**
+	 * The segment's text area. The persisted height is applied to it as min-height,
+	 * so the saved value excludes headings, reference label and quick note.
+	 * @param {HTMLElement} el
+	 * @returns {HTMLElement|null}
+	 */
+	function getTextEl(el) {
+		return /** @type {HTMLElement|null} */ (el.querySelector(':scope > .text'));
+	}
+
+	/**
+	 * A segment's "chrome": everything except the text area that is CURRENTLY rendered
+	 * (headings, reference label, quick note, borders). Measured per segment, so
+	 * members with different headings / note heights each get their own value.
+	 * @param {HTMLElement} el
+	 * @returns {number}
+	 */
+	function measureChrome(el) {
+		const text = getTextEl(el);
+		return text ? Math.max(0, el.offsetHeight - text.offsetHeight) : 0;
+	}
+
+	/**
+	 * Natural (content) height of the text area alone, in CSS px.
+	 * @param {HTMLElement} el
+	 * @returns {number}
+	 */
+	function measureNaturalText(el) {
+		const text = getTextEl(el);
+		if (!text) return 0;
+		const prevMinHeight = text.style.minHeight;
+		text.style.minHeight = '0px';
+		const natural = text.offsetHeight;
+		text.style.minHeight = prevMinHeight;
 		return natural;
 	}
 
@@ -169,6 +212,8 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		// across the group — that's the floor (no member's text may clip).
 		memberGeometry = [];
 		naturalContentHeight = 0;
+		memberChrome = {};
+		maxChrome = 0;
 		for (const id of groupIds) {
 			const el = /** @type {HTMLElement|null} */ (
 				document.querySelector(`[data-segment-id="${id}"]`)
@@ -181,6 +226,10 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 			// offsetHeight is the LAYOUT height (CSS px, unaffected by the zoom transform).
 			const natural = measureNaturalHeight(el);
 			if (natural > naturalContentHeight) naturalContentHeight = natural;
+
+			const chrome = measureChrome(el);
+			memberChrome[id] = chrome;
+			if (chrome > maxChrome) maxChrome = chrome;
 		}
 
 		// Collect snap candidates: top & bottom edges (viewport Y) of every segment NOT
@@ -253,9 +302,13 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 			snappedY = null;
 		}
 
-		// Apply the same height to every group member.
+		// newContentHeight is the OUTER height every member should render at. Each
+		// member's text area gets that minus its OWN chrome, so outer boxes match even
+		// when members have different headings / note heights.
 		const next = { ...liveHeights };
-		for (const id of activeGroupIds) next[id] = newContentHeight;
+		for (const id of activeGroupIds) {
+			next[id] = Math.max(0, newContentHeight - (memberChrome[id] ?? 0));
+		}
 		liveHeights = next;
 
 		// Update each member's tooltip to follow its own bottom edge.
@@ -291,7 +344,13 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		if (!activeSegmentId) return;
 
 		const groupIds = [...activeGroupIds];
-		const finalHeight = liveHeights[activeSegmentId];
+		// Persist the TEXT height of the member with the most chrome (outer − maxChrome),
+		// i.e. the group's shared text floor. Every other member derives from it.
+		const draggedLive = liveHeights[activeSegmentId];
+		const finalHeight =
+			draggedLive == null
+				? null
+				: draggedLive + (memberChrome[activeSegmentId] ?? 0) - maxChrome;
 
 		// Mouse-leave is ignored mid-drag (see handleHandleLeave), so the pointer has
 		// usually left the handle by now without the hover state being cleared — which
@@ -457,18 +516,35 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		let changed = false;
 
 		for (const [, els] of groups) {
-			let tallest = 0;
+			// The group's persisted TEXT floor (H), exposed by Segment as data-height-floor.
+			let floor = 0;
 			for (const el of els) {
-				// Layout px — independent of zoom and of any in-flight zoom transition.
-				const natural = measureNaturalHeight(el);
-				if (natural > tallest) tallest = natural;
+				const f = Number(el.getAttribute('data-height-floor'));
+				if (Number.isFinite(f) && f > floor) floor = f;
 			}
-			const rounded = Math.round(tallest);
-			for (const el of els) {
-				const id = el.getAttribute('data-segment-id');
+
+			// Measure each member separately: its own chrome (visible headings, reference,
+			// note) and its own natural text height. Layout px — zoom-independent.
+			const measured = els.map((el) => ({
+				el,
+				chrome: measureChrome(el),
+				naturalText: measureNaturalText(el)
+			}));
+
+			// Shared OUTER height: tallest member once its text is at least the floor.
+			let outer = 0;
+			for (const m of measured) {
+				const candidate = Math.max(floor, m.naturalText) + m.chrome;
+				if (candidate > outer) outer = candidate;
+			}
+
+			// Each member's text area = shared outer − its OWN chrome, so boxes match.
+			for (const m of measured) {
+				const id = m.el.getAttribute('data-segment-id');
 				if (!id) continue;
-				if (next[id] !== rounded) {
-					next[id] = rounded;
+				const textHeight = Math.round(outer - m.chrome);
+				if (next[id] !== textHeight) {
+					next[id] = textHeight;
 					changed = true;
 				}
 			}
@@ -545,7 +621,8 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		if (live != null) return live;
 		const sync = groupSyncHeights[segmentId];
 		if (sync != null) {
-			// Honor the larger of the synced (tallest natural) and persisted heights.
+			// Sync is this member's text height (already ≥ the group floor); keep the max
+			// as a safety net while a fresh persisted value is waiting for a recompute.
 			return persistedHeight != null ? Math.max(sync, persistedHeight) : sync;
 		}
 		return persistedHeight ?? null;

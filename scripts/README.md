@@ -93,3 +93,11 @@ The `seed-data.sql` file contains:
 - The SQL file is generated each time you run `npm run db:export-seed` (overwrites previous version)
 - Consider committing `seed-data.sql` to version control if you want to share the baseline data with your team
 - The snapshot captures the exact state at the time of export, including all IDs and relationships
+
+## convert-segment-heights.browser.js (one-time)
+
+Saved segment heights now mean the **text-area** height (headings and quick notes stack on top). Run this once per study to convert old outer-height values:
+
+1. On the **previous build** (before the text-height change), open the study's Analyze view with Overview off and Headings, Quick Notes and References visible.
+2. Paste the file into the DevTools console: it does a dry run and prints old → new values.
+3. Run `await convertSegmentHeights({ dryRun: false })` to save.

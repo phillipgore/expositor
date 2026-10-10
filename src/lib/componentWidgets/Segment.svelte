@@ -36,8 +36,13 @@
 		 *  also renders a reposition handle / toolbar after its segments. */
 		isLastInSection = false,
 		isVerseSubdivided = false,
-		/** Effective min-height in CSS px (persisted height or live drag override). null = flexible. */
+		/** Effective min-height of the TEXT AREA in CSS px (persisted height, linked-group
+		 *  sync or live drag override). Headings, reference and quick note stack on top of it,
+		 *  so hiding them shrinks the segment by exactly their height. null = flexible. */
 		height = null,
+		/** Persisted text-height floor (own height, or the link group's shared floor).
+		 *  Exposed as data-height-floor so linked groups can equalize outer boxes. */
+		heightFloor = null,
 		/** Whether the segment is resizable (disabled in overview/compare/focus modes). */
 		resizeEnabled = false,
 		/** Whether this segment is currently being resized (drives active handle styling). */
@@ -231,12 +236,12 @@
      class:show-layout-controls={resizeEnabled && $toolbarState.layoutControlsVisible}
      class:link-hovered={resizeEnabled && linkHovered}
      class:link-selected={resizeEnabled && linkSelected}
-     style:min-height={height != null ? `${height}px` : null}
      style:margin-left={leftOffset > 0 ? `${leftOffset}px` : null}
      data-left-offset={leftOffset > 0 ? Math.round(leftOffset) : null}
      style:width={positionWidth != null ? `${positionWidth}px` : null}
      data-segment-id="{segmentId}"
-     data-height-group-id={heightGroupId || null}>
+     data-height-group-id={heightGroupId || null}
+     data-height-floor={heightFloor ?? null}>
 
 
 	
@@ -314,7 +319,7 @@
 		</div>
 	{/if}
 	
-	<div class="text" class:no-headings={!hasAnyHeadings} onclick={handleSegmentClick}>
+	<div class="text" class:no-headings={!hasAnyHeadings} style:min-height={height != null ? `${height}px` : null} onclick={handleSegmentClick}>
 		{#if wrapWordsInHtml}
 			{@html wrapWordsInHtml(text, passageIndex)}
 		{:else}
@@ -494,8 +499,11 @@
 	.text {
 		position: inherit;
 		z-index: inherit;
-		/* Fill remaining vertical space when the segment has a set min-height. */
+		/* Fill remaining vertical space (linked groups / taller neighbours). */
 		flex: 1 1 auto;
+		/* The user-set height is the text area's min-height INCLUDING padding, so the
+		   saved value equals the measured offsetHeight. */
+		box-sizing: border-box;
 		font-size: 1.2rem;
 		line-height: 1.7;
 		/* Was `--gray-100`, which isn't defined (the scale starts at 200), so text inherited. */

@@ -629,31 +629,67 @@
 	 * - tallest = max current layout height (CSS px)  → default value
 	 * - min     = max natural/content height (CSS px) → floor
 	 */
-	function openSetHeightModal() {
-		const ids = activeSegments.map((s) => s.segmentId);
-		if (ids.length === 0) return;
-
-		// offsetHeight is LAYOUT (CSS) px — unaffected by the zoom transform and by an
-		// in-flight zoom transition — so no ÷ scale is needed (or correct).
-		let tallest = 0;
-		let minFloor = 0;
-
+	/**
+	 * Expand a selection of segment ids to include every visible member of any height
+	 * link group they belong to (linked segments always resize together).
+	 * @param {string[]} ids
+	 * @returns {HTMLElement[]}
+	 */
+	function segmentElsWithGroups(ids) {
+		/** @type {Map<string, HTMLElement>} */
+		const els = new Map();
 		for (const id of ids) {
 			const el = /** @type {HTMLElement|null} */ (
 				document.querySelector(`[data-segment-id="${id}"]`)
 			);
 			if (!el) continue;
+			els.set(id, el);
+			const groupId = el.getAttribute('data-height-group-id');
+			if (!groupId) continue;
+			document.querySelectorAll(`[data-height-group-id="${groupId}"]`).forEach((m) => {
+				if (m.classList.contains('compare-hidden')) return;
+				const mid = m.getAttribute('data-segment-id');
+				if (mid) els.set(mid, /** @type {HTMLElement} */ (m));
+			});
+		}
+		return [...els.values()];
+	}
 
-			// Current rendered height (includes any applied min-height).
+	/**
+	 * Measure a segment's chrome (everything currently rendered except the text area:
+	 * headings, reference, quick note, borders) and its natural OUTER height (text area
+	 * at its content height). Layout (CSS) px — unaffected by zoom.
+	 * @param {HTMLElement} el
+	 * @returns {{ chrome: number, naturalOuter: number }}
+	 */
+	function measureSegmentChrome(el) {
+		const text = /** @type {HTMLElement|null} */ (el.querySelector(':scope > .text'));
+		if (!text) return { chrome: 0, naturalOuter: el.offsetHeight };
+		const chrome = Math.max(0, el.offsetHeight - text.offsetHeight);
+		const prev = text.style.minHeight;
+		text.style.minHeight = '0px';
+		const naturalOuter = el.offsetHeight;
+		text.style.minHeight = prev;
+		return { chrome, naturalOuter };
+	}
+
+	/**
+	 * Measure the selected segments and open the Set Height modal. The number entered
+	 * is the OVERALL (outer) height every selected segment will share.
+	 * - tallest = max current outer height  → default value
+	 * - min     = max natural outer height  → floor (can't be shorter than the tallest)
+	 */
+	function openSetHeightModal() {
+		const ids = activeSegments.map((s) => s.segmentId);
+		if (ids.length === 0) return;
+
+		let tallest = 0;
+		let minFloor = 0;
+		for (const el of segmentElsWithGroups(ids)) {
 			const current = el.offsetHeight;
 			if (current > tallest) tallest = current;
-
-			// Natural content height: momentarily clear inline min-height to measure.
-			const prevMinHeight = el.style.minHeight;
-			el.style.minHeight = '0px';
-			const natural = el.offsetHeight;
-			el.style.minHeight = prevMinHeight;
-			if (natural > minFloor) minFloor = natural;
+			const { naturalOuter } = measureSegmentChrome(el);
+			if (naturalOuter > minFloor) minFloor = naturalOuter;
 		}
 
 		setHeightSegmentIds = ids;
@@ -663,21 +699,52 @@
 	}
 
 	/**
-	 * Persist a uniform height across the selected segments via the batch endpoint,
-	 * then refresh loaded data so the new heights survive reload.
-	 * @param {number} height
+	 * Make the selected segments the same OVERALL height. The persisted value is the
+	 * text-area height, so each segment stores (entered − its own chrome); a linked
+	 * group stores (entered − the group's largest chrome) on every member, and the
+	 * group sync gives the other members the extra text height so boxes stay equal.
+	 * Segments needing the same value are batched into one request each.
+	 * @param {number} height - Desired outer height in CSS px
 	 */
 	async function applySetHeight(height) {
 		const ids = setHeightSegmentIds;
 		setHeightModalOpen = false;
 		if (ids.length === 0) return;
 
+		/** @type {Map<string, number>} groupId -> largest chrome */
+		const groupChrome = new Map();
+		const els = segmentElsWithGroups(ids);
+		const measured = els.map((el) => ({
+			el,
+			id: el.getAttribute('data-segment-id') ?? '',
+			groupId: el.getAttribute('data-height-group-id'),
+			chrome: measureSegmentChrome(el).chrome
+		}));
+		for (const m of measured) {
+			if (!m.groupId) continue;
+			groupChrome.set(m.groupId, Math.max(groupChrome.get(m.groupId) ?? 0, m.chrome));
+		}
+
+		/** @type {Map<number, string[]>} text height -> ids */
+		const byValue = new Map();
+		for (const m of measured) {
+			if (!m.id) continue;
+			const chrome = m.groupId ? (groupChrome.get(m.groupId) ?? m.chrome) : m.chrome;
+			const textHeight = Math.max(1, Math.round(height - chrome));
+			if (!byValue.has(textHeight)) byValue.set(textHeight, []);
+			byValue.get(textHeight)?.push(m.id);
+		}
+
 		try {
-			await fetch('/api/segments/batch-height', {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ids, height })
-			});
+			await Promise.all(
+				[...byValue].map(([textHeight, batchIds]) =>
+					fetch('/api/segments/batch-height', {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ ids: batchIds, height: textHeight })
+					})
+				)
+			);
 			await invalidate('app:studies');
 		} catch (error) {
 			console.error('Failed to set segment heights:', error);
@@ -5539,6 +5606,7 @@
 																			isLastInSection={segmentIndex === section.segments.length - 1}
 																			isFirstVisibleInSection={segmentIndex === 0}
 																			height={$toolbarState.overviewMode ? null : segmentResize.getEffectiveHeight(segment.id, resolveSegmentFloor(segment))}
+																			heightFloor={$toolbarState.overviewMode ? null : resolveSegmentFloor(segment)}
 																			resizeEnabled={!$toolbarState.overviewMode && !isHideMode}
 																			isResizing={segmentResize.activeSegmentId === segment.id}
 																			onResizeStart={segmentResize.handleResizeStart}
