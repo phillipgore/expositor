@@ -15,7 +15,7 @@
 	import ToolbarColumn from '$lib/componentWidgets/ToolbarColumn.svelte';
 	import ToolbarSection from '$lib/componentWidgets/ToolbarSection.svelte';
 	import ResizeTooltip from '$lib/componentElements/ResizeTooltip.svelte';
-	import { LINK_KINDS, expandToGroups, getLinkAvailability } from '$lib/utils/linkGroups.js';
+	import { LINK_KINDS, expandToGroups, getLinkAvailability, idsForLink } from '$lib/utils/linkGroups.js';
 	import { useLinkGroupHover } from '$lib/composables/useLinkGroupHover.svelte.js';
 	import SetSegmentHeightModal from '$lib/componentWidgets/modals/SetSegmentHeightModal.svelte';
 	import SetSegmentPositionModal from '$lib/componentWidgets/modals/SetSegmentPositionModal.svelte';
@@ -224,25 +224,14 @@
 		return () => clearTimeout(timer);
 	});
 
-	// Gate the Layout → Link / Unlink Segment Height buttons on the current selection:
-	//  - Link  : 2+ segments selected that aren't already all in the SAME group.
-	//  - Unlink: the selection includes at least one linked segment.
+	// Gate Layout → Link Segment Height with the shared rule (linkStateFromGroups):
+	// ticked when every selected segment is linked, dash when some are, empty for 2+
+	// unlinked. Reading the loaded data re-runs this after a link/unlink refresh.
 	$effect(() => {
-		const segs = activeSegments;
-		const count = segs.length;
-
-		// Read each selected segment's heightGroupId from the loaded structure.
-		const groupIds = segs.map((s) => {
-			const el = document.querySelector(`[data-segment-id="${s.segmentId}"]`);
-			return el?.getAttribute('data-height-group-id') || null;
-		});
-		const hasLinked = groupIds.some((g) => !!g);
-		const allSameGroup =
-			count >= 2 && groupIds.every((g) => g && g === groupIds[0]);
-
-		const canLink = count >= 2 && !allSameGroup;
-		const canUnlink = hasLinked;
-		setSegmentHeightLinkState(count, canLink, canUnlink);
+		const _data = data.passagesWithText;
+		const ids = activeSegments.map((s) => s.segmentId);
+		const { canLink, canUnlink } = getLinkAvailability(LINK_KINDS.segmentHeight, ids);
+		setSegmentHeightLinkState(ids.length, canLink, canUnlink);
 	});
 
 	// Gate Layout → Link / Unlink Column Spacing, Column Width and Section Spacing with
@@ -682,48 +671,30 @@
 	 * canonical height. They resize together thereafter.
 	 */
 	async function linkSegmentHeight() {
-		const ids = activeSegments.map((s) => s.segmentId);
+		// A partly linked selection JOINS the existing group (every member included).
+		const ids = idsForLink(LINK_KINDS.segmentHeight, activeSegments.map((s) => s.segmentId));
 		if (ids.length < 2) return;
-
-		try {
-			// Send ONLY the ids - no seed height. The current rendered height depends on
-			// which content toggles (References, Notations, Paragraphs, Quick Notes) are on
-			// right now; persisting it would bake a non-canonical, toggle-dependent height
-			// into the DB and prevent the group from collapsing back to its natural height
-			// when content is later toggled off. Each member keeps its existing `height`
-			// (NULL = canonical natural height; a real value = the user-set height), and the
-			// client's auto-grow recompute equalizes the group to the tallest member's
-			// canonical height (the larger of its persisted height and its natural content).
-			await fetch('/api/segments/link-height', {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ids })
-			});
-			await invalidate('app:studies');
-		} catch (error) {
-			console.error('Failed to link segment heights:', error);
-		}
+		// Send ONLY the ids - no seed height. The current rendered height depends on
+		// which content toggles (References, Notations, Paragraphs, Quick Notes) are on
+		// right now; persisting it would bake a non-canonical, toggle-dependent height
+		// into the DB. Each member keeps its existing `height` and the client's auto-grow
+		// recompute equalizes the group to the tallest member's canonical height.
+		await runLinkAction('link segment height', () =>
+			patchLinkGroup('/api/segments/link-height', ids)
+		);
 	}
 
 	/**
-	 * Unlink the heights of the selected segments. The server clears the shared
-	 * height-group id on every member of the affected groups; each segment keeps its
-	 * current height but is no longer kept in sync with the others.
+	 * Unlink the SELECTED segments only. Unselected members of their groups stay linked
+	 * to each other (a group left with one member is dissolved server-side). Each
+	 * segment keeps its current height.
 	 */
 	async function unlinkSegmentHeight() {
 		const ids = activeSegments.map((s) => s.segmentId);
 		if (ids.length === 0) return;
-
-		try {
-			await fetch('/api/segments/unlink-height', {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ids })
-			});
-			await invalidate('app:studies');
-		} catch (error) {
-			console.error('Failed to unlink segment heights:', error);
-		}
+		await runLinkAction('unlink segment height', () =>
+			patchLinkGroup('/api/segments/unlink-height', ids)
+		);
 	}
 
 
@@ -944,83 +915,82 @@
 		return true;
 	}
 
-	async function linkColumnSpacing() {
-		const ids = getAdjustableColumnIds();
-		if (ids.length < 2) return;
+	// One link/unlink at a time. The Layout menu stays open after a click and the
+	// checkbox only updates once the save + refresh lands, so a quick second click
+	// would otherwise repeat (or reverse) the action against stale state.
+	let linkActionBusy = false;
+
+	/**
+	 * Run a link/unlink request, then refresh. Ignored while another is in flight;
+	 * failures are logged and shown to the user.
+	 * @param {string} label - e.g. 'link column width'
+	 * @param {() => Promise<unknown>} request
+	 */
+	async function runLinkAction(label, request) {
+		if (linkActionBusy) return;
+		linkActionBusy = true;
 		try {
-			const gap = columnReposition.measureCurrentGap(ids[0]);
-			// Link and equalize in one request so a failure can't leave a mismatched group.
-			await patchLinkGroup('/api/passages/columns/link-spacing', ids, columnReposition.computeOffsets(ids, gap));
+			await request();
 			await invalidate('app:studies');
 		} catch (error) {
-			console.error('Failed to link column spacing:', error);
-			showPopoverError('Could not link column spacing.');
+			console.error(`Failed to ${label}:`, error);
+			showPopoverError(`Could not ${label}.`);
+		} finally {
+			linkActionBusy = false;
 		}
+	}
+
+	async function linkColumnSpacing() {
+		const ids = idsForLink(LINK_KINDS.columnSpacing, getAdjustableColumnIds());
+		if (ids.length < 2) return;
+		// ids[0] is an existing group member when joining, so the group keeps its gap.
+		// Link and equalize in one request so a failure can't leave a mismatched group.
+		await runLinkAction('link column spacing', () => {
+			const gap = columnReposition.measureCurrentGap(ids[0]);
+			return patchLinkGroup('/api/passages/columns/link-spacing', ids, columnReposition.computeOffsets(ids, gap));
+		});
 	}
 
 	async function unlinkColumnSpacing() {
 		const ids = getAdjustableColumnIds();
 		if (ids.length === 0) return;
-		try {
-			await patchLinkGroup('/api/passages/columns/unlink-spacing', ids);
-			await invalidate('app:studies');
-		} catch (error) {
-			console.error('Failed to unlink column spacing:', error);
-			showPopoverError('Could not unlink column spacing.');
-		}
+		await runLinkAction('unlink column spacing', () =>
+			patchLinkGroup('/api/passages/columns/unlink-spacing', ids)
+		);
 	}
 
 	async function linkColumnWidth() {
-		const ids = [...activeColumns];
+		const ids = idsForLink(LINK_KINDS.columnWidth, [...activeColumns]);
 		if (ids.length < 2) return;
-		try {
-			const width = columnResize.measureCurrentWidth(ids[0]);
-			// Link and equalize in one request so a failure can't leave a mismatched group.
-			const clamped = columnResize.clampWidth(width);
-			await patchLinkGroup('/api/passages/columns/link-width', ids, Object.fromEntries(ids.map((id) => [id, clamped])));
-			await invalidate('app:studies');
-		} catch (error) {
-			console.error('Failed to link column width:', error);
-			showPopoverError('Could not link column width.');
-		}
+		await runLinkAction('link column width', () => {
+			const clamped = columnResize.clampWidth(columnResize.measureCurrentWidth(ids[0]));
+			return patchLinkGroup('/api/passages/columns/link-width', ids, Object.fromEntries(ids.map((id) => [id, clamped])));
+		});
 	}
 
 	async function unlinkColumnWidth() {
 		const ids = [...activeColumns];
 		if (ids.length === 0) return;
-		try {
-			await patchLinkGroup('/api/passages/columns/unlink-width', ids);
-			await invalidate('app:studies');
-		} catch (error) {
-			console.error('Failed to unlink column width:', error);
-			showPopoverError('Could not unlink column width.');
-		}
+		await runLinkAction('unlink column width', () =>
+			patchLinkGroup('/api/passages/columns/unlink-width', ids)
+		);
 	}
 
 	async function linkSectionSpacing() {
-		const ids = [...activeSections];
+		const ids = idsForLink(LINK_KINDS.sectionSpacing, [...activeSections]);
 		if (ids.length < 2) return;
-		try {
+		await runLinkAction('link section spacing', () => {
 			const gap = sectionReposition.measureCurrentGap(ids[0]);
-			// Link and equalize in one request so a failure can't leave a mismatched group.
-			await patchLinkGroup('/api/passages/sections/link-spacing', ids, sectionReposition.computeOffsets(ids, gap));
-			await invalidate('app:studies');
-		} catch (error) {
-			console.error('Failed to link section spacing:', error);
-			showPopoverError('Could not link section spacing.');
-		}
+			return patchLinkGroup('/api/passages/sections/link-spacing', ids, sectionReposition.computeOffsets(ids, gap));
+		});
 	}
 
 	async function unlinkSectionSpacing() {
 		const ids = [...activeSections];
 		if (ids.length === 0) return;
-		try {
-			await patchLinkGroup('/api/passages/sections/unlink-spacing', ids);
-			await invalidate('app:studies');
-		} catch (error) {
-			console.error('Failed to unlink section spacing:', error);
-			showPopoverError('Could not unlink section spacing.');
-		}
+		await runLinkAction('unlink section spacing', () =>
+			patchLinkGroup('/api/passages/sections/unlink-spacing', ids)
+		);
 	}
 
 	// ─── Connection quick-note Slide / Position / Offset modals ───────────────
@@ -1239,6 +1209,20 @@
 		if (conns.length === 0) return;
 		await Promise.all(
 			conns.map((c) => saveQuickNotePlacement(c.id, { noteAnchorT: null }))
+		);
+	}
+
+	/**
+	 * Connect menu → Reset Quick Note Placement: clear slide, position and offset in
+	 * one PATCH per selected noted connection (the card's side is left as chosen).
+	 */
+	async function resetQuickNotePlacement() {
+		const conns = getSelectedNoteConnections();
+		if (conns.length === 0) return;
+		await Promise.all(
+			conns.map((c) =>
+				saveQuickNotePlacement(c.id, { noteAnchorT: null, noteOffset: null, noteLead: null })
+			)
 		);
 	}
 
@@ -2897,6 +2881,7 @@
 		const handleResetQuickNoteOffsetEvent = () => resetQuickNoteOffset();
 		const handleSetQuickNoteSlideEvent = () => openSetQuickNoteSlideModal();
 		const handleResetQuickNoteSlideEvent = () => resetQuickNoteSlide();
+		const handleResetQuickNotePlacementEvent = () => resetQuickNotePlacement();
 
 
 		// Export (Export menu): capture the visual analyze content (the zoom-transformed
@@ -2947,6 +2932,7 @@
 		window.addEventListener('reset-connection-note-offset', handleResetQuickNoteOffsetEvent);
 		window.addEventListener('set-connection-note-slide', handleSetQuickNoteSlideEvent);
 		window.addEventListener('reset-connection-note-slide', handleResetQuickNoteSlideEvent);
+		window.addEventListener('reset-connection-note-placement', handleResetQuickNotePlacementEvent);
 
 		window.addEventListener('insert-connection', handleInsertConnectionEvent);
 
@@ -3013,6 +2999,7 @@
 			window.removeEventListener('reset-connection-note-offset', handleResetQuickNoteOffsetEvent);
 			window.removeEventListener('set-connection-note-slide', handleSetQuickNoteSlideEvent);
 			window.removeEventListener('reset-connection-note-slide', handleResetQuickNoteSlideEvent);
+			window.removeEventListener('reset-connection-note-placement', handleResetQuickNotePlacementEvent);
 			window.removeEventListener('insert-connection', handleInsertConnectionEvent);
 
 

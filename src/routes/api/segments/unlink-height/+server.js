@@ -1,15 +1,14 @@
 import { db } from '$lib/server/db/index.js';
 import { passageSegment } from '$lib/server/db/schema';
-import { inArray } from 'drizzle-orm';
+import { unlinkSelected } from '$lib/server/db/linkGroups.js';
 import { auth } from '$lib/server/auth';
 import { json } from '@sveltejs/kit';
 
 /**
  * PATCH /api/segments/unlink-height
  *
- * Unlink the heights of the selected segments. To keep groups consistent, this
- * resolves the `heightGroupId` of every selected segment and clears the group on
- * ALL members of those groups (so you can't leave a half-linked group behind).
+ * Unlink the heights of the SELECTED segments only. Unselected members of their
+ * groups stay linked to each other; a group left with one member is dissolved.
  * Each segment keeps its current `height`; only the link is removed.
  *
  * Body: { ids: string[] }
@@ -32,27 +31,7 @@ export async function PATCH({ request }) {
 			return json({ error: 'Invalid ids' }, { status: 400 });
 		}
 
-		// Resolve the height groups the selected segments belong to.
-		const selected = await db
-			.select({ heightGroupId: passageSegment.heightGroupId })
-			.from(passageSegment)
-			.where(inArray(passageSegment.id, ids));
-
-		const groupIds = [
-			...new Set(selected.map((s) => s.heightGroupId).filter((g) => !!g))
-		];
-
-		if (groupIds.length === 0) {
-			// Nothing linked in the selection — no-op success.
-			return json({ success: true });
-		}
-
-		// Clear the link on every member of the affected groups.
-		await db
-			.update(passageSegment)
-			.set({ heightGroupId: null, updatedAt: new Date() })
-			.where(inArray(passageSegment.heightGroupId, /** @type {string[]} */ (groupIds)));
-
+		await unlinkSelected(db, passageSegment, 'heightGroupId', ids);
 		return json({ success: true });
 	} catch (error) {
 		console.error('Error unlinking segment heights:', error);

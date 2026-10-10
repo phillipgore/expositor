@@ -61,7 +61,7 @@ function groupValues(values) {
  * @param {string[]} groupIds
  * @param {Date} now
  */
-async function clearSingletonGroups(tx, table, groupKey, groupIds, now) {
+export async function clearSingletonGroups(tx, table, groupKey, groupIds, now) {
 	if (groupIds.length === 0) return;
 	const counts = await tx
 		.select({ groupId: table[groupKey], n: sql`count(*)`.mapWith(Number) })
@@ -77,6 +77,32 @@ async function clearSingletonGroups(tx, table, groupKey, groupIds, now) {
 }
 
 /**
+ * Unlink ONLY the given ids (not the rest of their groups). Unselected members stay
+ * linked to each other; any group left with a single member is dissolved so nothing
+ * is "linked" to nothing. Runs in one transaction.
+ * @param {any} dbx
+ * @param {any} table
+ * @param {string} groupKey
+ * @param {string[]} ids
+ */
+export async function unlinkSelected(dbx, table, groupKey, ids) {
+	await dbx.transaction(async (/** @type {any} */ tx) => {
+		const selected = await tx
+			.select({ groupId: table[groupKey] })
+			.from(table)
+			.where(inArray(table.id, ids));
+		const groupIds = [...new Set(selected.map((/** @type {any} */ s) => s.groupId).filter((/** @type {any} */ g) => !!g))];
+		if (groupIds.length === 0) return;
+		const now = new Date();
+		await tx
+			.update(table)
+			.set({ [groupKey]: null, updatedAt: now })
+			.where(inArray(table.id, ids));
+		await clearSingletonGroups(tx, table, groupKey, groupIds, now);
+	});
+}
+
+/**
  * Shared Link / Unlink handlers for layout "link groups" — the column-spacing,
  * column-width and section-spacing counterparts of segment-height linking
  * (see /api/segments/link-height and /unlink-height).
@@ -87,9 +113,9 @@ async function clearSingletonGroups(tx, table, groupKey, groupIds, now) {
  *          study). Optional `values: { [id]: number|null }` writes `valueKey` in the
  *          SAME transaction so the group starts equalized atomically. Any previous
  *          group left with a single member is cleared.
- * Unlink — resolves the groups the selected ids belong to and clears the group on
- *          ALL members of those groups (no half-linked groups are left behind).
- *          Each item keeps its current value.
+ * Unlink — clears the group on the SELECTED ids only. Unselected members stay linked
+ *          to each other; a group left with one member is dissolved. Each item keeps
+ *          its current value.
  *
  * @param {any} table - Drizzle table (passageColumn / passageSection)
  * @param {string} groupKey - Property name of the group column on that table
@@ -183,17 +209,7 @@ export function createLinkHandlers(table, groupKey, label, valueKey) {
 			if (!(await authorizeStructureIds(db, session.user.id, ids))) {
 				return json({ error: 'Not found or not authorized' }, { status: 403 });
 			}
-			const selected = await db
-				.select({ groupId: table[groupKey] })
-				.from(table)
-				.where(inArray(table.id, ids));
-			const groupIds = [...new Set(selected.map((s) => s.groupId).filter((g) => !!g))];
-			if (groupIds.length === 0) return json({ success: true });
-
-			await db
-				.update(table)
-				.set({ [groupKey]: null, updatedAt: new Date() })
-				.where(inArray(table[groupKey], groupIds));
+			await unlinkSelected(db, table, groupKey, ids);
 			return json({ success: true });
 		} catch (error) {
 			console.error(`Error unlinking ${label}:`, error);

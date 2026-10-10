@@ -4,6 +4,7 @@ import { inArray } from 'drizzle-orm';
 import { auth } from '$lib/server/auth';
 import { json } from '@sveltejs/kit';
 import { v4 as uuidv4 } from 'uuid';
+import { clearSingletonGroups } from '$lib/server/db/linkGroups.js';
 
 /**
  * PATCH /api/segments/link-height
@@ -54,7 +55,16 @@ export async function PATCH({ request }) {
 			updates.height = seedHeight;
 		}
 
-		await db.update(passageSegment).set(updates).where(inArray(passageSegment.id, ids));
+		await db.transaction(async (tx) => {
+			// Groups the selection is leaving; any left with one member are dissolved.
+			const previous = await tx
+				.select({ heightGroupId: passageSegment.heightGroupId })
+				.from(passageSegment)
+				.where(inArray(passageSegment.id, ids));
+			const oldGroupIds = [...new Set(previous.map((p) => p.heightGroupId).filter((g) => !!g))];
+			await tx.update(passageSegment).set(updates).where(inArray(passageSegment.id, ids));
+			await clearSingletonGroups(tx, passageSegment, 'heightGroupId', /** @type {string[]} */ (oldGroupIds), updates.updatedAt);
+		});
 
 		return json({ success: true, heightGroupId });
 	} catch (error) {

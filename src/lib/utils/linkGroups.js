@@ -11,11 +11,12 @@
  * @property {string} groupAttr - Attribute holding the group id (e.g. 'data-width-group-id')
  */
 
-/** @type {Record<'columnSpacing'|'columnWidth'|'sectionSpacing', LinkGroupKind>} */
+/** @type {Record<'columnSpacing'|'columnWidth'|'sectionSpacing'|'segmentHeight', LinkGroupKind>} */
 export const LINK_KINDS = {
 	columnSpacing: { idAttr: 'data-column-id', groupAttr: 'data-spacing-group-id' },
 	columnWidth: { idAttr: 'data-column-id', groupAttr: 'data-width-group-id' },
-	sectionSpacing: { idAttr: 'data-section-id', groupAttr: 'data-spacing-group-id' }
+	sectionSpacing: { idAttr: 'data-section-id', groupAttr: 'data-spacing-group-id' },
+	segmentHeight: { idAttr: 'data-segment-id', groupAttr: 'data-height-group-id' }
 };
 
 /**
@@ -59,15 +60,50 @@ export function expandToGroups(kind, ids) {
 }
 
 /**
- * Compute Link / Unlink availability for a selection, using the same rule as linked
- * segment heights: Link needs 2+ items not already all in ONE group; Unlink needs at
- * least one linked item.
+ * Pure Link checkbox state from the group ids of the counted selection (null = not linked).
+ * - 'on'    — every selected item is linked (any groups)  → ticked; click UNLINKS the selection
+ * - 'mixed' — some selected items linked, some not         → dash;   click JOINS them into one group
+ * - 'off'   — 2+ selected, none linked                     → empty;  click LINKS them
+ * - null    — nothing to do (nothing selected, or a single unlinked item) → disabled
+ * @param {(string|null)[]} groups
+ * @returns {'on'|'mixed'|'off'|null}
+ */
+export function linkStateFromGroups(groups) {
+	const linked = groups.filter((g) => !!g).length;
+	if (groups.length === 0) return null;
+	if (linked === groups.length) return 'on';
+	if (linked > 0) return 'mixed';
+	return groups.length >= 2 ? 'off' : null;
+}
+
+/**
+ * Link / Unlink availability for a selection, as the flags the toolbar store holds.
+ * canLink = click links/joins ('off' | 'mixed'); canUnlink = click unlinks ('on').
+ * Both true is the 'mixed' (dash) state — clicking it joins, never unlinks.
  * @param {LinkGroupKind} kind
  * @param {string[]} ids
  * @returns {{ canLink: boolean, canUnlink: boolean }}
  */
 export function getLinkAvailability(kind, ids) {
-	const groups = ids.map((id) => getGroupId(kind, id));
-	const allSame = ids.length >= 2 && groups.every((g) => g && g === groups[0]);
-	return { canLink: ids.length >= 2 && !allSame, canUnlink: groups.some((g) => !!g) };
+	const state = linkStateFromGroups(ids.map((id) => getGroupId(kind, id)));
+	return {
+		canLink: state === 'off' || state === 'mixed',
+		canUnlink: state === 'on' || state === 'mixed'
+	};
+}
+
+/**
+ * The ids a Link click should send. A partly linked selection JOINS the existing group:
+ * every member of each group it touches is included (so nothing outside the selection is
+ * split off), with linked items first so ids[0] — the item whose value the group adopts —
+ * is an existing member rather than the newcomer.
+ * @param {LinkGroupKind} kind
+ * @param {string[]} ids
+ * @returns {string[]}
+ */
+export function idsForLink(kind, ids) {
+	const expanded = expandToGroups(kind, ids);
+	const linked = expanded.filter((id) => !!getGroupId(kind, id));
+	const unlinked = expanded.filter((id) => !getGroupId(kind, id));
+	return [...linked, ...unlinked];
 }
