@@ -634,13 +634,12 @@
 	let setHeightMin = $state(0);
 
 	/**
-	 * Measure the selected segments and open the Set Height modal.
-	 * - tallest = max current layout height (CSS px)  → default value
-	 * - min     = max natural/content height (CSS px) → floor
-	 */
-	/**
 	 * Expand a selection of segment ids to include every visible member of any height
 	 * link group they belong to (linked segments always resize together).
+	 *
+	 * Focus-hidden members are skipped, so callers must NOT run in Focus: the group's
+	 * shared chrome would ignore hidden members and boxes would diverge after leaving
+	 * Focus. Layout (and so Set Height / resize) is disabled in Focus for this reason.
 	 * @param {string[]} ids
 	 * @returns {HTMLElement[]}
 	 */
@@ -665,21 +664,28 @@
 	}
 
 	/**
-	 * Measure a segment's chrome (everything currently rendered except the text area:
-	 * headings, reference, quick note, borders) and its natural OUTER height (text area
-	 * at its content height). Layout (CSS) px — unaffected by zoom.
-	 * @param {HTMLElement} el
-	 * @returns {{ chrome: number, naturalOuter: number }}
+	 * Measure each segment's current outer height, its chrome (everything rendered
+	 * except the text area: headings, reference, quick note, borders) and its natural
+	 * OUTER height (text area at content height). Layout (CSS) px — unaffected by zoom.
+	 * Batched: all reads in one pass, then all text min-heights are cleared together
+	 * for one natural-height pass, so N segments force two layouts instead of 2N.
+	 * @param {HTMLElement[]} els
+	 * @returns {Array<{ outer: number, chrome: number, naturalOuter: number }>}
 	 */
-	function measureSegmentChrome(el) {
-		const text = /** @type {HTMLElement|null} */ (el.querySelector(':scope > .text'));
-		if (!text) return { chrome: 0, naturalOuter: el.offsetHeight };
-		const chrome = Math.max(0, el.offsetHeight - text.offsetHeight);
-		const prev = text.style.minHeight;
-		text.style.minHeight = '0px';
-		const naturalOuter = el.offsetHeight;
-		text.style.minHeight = prev;
-		return { chrome, naturalOuter };
+	function measureSegmentsChrome(els) {
+		const texts = els.map(
+			(el) => /** @type {HTMLElement|null} */ (el.querySelector(':scope > .text'))
+		);
+		const base = els.map((el, i) => {
+			const outer = el.offsetHeight;
+			const text = texts[i];
+			return { outer, chrome: text ? Math.max(0, outer - text.offsetHeight) : 0 };
+		});
+		const prev = texts.map((t) => t?.style.minHeight ?? '');
+		texts.forEach((t) => t && (t.style.minHeight = '0px'));
+		const naturals = els.map((el) => el.offsetHeight);
+		texts.forEach((t, i) => t && (t.style.minHeight = prev[i]));
+		return base.map((b, i) => ({ ...b, naturalOuter: naturals[i] }));
 	}
 
 	/**
@@ -694,10 +700,8 @@
 
 		let tallest = 0;
 		let minFloor = 0;
-		for (const el of segmentElsWithGroups(ids)) {
-			const current = el.offsetHeight;
-			if (current > tallest) tallest = current;
-			const { naturalOuter } = measureSegmentChrome(el);
+		for (const { outer, naturalOuter } of measureSegmentsChrome(segmentElsWithGroups(ids))) {
+			if (outer > tallest) tallest = outer;
 			if (naturalOuter > minFloor) minFloor = naturalOuter;
 		}
 
@@ -723,11 +727,12 @@
 		/** @type {Map<string, number>} groupId -> largest chrome */
 		const groupChrome = new Map();
 		const els = segmentElsWithGroups(ids);
-		const measured = els.map((el) => ({
+		const chromes = measureSegmentsChrome(els);
+		const measured = els.map((el, i) => ({
 			el,
 			id: el.getAttribute('data-segment-id') ?? '',
 			groupId: el.getAttribute('data-height-group-id'),
-			chrome: measureSegmentChrome(el).chrome
+			chrome: chromes[i].chrome
 		}));
 		for (const m of measured) {
 			if (!m.groupId) continue;
@@ -745,18 +750,30 @@
 		}
 
 		try {
-			await Promise.all(
-				[...byValue].map(([textHeight, batchIds]) =>
-					fetch('/api/segments/batch-height', {
+			const results = await Promise.all(
+				[...byValue].map(async ([textHeight, batchIds]) => {
+					const res = await fetch('/api/segments/batch-height', {
 						method: 'PATCH',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ ids: batchIds, height: textHeight })
-					})
-				)
+					});
+					return { res, batchIds };
+				})
 			);
-			await invalidate('app:studies');
+			// fetch only rejects on network errors — surface HTTP failures too, since a
+			// partial failure would leave a linked group with mismatched heights.
+			const failed = results.filter((r) => !r.res.ok);
+			if (failed.length > 0) {
+				console.error(
+					'Failed to set segment heights for:',
+					failed.map((r) => ({ status: r.res.status, ids: r.batchIds }))
+				);
+			}
 		} catch (error) {
 			console.error('Failed to set segment heights:', error);
+		} finally {
+			// Refresh even after a partial failure so the UI reflects what was saved.
+			await invalidate('app:studies');
 		}
 	}
 
@@ -2306,7 +2323,7 @@
 		
 		// Wait for DOM to update before applying classes
 		tick().then(() => {
-			// Clear all compare position classes first
+			// Clear all Focus position classes first
 			document.querySelectorAll('.focus-first-segment, .focus-last-segment, .focus-first-section').forEach(el => {
 				el.classList.remove('focus-first-segment', 'focus-last-segment', 'focus-first-section');
 			});

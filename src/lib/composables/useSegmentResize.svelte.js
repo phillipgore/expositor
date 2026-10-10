@@ -142,21 +142,6 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 	}
 
 	/**
-	 * Natural (content) height of the text area alone, in CSS px.
-	 * @param {HTMLElement} el
-	 * @returns {number}
-	 */
-	function measureNaturalText(el) {
-		const text = getTextEl(el);
-		if (!text) return 0;
-		const prevMinHeight = text.style.minHeight;
-		text.style.minHeight = '0px';
-		const natural = text.offsetHeight;
-		text.style.minHeight = prevMinHeight;
-		return natural;
-	}
-
-	/**
 	 * Resolve the link-group members for a segment from the DOM. Returns the segment's
 	 * own id alone when it isn't linked, or all VISIBLE members sharing its
 	 * `data-height-group-id`. Focus-hidden members are excluded.
@@ -525,10 +510,18 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 
 			// Measure each member separately: its own chrome (visible headings, reference,
 			// note) and its own natural text height. Layout px — zoom-independent.
-			const measured = els.map((el) => ({
+			// Batched: all chrome reads first, then one clear/read/restore pass for natural
+			// text heights — avoids a forced layout per member on large groups.
+			const chromes = els.map((el) => measureChrome(el));
+			const texts = els.map((el) => getTextEl(el));
+			const prevMins = texts.map((t) => t?.style.minHeight ?? '');
+			texts.forEach((t) => t && (t.style.minHeight = '0px'));
+			const naturals = texts.map((t) => (t ? t.offsetHeight : 0));
+			texts.forEach((t, i) => t && (t.style.minHeight = prevMins[i]));
+			const measured = els.map((el, i) => ({
 				el,
-				chrome: measureChrome(el),
-				naturalText: measureNaturalText(el)
+				chrome: chromes[i],
+				naturalText: naturals[i]
 			}));
 
 			// Shared OUTER height: tallest member once its text is at least the floor.
