@@ -88,7 +88,8 @@ export const DATA_ATTRIBUTES = {
 /**
  * Segment position (Analyze view): a segment pulled to the right must keep its left
  * edge at least this many CSS px to the LEFT of the right edge of the segment above
- * it (in reading order within its column).
+ * it (in reading order within its column). A column's first segment is measured against
+ * an imaginary flush (offset 0) segment above it.
  */
 export const SEGMENT_POSITION_GAP = 36;
 

@@ -1,8 +1,14 @@
 import { db } from '$lib/server/db/index.js';
-import { passageSegment } from '$lib/server/db/schema';
-import { inArray } from 'drizzle-orm';
+import { passageSegment, study } from '$lib/server/db/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 import { auth } from '$lib/server/auth';
 import { json } from '@sveltejs/kit';
+import { resolveStructureOwners } from '$lib/server/db/structureOwners.js';
+
+/** Upper bound on segments per request. */
+const MAX_IDS = 1000;
+/** Upper bound on the offset (CSS px) — far beyond any real layout, well inside int4. */
+const MAX_OFFSET = 10000;
 
 /**
  * PATCH /api/segments/batch-position
@@ -32,18 +38,37 @@ export async function PATCH({ request }) {
 		const { ids, offset } = body;
 
 		// Validate ids: must be a non-empty array of strings.
-		if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) {
+		if (
+			!Array.isArray(ids) ||
+			ids.length === 0 ||
+			ids.length > MAX_IDS ||
+			!ids.every((id) => typeof id === 'string')
+		) {
 			return json({ error: 'Invalid ids' }, { status: 400 });
 		}
 
-		// Validate offset: must be null (flush) or a non-negative finite number.
+		// Validate offset: must be null (flush) or a finite number in [0, MAX_OFFSET].
 		if (offset !== null) {
-			if (typeof offset !== 'number' || !Number.isFinite(offset) || offset < 0) {
+			if (typeof offset !== 'number' || !Number.isFinite(offset) || offset < 0 || offset > MAX_OFFSET) {
 				return json({ error: 'Invalid offset' }, { status: 400 });
 			}
 		}
 
 		const rounded = offset === null ? null : Math.round(offset);
+
+		// Every segment must belong to a study owned by the current user.
+		const owners = await resolveStructureOwners(db, ids);
+		const studyIds = [...new Set(Object.values(owners))];
+		if (Object.keys(owners).length !== new Set(ids).size || studyIds.length === 0) {
+			return json({ error: 'Segment not found or not authorized' }, { status: 403 });
+		}
+		const owned = await db
+			.select({ id: study.id })
+			.from(study)
+			.where(and(inArray(study.id, studyIds), eq(study.userId, session.user.id)));
+		if (owned.length !== studyIds.length) {
+			return json({ error: 'Segment not found or not authorized' }, { status: 403 });
+		}
 
 		await db
 			.update(passageSegment)

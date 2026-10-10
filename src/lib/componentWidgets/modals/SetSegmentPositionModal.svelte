@@ -99,7 +99,7 @@
 	</div>
 	<p class="hint" class:error={isInvalid}>
 		{#if max === 0}
-			{segmentCount > 1 ? 'These segments' : 'This segment'} can't move right — the segment above leaves no room.
+			{segmentCount > 1 ? 'These segments' : 'This segment'} can't move right — the segment above leaves no room. Applying 0px returns it flush.
 		{:else}
 			Position must be between 0px and {max}px.
 		{/if}

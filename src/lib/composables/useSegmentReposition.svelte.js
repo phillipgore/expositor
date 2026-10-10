@@ -201,12 +201,20 @@ export function useSegmentReposition({ getScale, getOffset, getMaxOffset, getCon
 	 * @param {number|null} offset
 	 */
 	async function persist(segmentIds, offset) {
-		await fetch('/api/segments/batch-position', {
-			method: 'PATCH',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ ids: segmentIds, offset })
-		});
-		if (onPersist) await onPersist();
+		try {
+			const res = await fetch('/api/segments/batch-position', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ids: segmentIds, offset })
+			});
+			if (!res.ok) {
+				const detail = await res.json().catch(() => null);
+				throw new Error(detail?.error ?? `HTTP ${res.status}`);
+			}
+		} finally {
+			// Refresh either way so the view reflects what was actually stored.
+			if (onPersist) await onPersist();
+		}
 	}
 
 	/** @param {string[]} segmentIds */

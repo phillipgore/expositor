@@ -334,13 +334,20 @@
 	// section and column widen by the column's largest offset (its "extent") so they
 	// contain it. The RENDERED offset is capped so the segment's left edge stays at least
 	// SEGMENT_POSITION_GAP (36px) left of the right edge of the segment above it (in
-	// reading order through the column's sections). The column's very first segment has
-	// nothing above it, so it can't move. The cap is applied at render time only — the
+	// reading order through the column's sections). The column's very first segment is
+	// measured against an imaginary flush (offset 0) segment above it. Offsets are
+	// ignored in Overview / Compare / Focus modes. The cap is applied at render time only — the
 	// stored value is untouched, so resetting the segment above lets this one re-expand.
 
 	// Horizontal padding inside a .column (0.2rem each side) — a segment's width is the
 	// column's width minus this.
+	// ⚠️ Keep in sync with `.column { padding: 0.2rem }` below (1rem = 10px).
 	const COLUMN_INNER_PADDING = 4;
+
+	/** Segment offsets are ignored (and not editable) in Overview / Compare / Focus modes. */
+	function isSegmentPositionDisabled() {
+		return $toolbarState.overviewMode || $toolbarState.focusMode || isHideMode;
+	}
 
 	/**
 	 * Resolve the width (CSS px) a column renders at BEFORE any segment extent is added,
@@ -377,7 +384,7 @@
 		/** @type {Record<string, number>} */
 		const max = {};
 		let extent = 0;
-		const disabled = $toolbarState.overviewMode || isHideMode;
+		const disabled = isSegmentPositionDisabled();
 		const segmentWidth = resolveColumnBaseWidth(column) - COLUMN_INNER_PADDING;
 
 		/** @type {number|null} */
@@ -5232,7 +5239,7 @@
 																			leftOffset={segmentPositions.offsets[segment.id] ?? 0}
 																			topShift={segmentPositions.shift[segment.id] ?? 0}
 																			positionWidth={segmentExtent > 0 ? columnBaseWidth - COLUMN_INNER_PADDING : null}
-																			canReposition={!$toolbarState.overviewMode && !isHideMode && (segmentPositions.max[segment.id] ?? 0) > 0}
+																			canReposition={!isSegmentPositionDisabled() && (segmentPositions.max[segment.id] ?? 0) > 0}
 																			isRepositioning={segmentReposition.activeSegmentId === segment.id}
 																			onRepositionStart={segmentReposition.handleRepositionStart}
 																		/>
@@ -5878,6 +5885,7 @@
 		width: 27.8rem;
 		margin-bottom: 4.4rem;
 		border-radius: 0.3rem;
+		/* ⚠️ Mirrored by COLUMN_INNER_PADDING (script) — update both together. */
 		padding: 0.2rem;
 		/* When the column's TOP segment is pushed down (the first section's reposition
 		   offset, live or persisted), slide the WHOLE column box down by that amount
