@@ -15,8 +15,8 @@
  * @module structureOwners
  */
 
-import { passage, passageColumn, passageSection, passageSegment } from './schema.js';
-import { eq, inArray } from 'drizzle-orm';
+import { passage, passageColumn, passageSection, passageSegment, study } from './schema.js';
+import { and, eq, inArray } from 'drizzle-orm';
 
 /**
  * Map each given structure id to the `study.id` that owns it.
@@ -62,4 +62,27 @@ export async function resolveStructureOwners(dbx, ids) {
 	for (const row of columns) owners[row.id] = row.studyId;
 
 	return owners;
+}
+
+/**
+ * Authorize a write: every given structure id must exist and belong to a study owned
+ * by `userId`. Returns the distinct owning study ids on success, or null when any id
+ * is unknown or owned by someone else (callers should respond 403).
+ *
+ * @param {Object} dbx
+ * @param {string} userId
+ * @param {string[]} ids - Mixed column / section / segment ids
+ * @returns {Promise<string[]|null>}
+ */
+export async function authorizeStructureIds(dbx, userId, ids) {
+	if (!ids || ids.length === 0) return null;
+	const owners = await resolveStructureOwners(dbx, ids);
+	if (Object.keys(owners).length !== new Set(ids).size) return null;
+	const studyIds = [...new Set(Object.values(owners))];
+	if (studyIds.length === 0) return null;
+	const owned = await dbx
+		.select({ id: study.id })
+		.from(study)
+		.where(and(inArray(study.id, studyIds), eq(study.userId, userId)));
+	return owned.length === studyIds.length ? studyIds : null;
 }

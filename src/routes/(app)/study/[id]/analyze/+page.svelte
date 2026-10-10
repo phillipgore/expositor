@@ -927,13 +927,15 @@
 	 * PATCH a link/unlink endpoint. Returns true on success.
 	 * @param {string} url
 	 * @param {string[]} ids
+	 * @param {Record<string, number|null>} [values] - Per-item values written in the same
+	 *   transaction as the link, so the group starts equalized atomically.
 	 * @returns {Promise<boolean>}
 	 */
-	async function patchLinkGroup(url, ids) {
+	async function patchLinkGroup(url, ids, values) {
 		const response = await fetch(url, {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ ids })
+			body: JSON.stringify(values ? { ids, values } : { ids })
 		});
 		if (!response.ok) {
 			const body = await response.json().catch(() => ({}));
@@ -947,9 +949,9 @@
 		if (ids.length < 2) return;
 		try {
 			const gap = columnReposition.measureCurrentGap(ids[0]);
-			await patchLinkGroup('/api/passages/columns/link-spacing', ids);
-			// setSpacing persists the matched gap and refreshes data.
-			await columnReposition.setSpacing(ids, gap);
+			// Link and equalize in one request so a failure can't leave a mismatched group.
+			await patchLinkGroup('/api/passages/columns/link-spacing', ids, columnReposition.computeOffsets(ids, gap));
+			await invalidate('app:studies');
 		} catch (error) {
 			console.error('Failed to link column spacing:', error);
 			showPopoverError('Could not link column spacing.');
@@ -973,9 +975,10 @@
 		if (ids.length < 2) return;
 		try {
 			const width = columnResize.measureCurrentWidth(ids[0]);
-			await patchLinkGroup('/api/passages/columns/link-width', ids);
-			// setWidth persists the matched width and refreshes data.
-			await columnResize.setWidth(ids, width);
+			// Link and equalize in one request so a failure can't leave a mismatched group.
+			const clamped = columnResize.clampWidth(width);
+			await patchLinkGroup('/api/passages/columns/link-width', ids, Object.fromEntries(ids.map((id) => [id, clamped])));
+			await invalidate('app:studies');
 		} catch (error) {
 			console.error('Failed to link column width:', error);
 			showPopoverError('Could not link column width.');
@@ -999,9 +1002,9 @@
 		if (ids.length < 2) return;
 		try {
 			const gap = sectionReposition.measureCurrentGap(ids[0]);
-			await patchLinkGroup('/api/passages/sections/link-spacing', ids);
-			// setSpacing persists the matched gap and refreshes data.
-			await sectionReposition.setSpacing(ids, gap);
+			// Link and equalize in one request so a failure can't leave a mismatched group.
+			await patchLinkGroup('/api/passages/sections/link-spacing', ids, sectionReposition.computeOffsets(ids, gap));
+			await invalidate('app:studies');
 		} catch (error) {
 			console.error('Failed to link section spacing:', error);
 			showPopoverError('Could not link section spacing.');

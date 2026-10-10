@@ -25,7 +25,7 @@ export const LINK_KINDS = {
  * @returns {string|null}
  */
 export function getGroupId(kind, id) {
-	const el = document.querySelector(`[${kind.idAttr}="${id}"]`);
+	const el = document.querySelector(`[${kind.idAttr}="${CSS.escape(id)}"]`);
 	return el?.getAttribute(kind.groupAttr) || null;
 }
 
@@ -39,7 +39,7 @@ export function getGroupId(kind, id) {
 export function getGroupMemberIds(kind, id) {
 	const groupId = getGroupId(kind, id);
 	if (!groupId) return [id];
-	const members = Array.from(document.querySelectorAll(`[${kind.groupAttr}="${groupId}"][${kind.idAttr}]`))
+	const members = Array.from(document.querySelectorAll(`[${kind.groupAttr}="${CSS.escape(groupId)}"][${kind.idAttr}]`))
 		.map((el) => el.getAttribute(kind.idAttr))
 		.filter((m) => !!m && m !== id);
 	return [id, .../** @type {string[]} */ (members)];

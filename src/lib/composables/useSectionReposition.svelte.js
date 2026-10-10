@@ -1,4 +1,5 @@
 import { getRenderedScale } from '$lib/utils/zoomScale.js';
+import { patchJson } from '$lib/utils/patchJson.js';
 import { LINK_KINDS, getGroupMemberIds } from '$lib/utils/linkGroups.js';
 /**
  * Section Reposition Composable
@@ -288,13 +289,13 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 					const r = Math.round(liveOffsets[id] ?? 0);
 					offsets[id] = r <= 0 ? null : r;
 				}
-				await fetch('/api/passages/sections/batch-spacing', {
+				await patchJson('/api/passages/sections/batch-spacing', {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ offsets })
 				});
 			} else {
-				await fetch(`/api/passages/sections/${sectionId}`, {
+				await patchJson(`/api/passages/sections/${sectionId}`, {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ topOffset: toPersist })
@@ -346,7 +347,7 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 			liveOffsets = rest;
 		}
 		try {
-			await fetch(`/api/passages/sections/${sectionId}`, {
+			await patchJson(`/api/passages/sections/${sectionId}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ topOffset: null })
@@ -400,6 +401,22 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 
 
 	/**
+	 * Convert a uniform TOTAL gap into each section's stored EXTRA offset.
+	 * @param {string[]} sectionIds
+	 * @param {number} totalGap
+	 * @returns {Record<string, number|null>}
+	 */
+	function computeOffsets(sectionIds, totalGap) {
+		/** @type {Record<string, number|null>} */
+		const offsets = {};
+		for (const sectionId of sectionIds) {
+			const offset = Math.max(0, Math.round(totalGap - measureDefaultGap(sectionId)));
+			offsets[sectionId] = offset <= 0 ? null : offset;
+		}
+		return offsets;
+	}
+
+	/**
 	 * Set a uniform TOTAL vertical gap across one or more sections. The total is converted
 	 * per-section into the stored EXTRA offset (offset = max(0, total − sectionDefault)),
 	 * persisted via PATCH, then data is refreshed once.
@@ -422,7 +439,7 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 						liveOffsets = rest;
 					}
 
-					return fetch(`/api/passages/sections/${sectionId}`, {
+					return patchJson(`/api/passages/sections/${sectionId}`, {
 						method: 'PATCH',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ topOffset: toPersist })
@@ -450,7 +467,7 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 						const { [sectionId]: _drop, ...rest } = liveOffsets;
 						liveOffsets = rest;
 					}
-					return fetch(`/api/passages/sections/${sectionId}`, {
+					return patchJson(`/api/passages/sections/${sectionId}`, {
 						method: 'PATCH',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ topOffset: null })
@@ -470,6 +487,7 @@ export function useSectionReposition({ getScale, getContainer, onPersist, snapTh
 		resetPosition,
 		measureDefaultGap,
 		measureCurrentGap,
+		computeOffsets,
 		setSpacing,
 		resetSpacing,
 

@@ -3,6 +3,7 @@ import { db } from '$lib/server/db/index.js';
 import { passageColumn, passageSection, passageSegment } from '$lib/server/db/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
+import { authorizeStructureIds } from '$lib/server/db/structureOwners.js';
 import { SEGMENT_COLORS, isValidSegmentColor } from '$lib/utils/segmentColors.js';
 
 /**
@@ -50,6 +51,11 @@ export const PATCH = async ({ request, params }) => {
 
 		const body = await request.json();
 		const columnId = params.id;
+
+		// The column must belong to a study owned by the current user.
+		if (!(await authorizeStructureIds(db, session.user.id, [columnId]))) {
+			return json({ error: 'Column not found or not authorized' }, { status: 403 });
+		}
 
 		// Handle left-offset update (horizontal column spacing).
 		// leftOffset is the EXTRA spacing in px added to the gap on the column's

@@ -43,7 +43,7 @@ export function useLinkGroupHover({ kind, handleSelector, getActiveId, getDragVa
 	function buildTips(groupId, height, label = 'Linked') {
 		/** @type {{ id: string, x: number, y: number, label: string, height: number|null }[]} */
 		const tips = [];
-		document.querySelectorAll(`[${kind.groupAttr}="${groupId}"][${kind.idAttr}]`).forEach((el) => {
+		document.querySelectorAll(`[${kind.groupAttr}="${CSS.escape(groupId)}"][${kind.idAttr}]`).forEach((el) => {
 			if (el.classList.contains('compare-hidden')) return;
 			const memberId = el.getAttribute(kind.idAttr);
 			if (!memberId) return;

@@ -3,6 +3,7 @@ import { passageColumn } from '$lib/server/db/schema.js';
 import { inArray } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
 import { json } from '@sveltejs/kit';
+import { authorizeStructureIds } from '$lib/server/db/structureOwners.js';
 
 /**
  * PATCH /api/passages/columns/batch-width
@@ -38,6 +39,11 @@ export async function PATCH({ request }) {
 			if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
 				return json({ error: 'Invalid width' }, { status: 400 });
 			}
+		}
+
+		// Every column must belong to a study owned by the current user.
+		if (!(await authorizeStructureIds(db, session.user.id, ids))) {
+			return json({ error: 'Column not found or not authorized' }, { status: 403 });
 		}
 
 		await db

@@ -1,4 +1,5 @@
 import { getRenderedScale } from '$lib/utils/zoomScale.js';
+import { patchJson } from '$lib/utils/patchJson.js';
 import { LINK_KINDS, getGroupMemberIds } from '$lib/utils/linkGroups.js';
 
 /**
@@ -362,13 +363,13 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 					const r = Math.round(liveOffsets[id] ?? 0);
 					offsets[id] = r <= 0 ? null : r;
 				}
-				await fetch('/api/passages/columns/batch-spacing', {
+				await patchJson('/api/passages/columns/batch-spacing', {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ offsets })
 				});
 			} else {
-				await fetch(`/api/passages/columns/${columnId}`, {
+				await patchJson(`/api/passages/columns/${columnId}`, {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ leftOffset: toPersist })
@@ -409,6 +410,34 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 	}
 
 	/**
+	 * Convert a uniform TOTAL left gap into each column's stored PER-SIDE offset.
+	 * Within-passage: offset = total − default (one side).
+	 * Cross-passage: offset = (total − default) / 2 (applied to both sides).
+	 * Columns that are first in the study (no adjustable gap) are omitted.
+	 * @param {string[]} columnIds
+	 * @param {number} totalGap
+	 * @returns {Record<string, number|null>}
+	 */
+	function computeOffsets(columnIds, totalGap) {
+		/** @type {Record<string, number|null>} */
+		const offsets = {};
+		for (const columnId of columnIds) {
+			const colEl = /** @type {HTMLElement|null} */ (
+				document.querySelector(`[data-column-id="${columnId}"]`)
+			);
+			if (!colEl) continue;
+			const info = classifyColumn(colEl);
+			if (!info) continue;
+			const colDefault = measureDefaultGap(columnId);
+			const sides = info.isCross ? 2 : 1;
+			const maxOffset = Math.max(0, (maxGap - colDefault) / sides);
+			const offset = Math.min(maxOffset, Math.max(0, Math.round((totalGap - colDefault) / sides)));
+			offsets[columnId] = offset <= 0 ? null : offset;
+		}
+		return offsets;
+	}
+
+	/**
 	 * Set a uniform TOTAL left gap across one or more columns. The total is converted
 	 * per-column into the stored EXTRA offset (offset = clamp(0, maxOffset, total −
 	 * columnDefault)), persisted via PATCH, then data is refreshed once. Columns that
@@ -420,36 +449,16 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		if (!Array.isArray(columnIds) || columnIds.length === 0) return;
 
 		try {
+			const offsets = computeOffsets(columnIds, totalGap);
 			await Promise.all(
-				columnIds.map((columnId) => {
-					const colEl = /** @type {HTMLElement|null} */ (
-						document.querySelector(`[data-column-id="${columnId}"]`)
-					);
-					if (!colEl) return null;
-					const info = classifyColumn(colEl);
-					// Skip the study's first column — it has no adjustable left gap.
-					if (!info) return null;
-
-					// Convert the requested TOTAL gap into the stored PER-SIDE offset.
-					// Within-passage: offset = total − default (one side).
-					// Cross-passage: offset = (total − default) / 2 (applied to both sides).
-					const colDefault = measureDefaultGap(columnId);
-					const sides = info.isCross ? 2 : 1;
-					const maxOffset = Math.max(0, (maxGap - colDefault) / sides);
-					const offset = Math.min(
-						maxOffset,
-						Math.max(0, Math.round((totalGap - colDefault) / sides))
-					);
-					const toPersist = offset <= 0 ? null : offset;
-
-
+				Object.entries(offsets).map(([columnId, toPersist]) => {
 					// Drop any live override for this column.
 					if (columnId in liveOffsets) {
 						const { [columnId]: _drop, ...rest } = liveOffsets;
 						liveOffsets = rest;
 					}
 
-					return fetch(`/api/passages/columns/${columnId}`, {
+					return patchJson(`/api/passages/columns/${columnId}`, {
 						method: 'PATCH',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ leftOffset: toPersist })
@@ -477,7 +486,7 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 						const { [columnId]: _drop, ...rest } = liveOffsets;
 						liveOffsets = rest;
 					}
-					return fetch(`/api/passages/columns/${columnId}`, {
+					return patchJson(`/api/passages/columns/${columnId}`, {
 						method: 'PATCH',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ leftOffset: null })
@@ -496,6 +505,7 @@ export function useColumnReposition({ getScale, onPersist, maxGap = Infinity }) 
 		getLiveOffset,
 		measureDefaultGap,
 		measureCurrentGap,
+		computeOffsets,
 		setSpacing,
 		resetSpacing,
 

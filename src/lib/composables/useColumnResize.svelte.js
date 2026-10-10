@@ -1,4 +1,5 @@
 import { getRenderedScale } from '$lib/utils/zoomScale.js';
+import { patchJson } from '$lib/utils/patchJson.js';
 import { LINK_KINDS, getGroupMemberIds } from '$lib/utils/linkGroups.js';
 
 /**
@@ -262,13 +263,13 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		try {
 			if (ids.length > 1) {
 				// Persist a uniform width across the whole link group.
-				await fetch('/api/passages/columns/batch-width', {
+				await patchJson('/api/passages/columns/batch-width', {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ ids, width: rounded })
 				});
 			} else {
-				await fetch(`/api/passages/columns/${columnId}`, {
+				await patchJson(`/api/passages/columns/${columnId}`, {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ width: rounded })
@@ -323,6 +324,15 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 	}
 
 	/**
+	 * The width that setWidth would persist (rounded, clamped to the minimum width).
+	 * @param {number} width
+	 * @returns {number}
+	 */
+	function clampWidth(width) {
+		return Math.max(Math.round(minWidth), Math.round(width));
+	}
+
+	/**
 	 * Set a uniform WIDTH across one or more columns, persisted via the batch
 	 * endpoint, then refresh data once. Values are clamped to the minimum width.
 	 * @param {string[]} columnIds
@@ -346,7 +356,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		if (changed) liveWidths = next;
 
 		try {
-			await fetch('/api/passages/columns/batch-width', {
+			await patchJson('/api/passages/columns/batch-width', {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ ids: columnIds, width: clamped })
@@ -378,7 +388,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		if (changed) liveWidths = next;
 
 		try {
-			await fetch('/api/passages/columns/batch-width', {
+			await patchJson('/api/passages/columns/batch-width', {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ ids: columnIds, width: null })
@@ -394,6 +404,7 @@ export function useColumnResize({ getScale, getContainer, onPersist, minWidth = 
 		setupResizeListeners,
 		getLiveWidth,
 		measureCurrentWidth,
+		clampWidth,
 		setWidth,
 		resetWidth,
 		minWidth,

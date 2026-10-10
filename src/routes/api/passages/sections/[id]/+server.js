@@ -3,6 +3,7 @@ import { db } from '$lib/server/db/index.js';
 import { passageSection, passageSegment } from '$lib/server/db/schema.js';
 import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth.js';
+import { authorizeStructureIds } from '$lib/server/db/structureOwners.js';
 import { SEGMENT_COLORS, isValidSegmentColor } from '$lib/utils/segmentColors.js';
 
 /**
@@ -50,6 +51,11 @@ export const PATCH = async ({ request, params }) => {
 
 		const body = await request.json();
 		const sectionId = params.id;
+
+		// The section must belong to a study owned by the current user.
+		if (!(await authorizeStructureIds(db, session.user.id, [sectionId]))) {
+			return json({ error: 'Section not found or not authorized' }, { status: 403 });
+		}
 
 		// Handle top-offset update (vertical reposition spacing).
 		// topOffset is the EXTRA spacing in px added above the section beyond its

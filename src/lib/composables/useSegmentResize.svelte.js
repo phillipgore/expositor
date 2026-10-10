@@ -1,4 +1,5 @@
 import { getRenderedScale } from '$lib/utils/zoomScale.js';
+import { patchJson } from '$lib/utils/patchJson.js';
 
 /**
  * Segment Resize Composable
@@ -321,13 +322,13 @@ export function useSegmentResize({ getScale, getContainer, onPersist, snapThresh
 		try {
 			if (groupIds.length > 1) {
 				// Persist uniform height across the whole link group.
-				await fetch('/api/segments/batch-height', {
+				await patchJson('/api/segments/batch-height', {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ ids: groupIds, height: rounded })
 				});
 			} else {
-				await fetch(`/api/segments/${groupIds[0]}`, {
+				await patchJson(`/api/segments/${groupIds[0]}`, {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ height: rounded })
