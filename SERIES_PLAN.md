@@ -1788,6 +1788,11 @@ title, concatenate commentary under sub-headings, warn before discarding anythin
 
 ## 9. Icons
 
+> **Update (2026-10-10):** the Study menu's series verbs (Split into a Series…, Split Part…, Join
+> Parts…, Reorder Series…, Add to Series…) are now text-only — the artwork failed the menu icon tests in
+> `MENU_ICON_REMOVALS.md`. Their `icons.json` entries are kept for restoring, with files in
+> `public/previously_used/`. `series` and `series-part` are unchanged. Counts below are historical.
+
 ⚠️ **`src/lib/data/icons.json` is the source of truth, not `public/*.svg`.** `Icon.svelte`
 renders from a registry of **152 entries** (an **array** of `{ _id, viewBox, d }` objects — not a
 keyed map; see the note below), each a single `d` path plus a `viewBox`; the **160 files** in
@@ -1866,7 +1871,7 @@ prevent, so the artwork had to split into two families.
 | `series`       | A series in the Finder    | The books beside **three** squares — the ordered sequence made explicit        |
 | `series-part`  | One part, inside a series | The same books beside a **single** square: one member of that sequence         |
 | `series-split` | Split into a Series       | The three squares with the last **hollowed** — a sequence gaining a seam       |
-| `series-join`  | _(unused — see below)_    | The squares with a converging mark — mirror of the above                       |
+| `series-join`  | _(removed — see below)_   | The squares with a converging mark — mirror of the above                       |
 
 **Family 2 — one part** (a single rounded rectangle, the same shape a part occupies in family 1's
 square column, enlarged so a second mark fits beside it):
@@ -1888,6 +1893,10 @@ not superseded artwork for a live command, it is artwork for a series-level join
 specified. `scripts/verify-icon-ids.mjs` names it explicitly so the situation is asserted rather
 than merely tolerated. If a series-level join is ruled out, delete the entry, the verifier line and
 `public/series-join.svg` together.
+
+> **Update (2026-10-10):** `series-join` has been removed from `icons.json` and from the verifier's
+> required list. Its artwork is kept at `public/unused/series-join.svg`; restore the entry from there
+> (or from git history) if a series-level join is ever specified.
 
 **Naming follows the established object-then-verb rule**, which the whole registry obeys:
 `column-split`/`column-join`, `section-split`/`section-join`, `segment-split`/`segment-join`. So

@@ -87,7 +87,7 @@
 <Menu {menuId} ariaLabel="Selection menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="select-all-columns"
+		iconId="column-select-all"
 		label="Select All Columns"
 		role="menuitem"
 		handleClick={() => selectAllStructure('select-all-columns')}
@@ -96,7 +96,7 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="select-all-sections"
+		iconId="section-select-all"
 		label="Select All Sections"
 		role="menuitem"
 		handleClick={() => selectAllStructure('select-all-sections')}
@@ -105,7 +105,7 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="select-all-segments"
+		iconId="segment-select-all"
 		label="Select All Segments"
 		role="menuitem"
 		handleClick={() => selectAllStructure('select-all-segments')}
@@ -114,7 +114,7 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="select-all-connections"
+		iconId="connection-select-all"
 		label="Select All Connections"
 		role="menuitem"
 		handleClick={() => selectAllStructure('select-all-connections')}

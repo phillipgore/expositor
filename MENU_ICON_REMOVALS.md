@@ -37,12 +37,12 @@ All of these icons are still in `src/lib/data/icons.json`. After restoring any, 
 |---|---|---|
 | Quick Note Slide | Set Quick Note Slide… | `note-slide` |
 | Quick Note Slide | Reset Quick Note Slide | `note-slide-reset` |
-| Quick Note Position | Set Quick Note Position… | `note-positon` |
-| Quick Note Position | Reset Quick Note Position | `note-positon-reset` |
+| Quick Note Position | Set Quick Note Position… | `note-position` |
+| Quick Note Position | Reset Quick Note Position | `note-position-reset` |
 | Quick Note Offset | Set Quick Note Offset… | `note-offset` |
 | Quick Note Offset | Reset Quick Note Offset | `note-offset-reset` |
 
-The position IDs are spelled `positon` (not `position`) in `icons.json`. Use that exact spelling unless the IDs are renamed there too.
+These icons' files are in `public/previously_used/`, named `{iconId}.svg`. IDs follow `ICON_NAMING.md`.
 
 ### `src/lib/componentWidgets/menus/MenuLayout.svelte`
 
@@ -64,14 +64,31 @@ The position IDs are spelled `positon` (not `position`) in `icons.json`. Use tha
 | Segment Height | Reset Segment Height | `segment-height-reset` |
 | Segment Height | Link Segment Height | `segment-height-link` |
 | Segment Height | Unlink Segment Height | `segment-height-unlink` |
-| Segment Position | Set Segment Position… | `set-segment-position` |
-| Segment Position | Reset Segment Position | `reset-segment-position` |
+| Segment Position | Set Segment Position… | `segment-position` |
+| Segment Position | Reset Segment Position | `segment-position-reset` |
 
 Link/Unlink Segment Height are easy to draw, so their icons work well on their own. They were removed only because they share a section with Set/Reset Segment Height. To get them back without the others, move them into their own section with a `<DividerHorizontal />`.
+
+### `src/lib/componentWidgets/menus/MenuActions.svelte` (Study menu)
+
+| Section | Label | `iconId` to restore |
+|---|---|---|
+| Series | Split into a Series… | `series-split` |
+| Series | Split Part… | `series-part-split` |
+| Series | Join Parts… | `series-part-join` |
+| Series | Reorder Series… | `series-reorder` |
+| Series | Add to Series… | `series-add` |
+
+None passed the 16px or used-elsewhere tests: the series verbs only ever appeared in this menu, and at
+16px `series-split` is nearly identical to the `series` Finder icon while three of the others share the
+same part rectangle. The `series` and `series-part` icons themselves are still used in the Finder and on
+the series page. Files are in `public/previously_used/`.
 
 ## Kept on purpose
 
 These menus and sections still have their icons:
+
+- **MenuActions (Study):** New Study / New Study in Selected, New Study Group / … in Selected, Move to… / Remove from Group.
 
 - **MenuStructure:** Split Column/Section/Segment, Join Selected Up/Down, Move Selected Up/Down, Move Text Up/Down.
 - **MenuConnect:** Connect, Connection Quick Note, Curved/Straight/Cornered Connection, Reset Connection Shape/Points, Quick Note Above/Below/Right/Left.

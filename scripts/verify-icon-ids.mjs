@@ -27,15 +27,33 @@ const icons = JSON.parse(readFileSync('src/lib/data/icons.json', 'utf8'));
 // the real shape is the point of the decisions log's "read the source" rule.
 const known = new Set(icons.map((icon) => icon._id));
 
-/** Every .svelte file under src/. */
+/** Every .svelte / .js / .ts file under src/. Icon ids also live in config (`toolbarConfig.js`). */
 function walk(dir) {
 	const out = [];
 	for (const entry of readdirSync(dir)) {
 		const path = join(dir, entry);
 		if (statSync(path).isDirectory()) out.push(...walk(path));
-		else if (entry.endsWith('.svelte')) out.push(path);
+		else if (/\.(svelte|js|ts)$/.test(entry)) out.push(path);
 	}
 	return out;
+}
+
+/**
+ * Every literal icon id in a (comment-stripped) source string:
+ *   iconId="x"  ·  iconId: 'x'  ·  iconId={'x'}  ·  iconId={cond ? 'x' : 'y'}  ·  TYPE_ICON = { k: 'x' }
+ * Event names that happen to share an icon's spelling (e.g. `select-all-columns`) are deliberately
+ * NOT matched — only strings in an icon position count.
+ */
+function literalIconIds(source) {
+	const ids = [];
+	for (const m of source.matchAll(/iconId\s*[=:]\s*["']([^"']+)["']/g)) ids.push(m[1]);
+	for (const m of source.matchAll(/iconId\s*=\s*\{([^}]*)\}/g)) {
+		for (const s of m[1].matchAll(/["']([^"']+)["']/g)) ids.push(s[1]);
+	}
+	for (const m of source.matchAll(/TYPE_ICON\s*=\s*\{([^}]*)\}/g)) {
+		for (const s of m[1].matchAll(/:\s*["']([^"']+)["']/g)) ids.push(s[1]);
+	}
+	return ids;
 }
 
 console.log(`\nicons.json declares ${known.size} icons.\n`);
@@ -51,8 +69,8 @@ for (const file of walk('src')) {
 		.replace(/<!--[\s\S]*?-->/g, '');
 	// Literal values only. A dynamic `iconId={expr}` cannot be resolved statically, and asserting on
 	// something unresolvable would be theatre.
-	for (const match of source.matchAll(/iconId\s*=\s*["']([^"']+)["']/g)) {
-		if (!known.has(match[1])) missing.push(`${file}: "${match[1]}"`);
+	for (const id of literalIconIds(source)) {
+		if (!known.has(id)) missing.push(`${file}: "${id}"`);
 	}
 }
 
@@ -99,26 +117,17 @@ console.log('\n── the icons this feature relies on are present by name ─�
 // the ids actually in use: `series` (the series row), `series-part` (a part of one), and the verbs.
 //
 // The verbs come in TWO families, and naming both is the point of listing them individually. The
-// books-and-squares pair (`series-split` / `series-join`) takes the whole series as its object; the
-// part-rectangle trio (`series-part-split` / `series-part-join` / `series-add`) takes a single part.
-// `Split into a Series…` and `Split Part…` sit two rows apart in the same menu and both rendered
-// `series-split` until the part artwork landed — a wrong-but-present glyph, which is the one icon
-// defect the "every literal iconId resolves" check above cannot see.
+// series verbs (`series-split`, `series-part-split`, `series-part-join`, `series-reorder`,
+// `series-add`) no longer render: the Study menu's series section is text-only (2026-10-10, see
+// MENU_ICON_REMOVALS.md). Their entries stay in icons.json for restoring, with files in
+// public/previously_used/, so they are no longer required here.
 //
-// ⚠️ `series-join` currently has NO `iconId` call site: `Join Parts…` moved to `series-part-join`,
-// and the series-level join it was drawn for does not exist yet. It is named here deliberately so
-// that if that command arrives the artwork is still present, and so the unreferenced entry is a
-// recorded decision rather than a leftover. Delete both this line and the entry together, or
-// neither.
+// `series-join` (artwork for a series-level join that was never specified) and `arrow-up-square`
+// (superseded by `series-reorder`) had no call sites and were removed from icons.json together with
+// their lines here. Their artwork is kept in public/unused/ should either be needed again.
 for (const id of [
 	'series',
 	'series-part',
-	'series-split',
-	'series-join',
-	'series-part-split',
-	'series-part-join',
-	'series-add',
-	'arrow-up-square',
 	'book-in',
 	// The Structure menu's two command pairs. Named because they are easy to confuse with each other
 	// and with the generic `arrow-up` / `arrow-down`: Join Up/Down act on STRUCTURE, Move Text
@@ -141,8 +150,8 @@ console.log('\n── and the scanner would actually catch a bad id ──');
 // Guards against the verifier passing because its own matcher is broken — the failure mode that made an
 // earlier assertion in this feature vacuously true.
 const sentinel = 'iconId="definitely-not-an-icon"';
-const caught = [...sentinel.matchAll(/iconId\s*=\s*["']([^"']+)["']/g)].some(
-	(m) => !known.has(m[1])
+const caught = ["iconId: 'nope-a'", "iconId={x ? 'nope-b' : 'check'}", sentinel].every((s) =>
+	literalIconIds(s).some((id) => !known.has(id))
 );
 if (caught) {
 	pass += 1;
@@ -150,6 +159,37 @@ if (caught) {
 } else {
 	fail += 1;
 	console.log('  ✗ the matcher does not detect a fabricated iconId — this script proves nothing');
+}
+
+console.log('\n── ids follow the naming rules (ICON_NAMING.md) ──');
+// Rule 2: lowercase words joined by single hyphens.
+const badNames = [...known].filter((id) => !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id));
+if (badNames.length === 0) {
+	pass += 1;
+	console.log('  ✓ every id is lowercase-hyphenated');
+} else {
+	fail += 1;
+	console.log(`  ✗ ids not lowercase-hyphenated: ${badNames.join(', ')}`);
+}
+
+console.log('\n── every id has a matching file, and every file an id (rule 1) ──');
+// The registry is what renders; the .svg files are the editable source. They drifted once already
+// (`note-positon` vs `note-position.svg`, `note-offset` vs `note-offest.svg`), so pin them together.
+// public/unused/ is the graveyard and is intentionally excluded.
+const svgIn = (dir) =>
+	readdirSync(dir)
+		.filter((f) => f.endsWith('.svg'))
+		.map((f) => f.slice(0, -4));
+const files = new Set([...svgIn('public'), ...svgIn('public/previously_used')]);
+const noFile = [...known].filter((id) => !files.has(id));
+const noEntry = [...files].filter((f) => !known.has(f));
+if (noFile.length === 0 && noEntry.length === 0) {
+	pass += 1;
+	console.log(`  ✓ all ${known.size} ids match a file in public/ or public/previously_used/`);
+} else {
+	fail += 1;
+	if (noFile.length) console.log(`  ✗ ids with no .svg file: ${noFile.join(', ')}`);
+	if (noEntry.length) console.log(`  ✗ .svg files with no icons.json entry: ${noEntry.join(', ')}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

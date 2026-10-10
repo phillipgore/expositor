@@ -544,7 +544,7 @@ export function getPassageToolbarConfig() {
 				title: 'Chiasm'
 			},
 			{
-				iconId: 'literary-paralell',
+				iconId: 'literary-parallel',
 				title: 'Paralell'
 			},
 			{

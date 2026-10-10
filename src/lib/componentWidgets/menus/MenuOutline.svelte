@@ -179,7 +179,7 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="promote-heading"
+		iconId="heading-promote"
 		label="Promote Heading"
 		role="menuitem"
 		handleClick={() => shiftSelectedHeadings('up')}
@@ -188,7 +188,7 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="demote-heading"
+		iconId="heading-demote"
 		label="Demote Heading"
 		role="menuitem"
 		handleClick={() => shiftSelectedHeadings('down')}
