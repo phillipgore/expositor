@@ -48,6 +48,8 @@
 		heightGroupId = null,
 		/** Whether this segment is a member of the currently HOVERED link group (reveal handle + "Linked" tooltip on all members). */
 		linkHovered = false,
+		/** Whether this segment shares a height link with a SELECTED segment (dashed outline + handle shown). */
+		linkSelected = false,
 		/** Called on pointer enter of the resize handle: (segmentId) => void */
 		onHandleEnter = null,
 		/** Called on pointer leave of the resize handle: () => void */
@@ -228,6 +230,7 @@
      class:is-repositioning={isRepositioning}
      class:show-layout-controls={resizeEnabled && $toolbarState.layoutControlsVisible}
      class:link-hovered={resizeEnabled && linkHovered}
+     class:link-selected={resizeEnabled && linkSelected}
      style:min-height={height != null ? `${height}px` : null}
      style:margin-left={leftOffset > 0 ? `${leftOffset}px` : null}
      data-left-offset={leftOffset > 0 ? Math.round(leftOffset) : null}
@@ -545,6 +548,27 @@
 	/* When any member of this segment's LINK GROUP is hovered, reveal every
 	   member's handle so the user sees all linked handles at once. */
 	.segment.link-hovered .resize-handle {
+		opacity: 1;
+	}
+
+	/* Shares a height link with a SELECTED segment: dashed outline (selected ones keep
+	   their own highlight) and the height handle revealed, so the linked group is
+	   visible without hovering. */
+	/* Drawn on ::before (::after is the active glow) so the segment itself stays square:
+	   a CSS outline follows the element's own corners. 0.4rem outside the edge with
+	   0.7rem corners (0.3rem + the gap). ⚠️ Keep in sync with --link-group-outline-*
+	   on the Analyze page (columns / sections). */
+	.segment.link-selected:not(:global(.active))::before {
+		content: '';
+		position: absolute;
+		inset: -0.5rem; /* 0.4rem gap + 0.1rem line — matches the column outline's distance from its segments */
+		z-index: 10;
+		pointer-events: none;
+		border: 0.1rem dashed var(--gray-400);
+		border-radius: 0.7rem;
+	}
+
+	.segment.link-selected .resize-handle {
 		opacity: 1;
 	}
 

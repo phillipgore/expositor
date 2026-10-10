@@ -256,6 +256,48 @@
 		});
 	});
 
+	// ─── Selected item's link group (show what else is linked) ─────────────────
+	// When a LINKED column / section / segment is selected, every other member of its
+	// group is marked so the user can see what will change with it: the member's
+	// handle for that kind of link is revealed (as on hover) and it gets a dashed
+	// outline. Built from the loaded data (not the DOM) so it updates as soon as the
+	// selection or a link changes. Off in Outline View / Focus / Compare, where the
+	// layout handles are hidden.
+	let linkGroupIndex = $derived.by(() => {
+		/** @type {Map<string, { spacing: string|null, width: string|null }>} */
+		const columns = new Map();
+		/** @type {Map<string, string|null>} */
+		const sections = new Map();
+		/** @type {Map<string, string|null>} */
+		const segments = new Map();
+		for (const passageText of data.passagesWithText ?? []) {
+			for (const column of passageText?.structure?.columns ?? []) {
+				columns.set(column.id, { spacing: column.spacingGroupId ?? null, width: column.widthGroupId ?? null });
+				for (const section of column.sections ?? []) {
+					sections.set(section.id, section.spacingGroupId ?? null);
+					for (const segment of section.segments ?? []) {
+						segments.set(segment.id, segment.heightGroupId ?? null);
+					}
+				}
+			}
+		}
+		return { columns, sections, segments };
+	});
+
+	/** @param {(string|null|undefined)[]} ids */
+	const toGroupSet = (ids) => new Set(/** @type {string[]} */ (ids.filter((g) => !!g)));
+
+	let selectedLinkGroups = $derived.by(() => {
+		const off = $toolbarState.overviewMode || $toolbarState.focusMode || isHideMode;
+		const { columns, sections, segments } = linkGroupIndex;
+		return {
+			columnWidth: toGroupSet(off ? [] : activeColumns.map((id) => columns.get(id)?.width)),
+			columnSpacing: toGroupSet(off ? [] : activeColumns.map((id) => columns.get(id)?.spacing)),
+			sectionSpacing: toGroupSet(off ? [] : activeSections.map((id) => sections.get(id))),
+			segmentHeight: toGroupSet(off ? [] : activeSegments.map((s) => segments.get(s.segmentId)))
+		};
+	});
+
 	// Map each height-link group id → the tallest remembered floor (persisted `height`)
 	// across its members. Linked members must render at a SINGLE uniform floor, but the
 	// `link-height` endpoint preserves each member's own (possibly divergent or NULL)
@@ -5356,6 +5398,8 @@
 													class:is-resizing={columnResize.activeColumnId === column.id}
 													class:spacing-link-hovered={columnSpacingHover.isGroupHovered(column.spacingGroupId)}
 													class:width-link-hovered={columnWidthHover.isGroupHovered(column.widthGroupId)}
+													class:spacing-link-selected={!!column.spacingGroupId && selectedLinkGroups.columnSpacing.has(column.spacingGroupId)}
+													class:width-link-selected={!!column.widthGroupId && selectedLinkGroups.columnWidth.has(column.widthGroupId)}
 													data-column-id="{column.id}"
 													data-spacing-group-id={column.spacingGroupId || null}
 													data-width-group-id={column.widthGroupId || null}
@@ -5379,6 +5423,7 @@
 																class:compare-hidden={isHideMode && !visibleSectionIds.has(section.id)}
 																class:is-repositioning={sectionReposition.activeSectionId === section.id}
 																class:spacing-link-hovered={sectionSpacingHover.isGroupHovered(section.spacingGroupId)}
+														class:spacing-link-selected={!!section.spacingGroupId && selectedLinkGroups.sectionSpacing.has(section.spacingGroupId)}
 																style:--reposition-offset="{sectionOffset}px"
 																style:--handle-shift="{activeSections.includes(section.id) ? 0 : (segmentPositions.offsets[section.segments?.[0]?.id] ?? 0) - segmentExtent / 2}px"
 															>
@@ -5439,6 +5484,7 @@
 																			onResizeStart={segmentResize.handleResizeStart}
 																			heightGroupId={segment.heightGroupId ?? null}
 																			linkHovered={segmentResize.isGroupHovered(segment.heightGroupId ?? null)}
+																	linkSelected={!!segment.heightGroupId && selectedLinkGroups.segmentHeight.has(segment.heightGroupId)}
 																			onHandleEnter={segmentResize.handleHandleEnter}
 																			onHandleLeave={segmentResize.handleHandleLeave}
 																			leftOffset={segmentPositions.offsets[segment.id] ?? 0}
@@ -6131,6 +6177,44 @@
 	.column.active {
 		background-color: var(--gray-lighter);
 		outline: 0.1rem solid var(--gray-700);
+	}
+
+	/* Linked to the selection: every member of a selected item's width / spacing group
+	   gets a dashed outline (the selected item keeps its solid .active outline), and
+	   the handle for that kind of link is revealed below — so you can see what else
+	   will change. */
+	/* Shared link-group outline for columns and sections (segments mirror these values
+	   in Segment.svelte). The outline follows the element's border-radius, so both use
+	   0.4rem (0.3rem + the 0.2rem gap) while it's shown. */
+	/* Link-group outline, identical for columns, sections and segments: a dashed line
+	   0.4rem from the SEGMENT borders it surrounds, with 0.7rem corners. Drawn on its
+	   own ::before layer (not `outline`) so the radius is the same everywhere and the
+	   item's own corners are never changed. Columns have 0.2rem padding, so their
+	   layer sits 0.2rem further in. ⚠️ Segment.svelte mirrors these values. */
+	.column.width-link-selected:not(:global(.active))::before,
+	.column.spacing-link-selected:not(:global(.active))::before,
+	.section.spacing-link-selected:not(:global(.active))::before {
+		content: '';
+		position: absolute;
+		inset: -0.5rem; /* 0.4rem gap + 0.1rem line */
+		z-index: 10;
+		pointer-events: none;
+		border: 0.1rem dashed var(--gray-400);
+		border-radius: 0.7rem;
+	}
+
+	.column.width-link-selected:not(:global(.active))::before,
+	.column.spacing-link-selected:not(:global(.active))::before {
+		inset: -0.3rem; /* column padding (0.2rem) already counts toward the 0.4rem */
+	}
+
+	.column.spacing-link-selected > .column-reposition-handle,
+	.column.width-link-selected > .column-resize-handle {
+		opacity: 1;
+	}
+
+	.section.spacing-link-selected > .reposition-handle {
+		opacity: 1;
 	}
 
 	/* User horizontal spacing offset: EXTRA px added to the gap on a column's LEFT side

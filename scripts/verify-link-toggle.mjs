@@ -77,5 +77,15 @@ console.log('\n── menu ──');
 const menu = read('src/lib/componentWidgets/menus/MenuLayout.svelte');
 assert('Link Segment Height is disabled on the Document view', menu.includes('isDisabled={isDocument || linkState.segmentHeight === null'));
 
+console.log('\n── selected item shows its link group ──');
+assert('group index is built from loaded data', page.includes('let linkGroupIndex = $derived.by('));
+assert('off in Outline View / Focus / Compare', /selectedLinkGroups = \$derived\.by\(\(\) => \{\s*const off = \$toolbarState\.overviewMode \|\| \$toolbarState\.focusMode \|\| isHideMode/.test(page));
+for (const cls of ['spacing-link-selected', 'width-link-selected']) {
+	assert(`columns get ${cls}`, page.includes(`class:${cls}={!!column.`));
+}
+assert('sections get spacing-link-selected', page.includes('class:spacing-link-selected={!!section.spacingGroupId'));
+assert('segments get linkSelected', page.includes('linkSelected={!!segment.heightGroupId'));
+assert('Segment renders link-selected', read('src/lib/componentWidgets/Segment.svelte').includes('class:link-selected={resizeEnabled && linkSelected}'));
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
