@@ -13,7 +13,13 @@
 	 *             made, so the choice these expose is the one they could not otherwise make —
 	 *             direction. Replaces the former Join Column / Join Section / Join Segment trio,
 	 *             which could only ever join backwards.
+	 * - Reorder — Move Item Up / Move Item Down (moves the selected item intact into the adjacent
+	 *             container; the non-destructive counterpart to Join)
 	 * - Text    — Move Text Up / Move Text Down (relocates content between segments)
+	 *
+	 * The four sections are separated by dividers only, with no MenuSectionLabel captions: every
+	 * label already begins with its section's verb (Split…, Join…, Move Item…, Move Text…), so a
+	 * caption would just repeat it.
 	 *
 	 * (Connect, which creates a connection between two selected structural
 	 * elements, now lives in its own MenuConnect alongside quick-note placement.)
@@ -33,7 +39,6 @@
 	import IconButton from '$lib/componentElements/buttons/IconButton.svelte';
 	import DividerHorizontal from '$lib/componentElements/DividerHorizontal.svelte';
 	import Menu from '$lib/componentElements/Menu.svelte';
-	import MenuSectionLabel from '$lib/componentElements/MenuSectionLabel.svelte';
 	import { toolbarState } from '$lib/stores/toolbar.js';
 	import {
 		canJoinUpAcross as resolveJoinUpAcross,
@@ -295,7 +300,6 @@
 
 
 <Menu {menuId} ariaLabel="Document structure menu">
-	<MenuSectionLabel label="Split" />
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="column-split"
@@ -337,7 +341,6 @@
 	/>
 	<DividerHorizontal />
 
-	<MenuSectionLabel label="Join" />
 	<!--
 		Join Selected Up / Down replace Join Column, Join Section and Join Segment.
 
@@ -388,7 +391,6 @@
 
 	<DividerHorizontal />
 
-	<MenuSectionLabel label="Reorder" />
 	<!--
 		Move Selected Up / Down — the NON-destructive pair.
 
@@ -428,7 +430,6 @@
 
 	<DividerHorizontal />
 
-	<MenuSectionLabel label="Text" />
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="text-up"
