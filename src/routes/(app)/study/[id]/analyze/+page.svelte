@@ -5817,7 +5817,9 @@
 		display: flex;
 		flex-direction: column;
 		border-right: solid 0.1rem var(--gray-700);
-		margin-top: 2.4rem;
+		/* Starts level with the columns' top. (Was 2.4rem when the passage reference
+		   heading sat in flow above the columns; it is now out of flow.) */
+		margin-top: 0;
 		margin-bottom: 4.4rem;
 		/* Cross-passage column spacing: mirror of the next passage's first-column
 		   per-side offset X. Growing this margin widens the gap on the divider's LEFT
