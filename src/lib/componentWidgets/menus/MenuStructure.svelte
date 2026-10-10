@@ -26,7 +26,7 @@
 	 *
 	 * Usage:
 	 * ```
-	 * <MenuButton menuId="MenuStructure" iconId="section" underLabel="Structure" />
+	 * <MenuButton menuId="MenuStructure" iconId="structure-layout" underLabel="Structure" />
 	 * <MenuStructure menuId="MenuStructure" />
 	 * ```
 	 * 

@@ -148,7 +148,7 @@ export function getAppToolbarConfig() {
 				},
 				{
 					type: 'menu',
-					iconId: 'section',
+					iconId: 'structure-layout',
 					menuId: 'MenuStructure',
 					underLabel: 'Structure',
 					classes: 'toolbar-dark',
