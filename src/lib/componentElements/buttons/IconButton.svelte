@@ -73,7 +73,7 @@
 	 * @property {string} [rel] - Link rel attribute. Only used with href
 	 * @property {string} [url] - (Deprecated) URL to navigate to on click. Use href instead
 	 * @property {(event?: MouseEvent) => void} [handleClick] - Click event handler with MouseEvent access
-	 * @property {string} iconId - Icon identifier (required). Must match an icon in icons.json
+	 * @property {string} [iconId] - Icon identifier matching icons.json. Omit for a text-only item (label sits flush left)
 	 * @property {string} [label] - Text label displayed next to icon
 	 * @property {string} [underLabel] - Text displayed below button (for toolbar buttons)
 	 * @property {string} [underLabelClasses] - CSS classes for under-label ('light' for white text)
@@ -198,11 +198,13 @@
 				{#if labelIsLeft && label}
 					<span class="label-left">{label}</span>
 				{/if}
-				<Icon 
-					{iconId} 
-					isActive={false} 
-					classes={iconClasses}
-				/>
+				{#if iconId}
+					<Icon
+						{iconId}
+						isActive={false}
+						classes={iconClasses}
+					/>
+				{/if}
 				{#if !labelIsLeft && label}
 					{label}
 				{/if}
@@ -238,11 +240,13 @@
 		{#if labelIsLeft && label}
 			<span class="label-left">{label}</span>
 		{/if}
-		<Icon 
-			{iconId} 
-			isActive={false} 
-			classes={iconClasses}
-		/>
+		{#if iconId}
+			<Icon
+				{iconId}
+				isActive={false}
+				classes={iconClasses}
+			/>
+		{/if}
 		{#if !labelIsLeft && label}
 			{label}
 		{/if}

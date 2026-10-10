@@ -52,7 +52,6 @@
 <Menu {menuId} ariaLabel="Layout menu">
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="column-spacing"
 		label="Set Column Spacing…"
 		role="menuitem"
 		handleClick={() => {
@@ -65,7 +64,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="column-spacing-reset"
 		label="Reset Column Spacing"
 		role="menuitem"
 		handleClick={() => {
@@ -80,7 +78,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="column-width"
 		label="Set Column Width…"
 		role="menuitem"
 		handleClick={() => {
@@ -93,7 +90,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="column-width-reset"
 		label="Reset Column Width"
 		role="menuitem"
 		handleClick={() => {
@@ -108,7 +104,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="section-spacing"
 		label="Set Section Spacing…"
 		role="menuitem"
 		handleClick={() => {
@@ -121,7 +116,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="section-spacing-reset"
 		label="Reset Section Spacing"
 		role="menuitem"
 		handleClick={() => {
@@ -136,7 +130,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-height"
 		label="Set Segment Height…"
 		role="menuitem"
 		handleClick={() => {
@@ -149,7 +142,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-height-reset"
 		label="Reset Segment Height"
 		role="menuitem"
 		handleClick={() => {
@@ -165,7 +157,6 @@
 	     already all in one group; Unlink needs the selection to include a linked segment. -->
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-height-link"
 		label="Link Segment Height"
 		role="menuitem"
 		handleClick={() => {
@@ -177,7 +168,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="segment-height-unlink"
 		label="Unlink Segment Height"
 		role="menuitem"
 		handleClick={() => {
@@ -193,7 +183,6 @@
 	     (capped 36px short of the right edge of the segment above). -->
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="set-segment-position"
 		label="Set Segment Position…"
 		role="menuitem"
 		handleClick={() => {
@@ -205,7 +194,6 @@
 
 	<IconButton
 		classes="menu-light justify-content-left"
-		iconId="reset-segment-position"
 		label="Reset Segment Position"
 		role="menuitem"
 		handleClick={() => {
