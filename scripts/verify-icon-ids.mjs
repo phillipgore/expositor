@@ -119,8 +119,8 @@ console.log('\n── the icons this feature relies on are present by name ─�
 // The verbs come in TWO families, and naming both is the point of listing them individually. The
 // series verbs (`series-split`, `series-part-split`, `series-part-join`, `series-reorder`,
 // `series-add`) no longer render: the Study menu's series section is text-only (2026-10-10, see
-// MENU_ICON_REMOVALS.md). Their entries stay in icons.json for restoring, with files in
-// public/previously_used/, so they are no longer required here.
+// MENU_ICON_REMOVALS.md). Their entries were removed from icons.json; the files are kept in
+// public/previously_used/ for restoring, so they are no longer required here.
 //
 // `series-join` (artwork for a series-level join that was never specified) and `arrow-up-square`
 // (superseded by `series-reorder`) had no call sites and were removed from icons.json together with
@@ -175,21 +175,33 @@ if (badNames.length === 0) {
 console.log('\n── every id has a matching file, and every file an id (rule 1) ──');
 // The registry is what renders; the .svg files are the editable source. They drifted once already
 // (`note-positon` vs `note-position.svg`, `note-offset` vs `note-offest.svg`), so pin them together.
-// public/unused/ is the graveyard and is intentionally excluded.
+// Only top-level public/ holds live icons. public/previously_used/ (removed, recorded in
+// MENU_ICON_REMOVALS.md) and public/unused/ (never shipped) are archives: their ids are NOT in
+// icons.json, and restoring one means copying its path back in.
 const svgIn = (dir) =>
 	readdirSync(dir)
 		.filter((f) => f.endsWith('.svg'))
 		.map((f) => f.slice(0, -4));
-const files = new Set([...svgIn('public'), ...svgIn('public/previously_used')]);
+const files = new Set(svgIn('public'));
 const noFile = [...known].filter((id) => !files.has(id));
 const noEntry = [...files].filter((f) => !known.has(f));
 if (noFile.length === 0 && noEntry.length === 0) {
 	pass += 1;
-	console.log(`  ✓ all ${known.size} ids match a file in public/ or public/previously_used/`);
+	console.log(`  ✓ all ${known.size} ids match a file in public/`);
 } else {
 	fail += 1;
-	if (noFile.length) console.log(`  ✗ ids with no .svg file: ${noFile.join(', ')}`);
+	if (noFile.length) console.log(`  ✗ ids with no .svg file in public/: ${noFile.join(', ')}`);
 	if (noEntry.length) console.log(`  ✗ .svg files with no icons.json entry: ${noEntry.join(', ')}`);
+}
+
+console.log('\n── archived icons are out of the registry ──');
+const archived = [...svgIn('public/previously_used'), ...svgIn('public/unused')].filter((id) => known.has(id));
+if (archived.length === 0) {
+	pass += 1;
+	console.log('  ✓ no id in previously_used/ or unused/ is still in icons.json');
+} else {
+	fail += 1;
+	console.log(`  ✗ archived ids still in icons.json: ${archived.join(', ')}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

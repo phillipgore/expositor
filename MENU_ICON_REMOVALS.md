@@ -27,7 +27,13 @@ Add the `iconId` line back to that item's `<IconButton>`, directly above its `la
 	...
 ```
 
-All of these icons are still in `src/lib/data/icons.json`. After restoring any, run `node scripts/verify-icon-ids.mjs`.
+These icons have been **removed from `src/lib/data/icons.json`**. Their artwork is kept in `public/previously_used/{iconId}.svg`. To restore one:
+
+1. Move `public/previously_used/{iconId}.svg` back to `public/`.
+2. Add an entry to `src/lib/data/icons.json` (kept alphabetical by `_id`): `{ "_id": "{iconId}", "viewBox": …, "d": … }`, copying `viewBox` and the path `d` from the SVG.
+3. Add the `iconId` line back as shown above.
+
+Then run `node scripts/verify-icon-ids.mjs`.
 
 ## Removed icons
 
@@ -105,5 +111,7 @@ These single-choice and reset items now show a check (or blank) in the icon slot
 | Shape | Cornered Connection | Cornered | `connect-cornered` |
 | Shape | Reset Connection Shape + Reset Connection Points | Reset Connection | `connect-reset-shape` / `connect-reset-points` |
 | Quick Note Side | Quick Note Above / Below / Right / Left | Above / Below / Right / Left | `note-above` / `note-below` / `note-right` / `note-left` |
+
+These icons' files are in `public/previously_used/` and their entries are no longer in `icons.json`; restore them using the steps in "How to restore an icon".
 
 The three Slide / Position / Offset sections were merged into one **Quick Note Placement** section: Slide Along Line…, Position Along Edge…, Offset from Line…, and one Reset Placement (fires `reset-connection-note-placement`). The individual `reset-connection-note-*` events still exist.
