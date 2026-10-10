@@ -123,6 +123,19 @@
 
 	<DividerHorizontal />
 
+	<!-- Adds every member of the selected items' link groups (width, spacing, height) —
+	     the items shown with dashed outlines. Enabled only when that adds something. -->
+	<IconButton
+		classes="menu-light justify-content-left"
+		iconId="linked-select-all"
+		label="Select Linked Items"
+		role="menuitem"
+		handleClick={() => selectAllStructure('select-linked-items')}
+		isDisabled={structureSelectDisabled || !$toolbarState.canSelectLinkedItems || $toolbarState.overviewMode || $toolbarState.focusMode}
+	/>
+
+	<DividerHorizontal />
+
 	<IconButton
 		classes="menu-light justify-content-left"
 		iconId="heading-select-all"

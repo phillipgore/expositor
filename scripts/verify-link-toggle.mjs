@@ -87,5 +87,14 @@ assert('sections get spacing-link-selected', page.includes('class:spacing-link-s
 assert('segments get linkSelected', page.includes('linkSelected={!!segment.heightGroupId'));
 assert('Segment renders link-selected', read('src/lib/componentWidgets/Segment.svelte').includes('class:link-selected={resizeEnabled && linkSelected}'));
 
+console.log('\n── Select Linked Items ──');
+const selMenu = read('src/lib/componentWidgets/menus/MenuSelection.svelte');
+assert('menu item dispatches select-linked-items', selMenu.includes("selectAllStructure('select-linked-items')"));
+assert('menu item gated on canSelectLinkedItems', selMenu.includes('!$toolbarState.canSelectLinkedItems'));
+assert('page handles the event', page.includes("window.addEventListener('select-linked-items', handleSelectLinkedItemsEvent)"));
+assert('it ADDS to the selection (keeps what was selected)', page.includes('const columnIds = [...new Set([...activeColumns, ...linked.columns])];') && page.includes('activeSegments = [...activeSegments, ...addedSegments];'));
+assert('uses the same groups as the dashed outlines', /function getLinkedMemberIds\(\) \{\s*const groups = selectedLinkGroups;/.test(page));
+assert('flag is cleared when leaving the page', page.includes("setToolbarState('canSelectLinkedItems', false)"));
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

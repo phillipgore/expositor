@@ -150,6 +150,8 @@
 	onMount(() => () => setStudyContentLoading(false));
 	// Clear the transient Command+Option selection-controls peek if we navigate away mid-hold.
 	onMount(() => () => setSelectorsPeek(false));
+	// Don't leave Selection → Select Linked Items enabled after leaving this page.
+	onMount(() => () => setToolbarState('canSelectLinkedItems', false));
 
 	let data = $derived({
 		...rawData,
@@ -2859,6 +2861,9 @@
 		const handleSelectAllSegmentsEvent = () => {
 			handleSelectAllSegments();
 		};
+		const handleSelectLinkedItemsEvent = () => {
+			handleSelectLinkedItems();
+		};
 
 		// Listen for move-text-up event from MenuStructure
 		const handleMoveTextUpEvent = () => {
@@ -3001,6 +3006,7 @@
 		window.addEventListener('select-all-columns', handleSelectAllColumnsEvent);
 		window.addEventListener('select-all-sections', handleSelectAllSectionsEvent);
 		window.addEventListener('select-all-segments', handleSelectAllSegmentsEvent);
+		window.addEventListener('select-linked-items', handleSelectLinkedItemsEvent);
 		
 		// Set up ResizeObserver to recompute fit scale when the viewport dimensions change
 		// (e.g. user resizes the window or toggles the studies/commentary panels)
@@ -3071,6 +3077,7 @@
 			window.removeEventListener('select-all-columns', handleSelectAllColumnsEvent);
 			window.removeEventListener('select-all-sections', handleSelectAllSectionsEvent);
 			window.removeEventListener('select-all-segments', handleSelectAllSegmentsEvent);
+			window.removeEventListener('select-linked-items', handleSelectLinkedItemsEvent);
 			resizeObserver?.disconnect();
 		};
 	});
@@ -4138,6 +4145,59 @@
 		selectedWord = null;
 		suppressHoverCaret = null;
 	}
+
+	/**
+	 * Every member of the link groups the current selection belongs to, by kind — the
+	 * same groups the dashed outlines show (selectedLinkGroups). Columns gather both
+	 * their width and spacing groups. Members not already selected are the ones that
+	 * "Select Linked Items" would add.
+	 * @returns {{ columns: string[], sections: string[], segments: string[] }}
+	 */
+	function getLinkedMemberIds() {
+		const groups = selectedLinkGroups;
+		const { columns, sections, segments } = linkGroupIndex;
+		const columnIds = [...columns]
+			.filter(([, g]) => (g.width && groups.columnWidth.has(g.width)) || (g.spacing && groups.columnSpacing.has(g.spacing)))
+			.map(([id]) => id);
+		const sectionIds = [...sections].filter(([, g]) => g && groups.sectionSpacing.has(g)).map(([id]) => id);
+		const segmentIds = [...segments].filter(([, g]) => g && groups.segmentHeight.has(g)).map(([id]) => id);
+		return { columns: columnIds, sections: sectionIds, segments: segmentIds };
+	}
+
+	/**
+	 * Selection → Select Linked Items: ADD every member of the selected items' link
+	 * groups to the current selection (nothing already selected is dropped). Columns,
+	 * sections and segments are expanded independently.
+	 */
+	function handleSelectLinkedItems() {
+		const linked = getLinkedMemberIds();
+		const columnIds = [...new Set([...activeColumns, ...linked.columns])];
+		const sectionIds = [...new Set([...activeSections, ...linked.sections])];
+		const selectedSegmentIds = new Set(activeSegments.map((s) => s.segmentId));
+		const addedSegments = getAllSegmentsInStudy().filter(
+			(s) => linked.segments.includes(s.segmentId) && !selectedSegmentIds.has(s.segmentId)
+		);
+
+		setActiveConnection(false, []);
+		setHeadingOrNoteEditorActive(false, null);
+		activeColumns = columnIds;
+		activeSections = sectionIds;
+		activeSegments = [...activeSegments, ...addedSegments];
+		selectedWord = null;
+		suppressHoverCaret = null;
+	}
+
+	// Enable "Select Linked Items" only when the selection has linked members that
+	// aren't selected yet (so the command always does something).
+	$effect(() => {
+		const linked = getLinkedMemberIds();
+		const selectedSegmentIds = new Set(activeSegments.map((s) => s.segmentId));
+		const canSelect =
+			linked.columns.some((id) => !activeColumns.includes(id)) ||
+			linked.sections.some((id) => !activeSections.includes(id)) ||
+			linked.segments.some((id) => !selectedSegmentIds.has(id));
+		if ($toolbarState.canSelectLinkedItems !== canSelect) setToolbarState('canSelectLinkedItems', canSelect);
+	});
 
 	// ============================================================
 	// HIERARCHICAL SELECTION HANDLER

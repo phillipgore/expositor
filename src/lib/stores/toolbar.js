@@ -162,6 +162,7 @@ async function persistPreference(updates) {
  * @property {boolean} activeConnectionHasBend - Whether any selected connection has a manual line shape (enables "Reset Connection Shape")
  * @property {boolean} activeConnectionHasPlacedPoints - Whether any selected connection has a user-placed connection point (enables "Reset Connection Points")
  * @property {'curved'|'straight'|'cornered'|null} activeConnectionRoute - Line shape shared by every selected connection, or null when none/mixed (drives the Connect menu's shape checkmark)
+ * @property {boolean} canSelectLinkedItems - Whether Selection → Select Linked Items would add anything (the selection has linked members not yet selected)
  * @property {'top'|'right'|'bottom'|'left'|null} activeConnectionNoteSide - Quick-note anchor side shared by every selected connection that has a note, or null when none/mixed (drives the Connect menu's side checkmark)
  * @property {boolean} hasActiveHeading - Whether a heading (passage_heading row) is currently selected for commentary
  * @property {string|null} activeHeadingId - The ID of the currently selected heading row
@@ -324,6 +325,7 @@ const defaultState = {
 	activeConnectionHasPlacedPoints: false,
 	activeConnectionRoute: null,
 	activeConnectionNoteSide: null,
+	canSelectLinkedItems: false,
 	// A heading (passage_heading row) selected via its hover select button, for
 	// attaching commentary. Independent of the heading EDITOR (edit-the-text) state.
 	hasActiveHeading: false,
